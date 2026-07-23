@@ -1,0 +1,86 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="950" viewBox="0 0 1600 950" role="img" aria-labelledby="title desc">
+  <title id="title">RFQ Marketplace Terraform infrastructure</title>
+  <desc id="desc">AWS-style infrastructure view showing remote Terraform state, separate development and production roots, reusable infrastructure modules, GitHub Actions OIDC, and the boundary between provisioning and application deployment.</desc>
+  <defs>
+    <style>
+      text{font-family:Arial,Helvetica,sans-serif;fill:#172033}
+      .title{font-size:32px;font-weight:700}.subtitle{font-size:17px;fill:#5c667a}
+      .boundary{fill:#f7f8fa;stroke:#87909f;stroke-width:2}.group{fill:#fff;stroke:#c6cad1;stroke-width:2}
+      .service{fill:#fff;stroke-width:3}.edge{stroke:#8c4fff}.compute{stroke:#ed7100}.storage{stroke:#3f8624}.security{stroke:#dd344c}.delivery{stroke:#147eba}
+      .name{font-size:19px;font-weight:700;text-anchor:middle}.detail{font-size:15px;fill:#5c667a;text-anchor:middle}
+      .label{font-size:18px;font-weight:700}.arrow{fill:none;stroke:#4f596a;stroke-width:3;marker-end:url(#arrow)}
+      .arrow-state{stroke:#3f8624;stroke-dasharray:8 6}.arrow-delivery{stroke:#147eba}.note{font-size:14px;fill:#5c667a}
+    </style>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto"><path d="M0 0L10 5L0 10Z" fill="#4f596a"/></marker>
+  </defs>
+  <rect width="1600" height="950" fill="#ffffff"/>
+  <text class="title" x="60" y="62">RFQ Marketplace — Terraform Infrastructure</text>
+  <text class="subtitle" x="60" y="94">Separate environment roots · reusable modules · encrypted remote state · temporary CI credentials</text>
+
+  <rect class="boundary" x="35" y="150" width="340" height="260" rx="20"/>
+  <text class="label" x="65" y="190">Bootstrap lifecycle</text>
+  <rect class="service storage" x="95" y="245" width="220" height="105" rx="14"/>
+  <text class="name" x="205" y="283">Terraform state S3</text>
+  <text class="detail" x="205" y="313">Private · encrypted · versioned</text>
+  <text class="detail" x="205" y="336">Native S3 lockfile</text>
+
+  <rect class="boundary" x="430" y="150" width="1120" height="675" rx="20"/>
+  <text class="label" x="460" y="190">Environment composition — applied independently for dev and prod</text>
+
+  <rect class="service delivery" x="55" y="560" width="280" height="105" rx="14"/>
+  <text class="name" x="195" y="600">GitHub Actions</text>
+  <text class="detail" x="195" y="630">OIDC temporary credentials</text>
+  <text class="detail" x="195" y="651">Plan · approval · deploy</text>
+
+  <rect class="service security" x="515" y="240" width="310" height="105" rx="14"/>
+  <text class="name" x="670" y="280">Environment root</text>
+  <text class="detail" x="670" y="310">providers · versions · variables</text>
+  <text class="detail" x="670" y="332">separate state key per environment</text>
+
+  <rect class="service compute" x="500" y="440" width="235" height="100" rx="14"/>
+  <text class="name" x="617" y="480">lightsail-host</text>
+  <text class="detail" x="617" y="510">Instance · IP · firewall</text>
+
+  <rect class="service edge" x="785" y="440" width="235" height="100" rx="14"/>
+  <text class="name" x="902" y="480">frontend</text>
+  <text class="detail" x="902" y="510">S3 · CloudFront · ACM</text>
+
+  <rect class="service storage" x="1070" y="440" width="235" height="100" rx="14"/>
+  <text class="name" x="1187" y="480">attachments</text>
+  <text class="detail" x="1187" y="510">Private S3 · lifecycle</text>
+
+  <rect class="service edge" x="500" y="650" width="235" height="100" rx="14"/>
+  <text class="name" x="617" y="690">dns</text>
+  <text class="detail" x="617" y="720">Route 53 records</text>
+
+  <rect class="service delivery" x="785" y="650" width="235" height="100" rx="14"/>
+  <text class="name" x="902" y="690">email</text>
+  <text class="detail" x="902" y="720">SES · DKIM records</text>
+
+  <rect class="service security" x="1070" y="650" width="235" height="100" rx="14"/>
+  <text class="name" x="1187" y="690">identity-federation</text>
+  <text class="detail" x="1187" y="720">OIDC · deployment roles</text>
+
+  <path class="arrow arrow-delivery" d="M335 600C450 520 470 355 545 310"/>
+  <path class="arrow arrow-state" d="M515 275C420 230 340 270 315 295"/>
+  <path class="arrow" d="M600 345L617 440"/>
+  <path class="arrow" d="M670 345C720 395 820 405 880 440"/>
+  <path class="arrow" d="M730 345C875 380 1100 390 1165 440"/>
+  <path class="arrow" d="M590 345C525 480 545 585 600 650"/>
+  <path class="arrow" d="M670 345C705 500 830 580 885 650"/>
+  <path class="arrow" d="M735 345C945 455 1110 565 1170 650"/>
+
+  <rect class="group" x="1360" y="260" width="150" height="360" rx="16"/>
+  <text class="label" x="1382" y="300">Boundary</text>
+  <text class="note" x="1382" y="345">Terraform:</text>
+  <text class="note" x="1382" y="375">• provisions</text>
+  <text class="note" x="1382" y="400">• configures</text>
+  <text class="note" x="1382" y="425">• outputs</text>
+  <text class="note" x="1382" y="475">Deployment:</text>
+  <text class="note" x="1382" y="505">• builds API</text>
+  <text class="note" x="1382" y="530">• migrates DB</text>
+  <text class="note" x="1382" y="555">• uploads SPA</text>
+  <text class="note" x="1382" y="580">• smoke tests</text>
+
+  <text class="note" x="470" y="875">No secrets in Terraform state inputs, cloud-init, repository, or container images · production apply requires approval</text>
+</svg>

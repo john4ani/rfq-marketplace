@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>RFQ Marketplace — AWS Architecture Diagrams</title>
+  <style>
+    :root{color-scheme:light dark;font-family:Inter,Segoe UI,Arial,sans-serif}
+    body{margin:0;background:#f4f5f7;color:#172033}
+    main{max-width:1500px;margin:auto;padding:32px}
+    header{margin-bottom:28px}
+    h1{margin:0 0 8px;font-size:30px}
+    p{color:#5c667a;margin:0}
+    nav{display:flex;gap:10px;flex-wrap:wrap;margin:24px 0}
+    button{border:1px solid #aab0bb;border-radius:8px;padding:10px 15px;background:#fff;color:#172033;cursor:pointer;font-weight:600}
+    button[aria-pressed=true]{background:#172033;color:#fff;border-color:#172033}
+    section{background:#fff;border:1px solid #d8dbe1;border-radius:14px;padding:14px;box-shadow:0 3px 12px rgba(23,32,51,.07)}
+    object{display:block;width:100%;min-height:600px}
+    [hidden]{display:none}
+    @media(prefers-color-scheme:dark){
+      body{background:#11151d;color:#eef1f6}
+      p{color:#aab2c0}
+      section,button{background:#1b2230;color:#eef1f6;border-color:#3a4558}
+      button[aria-pressed=true]{background:#eef1f6;color:#172033}
+    }
+    @media(max-width:700px){main{padding:18px}object{min-height:390px}}
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <h1>RFQ Marketplace — AWS Architecture</h1>
+      <p>Visual deployment and infrastructure views for the low-cost AWS MVP.</p>
+    </header>
+    <nav aria-label="Diagram selection">
+      <button type="button" data-target="runtime" aria-pressed="true">Runtime deployment</button>
+      <button type="button" data-target="terraform" aria-pressed="false">Terraform infrastructure</button>
+    </nav>
+    <section id="runtime">
+      <object data="aws-runtime-deployment.svg" type="image/svg+xml" aria-label="AWS runtime deployment diagram">
+        <a href="aws-runtime-deployment.svg">Open the runtime deployment diagram</a>
+      </object>
+    </section>
+    <section id="terraform" hidden>
+      <object data="aws-terraform-infrastructure.svg" type="image/svg+xml" aria-label="Terraform infrastructure diagram">
+        <a href="aws-terraform-infrastructure.svg">Open the Terraform infrastructure diagram</a>
+      </object>
+    </section>
+  </main>
+  <script>
+    const buttons=[...document.querySelectorAll("button[data-target]")];
+    const sections=[...document.querySelectorAll("main > section")];
+    buttons.forEach(button=>button.addEventListener("click",()=>{
+      buttons.forEach(candidate=>candidate.setAttribute("aria-pressed",String(candidate===button)));
+      sections.forEach(section=>section.hidden=section.id!==button.dataset.target);
+    }));
+  </script>
+</body>
+</html>
