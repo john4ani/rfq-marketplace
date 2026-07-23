@@ -1,0 +1,14 @@
+@Marketplace.Api_HostAddress = https://localhost:7104
+
+GET {{Marketplace.Api_HostAddress}}/health/live
+Accept: application/json
+
+###
+
+GET {{Marketplace.Api_HostAddress}}/health/ready
+Accept: application/json
+
+###
+
+GET {{Marketplace.Api_HostAddress}}/openapi/v1.json
+Accept: application/json

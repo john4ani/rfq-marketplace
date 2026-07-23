@@ -1,0 +1,45 @@
+# Build output
+**/bin/
+**/obj/
+artifacts/
+
+# IDE and user settings
+.vs/
+.vscode/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+
+# Frontend
+**/node_modules/
+**/dist/
+**/.angular/
+coverage/
+
+# Local configuration and secrets
+.env
+.env.*
+!.env.example
+appsettings.Local.json
+**/appsettings.Local.json
+*.pfx
+*.pem
+
+# Docker and database
+*.pid
+*.log
+postgres-data/
+
+# Terraform
+**/.terraform/
+*.tfstate
+*.tfstate.*
+*.tfplan
+*.tfvars
+!*.tfvars.example
+crash.log
+
+# OS
+.DS_Store
+Thumbs.db

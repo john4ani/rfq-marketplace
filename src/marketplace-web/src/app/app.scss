@@ -1,0 +1,49 @@
+:host {
+  display: block;
+  min-height: 100vh;
+  color: #172033;
+  background: #f6f7f9;
+}
+
+.shell-header {
+  padding: 1rem clamp(1rem, 5vw, 4rem);
+  border-bottom: 1px solid #dfe3e8;
+  background: #ffffff;
+}
+
+.brand {
+  color: inherit;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.shell-content {
+  display: grid;
+  min-height: calc(100vh - 58px);
+  padding: clamp(2rem, 8vw, 7rem) clamp(1rem, 8vw, 8rem);
+  place-items: start;
+}
+
+section {
+  max-width: 42rem;
+}
+
+.eyebrow {
+  margin: 0 0 0.5rem;
+  color: #596579;
+  font-size: 0.875rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+h1 {
+  margin: 0;
+  font-size: clamp(2rem, 5vw, 4rem);
+  line-height: 1.05;
+}
+
+p {
+  font-size: 1.125rem;
+  line-height: 1.6;
+}
