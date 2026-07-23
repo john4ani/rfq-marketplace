@@ -1,14 +1,19 @@
+using Marketplace.Infrastructure.Identity;
+using Microsoft.AspNetCore.Identity;
+using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
 
 namespace Marketplace.Infrastructure.Persistence;
 
 public sealed class MarketplaceDbContext(DbContextOptions<MarketplaceDbContext> options)
-    : DbContext(options)
+    : IdentityDbContext<ApplicationUser, IdentityRole<Guid>, Guid>(options)
 {
-    protected override void OnModelCreating(ModelBuilder modelBuilder)
+    public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();
+
+    protected override void OnModelCreating(ModelBuilder builder)
     {
-        ArgumentNullException.ThrowIfNull(modelBuilder);
-        modelBuilder.ApplyConfigurationsFromAssembly(typeof(MarketplaceDbContext).Assembly);
-        base.OnModelCreating(modelBuilder);
+        ArgumentNullException.ThrowIfNull(builder);
+        base.OnModelCreating(builder);
+        builder.ApplyConfigurationsFromAssembly(typeof(MarketplaceDbContext).Assembly);
     }
 }

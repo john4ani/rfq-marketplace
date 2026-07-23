@@ -1,11 +1,26 @@
 @Marketplace.Api_HostAddress = https://localhost:7104
+@email = buyer@example.test
+@password = StrongPassword!123
 
-GET {{Marketplace.Api_HostAddress}}/health/live
-Accept: application/json
+POST {{Marketplace.Api_HostAddress}}/api/v1/auth/register/buyer
+Content-Type: application/json
+
+{ "email": "{{email}}", "password": "{{password}}" }
 
 ###
 
-GET {{Marketplace.Api_HostAddress}}/health/ready
+POST {{Marketplace.Api_HostAddress}}/api/v1/auth/login
+Content-Type: application/json
+
+{ "email": "{{email}}", "password": "{{password}}", "accountType": "Buyer" }
+
+###
+
+POST {{Marketplace.Api_HostAddress}}/api/v1/auth/refresh
+
+###
+
+GET {{Marketplace.Api_HostAddress}}/health/live
 Accept: application/json
 
 ###

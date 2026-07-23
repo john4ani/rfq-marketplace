@@ -2,7 +2,7 @@
 
 A production-oriented MVP for construction-material requests for quotation. Buyers publish structured RFQs, relevant suppliers submit comparable offers, and buyers select one offer.
 
-Milestone 1 establishes the repository and local development foundation only. Marketplace business features begin in later milestones.
+The repository and local development foundation are complete. Milestone 1 adds identity and authentication; marketplace profile and RFQ features follow incrementally.
 
 ## Technology baseline
 
