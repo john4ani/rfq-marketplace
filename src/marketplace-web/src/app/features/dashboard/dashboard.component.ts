@@ -1,22 +1,28 @@
 import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/core';
 import { Router } from '@angular/router';
 import { AuthService } from '../../core/auth/auth.service';
+import { AccountSwitcherComponent } from '../profiles/account-switcher.component';
+import { ProfileEditorComponent } from '../profiles/profile-editor.component';
 
 @Component({
   selector: 'app-dashboard',
-  template: `<section>
-    <p class="eyebrow">Contul meu</p>
-    <h1>Panoul marketplace</h1>
-    <p>Profilul și funcționalitățile marketplace vor fi adăugate în etapele următoare.</p>
-    @if (error()) { <p class="error" role="alert">{{ error() }}</p> }
-    <button type="button" (click)="signOut()" [disabled]="signingOut()">
+  imports: [AccountSwitcherComponent, ProfileEditorComponent],
+  template: `<section class="dashboard-intro">
+    <div><p class="eyebrow">Contul meu</p>
+    <h1>Bine ai venit</h1>
+    <app-account-switcher /></div>
+    <button class="secondary" type="button" (click)="signOut()" [disabled]="signingOut()">
       {{ signingOut() ? 'Deconectare…' : 'Deconectare' }}
     </button>
+  </section>
+  <section class="dashboard-content">
+    <app-profile-editor />
+    @if (error()) { <p class="error" role="alert">{{ error() }}</p> }
   </section>`,
   changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class DashboardComponent {
-  private readonly auth = inject(AuthService);
+  readonly auth = inject(AuthService);
   private readonly router = inject(Router);
   readonly signingOut = signal(false);
   readonly error = signal('');

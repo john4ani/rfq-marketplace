@@ -2,7 +2,7 @@
 
 A production-oriented MVP for construction-material requests for quotation. Buyers publish structured RFQs, relevant suppliers submit comparable offers, and buyers select one offer.
 
-The repository and local development foundation are complete. Milestone 1 adds identity and authentication; marketplace profile and RFQ features follow incrementally.
+The repository foundation and Milestone 1 identity are complete. Milestone 2 adds Buyer and Supplier profiles with Romanian-first forms and secure profile switching.
 
 ## Technology baseline
 

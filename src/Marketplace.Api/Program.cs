@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using System.Threading.RateLimiting;
 using Marketplace.Api.Health;
 using Marketplace.Api.Middleware;
@@ -11,7 +12,8 @@ WebApplicationBuilder builder = WebApplication.CreateBuilder(args);
 builder.Logging.ClearProviders();
 builder.Logging.AddJsonConsole(options => { options.IncludeScopes = true; options.TimestampFormat = "O"; options.JsonWriterOptions = new JsonWriterOptions { Indented = false }; });
 builder.Services.AddProblemDetails();
-builder.Services.AddControllers();
+builder.Services.AddControllers().AddJsonOptions(options =>
+    options.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter()));
 builder.Services.AddOpenApi();
 builder.Services.AddInfrastructure(builder.Configuration);
 string frontendOrigin = builder.Configuration["Frontend:Origin"]

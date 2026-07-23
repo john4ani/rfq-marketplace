@@ -6,7 +6,7 @@ Status: Implemented, pending review
 
 - ASP.NET Core Identity with PostgreSQL.
 - Buyer and supplier self-registration; administrator self-registration is prohibited.
-- One email address may own both a Buyer account and a Supplier account. Identity uniqueness is `(email, account type)`.
+- One email address and password identify one user. The user may own the Buyer role, Supplier role, or both. Identity uniqueness is the normalized email address.
 - Password recovery token flow. Email verification is intentionally deferred for the MVP.
 - Fifteen-minute JWT access tokens with Buyer, Supplier, or Administrator role claims.
 - Opaque refresh tokens stored only as SHA-256 hashes and rotated on every use.
@@ -17,7 +17,7 @@ Status: Implemented, pending review
 
 ## MVP email assumption
 
-Milestone 1 does not require email verification before login. This keeps registration easy to test while the marketplace hypothesis is still being validated. Login and password recovery require the account type because an email may represent both a Buyer and a Supplier. Password-reset requests return the generated token only in Development; other environments return `202 Accepted` without revealing whether the account exists. SES delivery and optional email verification can be added in a later notification/deployment milestone.
+Milestone 1 does not require email verification before login. This keeps registration easy to test while the marketplace hypothesis is still being validated. Login and password recovery require only the email and password because both profiles belong to the same identity. Password-reset requests return the generated token only in Development; other environments return `202 Accepted` without revealing whether the account exists. SES delivery and optional email verification can be added in a later notification/deployment milestone.
 
 The first product language is Romanian and the first market is Romania. Our development documentation remains in English. UI text is kept outside domain rules so a formal localization mechanism can be introduced later.
 

@@ -2,6 +2,8 @@ using System.Text;
 using Marketplace.Application.Identity;
 using Marketplace.Infrastructure.Identity;
 using Marketplace.Infrastructure.Persistence;
+using Marketplace.Application.Profiles;
+using Marketplace.Infrastructure.Profiles;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
@@ -20,7 +22,7 @@ public static class DependencyInjection
         services.AddDbContext<MarketplaceDbContext>(options => options.UseNpgsql(connectionString, npgsql => npgsql.MigrationsAssembly(typeof(MarketplaceDbContext).Assembly.FullName)));
         services.AddIdentityCore<ApplicationUser>(options =>
         {
-            options.User.RequireUniqueEmail = false;
+            options.User.RequireUniqueEmail = true;
             options.Password.RequiredLength = 8;
             options.Password.RequireDigit = false;
             options.Password.RequireLowercase = false;
@@ -39,6 +41,7 @@ public static class DependencyInjection
         services.AddAuthorization();
         services.AddSingleton(TimeProvider.System);
         services.AddScoped<IIdentityService, IdentityService>();
+        services.AddScoped<IProfileService, ProfileService>();
         return services;
     }
 }

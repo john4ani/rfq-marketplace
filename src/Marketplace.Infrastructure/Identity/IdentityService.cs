@@ -20,19 +20,27 @@ public sealed class IdentityService(
 {
     private readonly JwtOptions _options = options.Value;
 
-    public async Task<RegistrationResult> RegisterAsync(string email, string password, string role, CancellationToken cancellationToken)
+    public async Task<RegistrationResult> RegisterAsync(string email, string password, IReadOnlyCollection<string> roles, CancellationToken cancellationToken)
     {
-        if (role is not (MarketplaceRoles.Buyer or MarketplaceRoles.Supplier))
-            return new(false, ["Only buyer and supplier self-registration is allowed."]);
+        string[] selectedRoles = roles.Distinct(StringComparer.Ordinal).ToArray();
+        if (selectedRoles.Length == 0 || selectedRoles.Any(role => role is not (MarketplaceRoles.Buyer or MarketplaceRoles.Supplier)))
+            return new(false, ["Selectați profilul Cumpărător, Furnizor sau ambele."]);
 
         string normalizedEmail = email.Trim();
-        var user = new ApplicationUser { Id = Guid.NewGuid(), UserName = AccountName(normalizedEmail, role), Email = normalizedEmail, CreatedAt = timeProvider.GetUtcNow() };
+        List<ApplicationUser> matchingUsers = await userManager.Users
+            .Where(user => user.NormalizedEmail == userManager.NormalizeEmail(normalizedEmail))
+            .ToListAsync(cancellationToken);
+        if (matchingUsers.Count > 0)
+            return new(false, ["Există deja un utilizator pentru această adresă de e-mail. Autentificați-vă pentru a folosi profilurile existente."]);
+
+        Guid userId = Guid.NewGuid();
+        var user = new ApplicationUser { Id = userId, UserName = normalizedEmail, Email = normalizedEmail, CreatedAt = timeProvider.GetUtcNow() };
         IdentityResult created = await userManager.CreateAsync(user, password);
         if (!created.Succeeded)
         {
             string[] errors = created.Errors.Select(error => error.Code switch
             {
-                "DuplicateEmail" or "DuplicateUserName" => $"Există deja un cont de tip {RoleLabel(role)} pentru această adresă de e-mail.",
+                "DuplicateEmail" or "DuplicateUserName" => "Există deja un utilizator pentru această adresă de e-mail.",
                 "InvalidEmail" or "InvalidUserName" => "Introduceți o adresă de e-mail validă.",
                 "PasswordTooShort" => "Parola trebuie să conțină cel puțin 8 caractere.",
                 _ => error.Description
@@ -40,7 +48,7 @@ public sealed class IdentityService(
             return new(false, errors);
         }
 
-        IdentityResult assigned = await userManager.AddToRoleAsync(user, role);
+        IdentityResult assigned = await userManager.AddToRolesAsync(user, selectedRoles);
         if (!assigned.Succeeded)
         {
             await userManager.DeleteAsync(user);
@@ -50,10 +58,9 @@ public sealed class IdentityService(
         return new(true, []);
     }
 
-    public async Task<AuthenticationResult?> LoginAsync(string email, string password, string role, CancellationToken cancellationToken)
+    public async Task<AuthenticationResult?> LoginAsync(string email, string password, CancellationToken cancellationToken)
     {
-        if (role is not (MarketplaceRoles.Buyer or MarketplaceRoles.Supplier)) return null;
-        ApplicationUser? user = await userManager.FindByNameAsync(AccountName(email.Trim(), role));
+        ApplicationUser? user = await userManager.FindByEmailAsync(email.Trim());
         if (user is null || !await userManager.CheckPasswordAsync(user, password)) return null;
         return await IssueAsync(user, Guid.NewGuid(), cancellationToken);
     }
@@ -79,6 +86,17 @@ public sealed class IdentityService(
         return result;
     }
 
+    public async Task<IReadOnlyCollection<LinkedAccount>> GetLinkedAccountsAsync(Guid currentUserId, CancellationToken cancellationToken)
+    {
+        ApplicationUser? current = await userManager.FindByIdAsync(currentUserId.ToString());
+        if (current is null) return [];
+        var result = new List<LinkedAccount>();
+        foreach (string accountRole in await userManager.GetRolesAsync(current))
+            if (accountRole is MarketplaceRoles.Buyer or MarketplaceRoles.Supplier)
+                result.Add(new(current.Id, current.Email!, accountRole));
+        return result;
+    }
+
     public async Task RevokeAsync(string refreshToken, CancellationToken cancellationToken)
     {
         string hash = Hash(refreshToken);
@@ -90,15 +108,15 @@ public sealed class IdentityService(
         }
     }
 
-    public async Task<string?> CreatePasswordResetTokenAsync(string email, string role, CancellationToken cancellationToken)
+    public async Task<string?> CreatePasswordResetTokenAsync(string email, CancellationToken cancellationToken)
     {
-        ApplicationUser? user = await userManager.FindByNameAsync(AccountName(email.Trim(), role));
+        ApplicationUser? user = await userManager.FindByEmailAsync(email.Trim());
         return user is null ? null : await userManager.GeneratePasswordResetTokenAsync(user);
     }
 
-    public async Task<bool> ResetPasswordAsync(string email, string role, string token, string newPassword, CancellationToken cancellationToken)
+    public async Task<bool> ResetPasswordAsync(string email, string token, string newPassword, CancellationToken cancellationToken)
     {
-        ApplicationUser? user = await userManager.FindByNameAsync(AccountName(email.Trim(), role));
+        ApplicationUser? user = await userManager.FindByEmailAsync(email.Trim());
         return user is not null && (await userManager.ResetPasswordAsync(user, token, newPassword)).Succeeded;
     }
 
@@ -125,6 +143,4 @@ public sealed class IdentityService(
 
     private static string CreateOpaqueToken() => Convert.ToBase64String(RandomNumberGenerator.GetBytes(64));
     private static string Hash(string token) => Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(token)));
-    private static string AccountName(string email, string role) => $"{role}+{email}".ToUpperInvariant();
-    private static string RoleLabel(string role) => role == MarketplaceRoles.Supplier ? "Furnizor" : "Cumpărător";
 }

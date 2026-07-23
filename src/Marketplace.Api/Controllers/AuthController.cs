@@ -14,17 +14,23 @@ public sealed class AuthController(IIdentityService identityService, IWebHostEnv
 {
     [HttpPost("register/buyer")]
     public Task<IActionResult> RegisterBuyer(RegisterRequest request, CancellationToken cancellationToken) =>
-        Register(request, MarketplaceRoles.Buyer, cancellationToken);
+        Register(request, [MarketplaceRoles.Buyer], cancellationToken);
 
     [HttpPost("register/supplier")]
     public Task<IActionResult> RegisterSupplier(RegisterRequest request, CancellationToken cancellationToken) =>
-        Register(request, MarketplaceRoles.Supplier, cancellationToken);
+        Register(request, [MarketplaceRoles.Supplier], cancellationToken);
+
+    [HttpPost("register")]
+    public Task<IActionResult> RegisterProfiles(RegisterProfilesRequest request, CancellationToken cancellationToken) =>
+        Register(new RegisterRequest(request.Email, request.Password), request.AccountTypes, cancellationToken);
 
     [HttpPost("login")]
     public async Task<IActionResult> Login(LoginRequest request, CancellationToken cancellationToken)
     {
-        AuthenticationResult? result = await identityService.LoginAsync(request.Email, request.Password, request.AccountType, cancellationToken);
-        if (result is null) return Unauthorized(Problem(title: "Adresa de e-mail, parola sau tipul contului este incorect."));
+        AuthenticationResult? result = await identityService.LoginAsync(request.Email, request.Password, cancellationToken);
+        if (result is null) return Unauthorized(Problem(title: "Adresa de e-mail sau parola este incorectă."));
+        if (Request.Cookies.TryGetValue("refreshToken", out string? currentToken))
+            await identityService.RevokeAsync(currentToken, cancellationToken);
         SetRefreshCookie(result.RefreshToken, result.AccessTokenExpiresAt.AddDays(14));
         return Ok(new TokenResponse(result.AccessToken, result.AccessTokenExpiresAt));
     }
@@ -39,6 +45,15 @@ public sealed class AuthController(IIdentityService identityService, IWebHostEnv
         return Ok(new TokenResponse(result.AccessToken, result.AccessTokenExpiresAt));
     }
 
+    [Authorize]
+    [DisableRateLimiting]
+    [HttpGet("profiles")]
+    public async Task<IActionResult> Profiles(CancellationToken cancellationToken)
+    {
+        if (!CurrentUserId(out Guid userId)) return Unauthorized();
+        return Ok(await identityService.GetLinkedAccountsAsync(userId, cancellationToken));
+    }
+
     [HttpPost("logout")]
     public async Task<IActionResult> Logout(CancellationToken cancellationToken)
     {
@@ -51,22 +66,22 @@ public sealed class AuthController(IIdentityService identityService, IWebHostEnv
     [HttpPost("request-password-reset")]
     public async Task<IActionResult> RequestPasswordReset(EmailRequest request, CancellationToken cancellationToken)
     {
-        string? token = await identityService.CreatePasswordResetTokenAsync(request.Email, request.AccountType, cancellationToken);
+        string? token = await identityService.CreatePasswordResetTokenAsync(request.Email, cancellationToken);
         return Accepted(environment.IsDevelopment() ? new DevelopmentTokenResponse(token) : null);
     }
 
     [HttpPost("reset-password")]
     public async Task<IActionResult> ResetPassword(ResetPasswordRequest request, CancellationToken cancellationToken) =>
-        await identityService.ResetPasswordAsync(request.Email, request.AccountType, request.Token, request.NewPassword, cancellationToken) ? NoContent() : BadRequest(Problem(title: "Cererea de resetare este invalidă sau a expirat."));
+        await identityService.ResetPasswordAsync(request.Email, request.Token, request.NewPassword, cancellationToken) ? NoContent() : BadRequest(Problem(title: "Cererea de resetare este invalidă sau a expirat."));
 
     [Authorize]
     [DisableRateLimiting]
     [HttpGet("me")]
     public IActionResult Me() => Ok(new { userId = User.FindFirst("sub")?.Value, email = User.FindFirst("email")?.Value, roles = User.FindAll(System.Security.Claims.ClaimTypes.Role).Select(claim => claim.Value) });
 
-    private async Task<IActionResult> Register(RegisterRequest request, string role, CancellationToken cancellationToken)
+    private async Task<IActionResult> Register(RegisterRequest request, IReadOnlyCollection<string> roles, CancellationToken cancellationToken)
     {
-        RegistrationResult result = await identityService.RegisterAsync(request.Email, request.Password, role, cancellationToken);
+        RegistrationResult result = await identityService.RegisterAsync(request.Email, request.Password, roles, cancellationToken);
         if (!result.Succeeded)
             return ValidationProblem(new ValidationProblemDetails(
                 new Dictionary<string, string[]> { ["registration"] = result.Errors.ToArray() })
@@ -78,12 +93,18 @@ public sealed class AuthController(IIdentityService identityService, IWebHostEnv
 
     private void SetRefreshCookie(string value, DateTimeOffset expires) => Response.Cookies.Append("refreshToken", value, new CookieOptions { HttpOnly = true, Secure = !environment.IsDevelopment(), SameSite = SameSiteMode.Strict, Expires = expires, Path = "/api/v1/auth" });
     private void DeleteRefreshCookie() => Response.Cookies.Delete("refreshToken", new CookieOptions { Path = "/api/v1/auth" });
+    private bool CurrentUserId(out Guid userId)
+    {
+        string? subject = User.FindFirst("sub")?.Value ?? User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+        return Guid.TryParse(subject, out userId);
+    }
 }
 
 public sealed record RegisterRequest([Required, EmailAddress] string Email, [Required, MinLength(8)] string Password);
-public sealed record LoginRequest([Required, EmailAddress] string Email, [Required] string Password, [Required] string AccountType);
-public sealed record EmailRequest([Required, EmailAddress] string Email, [Required] string AccountType);
+public sealed record RegisterProfilesRequest([Required, EmailAddress] string Email, [Required, MinLength(8)] string Password, [Required, MinLength(1)] string[] AccountTypes);
+public sealed record LoginRequest([Required, EmailAddress] string Email, [Required] string Password);
+public sealed record EmailRequest([Required, EmailAddress] string Email);
 public sealed record TokenRequest([Required, EmailAddress] string Email, [Required] string Token);
-public sealed record ResetPasswordRequest([Required, EmailAddress] string Email, [Required] string AccountType, [Required] string Token, [Required, MinLength(8)] string NewPassword);
+public sealed record ResetPasswordRequest([Required, EmailAddress] string Email, [Required] string Token, [Required, MinLength(8)] string NewPassword);
 public sealed record TokenResponse(string AccessToken, DateTimeOffset ExpiresAt);
 public sealed record DevelopmentTokenResponse(string? Token);

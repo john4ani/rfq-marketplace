@@ -12,8 +12,8 @@ Errors: RFC 7807 Problem Details
 | Area | Main endpoints | Access |
 |---|---|---|
 | Authentication | `/auth/register/*`, `/auth/login`, `/auth/refresh`, `/auth/logout`, verification/reset | Public or authenticated self |
-| Buyer profile | `GET/PUT /buyers/me` | Buyer |
-| Supplier profile | `GET/PUT /suppliers/me`, categories, delivery settings, preferences | Supplier |
+| Buyer profile | `GET/PUT /buyers/{buyerId}` | Owning Buyer |
+| Supplier profile | `GET/PUT /suppliers/{supplierId}` | Owning Supplier |
 | Categories | `GET /categories` | Authenticated; public exposure may be allowed |
 | Buyer RFQs | `/rfqs`, `/rfqs/{id}`, items, publish, cancel, close | Owning buyer |
 | Supplier discovery | `/supplier/rfqs` | Approved active supplier |
@@ -59,17 +59,19 @@ Every resource action applies backend ownership checks. A role alone is insuffic
 ```text
 POST   /api/v1/auth/register/buyer
 POST   /api/v1/auth/register/supplier
+POST   /api/v1/auth/register
 POST   /api/v1/auth/verify-email
 POST   /api/v1/auth/login
 POST   /api/v1/auth/refresh
 POST   /api/v1/auth/logout
+GET    /api/v1/auth/profiles
 
-GET    /api/v1/buyers/me
-PUT    /api/v1/buyers/me
-GET    /api/v1/suppliers/me
-PUT    /api/v1/suppliers/me
-PUT    /api/v1/suppliers/me/categories
-PUT    /api/v1/suppliers/me/delivery-settings
+GET    /api/v1/buyers/{buyerId}
+PUT    /api/v1/buyers/{buyerId}
+GET    /api/v1/suppliers/{supplierId}
+PUT    /api/v1/suppliers/{supplierId}
+PUT    /api/v1/suppliers/{supplierId}/categories
+PUT    /api/v1/suppliers/{supplierId}/delivery-settings
 
 GET    /api/v1/categories
 GET    /api/v1/rfqs/mine

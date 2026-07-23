@@ -20,13 +20,11 @@ classDiagram
     }
     class BuyerProfile {
       +UUID Id
-      +UUID UserId
       +BuyerType Type
       +string DisplayName
     }
     class SupplierProfile {
       +UUID Id
-      +UUID UserId
       +ApprovalStatus ApprovalStatus
       +bool IsActive
       +Distance NormalRadius

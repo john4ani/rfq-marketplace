@@ -4,19 +4,44 @@ import { TestBed } from '@angular/core/testing';
 import { AuthService } from './auth.service';
 
 describe('AuthService', () => {
+  function token(payload: object): string {
+    return `header.${btoa(JSON.stringify(payload)).replace(/=/g, '').replace(/\+/g, '-').replace(/\//g, '_')}.signature`;
+  }
+
   it('clears the access token when signing out', () => {
     TestBed.configureTestingModule({ providers: [provideHttpClient(), provideHttpClientTesting()] });
     const service = TestBed.inject(AuthService);
     const http = TestBed.inject(HttpTestingController);
 
-    service.login('buyer@example.test', 'password', 'Buyer').subscribe();
+    service.login('buyer@example.test', 'password').subscribe();
     http.expectOne('/api/v1/auth/login').flush({ accessToken: 'access-token', expiresAt: new Date().toISOString() });
+    http.expectOne('/api/v1/auth/profiles').flush([]);
     expect(service.isAuthenticated()).toBe(true);
 
     service.logout().subscribe();
     http.expectOne('/api/v1/auth/logout').flush(null);
 
     expect(service.isAuthenticated()).toBe(false);
+    http.verify();
+  });
+
+  it('switches locally between the profiles available to one identity', () => {
+    TestBed.configureTestingModule({ providers: [provideHttpClient(), provideHttpClientTesting()] });
+    const service = TestBed.inject(AuthService);
+    const http = TestBed.inject(HttpTestingController);
+    const accessToken = token({ sub: '11111111-1111-1111-1111-111111111111', email: 'same@example.test', role: 'Supplier' });
+
+    service.login('same@example.test', 'password').subscribe();
+    http.expectOne('/api/v1/auth/login').flush({ accessToken, expiresAt: new Date().toISOString() });
+    http.expectOne('/api/v1/auth/profiles').flush([
+      { userId: '11111111-1111-1111-1111-111111111111', email: 'same@example.test', accountType: 'Buyer' },
+      { userId: '11111111-1111-1111-1111-111111111111', email: 'same@example.test', accountType: 'Supplier' }
+    ]);
+
+    expect(service.session()?.accountType).toBe('Buyer');
+    service.switchProfile('Supplier');
+    expect(service.session()?.accountType).toBe('Supplier');
+    http.expectNone('/api/v1/auth/switch-profile');
     http.verify();
   });
 });

@@ -7,7 +7,10 @@ import { HttpErrorResponse } from '@angular/common/http';
 @Component({
   selector: 'app-register', imports: [ReactiveFormsModule, RouterLink],
   template: `<section class="auth-card"><h1>Creează un cont</h1><form [formGroup]="form" (ngSubmit)="submit()">
-    <label>Tipul contului<select formControlName="role"><option value="buyer">Cumpărător</option><option value="supplier">Furnizor</option></select><small>Aceeași adresă de e-mail poate avea câte un cont din fiecare tip.</small></label>
+    <fieldset><legend>Cum vrei să folosești platforma?</legend><div class="role-options">
+      <button type="button" [class.active]="selectedRoles().includes('Buyer')" [attr.aria-pressed]="selectedRoles().includes('Buyer')" (click)="toggleRole('Buyer')"><strong>Cumpărător</strong><span>Hai să economisim bani</span></button>
+      <button type="button" [class.active]="selectedRoles().includes('Supplier')" [attr.aria-pressed]="selectedRoles().includes('Supplier')" (click)="toggleRole('Supplier')"><strong>Furnizor</strong><span>Hai să facem bani</span></button>
+    </div><small>Poți selecta unul sau ambele profiluri.</small></fieldset>
     <label>E-mail<input type="email" formControlName="email" autocomplete="email"><small>Folosește o adresă de e-mail pe care o poți reține.</small></label>
     <label>Parolă<input [type]="showPassword() ? 'text' : 'password'" formControlName="password" autocomplete="new-password"><small>Folosește cel puțin 8 caractere. Nu sunt obligatorii simboluri sau litere mari.</small></label>
     <label class="checkbox-label"><input type="checkbox" [checked]="showPassword()" (change)="showPassword.set(!showPassword())">Arată parola</label>
@@ -18,13 +21,16 @@ import { HttpErrorResponse } from '@angular/common/http';
 })
 export class RegisterComponent {
   private readonly auth = inject(AuthService); readonly message = signal(''); readonly hasError = signal(false); readonly showPassword = signal(false);
-  readonly form = new FormGroup({ role: new FormControl<'buyer'|'supplier'>('buyer', { nonNullable: true }), email: new FormControl('', { nonNullable: true, validators: [Validators.required, Validators.email] }), password: new FormControl('', { nonNullable: true, validators: [Validators.required, Validators.minLength(8)] }) });
+  readonly selectedRoles = signal<('Buyer'|'Supplier')[]>(['Buyer']);
+  readonly form = new FormGroup({ email: new FormControl('', { nonNullable: true, validators: [Validators.required, Validators.email] }), password: new FormControl('', { nonNullable: true, validators: [Validators.required, Validators.minLength(8)] }) });
+  toggleRole(role: 'Buyer'|'Supplier'): void {
+    const roles = this.selectedRoles();
+    this.selectedRoles.set(roles.includes(role) ? roles.filter(value => value !== role) : [...roles, role]);
+  }
   submit(): void {
-    if (this.form.invalid) { this.hasError.set(true); this.message.set('Introduceți un e-mail valid și o parolă de cel puțin 8 caractere.'); return; }
+    if (this.form.invalid || this.selectedRoles().length === 0) { this.hasError.set(true); this.message.set('Selectați cel puțin un profil și introduceți un e-mail valid și o parolă de cel puțin 8 caractere.'); return; }
     this.message.set(''); this.hasError.set(false);
-    const request = this.form.controls.role.value === 'buyer'
-      ? this.auth.registerBuyer(this.form.controls.email.value, this.form.controls.password.value)
-      : this.auth.registerSupplier(this.form.controls.email.value, this.form.controls.password.value);
+    const request = this.auth.register(this.form.controls.email.value, this.form.controls.password.value, this.selectedRoles());
     request.subscribe({
       next: () => { this.hasError.set(false); this.message.set('Contul a fost creat. Vă puteți autentifica acum.'); },
       error: (response: HttpErrorResponse) => { this.hasError.set(true); this.message.set(this.registrationError(response)); }

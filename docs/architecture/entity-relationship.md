@@ -40,7 +40,8 @@ erDiagram
 
     USERS {
       uuid id PK
-      string normalized_email UK
+      string normalized_user_name UK
+      string normalized_email
       string status
       timestamptz created_at
     }
@@ -53,15 +54,13 @@ erDiagram
       timestamptz revoked_at
     }
     BUYER_PROFILES {
-      uuid id PK
-      uuid user_id FK,UK
+      uuid id PK,FK
       string display_name
       string buyer_type
       string county_code
     }
     SUPPLIER_PROFILES {
-      uuid id PK
-      uuid user_id FK,UK
+      uuid id PK,FK
       string trading_name
       string approval_status
       boolean is_active
