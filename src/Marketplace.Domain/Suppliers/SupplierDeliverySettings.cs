@@ -8,21 +8,45 @@ public sealed class SupplierDeliverySettings
     public int MaximumDeliveryRadiusKm { get; private set; }
     public decimal? MinimumOrderValue { get; private set; }
     public bool NationwideDelivery { get; private set; }
+    public bool CanFulfillMultiCategoryRequests { get; private set; }
     public DateTimeOffset UpdatedAt { get; private set; }
 
-    public static SupplierDeliverySettings Create(Guid supplierId, int normalRadius, int maximumRadius, decimal? minimumOrderValue, bool nationwide, DateTimeOffset now)
+    public static SupplierDeliverySettings Create(
+        Guid supplierId,
+        int normalRadius,
+        int maximumRadius,
+        decimal? minimumOrderValue,
+        bool nationwide,
+        bool canFulfillMultiCategoryRequests,
+        DateTimeOffset now)
     {
         Validate(normalRadius, maximumRadius, minimumOrderValue);
-        return new() { SupplierId = supplierId, NormalDeliveryRadiusKm = normalRadius, MaximumDeliveryRadiusKm = maximumRadius, MinimumOrderValue = minimumOrderValue, NationwideDelivery = nationwide, UpdatedAt = now };
+        return new()
+        {
+            SupplierId = supplierId,
+            NormalDeliveryRadiusKm = normalRadius,
+            MaximumDeliveryRadiusKm = maximumRadius,
+            MinimumOrderValue = minimumOrderValue,
+            NationwideDelivery = nationwide,
+            CanFulfillMultiCategoryRequests = canFulfillMultiCategoryRequests,
+            UpdatedAt = now
+        };
     }
 
-    public void Update(int normalRadius, int maximumRadius, decimal? minimumOrderValue, bool nationwide, DateTimeOffset now)
+    public void Update(
+        int normalRadius,
+        int maximumRadius,
+        decimal? minimumOrderValue,
+        bool nationwide,
+        bool canFulfillMultiCategoryRequests,
+        DateTimeOffset now)
     {
         Validate(normalRadius, maximumRadius, minimumOrderValue);
         NormalDeliveryRadiusKm = normalRadius;
         MaximumDeliveryRadiusKm = maximumRadius;
         MinimumOrderValue = minimumOrderValue;
         NationwideDelivery = nationwide;
+        CanFulfillMultiCategoryRequests = canFulfillMultiCategoryRequests;
         UpdatedAt = now;
     }
 

@@ -68,6 +68,19 @@ public sealed class RfqsController(IRfqService rfqService) : ControllerBase
         catch (RfqRuleException exception) { return InvalidRfq(exception.Message); }
     }
 
+    [HttpPost("{rfqId:guid}/extend-deadline")]
+    public async Task<IActionResult> ExtendDeadline(
+        Guid rfqId, ExtendRfqDeadlineRequest request, CancellationToken cancellationToken)
+    {
+        try
+        {
+            Rfq? rfq = await rfqService.ExtendQuotationDeadlineAsync(
+                BuyerId(), rfqId, request.QuotationDeadline, cancellationToken);
+            return rfq is null ? NotFound() : Ok(RfqResponse.From(rfq));
+        }
+        catch (RfqRuleException exception) { return InvalidRfq(exception.Message); }
+    }
+
     private Guid BuyerId()
     {
         string? subject = User.FindFirstValue(JwtRegisteredClaimNames.Sub) ?? User.FindFirstValue(ClaimTypes.NameIdentifier);
@@ -83,42 +96,46 @@ public sealed record RfqRequest(
     string Title, string? ProjectName, string? Description, Guid PrimaryCategoryId,
     string DeliveryAddress, string DeliveryLocality, string County, int? SupplierSearchRadiusKm, decimal? Latitude, decimal? Longitude,
     DateOnly? PreferredDeliveryDate, DateTimeOffset QuotationDeadline, bool AlternativeProductsAccepted,
-    decimal? EstimatedBudget, string? BuyerNotes, IReadOnlyCollection<RfqItemRequest>? Items)
+    decimal? EstimatedBudget, string? BuyerNotes, IReadOnlyCollection<RfqItemRequest>? Items, bool AllowSplit = false)
 {
     public RfqDraft ToDraft() => new(
         Title ?? string.Empty, ProjectName, Description, PrimaryCategoryId,
         DeliveryAddress ?? string.Empty, DeliveryLocality ?? string.Empty, County ?? string.Empty, SupplierSearchRadiusKm ?? 30,
         Latitude, Longitude, PreferredDeliveryDate, QuotationDeadline, AlternativeProductsAccepted,
-        EstimatedBudget, BuyerNotes, Items?.Select(item => item.ToDraft()).ToArray() ?? []);
+        EstimatedBudget, BuyerNotes, Items?.Select(item => item.ToDraft()).ToArray() ?? [], AllowSplit);
 }
 
 public sealed record RfqItemRequest(
     string ProductName, string? ManufacturerOrBrand, string? Specification, decimal Quantity,
-    UnitOfMeasure Unit, bool AlternativesAccepted, string? BuyerNotes)
+    UnitOfMeasure Unit, bool AlternativesAccepted, string? BuyerNotes, Guid? CategoryId)
 {
-    public RfqItemDraft ToDraft() => new(ProductName ?? string.Empty, ManufacturerOrBrand, Specification, Quantity, Unit, AlternativesAccepted, BuyerNotes);
+    public RfqItemDraft ToDraft() => new(ProductName ?? string.Empty, ManufacturerOrBrand, Specification, Quantity, Unit, AlternativesAccepted, BuyerNotes, CategoryId);
 }
+
+public sealed record ExtendRfqDeadlineRequest(DateTimeOffset QuotationDeadline);
 
 public sealed record RfqResponse(
     Guid Id, Guid BuyerId, string Title, string? ProjectName, string? Description, Guid PrimaryCategoryId,
     string DeliveryAddress, string DeliveryLocality, string County, int SupplierSearchRadiusKm, decimal? Latitude, decimal? Longitude,
     DateOnly? PreferredDeliveryDate, DateTimeOffset QuotationDeadline, bool AlternativeProductsAccepted,
-    decimal? EstimatedBudget, string? BuyerNotes, RfqStatus Status, DateTimeOffset CreatedAt,
-    DateTimeOffset UpdatedAt, DateTimeOffset? PublishedAt, DateTimeOffset? ClosedAt, IReadOnlyCollection<RfqItemResponse> Items)
+    decimal? EstimatedBudget, string? BuyerNotes, bool AllowSplit, RfqStatus Status, DateTimeOffset CreatedAt,
+    DateTimeOffset UpdatedAt, DateTimeOffset? PublishedAt, DateTimeOffset? ClosedAt, Guid? SelectedOfferId,
+    int ReopenCount, IReadOnlyCollection<RfqItemResponse> Items)
 {
     public static RfqResponse From(Rfq rfq) => new(
         rfq.Id, rfq.BuyerId, rfq.Title, rfq.ProjectName, rfq.Description, rfq.PrimaryCategoryId,
         rfq.DeliveryAddress, rfq.DeliveryLocality, rfq.County, rfq.SupplierSearchRadiusKm, rfq.Latitude, rfq.Longitude,
         rfq.PreferredDeliveryDate, rfq.QuotationDeadline, rfq.AlternativeProductsAccepted,
-        rfq.EstimatedBudget, rfq.BuyerNotes, rfq.Status, rfq.CreatedAt, rfq.UpdatedAt,
-        rfq.PublishedAt, rfq.ClosedAt, rfq.Items.OrderBy(item => item.ItemNumber).Select(RfqItemResponse.From).ToArray());
+        rfq.EstimatedBudget, rfq.BuyerNotes, rfq.AllowSplit, rfq.Status, rfq.CreatedAt, rfq.UpdatedAt,
+        rfq.PublishedAt, rfq.ClosedAt, rfq.SelectedOfferId, rfq.ReopenCount,
+        rfq.Items.OrderBy(item => item.ItemNumber).Select(RfqItemResponse.From).ToArray());
 }
 
 public sealed record RfqItemResponse(
     Guid Id, int ItemNumber, string ProductName, string? ManufacturerOrBrand, string? Specification,
-    decimal Quantity, UnitOfMeasure Unit, bool AlternativesAccepted, string? BuyerNotes)
+    decimal Quantity, UnitOfMeasure Unit, bool AlternativesAccepted, string? BuyerNotes, Guid? CategoryId)
 {
     public static RfqItemResponse From(RfqItem item) => new(
         item.Id, item.ItemNumber, item.ProductName, item.ManufacturerOrBrand, item.Specification,
-        item.Quantity, item.Unit, item.AlternativesAccepted, item.BuyerNotes);
+        item.Quantity, item.Unit, item.AlternativesAccepted, item.BuyerNotes, item.CategoryId);
 }

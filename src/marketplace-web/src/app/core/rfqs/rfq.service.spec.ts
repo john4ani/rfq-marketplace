@@ -18,4 +18,11 @@ describe('RfqService', () => {
     service.publish('rfq-1').subscribe();
     const request=http.expectOne('/api/v1/rfqs/rfq-1/publish');expect(request.request.method).toBe('POST');request.flush({});
   });
+  it('extends the quotation deadline',()=>{
+    service.extendDeadline('rfq-1','2026-08-01T10:00:00.000Z').subscribe();
+    const request=http.expectOne('/api/v1/rfqs/rfq-1/extend-deadline');
+    expect(request.request.method).toBe('POST');
+    expect(request.request.body).toEqual({quotationDeadline:'2026-08-01T10:00:00.000Z'});
+    request.flush({});
+  });
 });

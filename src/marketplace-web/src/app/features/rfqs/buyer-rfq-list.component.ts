@@ -28,6 +28,7 @@ import { Rfq, RfqService, RfqStatus } from '../../core/rfqs/rfq.service';
               <small>Termen oferte: {{ rfq.quotationDeadline | date:'dd.MM.yyyy, HH:mm' }}</small>
             </div>
             @if (rfq.status === 'Draft') { <a [routerLink]="['/rfqs', rfq.id, 'edit']">Continuă ciorna</a> }
+            @else { <a [routerLink]="['/rfqs', rfq.id, 'offers']">{{ rfq.selectedOfferId ? 'Vezi oferta selectată' : 'Vezi și compară ofertele' }}</a> }
           </article>
         }
       </div>
@@ -52,7 +53,7 @@ export class BuyerRfqListComponent {
     });
   }
   statusLabel(status: RfqStatus): string {
-    return ({ Draft: 'Ciornă', Published: 'Publicată', Cancelled: 'Anulată' })[status];
+    return ({ Draft: 'Ciornă', Published: 'Publicată', ReceivingOffers: 'Primește oferte', OfferSelected: 'Ofertă selectată', Closed: 'Închisă', Cancelled: 'Anulată' })[status];
   }
   private load(): void {
     this.loading.set(true); this.error.set('');

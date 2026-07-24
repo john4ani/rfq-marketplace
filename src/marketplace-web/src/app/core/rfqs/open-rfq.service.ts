@@ -17,6 +17,7 @@ export interface OpenRfq {
   alternativeProductsAccepted: boolean;
   estimatedBudget: number | null;
   publishedAt: string | null;
+  isPartialMatch: boolean;
   items: RfqItem[];
 }
 

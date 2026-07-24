@@ -57,6 +57,7 @@ public sealed record OpenRfqResponse(
     bool AlternativeProductsAccepted,
     decimal? EstimatedBudget,
     DateTimeOffset? PublishedAt,
+    bool IsPartialMatch,
     IReadOnlyCollection<RfqItemResponse> Items)
 {
     public static OpenRfqResponse From(OpenRfq result)
@@ -77,6 +78,8 @@ public sealed record OpenRfqResponse(
             rfq.AlternativeProductsAccepted,
             rfq.EstimatedBudget,
             rfq.PublishedAt,
-            rfq.Items.OrderBy(item => item.ItemNumber).Select(RfqItemResponse.From).ToArray());
+            result.IsPartialMatch,
+            rfq.Items.Where(item => result.MatchingItemIds is null || result.MatchingItemIds.Contains(item.Id))
+                .OrderBy(item => item.ItemNumber).Select(RfqItemResponse.From).ToArray());
     }
 }

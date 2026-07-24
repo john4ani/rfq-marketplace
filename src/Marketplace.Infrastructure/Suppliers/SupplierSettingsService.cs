@@ -67,7 +67,7 @@ public sealed class SupplierSettingsService(MarketplaceDbContext dbContext, Time
             .SingleOrDefaultAsync(item => item.SupplierId == supplierId, cancellationToken);
         string[] counties = await dbContext.SupplierDeliveryAreas.AsNoTracking().Where(area => area.SupplierId == supplierId)
             .OrderBy(area => area.County).Select(area => area.County).ToArrayAsync(cancellationToken);
-        return settings is null ? new(50, 100, null, false, counties) : ToSelection(settings, counties);
+        return settings is null ? new(50, 100, null, false, false, counties) : ToSelection(settings, counties);
     }
 
     public async Task<SupplierDeliverySelection?> SaveDeliverySettingsAsync(Guid supplierId, SupplierDeliveryInput input, CancellationToken cancellationToken)
@@ -77,10 +77,23 @@ public sealed class SupplierSettingsService(MarketplaceDbContext dbContext, Time
         DateTimeOffset now = timeProvider.GetUtcNow();
         if (settings is null)
         {
-            settings = SupplierDeliverySettings.Create(supplierId, input.NormalDeliveryRadiusKm, input.MaximumDeliveryRadiusKm, input.MinimumOrderValue, input.NationwideDelivery, now);
+            settings = SupplierDeliverySettings.Create(
+                supplierId,
+                input.NormalDeliveryRadiusKm,
+                input.MaximumDeliveryRadiusKm,
+                input.MinimumOrderValue,
+                input.NationwideDelivery,
+                input.CanFulfillMultiCategoryRequests,
+                now);
             dbContext.SupplierDeliverySettings.Add(settings);
         }
-        else settings.Update(input.NormalDeliveryRadiusKm, input.MaximumDeliveryRadiusKm, input.MinimumOrderValue, input.NationwideDelivery, now);
+        else settings.Update(
+            input.NormalDeliveryRadiusKm,
+            input.MaximumDeliveryRadiusKm,
+            input.MinimumOrderValue,
+            input.NationwideDelivery,
+            input.CanFulfillMultiCategoryRequests,
+            now);
 
         SupplierDeliveryArea[] currentAreas = await dbContext.SupplierDeliveryAreas.Where(area => area.SupplierId == supplierId).ToArrayAsync(cancellationToken);
         string[] counties = input.NationwideDelivery ? [] : input.Counties.Distinct(StringComparer.Ordinal).Order().ToArray();
@@ -96,7 +109,13 @@ public sealed class SupplierSettingsService(MarketplaceDbContext dbContext, Time
         dbContext.SupplierProfiles.AnyAsync(profile => profile.Id == supplierId, cancellationToken);
 
     private static SupplierDeliverySelection ToSelection(SupplierDeliverySettings settings, IReadOnlyCollection<string> counties) =>
-        new(settings.NormalDeliveryRadiusKm, settings.MaximumDeliveryRadiusKm, settings.MinimumOrderValue, settings.NationwideDelivery, counties);
+        new(
+            settings.NormalDeliveryRadiusKm,
+            settings.MaximumDeliveryRadiusKm,
+            settings.MinimumOrderValue,
+            settings.NationwideDelivery,
+            settings.CanFulfillMultiCategoryRequests,
+            counties);
 
     private static string Slug(string value)
     {

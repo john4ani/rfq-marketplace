@@ -29,6 +29,45 @@ public sealed class RfqTests
         Assert.Throws<RfqRuleException>(() => Rfq.Create(Guid.NewGuid(), Guid.NewGuid(),
             Draft([new("Ciment", null, null, 0, UnitOfMeasure.Bag, true, null)]), Now));
 
+    [Fact]
+    public void RequestCanBeReopenedOnlyOnce()
+    {
+        Rfq rfq = Rfq.Create(Guid.NewGuid(), Guid.NewGuid(), Draft([]), Now);
+        rfq.Publish(Now);
+        rfq.SelectOffer(Guid.NewGuid(), Now.AddMinutes(1));
+        rfq.Reopen("Oferta a fost selectată din greșeală.", null, Now.AddMinutes(2));
+        Assert.Equal(1, rfq.ReopenCount);
+
+        rfq.SelectOffer(Guid.NewGuid(), Now.AddMinutes(3));
+        RfqRuleException exception = Assert.Throws<RfqRuleException>(() =>
+            rfq.Reopen("A doua încercare de redeschidere.", null, Now.AddMinutes(4)));
+        Assert.Contains("deja redeschisă", exception.Message);
+    }
+
+    [Fact]
+    public void PublishedRequestDeadlineCanBeExtended()
+    {
+        Rfq rfq = Rfq.Create(Guid.NewGuid(), Guid.NewGuid(), Draft([]), Now);
+        rfq.Publish(Now);
+
+        rfq.ExtendQuotationDeadline(Now.AddDays(3), Now.AddHours(1));
+
+        Assert.Equal(Now.AddDays(3), rfq.QuotationDeadline);
+        Assert.Equal(Now.AddHours(1), rfq.UpdatedAt);
+    }
+
+    [Fact]
+    public void RequestDeadlineCannotBeShortened()
+    {
+        Rfq rfq = Rfq.Create(Guid.NewGuid(), Guid.NewGuid(), Draft([]), Now);
+        rfq.Publish(Now);
+
+        RfqRuleException exception = Assert.Throws<RfqRuleException>(() =>
+            rfq.ExtendQuotationDeadline(Now.AddDays(1), Now.AddHours(1)));
+
+        Assert.Contains("ulterior termenului curent", exception.Message);
+    }
+
     private static RfqDraft Draft(IReadOnlyCollection<RfqItemDraft> items) => new(
         "Materiale renovare", null, null, Guid.NewGuid(), "Strada Test 1", "Iași", "Iași", 30,
         null, null, null, Now.AddDays(2), true, null, null, items);

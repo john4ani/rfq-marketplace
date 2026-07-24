@@ -38,10 +38,21 @@ public sealed class RfqEndpointTests : IClassFixture<WebApplicationFactory<Progr
         Assert.Equal(HttpStatusCode.OK, (await _client.PutAsJsonAsync($"/api/v1/rfqs/{rfq.Id}", Request(categoryId, "Materiale actualizate", 25))).StatusCode);
         RfqResponse published = (await (await _client.PostAsJsonAsync($"/api/v1/rfqs/{rfq.Id}/publish", new { })).Content.ReadFromJsonAsync<RfqResponse>())!;
         Assert.Equal("Published", published.Status);
+        DateTimeOffset extendedDeadline = DateTimeOffset.UtcNow.AddDays(4);
+        RfqResponse extended = (await (await _client.PostAsJsonAsync(
+            $"/api/v1/rfqs/{rfq.Id}/extend-deadline",
+            new { quotationDeadline = extendedDeadline })).Content.ReadFromJsonAsync<RfqResponse>())!;
+        Assert.Equal(extendedDeadline, extended.QuotationDeadline, TimeSpan.FromSeconds(1));
+        Assert.Equal(HttpStatusCode.BadRequest, (await _client.PostAsJsonAsync(
+            $"/api/v1/rfqs/{rfq.Id}/extend-deadline",
+            new { quotationDeadline = DateTimeOffset.UtcNow.AddDays(3) })).StatusCode);
         Assert.Equal(HttpStatusCode.BadRequest, (await _client.PutAsJsonAsync($"/api/v1/rfqs/{rfq.Id}", draft)).StatusCode);
         RfqResponse[] mine = (await _client.GetFromJsonAsync<RfqResponse[]>("/api/v1/rfqs/mine"))!;
         Assert.Contains(mine, item => item.Id == rfq.Id);
         Assert.Equal(HttpStatusCode.NotFound, (await _client.GetAsync($"/api/v1/rfqs/{Guid.NewGuid()}")).StatusCode);
+        RfqResponse cancelled = (await (await _client.PostAsJsonAsync(
+            $"/api/v1/rfqs/{rfq.Id}/cancel", new { })).Content.ReadFromJsonAsync<RfqResponse>())!;
+        Assert.Equal("Cancelled", cancelled.Status);
     }
 
     private static object Request(Guid categoryId, string title, decimal quantity, bool includeSecondItem = false) => new {
@@ -60,6 +71,7 @@ public sealed class RfqEndpointTests : IClassFixture<WebApplicationFactory<Progr
     }
     private sealed record TokenResponse(string AccessToken, DateTimeOffset ExpiresAt);
     private sealed record CategoryResponse(Guid Id, Guid? ParentId, string Name, string Slug);
-    private sealed record RfqResponse(Guid Id, string Status, int SupplierSearchRadiusKm, RfqItemResponse[] Items);
+    private sealed record RfqResponse(
+        Guid Id, string Status, int SupplierSearchRadiusKm, DateTimeOffset QuotationDeadline, RfqItemResponse[] Items);
     private sealed record RfqItemResponse(Guid Id, string ProductName, decimal Quantity);
 }

@@ -9,6 +9,7 @@ export interface SupplierDeliverySettings {
   maximumDeliveryRadiusKm: number;
   minimumOrderValue: number | null;
   nationwideDelivery: boolean;
+  canFulfillMultiCategoryRequests: boolean;
   counties: string[];
 }
 

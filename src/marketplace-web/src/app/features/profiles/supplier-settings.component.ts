@@ -58,6 +58,11 @@ import { ROMANIAN_COUNTIES } from '../../shared/romanian-counties';
         <label>Valoare minimă a comenzii (lei)<input type="number" min="0" formControlName="minimumOrderValue">
           <small>Opțional. Lasă câmpul gol dacă nu ai o limită.</small></label>
         <label class="checkbox-label"><input type="checkbox" formControlName="nationwideDelivery">Livrez oriunde în România</label>
+        <label class="capability-choice">
+          <input type="checkbox" formControlName="canFulfillMultiCategoryRequests">
+          <span><strong>Pot prelua cereri cu mai multe categorii</strong>
+            <small>Selectează doar dacă poți coordona și livra întreaga cerere, fără un catalog complet de produse.</small></span>
+        </label>
         @if (!deliveryForm.controls.nationwideDelivery.value) {
           <fieldset><legend>Județe deservite *</legend><p class="field-help">Alege toate județele în care livrezi în mod normal.</p>
             <div class="county-grid">
@@ -105,7 +110,8 @@ export class SupplierSettingsComponent {
     normalDeliveryRadiusKm: new FormControl(50, { nonNullable: true, validators: [Validators.required, Validators.min(1), Validators.max(1000)] }),
     maximumDeliveryRadiusKm: new FormControl(100, { nonNullable: true, validators: [Validators.required, Validators.min(1), Validators.max(1000)] }),
     minimumOrderValue: new FormControl<number|null>(null, { validators: Validators.min(0) }),
-    nationwideDelivery: new FormControl(false, { nonNullable: true })
+    nationwideDelivery: new FormControl(false, { nonNullable: true }),
+    canFulfillMultiCategoryRequests: new FormControl(false, { nonNullable: true })
   });
   readonly customCategoryName = new FormControl('', { nonNullable: true, validators: [Validators.required, Validators.minLength(2), Validators.maxLength(120)] });
 

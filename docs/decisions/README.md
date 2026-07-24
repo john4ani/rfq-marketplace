@@ -14,6 +14,9 @@ All records are **Proposed** during Milestone 0. They become **Accepted** only a
 | [ADR-0008](ADR-0008-lightsail-deployment.md) | Lightsail and Docker Compose deployment |
 | [ADR-0009](ADR-0009-angular-state.md) | Feature-local Angular state |
 | [ADR-0010](ADR-0010-terraform-state.md) | Separate Terraform roots and S3 state |
+| [ADR-0011](ADR-0011-provider-coverage-and-total-offers.md) | Provider coverage without a product catalogue |
+| [ADR-0012](ADR-0012-defer-ratings-and-reputation.md) | Defer Buyer and Provider ratings beyond the MVP |
+| [ADR-0013](ADR-0013-post-mvp-code-quality-hardening.md) | Schedule code-quality hardening after the MVP |
 
 ## ADR lifecycle
 

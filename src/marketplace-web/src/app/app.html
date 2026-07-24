@@ -3,11 +3,12 @@
     <span class="brand-mark" aria-hidden="true">PL</span><span>Piața Live</span>
   </a>
   <nav aria-label="Navigare principală">
-    <a class="nav-link" routerLink="/" routerLinkActive="active" [routerLinkActiveOptions]="{ exact: true }" ariaCurrentWhenActive="page">Acasă</a>
+    <a class="nav-link home-nav" routerLink="/" routerLinkActive="active" [routerLinkActiveOptions]="{ exact: true }" ariaCurrentWhenActive="page">Acasă</a>
     @if (hasSupplierProfile()) {
       <a class="nav-link" routerLink="/open-requests" routerLinkActive="active" ariaCurrentWhenActive="page">Cereri deschise</a>
     }
     @if (auth.isAuthenticated()) {
+      <app-notification-menu />
       <a class="nav-link account-link" routerLink="/dashboard" routerLinkActive="active" ariaCurrentWhenActive="page">Contul meu</a>
     } @else {
       <a class="nav-link account-link" routerLink="/sign-in" routerLinkActive="active" ariaCurrentWhenActive="page">Autentificare</a>

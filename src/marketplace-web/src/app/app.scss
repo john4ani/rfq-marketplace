@@ -5,8 +5,8 @@
 .shell-header nav { display: flex; align-items: center; gap: .4rem; }
 .nav-link { display: inline-flex; align-items: center; min-height: 2.5rem; padding: 0 .8rem; border-radius: .5rem; color: #43504a; font-weight: 700; text-decoration: none; }
 .nav-link:hover, .nav-link:focus-visible, .nav-link.active { color: #176b52; background: #edf7f3; }
-.account-link { color: #fff; background: #2457d6; }
-.account-link:hover, .account-link:focus-visible, .account-link.active { color: #fff; background: #1948bd; }
+.account-link { color: #fff; background: #176b52; }
+.account-link:hover, .account-link:focus-visible, .account-link.active { color: #fff; background: #0f5942; }
 .shell-content { display: block; max-width: 72rem; min-height: calc(100vh - 58px); margin: 0 auto; padding: clamp(1.5rem, 5vw, 4rem) clamp(1rem, 4vw, 3rem); }
 :host ::ng-deep .auth-card { width: min(100%, 28rem); padding: 2rem; border: 1px solid #dfe3e8; border-radius: .75rem; background: #fff; box-shadow: 0 8px 24px rgb(23 32 51 / 8%); }
 :host ::ng-deep form { display: grid; gap: 1rem; margin: 1.5rem 0; }
@@ -17,7 +17,7 @@
 :host ::ng-deep fieldset + fieldset { margin-top: 1.5rem; padding-top: 1.5rem; border-top: 1px solid #e6e9ee; }
 :host ::ng-deep legend { margin-bottom: 1rem; font-size: 1rem; font-weight: 750; }
 :host ::ng-deep input, :host ::ng-deep select { padding: .7rem; border: 1px solid #aeb6c2; border-radius: .35rem; font: inherit; }
-:host ::ng-deep button { padding: .75rem 1rem; border: 0; border-radius: .35rem; color: #fff; background: #2457d6; font: inherit; font-weight: 700; cursor: pointer; }
+:host ::ng-deep button { padding: .75rem 1rem; border: 0; border-radius: .5rem; color: #fff; background: #176b52; font: inherit; font-weight: 700; cursor: pointer; }
 :host ::ng-deep button:disabled { opacity: .55; cursor: not-allowed; }
 :host ::ng-deep .error { color: #a10f21; }
 :host ::ng-deep .dashboard-intro { display: flex; max-width: none; align-items: center; justify-content: space-between; gap: 1rem; }
@@ -25,13 +25,13 @@
 :host ::ng-deep .profile-card { width: 100%; margin: 1.5rem 0; padding: clamp(1.25rem, 3vw, 2rem); box-sizing: border-box; border: 1px solid #dfe3e8; border-radius: .75rem; background: #fff; box-shadow: 0 5px 18px rgb(23 32 51 / 5%); }
 :host ::ng-deep .profile-tabs { display: inline-flex; gap: .35rem; padding: .3rem; border-radius: .55rem; background: #e7ebf1; }
 :host ::ng-deep .profile-tabs button { padding: .55rem .9rem; color: #344054; background: transparent; }
-:host ::ng-deep .profile-tabs button.active { color: #fff; background: #2457d6; box-shadow: 0 2px 6px rgb(36 87 214 / 25%); }
+:host ::ng-deep .profile-tabs button.active { color: #fff; background: #176b52; box-shadow: 0 2px 6px rgb(23 107 82 / 25%); }
 :host ::ng-deep .compact-error { margin: .4rem 0 0; font-size: .9rem; }
 :host ::ng-deep .section-heading { display: flex; align-items: end; justify-content: space-between; gap: 2rem; margin-bottom: 1.25rem; }
 :host ::ng-deep .section-heading h2, :host ::ng-deep .section-heading p { margin-top: 0; }
 :host ::ng-deep .profile-options { display: grid; grid-template-columns: repeat(auto-fit, minmax(13rem, 1fr)); gap: 1rem; }
 :host ::ng-deep .profile-options button { display: grid; min-height: 8.5rem; gap: .3rem; padding: 1.1rem; text-align: left; background: #53627a; }
-:host ::ng-deep .profile-options button.active { outline: 3px solid #7aa2ff; background: #2457d6; }
+:host ::ng-deep .profile-options button.active { outline: 3px solid #9bd4c0; background: #176b52; }
 :host ::ng-deep .profile-options span { font-weight: 400; }
 :host ::ng-deep .profile-options small { margin-top: auto; opacity: .85; }
 :host ::ng-deep .profile-icon { font-size: 1.35rem; }
@@ -41,12 +41,13 @@
 :host ::ng-deep .form-actions { display: flex; align-items: center; margin-top: .5rem; }
 :host ::ng-deep .role-options { display: grid; grid-template-columns: repeat(2, 1fr); gap: .75rem; }
 :host ::ng-deep .role-options button { display: grid; gap: .25rem; color: #172033; text-align: left; background: #eef1f5; }
-:host ::ng-deep .role-options button.active { color: #fff; background: #2457d6; outline: 3px solid #a9c1ff; }
+:host ::ng-deep .role-options button.active { color: #fff; background: #176b52; outline: 3px solid #a7d8c6; }
 
 @media (max-width: 40rem) {
   .shell-header { align-items: center; padding-inline: .75rem; }
   .shell-header nav { min-width: 0; justify-content: flex-end; overflow-x: auto; }
   .brand > span:last-child { display: none; }
+  .home-nav { display: none; }
   .nav-link { min-height: 2.25rem; padding-inline: .5rem; font-size: .85rem; white-space: nowrap; }
   :host ::ng-deep .dashboard-intro, :host ::ng-deep .section-heading { align-items: stretch; flex-direction: column; gap: .5rem; }
   :host ::ng-deep .form-row { grid-template-columns: 1fr; }

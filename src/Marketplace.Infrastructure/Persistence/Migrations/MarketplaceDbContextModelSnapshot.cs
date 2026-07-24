@@ -37,6 +37,170 @@ namespace Marketplace.Infrastructure.Persistence.Migrations
                     b.ToTable("UserPresences", (string)null);
                 });
 
+            modelBuilder.Entity("Marketplace.Domain.Notifications.Notification", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("DeduplicationKey")
+                        .IsRequired()
+                        .HasMaxLength(180)
+                        .HasColumnType("character varying(180)");
+
+                    b.Property<string>("Link")
+                        .IsRequired()
+                        .HasMaxLength(300)
+                        .HasColumnType("character varying(300)");
+
+                    b.Property<string>("Message")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<DateTimeOffset?>("ReadAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("RecipientId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasMaxLength(180)
+                        .HasColumnType("character varying(180)");
+
+                    b.Property<int>("Type")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("DeduplicationKey")
+                        .IsUnique();
+
+                    b.HasIndex("RecipientId", "ReadAt", "CreatedAt");
+
+                    b.ToTable("Notifications", (string)null);
+                });
+
+            modelBuilder.Entity("Marketplace.Domain.Offers.Offer", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Currency")
+                        .IsRequired()
+                        .HasMaxLength(3)
+                        .HasColumnType("character varying(3)");
+
+                    b.Property<decimal>("DeliveryCost")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)");
+
+                    b.Property<int>("DeliveryDays")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Notes")
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)");
+
+                    b.Property<string>("PaymentTerms")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<int>("PricingMode")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasDefaultValue(0);
+
+                    b.Property<int>("RevisionNumber")
+                        .HasColumnType("integer");
+
+                    b.Property<Guid>("RfqId")
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTimeOffset?>("SubmittedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<decimal?>("TotalPrice")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)");
+
+                    b.Property<Guid>("SupplierId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateOnly>("ValidUntil")
+                        .HasColumnType("date");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("RfqId", "SupplierId")
+                        .IsUnique();
+
+                    b.HasIndex("SupplierId", "Status");
+
+                    b.ToTable("Offers", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_Offers_DeliveryCost", "\"DeliveryCost\" >= 0");
+
+                            t.HasCheckConstraint("CK_Offers_DeliveryDays", "\"DeliveryDays\" BETWEEN 0 AND 365");
+                        });
+                });
+
+            modelBuilder.Entity("Marketplace.Domain.Offers.OfferItem", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<bool>("Available")
+                        .HasColumnType("boolean");
+
+                    b.Property<Guid>("OfferId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("ProductDescription")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<decimal>("Quantity")
+                        .HasPrecision(18, 3)
+                        .HasColumnType("numeric(18,3)");
+
+                    b.Property<Guid>("RfqItemId")
+                        .HasColumnType("uuid");
+
+                    b.Property<decimal>("UnitPrice")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("RfqItemId");
+
+                    b.HasIndex("OfferId", "RfqItemId")
+                        .IsUnique();
+
+                    b.ToTable("OfferItems", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_OfferItems_Quantity", "\"Quantity\" > 0");
+
+                            t.HasCheckConstraint("CK_OfferItems_UnitPrice", "\"UnitPrice\" >= 0");
+                        });
+                });
+
             modelBuilder.Entity("Marketplace.Domain.Profiles.BuyerProfile", b =>
                 {
                     b.Property<Guid>("Id")
@@ -183,6 +347,11 @@ namespace Marketplace.Infrastructure.Persistence.Migrations
                     b.Property<bool>("AlternativeProductsAccepted")
                         .HasColumnType("boolean");
 
+                    b.Property<bool>("AllowSplit")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false);
+
                     b.Property<Guid>("BuyerId")
                         .HasColumnType("uuid");
 
@@ -237,11 +406,19 @@ namespace Marketplace.Infrastructure.Persistence.Migrations
                         .HasMaxLength(200)
                         .HasColumnType("character varying(200)");
 
+                    b.Property<int>("ReopenCount")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasDefaultValue(0);
+
                     b.Property<DateTimeOffset?>("PublishedAt")
                         .HasColumnType("timestamp with time zone");
 
                     b.Property<DateTimeOffset>("QuotationDeadline")
                         .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("SelectedOfferId")
+                        .HasColumnType("uuid");
 
                     b.Property<int>("Status")
                         .HasColumnType("integer");
@@ -288,6 +465,9 @@ namespace Marketplace.Infrastructure.Persistence.Migrations
                         .HasMaxLength(1000)
                         .HasColumnType("character varying(1000)");
 
+                    b.Property<Guid?>("CategoryId")
+                        .HasColumnType("uuid");
+
                     b.Property<int>("ItemNumber")
                         .HasColumnType("integer");
 
@@ -315,6 +495,8 @@ namespace Marketplace.Infrastructure.Persistence.Migrations
                         .HasColumnType("integer");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("CategoryId");
 
                     b.HasIndex("RfqId", "ItemNumber")
                         .IsUnique();
@@ -484,6 +666,11 @@ namespace Marketplace.Infrastructure.Persistence.Migrations
                 {
                     b.Property<Guid>("SupplierId")
                         .HasColumnType("uuid");
+
+                    b.Property<bool>("CanFulfillMultiCategoryRequests")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false);
 
                     b.Property<int>("MaximumDeliveryRadiusKm")
                         .HasColumnType("integer");
@@ -762,6 +949,45 @@ namespace Marketplace.Infrastructure.Persistence.Migrations
                         .IsRequired();
                 });
 
+            modelBuilder.Entity("Marketplace.Domain.Notifications.Notification", b =>
+                {
+                    b.HasOne("Marketplace.Infrastructure.Identity.ApplicationUser", null)
+                        .WithMany()
+                        .HasForeignKey("RecipientId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Marketplace.Domain.Offers.Offer", b =>
+                {
+                    b.HasOne("Marketplace.Domain.Rfqs.Rfq", null)
+                        .WithMany()
+                        .HasForeignKey("RfqId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Marketplace.Domain.Profiles.SupplierProfile", null)
+                        .WithMany()
+                        .HasForeignKey("SupplierId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Marketplace.Domain.Offers.OfferItem", b =>
+                {
+                    b.HasOne("Marketplace.Domain.Offers.Offer", null)
+                        .WithMany("Items")
+                        .HasForeignKey("OfferId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Marketplace.Domain.Rfqs.RfqItem", null)
+                        .WithMany()
+                        .HasForeignKey("RfqItemId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("Marketplace.Domain.Profiles.BuyerProfile", b =>
                 {
                     b.HasOne("Marketplace.Infrastructure.Identity.ApplicationUser", null)
@@ -797,6 +1023,11 @@ namespace Marketplace.Infrastructure.Persistence.Migrations
 
             modelBuilder.Entity("Marketplace.Domain.Rfqs.RfqItem", b =>
                 {
+                    b.HasOne("Marketplace.Domain.Suppliers.Category", null)
+                        .WithMany()
+                        .HasForeignKey("CategoryId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
                     b.HasOne("Marketplace.Domain.Rfqs.Rfq", null)
                         .WithMany("Items")
                         .HasForeignKey("RfqId")
@@ -905,6 +1136,11 @@ namespace Marketplace.Infrastructure.Persistence.Migrations
                         .HasForeignKey("UserId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
+                });
+
+            modelBuilder.Entity("Marketplace.Domain.Offers.Offer", b =>
+                {
+                    b.Navigation("Items");
                 });
 
             modelBuilder.Entity("Marketplace.Domain.Rfqs.Rfq", b =>

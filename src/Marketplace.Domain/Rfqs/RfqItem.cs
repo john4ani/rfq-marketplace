@@ -8,6 +8,7 @@ public sealed class RfqItem
     public Guid Id { get; private set; }
     public Guid RfqId { get; private set; }
     public int ItemNumber { get; private set; }
+    public Guid? CategoryId { get; private set; }
     public string ProductName { get; private set; } = string.Empty;
     public string? ManufacturerOrBrand { get; private set; }
     public string? Specification { get; private set; }
@@ -28,6 +29,7 @@ public sealed class RfqItem
         if (string.IsNullOrWhiteSpace(draft.ProductName)) throw new RfqRuleException($"Denumirea materialului de la poziția {itemNumber} este obligatorie.");
         if (draft.Quantity <= 0) throw new RfqRuleException($"Cantitatea de la poziția {itemNumber} trebuie să fie mai mare decât zero.");
         ItemNumber = itemNumber;
+        CategoryId = draft.CategoryId;
         ProductName = draft.ProductName.Trim();
         ManufacturerOrBrand = Clean(draft.ManufacturerOrBrand);
         Specification = Clean(draft.Specification);
@@ -40,4 +42,12 @@ public sealed class RfqItem
     private static string? Clean(string? value) => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
 }
 
-public sealed record RfqItemDraft(string ProductName, string? ManufacturerOrBrand, string? Specification, decimal Quantity, UnitOfMeasure Unit, bool AlternativesAccepted, string? BuyerNotes);
+public sealed record RfqItemDraft(
+    string ProductName,
+    string? ManufacturerOrBrand,
+    string? Specification,
+    decimal Quantity,
+    UnitOfMeasure Unit,
+    bool AlternativesAccepted,
+    string? BuyerNotes,
+    Guid? CategoryId = null);

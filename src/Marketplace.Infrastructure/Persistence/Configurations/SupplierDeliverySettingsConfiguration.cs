@@ -17,6 +17,7 @@ public sealed class SupplierDeliverySettingsConfiguration : IEntityTypeConfigura
         });
         builder.HasKey(settings => settings.SupplierId);
         builder.Property(settings => settings.MinimumOrderValue).HasPrecision(18, 2);
+        builder.Property(settings => settings.CanFulfillMultiCategoryRequests).HasDefaultValue(false);
         builder.HasOne<SupplierProfile>().WithOne().HasForeignKey<SupplierDeliverySettings>(settings => settings.SupplierId).OnDelete(DeleteBehavior.Cascade);
     }
 }

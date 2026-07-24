@@ -94,7 +94,13 @@ public sealed class SupplierSettingsController(ISupplierSettingsService settings
             return ValidationProblem(ProblemErrors("counties", "Lista conține un județ invalid."));
         SupplierDeliverySelection? selection = await settingsService.SaveDeliverySettingsAsync(
             supplierId,
-            new(request.NormalDeliveryRadiusKm, request.MaximumDeliveryRadiusKm, request.MinimumOrderValue, request.NationwideDelivery, counties),
+            new(
+                request.NormalDeliveryRadiusKm,
+                request.MaximumDeliveryRadiusKm,
+                request.MinimumOrderValue,
+                request.NationwideDelivery,
+                request.CanFulfillMultiCategoryRequests,
+                counties),
             cancellationToken);
         return selection is null ? MissingProfile() : Ok(selection);
     }
@@ -120,4 +126,5 @@ public sealed record SupplierDeliveryRequest(
     int MaximumDeliveryRadiusKm,
     decimal? MinimumOrderValue,
     bool NationwideDelivery,
+    bool CanFulfillMultiCategoryRequests,
     IReadOnlyCollection<string>? Counties);

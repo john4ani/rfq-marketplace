@@ -27,7 +27,14 @@ describe('SupplierSettingsService', () => {
     expect(categories.request.body).toEqual({ categoryIds: ['category-id'] });
     categories.flush({ categoryIds: ['category-id'] });
 
-    const settings = { normalDeliveryRadiusKm: 50, maximumDeliveryRadiusKm: 100, minimumOrderValue: null, nationwideDelivery: false, counties: ['Iași'] };
+    const settings = {
+      normalDeliveryRadiusKm: 50,
+      maximumDeliveryRadiusKm: 100,
+      minimumOrderValue: null,
+      nationwideDelivery: false,
+      canFulfillMultiCategoryRequests: true,
+      counties: ['Iași']
+    };
     service.saveDeliverySettings(id, settings).subscribe();
     const delivery = http.expectOne(`/api/v1/suppliers/${id}/delivery-settings`);
     expect(delivery.request.method).toBe('PUT');
