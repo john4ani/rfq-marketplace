@@ -12,8 +12,8 @@ describe('App', () => {
     fixture.detectChanges();
     expect(fixture.componentInstance).toBeTruthy();
     expect((fixture.nativeElement as HTMLElement).querySelector('.brand')?.textContent).toContain('Piața Live');
-    const homeLink = (fixture.nativeElement as HTMLElement).querySelector<HTMLAnchorElement>('.home-link');
-    expect(homeLink?.textContent).toContain('Acasă / Home');
+    const homeLink = (fixture.nativeElement as HTMLElement).querySelector<HTMLAnchorElement>('.nav-link[href="/"]');
+    expect(homeLink?.textContent).toContain('Acasă');
     expect(homeLink?.getAttribute('href')).toBe('/');
   });
 });

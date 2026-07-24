@@ -4,7 +4,7 @@ Status: Proposed
 Scope: Milestone 0 — Architecture & Design  
 Last updated: 2026-07-23
 
-This directory is the design baseline for the RFQ Marketplace MVP. The initial market is Romania, while the application, documentation, and development language is English.
+This directory is the design baseline for the industry-neutral RFQ Marketplace MVP. The initial geography is Romania and construction materials are the first category, while the platform model is intended to support additional markets and industries. The application, documentation, and development language is English.
 
 No application or infrastructure code is included in Milestone 0.
 

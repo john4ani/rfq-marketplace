@@ -1,7 +1,17 @@
 <header class="shell-header">
-  <a class="brand" routerLink="/" aria-label="Pagina principală Piața Live">Piața Live</a>
+  <a class="brand" routerLink="/" aria-label="Pagina principală Piața Live">
+    <span class="brand-mark" aria-hidden="true">PL</span><span>Piața Live</span>
+  </a>
   <nav aria-label="Navigare principală">
-    <a class="home-link" routerLink="/">Acasă / Home</a>
+    <a class="nav-link" routerLink="/" routerLinkActive="active" [routerLinkActiveOptions]="{ exact: true }" ariaCurrentWhenActive="page">Acasă</a>
+    @if (hasSupplierProfile()) {
+      <a class="nav-link" routerLink="/open-requests" routerLinkActive="active" ariaCurrentWhenActive="page">Cereri deschise</a>
+    }
+    @if (auth.isAuthenticated()) {
+      <a class="nav-link account-link" routerLink="/dashboard" routerLinkActive="active" ariaCurrentWhenActive="page">Contul meu</a>
+    } @else {
+      <a class="nav-link account-link" routerLink="/sign-in" routerLinkActive="active" ariaCurrentWhenActive="page">Autentificare</a>
+    }
   </nav>
 </header>
 <main class="shell-content"><router-outlet /></main>

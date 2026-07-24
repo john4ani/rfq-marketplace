@@ -117,3 +117,11 @@ GET    /health/ready
 RFQ material paste parsing is deliberately handled in Angular for immediate feedback. The backend still validates every parsed material when the complete draft is saved.
 
 For authenticated users, Piața Live accepts the active profile type. The first-version locality filter shows the home city first and then other participants in the same county. `approximateRadiusKm` reports the saved Buyer market radius or Supplier delivery radius, but exact kilometre filtering is deferred until reliable coordinates are available. Anonymous visitors continue seeing the full public market.
+### Supplier open-request discovery
+
+```text
+GET /api/v1/open-rfqs
+GET /api/v1/open-rfqs/{rfqId}
+```
+
+These Supplier-only endpoints return active published RFQs matched by selected category and delivery county. Exact delivery addresses, coordinates, and private Buyer notes are not exposed.

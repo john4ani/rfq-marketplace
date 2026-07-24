@@ -52,6 +52,71 @@ public sealed class RfqService(MarketplaceDbContext dbContext, TimeProvider time
         return rfq;
     }
 
+    public async Task<IReadOnlyCollection<OpenRfq>> GetOpenAsync(
+        Guid supplierId, string? search, Guid? categoryId, CancellationToken cancellationToken)
+    {
+        DateTimeOffset now = timeProvider.GetUtcNow();
+        Guid[] supplierCategoryIds = await dbContext.SupplierCategories.AsNoTracking()
+            .Where(selection => selection.SupplierId == supplierId)
+            .Select(selection => selection.CategoryId)
+            .ToArrayAsync(cancellationToken);
+        if (supplierCategoryIds.Length == 0) return [];
+
+        string? supplierCounty = await dbContext.SupplierProfiles.AsNoTracking()
+            .Where(profile => profile.Id == supplierId && profile.IsActive)
+            .Select(profile => profile.County)
+            .SingleOrDefaultAsync(cancellationToken);
+        if (supplierCounty is null) return [];
+
+        bool nationwide = await dbContext.SupplierDeliverySettings.AsNoTracking()
+            .Where(settings => settings.SupplierId == supplierId)
+            .Select(settings => settings.NationwideDelivery)
+            .SingleOrDefaultAsync(cancellationToken);
+        string[] configuredCounties = await dbContext.SupplierDeliveryAreas.AsNoTracking()
+            .Where(area => area.SupplierId == supplierId)
+            .Select(area => area.County)
+            .ToArrayAsync(cancellationToken);
+        string[] deliveryCounties = configuredCounties.Length > 0 ? configuredCounties : [supplierCounty];
+
+        IQueryable<Rfq> query = dbContext.Rfqs.AsNoTracking().Include(rfq => rfq.Items)
+            .Where(rfq => rfq.Status == RfqStatus.Published
+                && rfq.QuotationDeadline > now
+                && supplierCategoryIds.Contains(rfq.PrimaryCategoryId)
+                && (nationwide || deliveryCounties.Contains(rfq.County)));
+        if (categoryId.HasValue)
+            query = query.Where(rfq => rfq.PrimaryCategoryId == categoryId.Value);
+
+        Rfq[] rfqs = await query.OrderBy(rfq => rfq.QuotationDeadline).ThenByDescending(rfq => rfq.PublishedAt)
+            .ToArrayAsync(cancellationToken);
+        string cleanSearch = search?.Trim() ?? string.Empty;
+        if (cleanSearch.Length > 0)
+            rfqs = rfqs.Where(rfq =>
+                rfq.Title.Contains(cleanSearch, StringComparison.OrdinalIgnoreCase)
+                || (rfq.ProjectName?.Contains(cleanSearch, StringComparison.OrdinalIgnoreCase) ?? false)
+                || rfq.DeliveryLocality.Contains(cleanSearch, StringComparison.OrdinalIgnoreCase)
+                || rfq.Items.Any(item => item.ProductName.Contains(cleanSearch, StringComparison.OrdinalIgnoreCase)))
+                .ToArray();
+
+        Guid[] categoryIds = rfqs.Select(rfq => rfq.PrimaryCategoryId).Distinct().ToArray();
+        Guid[] buyerIds = rfqs.Select(rfq => rfq.BuyerId).Distinct().ToArray();
+        Dictionary<Guid, string> categories = await dbContext.Categories.AsNoTracking()
+            .Where(category => categoryIds.Contains(category.Id))
+            .ToDictionaryAsync(category => category.Id, category => category.Name, cancellationToken);
+        Dictionary<Guid, string> buyers = await dbContext.BuyerProfiles.AsNoTracking()
+            .Where(profile => buyerIds.Contains(profile.Id))
+            .ToDictionaryAsync(
+                profile => profile.Id,
+                profile => profile.CompanyName ?? profile.DisplayName,
+                cancellationToken);
+        return rfqs.Select(rfq => new OpenRfq(
+            rfq,
+            categories.GetValueOrDefault(rfq.PrimaryCategoryId, "Categorie"),
+            buyers.GetValueOrDefault(rfq.BuyerId, "Cumpărător verificat"))).ToArray();
+    }
+
+    public async Task<OpenRfq?> GetOpenAsync(Guid supplierId, Guid rfqId, CancellationToken cancellationToken) =>
+        (await GetOpenAsync(supplierId, null, null, cancellationToken)).SingleOrDefault(item => item.Rfq.Id == rfqId);
+
     private Task<Rfq?> Find(Guid buyerId, Guid rfqId, CancellationToken cancellationToken) =>
         dbContext.Rfqs.Include(rfq => rfq.Items).SingleOrDefaultAsync(rfq => rfq.Id == rfqId && rfq.BuyerId == buyerId, cancellationToken);
 

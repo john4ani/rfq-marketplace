@@ -8,7 +8,7 @@ flowchart LR
     supplier["Supplier<br/>Finds relevant RFQs, submits offers,<br/>answers questions"]
     admin["Administrator<br/>Approves suppliers, manages categories,<br/>inspects activity and metrics"]
 
-    marketplace["RFQ Marketplace<br/>Web marketplace for construction-material<br/>requests and supplier quotations"]
+    marketplace["RFQ Marketplace<br/>Industry-neutral marketplace for<br/>requests and provider quotations"]
 
     email["Amazon SES<br/>Transactional email delivery"]
     storage["Amazon S3<br/>Private attachment storage"]

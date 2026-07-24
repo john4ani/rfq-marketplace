@@ -1,23 +1,25 @@
-import { NgTemplateOutlet } from '@angular/common';
-import { ChangeDetectionStrategy, Component, OnDestroy, computed, inject, signal } from '@angular/core';
+import { DatePipe, NgTemplateOutlet } from '@angular/common';
+import { ChangeDetectionStrategy, Component, OnDestroy, computed, effect, inject, signal } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { AuthService } from '../../core/auth/auth.service';
 import { LiveMarketService, LiveParticipant } from '../../core/marketplace/live-market.service';
+import { OpenRfq, OpenRfqService } from '../../core/rfqs/open-rfq.service';
 
 @Component({
   selector: 'app-live-market',
-  imports: [RouterLink, NgTemplateOutlet],
+  imports: [RouterLink, NgTemplateOutlet, DatePipe],
   template: `<section class="live-hero">
     <div>
-      <p class="eyebrow">Piața materialelor de construcții</p>
+      <p class="eyebrow">Piața cererilor și ofertelor</p>
       <h1>Piața Live</h1>
-      <p class="hero-copy">Vezi cine face parte din piață și cine este disponibil chiar acum.</p>
+      <p class="hero-copy">Publică necesarul de materiale, descoperă cereri potrivite și intră în legătură cu parteneri din zona ta.</p>
       <div class="hero-actions">
         @if (auth.isAuthenticated()) {
-          <a class="primary-action" routerLink="/dashboard">Mergi la contul meu</a>
+          @if (hasSupplierProfile()) { <a class="primary-action" routerLink="/open-requests">Vezi cererile potrivite</a> }
+          <a class="secondary-action" routerLink="/dashboard">Contul meu</a>
         } @else {
-          <a class="primary-action" routerLink="/register">Intră în piață</a>
-          <a class="secondary-action" routerLink="/sign-in">Autentificare</a>
+          <a class="primary-action" routerLink="/register">Creează un cont</a>
+          <a class="secondary-action" routerLink="/sign-in">Am deja cont</a>
         }
       </div>
     </div>
@@ -28,6 +30,57 @@ import { LiveMarketService, LiveParticipant } from '../../core/marketplace/live-
     </div>
   </section>
 
+  <section class="open-requests-home" aria-labelledby="open-requests-title">
+    <div class="open-requests-heading">
+      <div><p class="eyebrow">Cereri de ofertă</p>
+        <h2 id="open-requests-title">{{ hasSupplierProfile() ? 'Potrivite pentru tine' : 'Cereri deschise' }}</h2>
+        <p>{{ hasSupplierProfile()
+          ? 'Selectate automat după categoriile și zona de livrare ale contului tău.'
+          : 'Nevoi publicate de cumpărători pentru furnizori din piață.' }}</p></div>
+      @if (hasSupplierProfile()) {
+        <a class="section-link" routerLink="/open-requests">Vezi toate <span aria-hidden="true">→</span></a>
+      }
+    </div>
+    @if (hasSupplierProfile()) {
+      @if (requestsLoading()) {
+        <p class="open-request-state" role="status">Căutăm cererile potrivite pentru tine…</p>
+      } @else if (requestsError()) {
+        <p class="open-request-state error" role="alert">{{ requestsError() }}</p>
+      } @else {
+        <div class="open-request-grid">
+          @for (request of openRequests().slice(0, 3); track request.id) {
+            <a class="open-request-card" [routerLink]="['/open-requests', request.id]">
+              <div><span>{{ request.categoryName }}</span><small>{{ request.deliveryLocality }}, {{ request.county }}</small></div>
+              <h3>{{ request.title }}</h3>
+              <p>Termen: {{ request.quotationDeadline | date:'dd.MM.yyyy, HH:mm' }}</p>
+              <strong>Vezi detaliile <span aria-hidden="true">→</span></strong>
+            </a>
+          } @empty {
+            <div class="open-request-state empty-action">
+              <strong>Nu avem încă cereri potrivite.</strong>
+              <span>Verifică dacă ai selectat categoriile și zona de livrare în cont.</span>
+              <a routerLink="/dashboard">Verifică preferințele</a>
+            </div>
+          }
+        </div>
+      }
+    } @else {
+      <div class="open-request-callout">
+        <div><strong>Ai și rol de Furnizor?</strong>
+          <p>Autentifică-te cu acel cont și cererile potrivite vor apărea automat aici, fără schimbarea profilului activ.</p></div>
+        @if (auth.isAuthenticated()) {
+          <a routerLink="/dashboard">Vezi contul</a>
+        } @else {
+          <a routerLink="/sign-in">Autentificare</a>
+        }
+      </div>
+    }
+  </section>
+
+  <div class="directory-heading">
+    <div><p class="eyebrow">Comunitatea activă</p><h2>Cumpărători și furnizori</h2></div>
+    <p>Descoperă partenerii prezenți acum în piață.</p>
+  </div>
   <section class="market-toolbar" aria-label="Filtrare participanți">
     <label class="search-label">Caută în piață
       <input #searchInput type="search" placeholder="Nume cumpărător sau furnizor" (input)="search.set(searchInput.value)">
@@ -82,9 +135,15 @@ import { LiveMarketService, LiveParticipant } from '../../core/marketplace/live-
 export class LiveMarketComponent implements OnDestroy {
   readonly auth = inject(AuthService);
   private readonly market = inject(LiveMarketService);
+  private readonly openRfqService = inject(OpenRfqService);
   readonly participants = signal<LiveParticipant[]>([]);
   readonly loading = signal(true);
   readonly error = signal('');
+  readonly openRequests = signal<OpenRfq[]>([]);
+  readonly hasSupplierProfile = computed(() =>
+    this.auth.profiles().some(profile => profile.accountType === 'Supplier'));
+  readonly requestsLoading = signal(false);
+  readonly requestsError = signal('');
   readonly lastUpdated = signal('');
   readonly search = signal('');
   readonly onlineOnly = signal(false);
@@ -98,10 +157,24 @@ export class LiveMarketComponent implements OnDestroy {
   readonly filteredBuyers = computed(() => this.filter(this.buyers()));
   readonly filteredSuppliers = computed(() => this.filter(this.suppliers()));
   private readonly refreshTimer: ReturnType<typeof setInterval>;
+  private requestsLoaded = false;
 
   constructor() {
     this.load();
+    effect(() => {
+      if (this.hasSupplierProfile() && !this.requestsLoaded) {
+        this.requestsLoaded = true;
+        this.loadOpenRequests();
+      }
+    });
     this.refreshTimer = setInterval(() => this.load(false), 15_000);
+  }
+  private loadOpenRequests(): void {
+    this.requestsLoading.set(true);
+    this.openRfqService.list().subscribe({
+      next: values => { this.openRequests.set(values); this.requestsLoading.set(false); },
+      error: () => { this.requestsLoading.set(false); this.requestsError.set('Cererile deschise nu au putut fi încărcate.'); }
+    });
   }
   ngOnDestroy(): void { clearInterval(this.refreshTimer); }
   load(showLoading = true): void {

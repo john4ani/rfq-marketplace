@@ -1,6 +1,6 @@
 # RFQ Marketplace
 
-A production-oriented MVP for construction-material requests for quotation. Buyers publish structured RFQs, relevant suppliers submit comparable offers, and buyers select one offer.
+A production-oriented, industry-neutral marketplace for requests for quotation. Buyers publish structured needs, relevant providers submit comparable offers, and buyers select the best fit. Construction materials are the first category, while the product model is designed to expand across markets and industries.
 
 The repository foundation, identity, Buyer/Supplier profiles, supplier settings, and “Piața Live” are complete. Milestone 4 adds Buyer-owned RFQ drafts, material lines, pasted spreadsheet input, publication, and cancellation.
 
