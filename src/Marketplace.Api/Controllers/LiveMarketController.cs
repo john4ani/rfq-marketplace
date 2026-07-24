@@ -12,11 +12,15 @@ public sealed class LiveMarketController(ILiveMarketService liveMarketService) :
 {
     [AllowAnonymous]
     [HttpGet]
-    public async Task<IActionResult> Get(CancellationToken cancellationToken)
+    public async Task<IActionResult> Get([FromQuery] string? profileType, CancellationToken cancellationToken)
     {
+        Guid? viewerId = null;
         if (CurrentUserId(out Guid userId))
+        {
+            viewerId = userId;
             await liveMarketService.MarkOnlineAsync(userId, cancellationToken);
-        return Ok(await liveMarketService.GetSnapshotAsync(cancellationToken));
+        }
+        return Ok(await liveMarketService.GetSnapshotAsync(viewerId, profileType, cancellationToken));
     }
 
     [Authorize]

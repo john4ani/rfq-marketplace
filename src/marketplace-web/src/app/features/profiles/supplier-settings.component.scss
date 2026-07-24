@@ -7,4 +7,7 @@
 .field-help { margin-top: 0; color: #596965; }
 .custom-category { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: end; gap: 1rem; margin-top: 1rem; }
 .custom-category button { margin-bottom: 0; }
+.category-warning { margin-top: .75rem; padding: 1rem; border: 1px solid #d9a62e; border-radius: .7rem; color: #684b08; background: #fff8df; }
+.category-warning ul { margin: .5rem 0; padding-left: 1.25rem; }
+.category-warning p { margin-bottom: 0; }
 @media (max-width: 40rem) { .custom-category { grid-template-columns: 1fr; } }

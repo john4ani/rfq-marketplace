@@ -35,6 +35,13 @@ import { LiveMarketService, LiveParticipant } from '../../core/marketplace/live-
     <label class="online-filter"><input #onlineInput type="checkbox" (change)="onlineOnly.set(onlineInput.checked)">Arată doar participanții online</label>
     @if (lastUpdated()) { <small>Actualizat la {{ lastUpdated() }}</small> }
   </section>
+  @if (locationFiltered()) {
+    <p class="location-filter" role="status"><strong>Zona ta:</strong> {{ filterCity() }}, {{ filterCounty() }}.
+      Afișăm mai întâi participanții din orașul tău, apoi pe cei din județ.
+      <span>Preferință profil: {{ approximateRadiusKm() }} km.</span></p>
+  } @else if (auth.isAuthenticated()) {
+    <p class="location-filter warning">Completează localitatea și județul profilului activ pentru a vedea piața din apropiere.</p>
+  }
 
   @if (loading()) {
     <section class="market-state" role="status"><span class="pulse-dot"></span> Se încarcă piața…</section>
@@ -64,7 +71,8 @@ import { LiveMarketService, LiveParticipant } from '../../core/marketplace/live-
   <ng-template #participantCard let-participant>
     <article class="participant-card" [class.online]="participant.isOnline">
       <span class="avatar" aria-hidden="true">{{ initials(participant.name) }}</span>
-      <div><strong>{{ participant.name }}</strong><small>{{ participant.profileType === 'Buyer' ? 'Cumpărător' : 'Furnizor' }}</small></div>
+      <div><strong>{{ participant.name }}</strong><small>{{ participant.profileType === 'Buyer' ? 'Cumpărător' : 'Furnizor' }} · {{ participant.city }}, {{ participant.county }}
+        @if (participant.isSameCity) { <em>În orașul tău</em> }</small></div>
       <span class="status" [class.online]="participant.isOnline"><i></i>{{ participant.isOnline ? 'Online' : 'Offline' }}</span>
     </article>
   </ng-template>`,
@@ -80,6 +88,10 @@ export class LiveMarketComponent implements OnDestroy {
   readonly lastUpdated = signal('');
   readonly search = signal('');
   readonly onlineOnly = signal(false);
+  readonly locationFiltered = signal(false);
+  readonly filterCity = signal<string|null>(null);
+  readonly filterCounty = signal<string|null>(null);
+  readonly approximateRadiusKm = signal<number|null>(null);
   readonly buyers = computed(() => this.participants().filter(participant => participant.profileType === 'Buyer'));
   readonly suppliers = computed(() => this.participants().filter(participant => participant.profileType === 'Supplier'));
   readonly onlineCount = computed(() => this.participants().filter(participant => participant.isOnline).length);
@@ -95,9 +107,13 @@ export class LiveMarketComponent implements OnDestroy {
   load(showLoading = true): void {
     if (showLoading) this.loading.set(true);
     this.error.set('');
-    this.market.getSnapshot().subscribe({
+    this.market.getSnapshot(this.auth.session()?.accountType).subscribe({
       next: snapshot => {
         this.participants.set(snapshot.participants);
+        this.locationFiltered.set(snapshot.isLocationFiltered);
+        this.filterCity.set(snapshot.filterCity);
+        this.filterCounty.set(snapshot.filterCounty);
+        this.approximateRadiusKm.set(snapshot.approximateRadiusKm);
         this.lastUpdated.set(new Date(snapshot.generatedAt).toLocaleTimeString('ro-RO', { hour: '2-digit', minute: '2-digit' }));
         this.loading.set(false);
       },

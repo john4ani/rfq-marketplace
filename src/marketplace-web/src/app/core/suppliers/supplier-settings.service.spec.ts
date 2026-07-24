@@ -13,8 +13,13 @@ describe('SupplierSettingsService', () => {
     service.addCategory('Piatră naturală').subscribe();
     const newCategory = http.expectOne('/api/v1/categories');
     expect(newCategory.request.method).toBe('POST');
-    expect(newCategory.request.body).toEqual({ name: 'Piatră naturală' });
-    newCategory.flush({ id: 'category-id', parentId: 'root-id', name: 'Piatră naturală', slug: 'piatra-naturala' });
+    expect(newCategory.request.body).toEqual({ name: 'Piatră naturală', confirmSimilar: false });
+    newCategory.flush({ id: 'category-id', parentId: 'root-id', name: 'Piatră naturală', slug: 'piatra-naturala', alreadyExisted: false });
+
+    service.addCategory('Piatră naturale', true).subscribe();
+    const confirmedCategory = http.expectOne('/api/v1/categories');
+    expect(confirmedCategory.request.body).toEqual({ name: 'Piatră naturale', confirmSimilar: true });
+    confirmedCategory.flush({ id: 'confirmed-category', parentId: 'root-id', name: 'Piatră naturale', slug: 'piatra-naturale', alreadyExisted: false });
 
     service.saveSupplierCategories(id, ['category-id']).subscribe();
     const categories = http.expectOne(`/api/v1/suppliers/${id}/categories`);

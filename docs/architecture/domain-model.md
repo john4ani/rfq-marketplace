@@ -1,6 +1,6 @@
 # Domain Model and Aggregate Boundaries
 
-Status: Proposed
+Status: Implemented through the RFQ aggregate; Offer and later aggregates remain proposed
 
 ```mermaid
 classDiagram
@@ -28,6 +28,7 @@ classDiagram
       +UUID Id
       +BuyerType Type
       +string DisplayName
+      +int MarketRadiusKm
     }
     class SupplierProfile {
       +UUID Id
@@ -55,6 +56,7 @@ classDiagram
       +UUID BuyerId
       +RfqStatus Status
       +DateTime QuotationDeadline
+      +int SupplierSearchRadiusKm
       +publish()
       +cancel()
       +selectOffer()
@@ -149,10 +151,10 @@ classDiagram
 |---|---|---|
 | `ApplicationUser` | Refresh-token families | Email uniqueness; token rotation and revocation |
 | `UserPresence` | Last activity heartbeat | One record per user; online status expires after two minutes |
-| `BuyerProfile` | Buyer profile fields | One profile per user; user owns profile |
+| `BuyerProfile` | Buyer profile fields and market radius | One profile per user; radius is 1–1,000 km and defaults to 30 km |
 | `SupplierProfile` | Categories, delivery areas, preferences | Approved and active to participate; valid radii |
 | `Category` | Category identity and parent link | Unique slug; no parent cycle |
-| `Rfq` | RFQ items and category links | At least one item; valid deadline; controlled state transitions |
+| `Rfq` | Optional RFQ items, primary category, and supplier-search radius | Individual material lines are optional; radius is 1–1,000 km; publication requires a future deadline; published RFQs are immutable |
 | `Offer` | Offer items and revision snapshots | One per supplier/RFQ; server-calculated money and completeness |
 | `Conversation` | Messages and participant read state | Exactly the RFQ buyer and offer supplier may participate |
 | `Attachment` | File metadata and lifecycle | Authorized parent; verified object before availability |

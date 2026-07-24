@@ -29,10 +29,15 @@ public sealed class SupplierSettingsController(ISupplierSettingsService settings
             return ValidationProblem(ProblemErrors("name", "Denumirea categoriei trebuie să conțină între 2 și 120 de caractere."));
         if (!name.Any(char.IsLetterOrDigit))
             return ValidationProblem(ProblemErrors("name", "Denumirea categoriei trebuie să conțină litere sau cifre."));
-        Category category = await settingsService.AddCategoryAsync(name, cancellationToken);
+        CategoryCreationResult result = await settingsService.AddCategoryAsync(name, request.ConfirmSimilar, cancellationToken);
+        if (result.Category is null)
+            return Conflict(new SimilarCategoryResponse(
+                "Există categorii cu denumiri similare. Verificați-le și confirmați din nou dacă doriți o categorie separată.",
+                result.SimilarCategories.Select(category => new CategoryResponse(category.Id, category.ParentId, category.Name, category.Slug))));
+        Category category = result.Category;
         if (category.ParentId is null)
             return ValidationProblem(ProblemErrors("name", "Aceasta este deja o categorie principală. Alegeți o categorie de produse."));
-        return Ok(new CategoryResponse(category.Id, category.ParentId, category.Name, category.Slug));
+        return Ok(new CategoryCreationResponse(category.Id, category.ParentId, category.Name, category.Slug, result.AlreadyExisted));
     }
 
     [Authorize(Roles = MarketplaceRoles.Supplier)]
@@ -106,7 +111,9 @@ public sealed class SupplierSettingsController(ISupplierSettingsService settings
 }
 
 public sealed record CategoryResponse(Guid Id, Guid? ParentId, string Name, string Slug);
-public sealed record AddCategoryRequest(string? Name);
+public sealed record CategoryCreationResponse(Guid Id, Guid? ParentId, string Name, string Slug, bool AlreadyExisted);
+public sealed record SimilarCategoryResponse(string Message, IEnumerable<CategoryResponse> SimilarCategories);
+public sealed record AddCategoryRequest(string? Name, bool ConfirmSimilar = false);
 public sealed record SupplierCategoriesRequest(IReadOnlyCollection<Guid>? CategoryIds);
 public sealed record SupplierDeliveryRequest(
     int NormalDeliveryRadiusKm,

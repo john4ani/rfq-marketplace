@@ -1,6 +1,6 @@
 # REST API Overview
 
-Status: Proposed
+Status: Implemented through Milestone 4; later endpoint groups remain proposed
 
 Base path: `/api/v1`  
 Format: JSON  
@@ -78,14 +78,13 @@ PUT    /api/v1/suppliers/{supplierId}/delivery-settings
 
 GET    /api/v1/categories
 POST   /api/v1/categories
-GET    /api/v1/piata-live
+GET    /api/v1/piata-live?profileType=Buyer|Supplier
 POST   /api/v1/piata-live/presence
 DELETE /api/v1/piata-live/presence
 GET    /api/v1/rfqs/mine
 POST   /api/v1/rfqs
 GET    /api/v1/rfqs/{rfqId}
 PUT    /api/v1/rfqs/{rfqId}
-POST   /api/v1/rfqs/{rfqId}/items:parse-pasted
 POST   /api/v1/rfqs/{rfqId}/publish
 POST   /api/v1/rfqs/{rfqId}/cancel
 
@@ -114,3 +113,7 @@ GET    /api/v1/admin/metrics
 GET    /health/live
 GET    /health/ready
 ```
+
+RFQ material paste parsing is deliberately handled in Angular for immediate feedback. The backend still validates every parsed material when the complete draft is saved.
+
+For authenticated users, Piața Live accepts the active profile type. The first-version locality filter shows the home city first and then other participants in the same county. `approximateRadiusKm` reports the saved Buyer market radius or Supplier delivery radius, but exact kilometre filtering is deferred until reliable coordinates are available. Anonymous visitors continue seeing the full public market.

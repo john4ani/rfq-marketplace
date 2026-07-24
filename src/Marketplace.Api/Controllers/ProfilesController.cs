@@ -27,7 +27,7 @@ public sealed class ProfilesController(IProfileService profileService) : Control
     public async Task<IActionResult> SaveBuyer(Guid buyerId, BuyerProfileRequest request, CancellationToken cancellationToken)
     {
         if (!Owns(buyerId)) return NotFound();
-        BuyerProfile profile = await profileService.SaveBuyerAsync(buyerId, new(request.DisplayName.Trim(), request.BuyerType, Clean(request.CompanyName), Clean(request.TaxIdentifier), request.PhoneNumber.Trim(), request.DefaultCity.Trim(), request.DefaultCounty.Trim()), cancellationToken);
+        BuyerProfile profile = await profileService.SaveBuyerAsync(buyerId, new(request.DisplayName.Trim(), request.BuyerType, Clean(request.CompanyName), Clean(request.TaxIdentifier), request.PhoneNumber.Trim(), request.DefaultCity.Trim(), request.DefaultCounty.Trim(), request.MarketRadiusKm ?? 30), cancellationToken);
         return Ok(BuyerResponse.From(profile));
     }
 
@@ -62,7 +62,7 @@ public sealed record BuyerProfileRequest(
     [Required, MaxLength(160)] string DisplayName, BuyerType BuyerType,
     [MaxLength(200)] string? CompanyName, [MaxLength(32)] string? TaxIdentifier,
     [Required, MaxLength(32)] string PhoneNumber, [Required, MaxLength(120)] string DefaultCity,
-    [Required, MaxLength(80)] string DefaultCounty);
+    [Required, MaxLength(80)] string DefaultCounty, [Range(1, 1000)] int? MarketRadiusKm);
 
 public sealed record SupplierProfileRequest(
     [Required, MaxLength(200)] string TradingName, [Required, MaxLength(64)] string CompanyRegistrationNumber,
@@ -73,9 +73,9 @@ public sealed record SupplierProfileRequest(
     [Range(-90, 90)] decimal? Latitude, [Range(-180, 180)] decimal? Longitude,
     [MaxLength(2000)] string? Description);
 
-public sealed record BuyerResponse(Guid Id, string DisplayName, BuyerType BuyerType, string? CompanyName, string? TaxIdentifier, string PhoneNumber, string DefaultCity, string DefaultCounty, DateTimeOffset CreatedAt, DateTimeOffset UpdatedAt)
+public sealed record BuyerResponse(Guid Id, string DisplayName, BuyerType BuyerType, string? CompanyName, string? TaxIdentifier, string PhoneNumber, string DefaultCity, string DefaultCounty, int MarketRadiusKm, DateTimeOffset CreatedAt, DateTimeOffset UpdatedAt)
 {
-    public static BuyerResponse From(BuyerProfile profile) => new(profile.Id, profile.DisplayName, profile.BuyerType, profile.CompanyName, profile.TaxIdentifier, profile.PhoneNumber, profile.DefaultCity, profile.DefaultCounty, profile.CreatedAt, profile.UpdatedAt);
+    public static BuyerResponse From(BuyerProfile profile) => new(profile.Id, profile.DisplayName, profile.BuyerType, profile.CompanyName, profile.TaxIdentifier, profile.PhoneNumber, profile.DefaultCity, profile.DefaultCounty, profile.MarketRadiusKm, profile.CreatedAt, profile.UpdatedAt);
 }
 
 public sealed record SupplierResponse(Guid Id, string TradingName, string CompanyRegistrationNumber, string? TaxIdentifier, string ContactPerson, string ContactEmail, string PhoneNumber, string? Website, string Address, string City, string County, decimal? Latitude, decimal? Longitude, string? Description, SupplierApprovalStatus ApprovalStatus, bool IsActive, DateTimeOffset CreatedAt, DateTimeOffset UpdatedAt)

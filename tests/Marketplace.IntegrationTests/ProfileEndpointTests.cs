@@ -55,6 +55,20 @@ public sealed class ProfileEndpointTests : IClassFixture<WebApplicationFactory<P
         string customName = $"Piatră naturală {Guid.NewGuid():N}";
         CategoryResponse? customCategory = await (await _client.PostAsJsonAsync("/api/v1/categories", new { name = customName })).Content.ReadFromJsonAsync<CategoryResponse>();
         Assert.NotNull(customCategory);
+        CategoryResponse? existingCategory = await (await _client.PostAsJsonAsync("/api/v1/categories", new { name = customName })).Content.ReadFromJsonAsync<CategoryResponse>();
+        Assert.Equal(customCategory.Id, existingCategory?.Id);
+        Assert.True(existingCategory?.AlreadyExisted);
+
+        string similarName = $"{customName}e";
+        HttpResponseMessage similarWarning = await _client.PostAsJsonAsync("/api/v1/categories", new { name = similarName });
+        Assert.Equal(HttpStatusCode.Conflict, similarWarning.StatusCode);
+        SimilarCategoryResponse? warning = await similarWarning.Content.ReadFromJsonAsync<SimilarCategoryResponse>();
+        Assert.Contains(warning!.SimilarCategories, category => category.Id == customCategory.Id);
+        CategoryResponse? confirmedCategory = await (await _client.PostAsJsonAsync(
+            "/api/v1/categories", new { name = similarName, confirmSimilar = true })).Content.ReadFromJsonAsync<CategoryResponse>();
+        Assert.NotNull(confirmedCategory);
+        Assert.NotEqual(customCategory.Id, confirmedCategory.Id);
+
         Guid[] selectedCategories = [categoryId, customCategory.Id];
         Assert.Equal(HttpStatusCode.OK, (await _client.PutAsJsonAsync($"/api/v1/suppliers/{id}/categories", new { categoryIds = selectedCategories })).StatusCode);
         Assert.Equal(HttpStatusCode.OK, (await _client.PutAsJsonAsync($"/api/v1/suppliers/{id}/categories", new { categoryIds = selectedCategories })).StatusCode);
@@ -77,6 +91,7 @@ public sealed class ProfileEndpointTests : IClassFixture<WebApplicationFactory<P
     }
 
     private sealed record TokenResponse(string AccessToken, DateTimeOffset ExpiresAt);
-    private sealed record CategoryResponse(Guid Id, Guid? ParentId, string Name, string Slug);
+    private sealed record CategoryResponse(Guid Id, Guid? ParentId, string Name, string Slug, bool AlreadyExisted = false);
+    private sealed record SimilarCategoryResponse(string Message, CategoryResponse[] SimilarCategories);
     private sealed record DeliveryResponse(int NormalDeliveryRadiusKm, int MaximumDeliveryRadiusKm, decimal? MinimumOrderValue, bool NationwideDelivery, string[] Counties);
 }

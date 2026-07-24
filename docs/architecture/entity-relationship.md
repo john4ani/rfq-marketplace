@@ -1,6 +1,6 @@
 # Entity–Relationship Diagram
 
-Status: Proposed
+Status: Implemented through RFQ and RFQ items; later entities remain proposed
 
 ```mermaid
 erDiagram
@@ -20,8 +20,6 @@ erDiagram
     BUYER_PROFILES ||--o{ RFQS : creates
     CATEGORIES ||--o{ RFQS : primary_category
     RFQS ||--|{ RFQ_ITEMS : contains
-    RFQS ||--o{ RFQ_CATEGORIES : classified
-    CATEGORIES ||--o{ RFQ_CATEGORIES : relates
 
     RFQS ||--o{ OFFERS : receives
     SUPPLIER_PROFILES ||--o{ OFFERS : submits
@@ -64,6 +62,7 @@ erDiagram
       string display_name
       string buyer_type
       string county_code
+      int market_radius_km
     }
     SUPPLIER_PROFILES {
       uuid id PK,FK
@@ -101,13 +100,13 @@ erDiagram
       uuid buyer_id FK
       uuid primary_category_id FK
       string status
-      string delivery_county_code
+      string delivery_address
+      string delivery_locality
+      string county
       timestamptz quotation_deadline
-      int version
-    }
-    RFQ_CATEGORIES {
-      uuid rfq_id FK
-      uuid category_id FK
+      date preferred_delivery_date
+      numeric estimated_budget
+      int supplier_search_radius_km
     }
     RFQ_ITEMS {
       uuid id PK
@@ -205,7 +204,7 @@ erDiagram
 
 ## Required constraints and indexes
 
-- Unique `(supplier_id, category_id)`, `(supplier_id, county_code)`, `(rfq_id, category_id)`.
+- Unique `(supplier_id, category_id)` and `(supplier_id, county_code)`.
 - Unique `(rfq_id, item_number)`, `(rfq_id, supplier_id)`, `(offer_id, rfq_item_id)`.
 - Unique `(offer_id, revision_number)` and one conversation per offer.
 - Positive RFQ quantities; non-negative prices, transport, VAT, and discounts.

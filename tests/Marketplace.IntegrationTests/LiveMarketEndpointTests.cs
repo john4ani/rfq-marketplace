@@ -29,8 +29,10 @@ public sealed class LiveMarketEndpointTests : IClassFixture<WebApplicationFactor
         Guid id = UserId(login.AccessToken);
         _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", login.AccessToken);
 
-        var buyer = new { displayName = $"Cumpărător {unique}", buyerType = "Individual", companyName = (string?)null, taxIdentifier = (string?)null, phoneNumber = "0700000000", defaultCity = "Iași", defaultCounty = "Iași" };
-        var supplier = new { tradingName = $"Furnizor {unique}", companyRegistrationNumber = "J00/1/2026", taxIdentifier = (string?)null, contactPerson = "Ion Test", contactEmail = email, phoneNumber = "0700000000", website = (string?)null, address = "Strada Test 1", city = "Iași", county = "Iași", latitude = (decimal?)null, longitude = (decimal?)null, description = (string?)null };
+        string testCounty = $"Județ Test {unique}";
+        const string testCity = "Oraș Test";
+        var buyer = new { displayName = $"Cumpărător {unique}", buyerType = "Individual", companyName = (string?)null, taxIdentifier = (string?)null, phoneNumber = "0700000000", defaultCity = testCity, defaultCounty = testCounty, marketRadiusKm = 30 };
+        var supplier = new { tradingName = $"Furnizor {unique}", companyRegistrationNumber = "J00/1/2026", taxIdentifier = (string?)null, contactPerson = "Ion Test", contactEmail = email, phoneNumber = "0700000000", website = (string?)null, address = "Strada Test 1", city = testCity, county = testCounty, latitude = (decimal?)null, longitude = (decimal?)null, description = (string?)null };
         Assert.Equal(HttpStatusCode.OK, (await _client.PutAsJsonAsync($"/api/v1/buyers/{id}", buyer)).StatusCode);
         Assert.Equal(HttpStatusCode.OK, (await _client.PutAsJsonAsync($"/api/v1/suppliers/{id}", supplier)).StatusCode);
 
@@ -46,6 +48,13 @@ public sealed class LiveMarketEndpointTests : IClassFixture<WebApplicationFactor
         LiveMarketSnapshot? online = await _publicClient.GetFromJsonAsync<LiveMarketSnapshot>("/api/v1/piata-live");
         Assert.Contains(online!.Participants, participant => participant.Id == id && participant.ProfileType == "Buyer" && participant.IsOnline);
         Assert.Contains(online.Participants, participant => participant.Id == id && participant.ProfileType == "Supplier" && participant.IsOnline);
+        LiveMarketSnapshot? nearby = await _client.GetFromJsonAsync<LiveMarketSnapshot>("/api/v1/piata-live?profileType=Buyer");
+        Assert.True(nearby!.IsLocationFiltered);
+        Assert.Equal(testCity, nearby.FilterCity);
+        Assert.Equal(testCounty, nearby.FilterCounty);
+        Assert.Equal(30, nearby.ApproximateRadiusKm);
+        Assert.All(nearby.Participants, participant => Assert.Equal(testCounty, participant.County));
+        Assert.All(nearby.Participants.Where(participant => participant.Id == id), participant => Assert.True(participant.IsSameCity));
 
         Assert.Equal(HttpStatusCode.NoContent, (await _client.DeleteAsync("/api/v1/piata-live/presence")).StatusCode);
         LiveMarketSnapshot? offline = await _publicClient.GetFromJsonAsync<LiveMarketSnapshot>("/api/v1/piata-live");
@@ -60,6 +69,6 @@ public sealed class LiveMarketEndpointTests : IClassFixture<WebApplicationFactor
     }
 
     private sealed record TokenResponse(string AccessToken, DateTimeOffset ExpiresAt);
-    private sealed record LiveMarketSnapshot(DateTimeOffset GeneratedAt, LiveParticipant[] Participants);
-    private sealed record LiveParticipant(Guid Id, string Name, string ProfileType, bool IsOnline);
+    private sealed record LiveMarketSnapshot(DateTimeOffset GeneratedAt, LiveParticipant[] Participants, bool IsLocationFiltered, string? FilterCity, string? FilterCounty, int? ApproximateRadiusKm);
+    private sealed record LiveParticipant(Guid Id, string Name, string ProfileType, bool IsOnline, string City, string County, bool IsSameCity);
 }

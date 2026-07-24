@@ -14,12 +14,21 @@ public sealed class SupplierSettingsService(MarketplaceDbContext dbContext, Time
         await dbContext.Categories.AsNoTracking().Where(category => category.IsActive)
             .OrderBy(category => category.SortOrder).ThenBy(category => category.Name).ToListAsync(cancellationToken);
 
-    public async Task<Category> AddCategoryAsync(string name, CancellationToken cancellationToken)
+    public async Task<CategoryCreationResult> AddCategoryAsync(string name, bool confirmSimilar, CancellationToken cancellationToken)
     {
         string cleanName = name.Trim();
         string slug = Slug(cleanName);
         Category? existing = await dbContext.Categories.SingleOrDefaultAsync(category => category.Slug == slug, cancellationToken);
-        if (existing is not null) return existing;
+        if (existing is not null) return new(existing, true, []);
+
+        Category[] similarCategories = (await dbContext.Categories.AsNoTracking()
+                .Where(category => category.IsActive && category.ParentId != null)
+                .ToArrayAsync(cancellationToken))
+            .Where(category => AreSimilar(slug, category.Slug))
+            .OrderBy(category => category.Name)
+            .ToArray();
+        if (similarCategories.Length > 0 && !confirmSimilar)
+            return new(null, false, similarCategories);
         Guid rootId = await dbContext.Categories.Where(category => category.ParentId == null)
             .Select(category => category.Id).SingleAsync(cancellationToken);
         int lastOrder = await dbContext.Categories.Where(category => category.ParentId == rootId)
@@ -27,7 +36,7 @@ public sealed class SupplierSettingsService(MarketplaceDbContext dbContext, Time
         Category category = Category.Create(Guid.NewGuid(), rootId, cleanName, slug, lastOrder + 10);
         dbContext.Categories.Add(category);
         await dbContext.SaveChangesAsync(cancellationToken);
-        return category;
+        return new(category, false, similarCategories);
     }
 
     public async Task<SupplierCategorySelection?> GetCategoriesAsync(Guid supplierId, CancellationToken cancellationToken)
@@ -105,5 +114,33 @@ public sealed class SupplierSettingsService(MarketplaceDbContext dbContext, Time
             else separator = true;
         }
         return result.ToString();
+    }
+
+    private static bool AreSimilar(string left, string right)
+    {
+        if (left.Length < 3 || right.Length < 3) return false;
+        if ((left.Contains(right, StringComparison.Ordinal) || right.Contains(left, StringComparison.Ordinal))
+            && Math.Min(left.Length, right.Length) >= 4)
+            return true;
+
+        int allowedDistance = Math.Max(1, Math.Min(3, Math.Min(left.Length, right.Length) / 4));
+        if (Math.Abs(left.Length - right.Length) > allowedDistance) return false;
+        return EditDistance(left, right) <= allowedDistance;
+    }
+
+    private static int EditDistance(string left, string right)
+    {
+        int[] previous = Enumerable.Range(0, right.Length + 1).ToArray();
+        int[] current = new int[right.Length + 1];
+        for (int i = 1; i <= left.Length; i++)
+        {
+            current[0] = i;
+            for (int j = 1; j <= right.Length; j++)
+                current[j] = Math.Min(
+                    Math.Min(current[j - 1] + 1, previous[j] + 1),
+                    previous[j - 1] + (left[i - 1] == right[j - 1] ? 0 : 1));
+            (previous, current) = (current, previous);
+        }
+        return previous[right.Length];
     }
 }

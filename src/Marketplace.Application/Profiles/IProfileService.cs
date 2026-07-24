@@ -10,5 +10,5 @@ public interface IProfileService
     Task<SupplierProfile> SaveSupplierAsync(Guid id, SupplierProfileInput input, CancellationToken cancellationToken);
 }
 
-public sealed record BuyerProfileInput(string DisplayName, BuyerType BuyerType, string? CompanyName, string? TaxIdentifier, string PhoneNumber, string DefaultCity, string DefaultCounty);
+public sealed record BuyerProfileInput(string DisplayName, BuyerType BuyerType, string? CompanyName, string? TaxIdentifier, string PhoneNumber, string DefaultCity, string DefaultCounty, int MarketRadiusKm);
 public sealed record SupplierProfileInput(string TradingName, string CompanyRegistrationNumber, string? TaxIdentifier, string ContactPerson, string ContactEmail, string PhoneNumber, string? Website, string Address, string City, string County, decimal? Latitude, decimal? Longitude, string? Description);

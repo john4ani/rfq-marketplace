@@ -3,7 +3,7 @@ import { inject, Injectable } from '@angular/core';
 
 export interface BuyerProfile {
   id: string; displayName: string; buyerType: 'Individual' | 'Company'; companyName: string | null;
-  taxIdentifier: string | null; phoneNumber: string; defaultCity: string; defaultCounty: string;
+  taxIdentifier: string | null; phoneNumber: string; defaultCity: string; defaultCounty: string; marketRadiusKm: number;
 }
 export interface SupplierProfile {
   id: string; tradingName: string; companyRegistrationNumber: string; taxIdentifier: string | null;

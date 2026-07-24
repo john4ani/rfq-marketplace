@@ -23,13 +23,22 @@ import { ROMANIAN_COUNTIES } from '../../shared/romanian-counties';
       </div>
       <div class="custom-category">
         <label>Categoria nu există?
-          <input [formControl]="customCategoryName" placeholder="Exemplu: Piatră naturală">
+          <input [formControl]="customCategoryName" placeholder="Exemplu: Piatră naturală" (input)="clearCategoryConfirmation()">
           <small>Adaugă o denumire clară; categoria va putea fi folosită și de alți furnizori.</small>
         </label>
         <button class="secondary" type="button" (click)="addCategory()" [disabled]="customCategoryName.invalid || addingCategory()">
-          {{ addingCategory() ? 'Se adaugă…' : 'Adaugă categoria' }}
+          {{ addingCategory() ? 'Se adaugă…' : pendingSimilarCategories().length > 0 ? 'Confirmă crearea' : 'Adaugă categoria' }}
         </button>
       </div>
+      @if (pendingSimilarCategories().length > 0) {
+        <div class="category-warning" role="alert">
+          <strong>Am găsit categorii similare:</strong>
+          <ul>
+            @for (category of pendingSimilarCategories(); track category.id) { <li>{{ category.name }}</li> }
+          </ul>
+          <p>Folosește una dintre ele dacă se potrivește. Pentru o categorie separată, apasă încă o dată „Confirmă crearea”.</p>
+        </div>
+      }
       <div class="form-actions"><button type="button" (click)="saveCategories()" [disabled]="selectedCategoryIds().length === 0 || savingCategories()">
         {{ savingCategories() ? 'Se salvează…' : 'Salvează categoriile' }}
       </button></div>
@@ -80,6 +89,8 @@ export class SupplierSettingsComponent {
   readonly loadingCategories = signal(true);
   readonly savingCategories = signal(false);
   readonly addingCategory = signal(false);
+  readonly pendingSimilarCategories = signal<CategoryOption[]>([]);
+  private pendingCategoryName = '';
   readonly savingDelivery = signal(false);
   readonly categoryMessage = signal('');
   readonly deliveryMessage = signal('');
@@ -120,19 +131,36 @@ export class SupplierSettingsComponent {
   }
   addCategory(): void {
     if (this.customCategoryName.invalid) return;
+    const name = this.customCategoryName.value.trim();
+    const confirmSimilar = this.pendingCategoryName === name && this.pendingSimilarCategories().length > 0;
     this.addingCategory.set(true); this.categoryMessage.set('');
-    this.settings.addCategory(this.customCategoryName.value).subscribe({
+    this.settings.addCategory(name, confirmSimilar).subscribe({
       next: category => {
         if (!this.categories().some(value => value.id === category.id)) this.categories.update(values => [...values, category]);
         if (!this.selectedCategoryIds().includes(category.id)) this.selectedCategoryIds.update(values => [...values, category.id]);
+        this.clearCategoryConfirmation();
         this.customCategoryName.reset(); this.addingCategory.set(false); this.categoryError.set(false);
-        this.categoryMessage.set('Categoria a fost adăugată și selectată. Salvează categoriile pentru a confirma.');
+        this.categoryMessage.set(category.alreadyExisted
+          ? `Categoria „${category.name}” există deja și a fost selectată.`
+          : 'Categoria a fost adăugată și selectată. Salvează categoriile pentru a confirma.');
       },
       error: (error: HttpErrorResponse) => {
-        this.addingCategory.set(false); this.categoryError.set(true);
+        this.addingCategory.set(false);
+        if (error.status === 409 && Array.isArray(error.error?.similarCategories)) {
+          this.pendingCategoryName = name;
+          this.pendingSimilarCategories.set(error.error.similarCategories);
+          this.categoryError.set(false);
+          this.categoryMessage.set('Verifică denumirile similare înainte de a crea o categorie nouă.');
+          return;
+        }
+        this.categoryError.set(true);
         this.categoryMessage.set(this.addCategoryError(error));
       }
     });
+  }
+  clearCategoryConfirmation(): void {
+    this.pendingCategoryName = '';
+    this.pendingSimilarCategories.set([]);
   }
   saveCategories(): void {
     const session = this.auth.session();

@@ -8,6 +8,8 @@ using Marketplace.Application.Suppliers;
 using Marketplace.Infrastructure.Suppliers;
 using Marketplace.Application.LiveMarket;
 using Marketplace.Infrastructure.LiveMarket;
+using Marketplace.Application.Rfqs;
+using Marketplace.Infrastructure.Rfqs;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
@@ -48,6 +50,7 @@ public static class DependencyInjection
         services.AddScoped<IProfileService, ProfileService>();
         services.AddScoped<ISupplierSettingsService, SupplierSettingsService>();
         services.AddScoped<ILiveMarketService, LiveMarketService>();
+        services.AddScoped<IRfqService, RfqService>();
         return services;
     }
 }

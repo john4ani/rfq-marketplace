@@ -16,10 +16,10 @@ public sealed class ProfileService(MarketplaceDbContext dbContext, TimeProvider 
         DateTimeOffset now = timeProvider.GetUtcNow();
         if (profile is null)
         {
-            profile = BuyerProfile.Create(id, input.DisplayName, input.BuyerType, input.CompanyName, input.TaxIdentifier, input.PhoneNumber, input.DefaultCity, input.DefaultCounty, now);
+            profile = BuyerProfile.Create(id, input.DisplayName, input.BuyerType, input.CompanyName, input.TaxIdentifier, input.PhoneNumber, input.DefaultCity, input.DefaultCounty, input.MarketRadiusKm, now);
             dbContext.BuyerProfiles.Add(profile);
         }
-        else profile.Update(input.DisplayName, input.BuyerType, input.CompanyName, input.TaxIdentifier, input.PhoneNumber, input.DefaultCity, input.DefaultCounty, now);
+        else profile.Update(input.DisplayName, input.BuyerType, input.CompanyName, input.TaxIdentifier, input.PhoneNumber, input.DefaultCity, input.DefaultCounty, input.MarketRadiusKm, now);
         await dbContext.SaveChangesAsync(cancellationToken);
         return profile;
     }

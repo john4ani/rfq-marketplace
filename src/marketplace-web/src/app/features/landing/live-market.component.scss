@@ -18,6 +18,9 @@
 .online-filter { display: flex; align-items: center; gap: .5rem; padding-bottom: .7rem; }
 .online-filter input { width: 1rem; height: 1rem; }
 .market-toolbar small { padding-bottom: .75rem; color: #63716c; }
+.location-filter { margin: -1rem 0 1.5rem; padding: .8rem 1rem; border-radius: .7rem; color: #315940; background: #eaf4ec; }
+.location-filter span { margin-left: .35rem; color: #596a5e; }
+.location-filter.warning { color: #765216; background: #fff4dc; }
 .participant-columns { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1.25rem; }
 .participant-group { padding: clamp(1rem, 3vw, 1.5rem); border: 1px solid #dfe6e3; border-radius: 1rem; background: #fff; }
 .group-heading { display: flex; justify-content: space-between; gap: 1rem; align-items: end; margin-bottom: 1rem; }
@@ -31,6 +34,7 @@
 .participant-card div { display: grid; min-width: 0; }
 .participant-card strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .participant-card small { color: #6a7772; }
+.participant-card small em { display: block; margin-top: .15rem; color: #247047; font-style: normal; font-weight: 700; }
 .status { display: flex; align-items: center; gap: .35rem; color: #75817d; font-size: .8rem; }
 .status i { width: .55rem; height: .55rem; border-radius: 50%; background: #a5aeab; }
 .status.online { color: #176b52; font-weight: 700; }

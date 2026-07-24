@@ -9,7 +9,7 @@ public sealed class BuyerProfileConfiguration : IEntityTypeConfiguration<BuyerPr
 {
     public void Configure(EntityTypeBuilder<BuyerProfile> builder)
     {
-        builder.ToTable("BuyerProfiles");
+        builder.ToTable("BuyerProfiles", table => table.HasCheckConstraint("CK_BuyerProfiles_MarketRadiusKm", "\"MarketRadiusKm\" BETWEEN 1 AND 1000"));
         builder.HasKey(profile => profile.Id);
         builder.Property(profile => profile.DisplayName).HasMaxLength(160).IsRequired();
         builder.Property(profile => profile.CompanyName).HasMaxLength(200);
@@ -17,6 +17,7 @@ public sealed class BuyerProfileConfiguration : IEntityTypeConfiguration<BuyerPr
         builder.Property(profile => profile.PhoneNumber).HasMaxLength(32).IsRequired();
         builder.Property(profile => profile.DefaultCity).HasMaxLength(120).IsRequired();
         builder.Property(profile => profile.DefaultCounty).HasMaxLength(80).IsRequired();
+        builder.Property(profile => profile.MarketRadiusKm).HasDefaultValue(30);
         builder.HasOne<ApplicationUser>().WithOne().HasForeignKey<BuyerProfile>(profile => profile.Id).OnDelete(DeleteBehavior.Cascade);
     }
 }

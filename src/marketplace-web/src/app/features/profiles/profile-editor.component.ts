@@ -23,6 +23,8 @@ import { Observable } from 'rxjs';
       <label>Telefon *<input formControlName="phoneNumber" placeholder="+40 7xx xxx xxx"></label>
       <div class="form-row"><label>Oraș *<input formControlName="defaultCity"></label>
       <label>Județ *<select formControlName="defaultCounty"><option value="">Alege județul</option>@for (county of counties; track county) { <option [value]="county">{{ county }}</option> }</select></label></div>
+      <label>Rază de interes (km) *<input type="number" min="1" max="1000" formControlName="marketRadiusKm">
+        <small>Valoarea implicită este 30 km. În prima versiune, Piața Live afișează orașul tău și alte localități din același județ.</small></label>
       </fieldset>
       <div class="form-actions"><button [disabled]="buyerForm.invalid || saving()">{{ saving() ? 'Se salvează…' : 'Salvează profilul' }}</button></div>
     </form>
@@ -57,7 +59,8 @@ export class ProfileEditorComponent {
     companyName: new FormControl<string|null>(null), taxIdentifier: new FormControl<string|null>(null),
     phoneNumber: new FormControl('', { nonNullable: true, validators: Validators.required }),
     defaultCity: new FormControl('', { nonNullable: true, validators: Validators.required }),
-    defaultCounty: new FormControl('', { nonNullable: true, validators: Validators.required })
+    defaultCounty: new FormControl('', { nonNullable: true, validators: Validators.required }),
+    marketRadiusKm: new FormControl(30, { nonNullable: true, validators: [Validators.required, Validators.min(1), Validators.max(1000)] })
   });
   readonly supplierForm = new FormGroup({
     tradingName: new FormControl('', { nonNullable: true, validators: Validators.required }),

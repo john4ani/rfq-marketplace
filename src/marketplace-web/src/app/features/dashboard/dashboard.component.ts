@@ -4,10 +4,11 @@ import { AuthService } from '../../core/auth/auth.service';
 import { AccountSwitcherComponent } from '../profiles/account-switcher.component';
 import { ProfileEditorComponent } from '../profiles/profile-editor.component';
 import { SupplierSettingsComponent } from '../profiles/supplier-settings.component';
+import { BuyerRfqListComponent } from '../rfqs/buyer-rfq-list.component';
 
 @Component({
   selector: 'app-dashboard',
-  imports: [AccountSwitcherComponent, ProfileEditorComponent, SupplierSettingsComponent],
+  imports: [AccountSwitcherComponent, ProfileEditorComponent, SupplierSettingsComponent, BuyerRfqListComponent],
   template: `<section class="dashboard-intro">
     <div><p class="eyebrow">Contul meu</p>
     <h1>Bine ai venit</h1>
@@ -18,6 +19,7 @@ import { SupplierSettingsComponent } from '../profiles/supplier-settings.compone
   </section>
   <section class="dashboard-content">
     <app-profile-editor />
+    <app-buyer-rfq-list />
     <app-supplier-settings />
     @if (error()) { <p class="error" role="alert">{{ error() }}</p> }
   </section>`,
