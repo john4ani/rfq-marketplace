@@ -4,6 +4,10 @@ using Marketplace.Infrastructure.Identity;
 using Marketplace.Infrastructure.Persistence;
 using Marketplace.Application.Profiles;
 using Marketplace.Infrastructure.Profiles;
+using Marketplace.Application.Suppliers;
+using Marketplace.Infrastructure.Suppliers;
+using Marketplace.Application.LiveMarket;
+using Marketplace.Infrastructure.LiveMarket;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
@@ -42,6 +46,8 @@ public static class DependencyInjection
         services.AddSingleton(TimeProvider.System);
         services.AddScoped<IIdentityService, IdentityService>();
         services.AddScoped<IProfileService, ProfileService>();
+        services.AddScoped<ISupplierSettingsService, SupplierSettingsService>();
+        services.AddScoped<ILiveMarketService, LiveMarketService>();
         return services;
     }
 }

@@ -1,5 +1,7 @@
 using Marketplace.Infrastructure.Identity;
 using Marketplace.Domain.Profiles;
+using Marketplace.Domain.Suppliers;
+using Marketplace.Domain.LiveMarket;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
@@ -12,6 +14,11 @@ public sealed class MarketplaceDbContext(DbContextOptions<MarketplaceDbContext> 
     public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();
     public DbSet<BuyerProfile> BuyerProfiles => Set<BuyerProfile>();
     public DbSet<SupplierProfile> SupplierProfiles => Set<SupplierProfile>();
+    public DbSet<Category> Categories => Set<Category>();
+    public DbSet<SupplierCategory> SupplierCategories => Set<SupplierCategory>();
+    public DbSet<SupplierDeliverySettings> SupplierDeliverySettings => Set<SupplierDeliverySettings>();
+    public DbSet<SupplierDeliveryArea> SupplierDeliveryAreas => Set<SupplierDeliveryArea>();
+    public DbSet<UserPresence> UserPresences => Set<UserPresence>();
 
     protected override void OnModelCreating(ModelBuilder builder)
     {

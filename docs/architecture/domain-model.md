@@ -18,6 +18,12 @@ classDiagram
       +rotate()
       +revokeFamily()
     }
+    class UserPresence {
+      +UUID UserId
+      +DateTime LastSeenAt
+      +markSeen()
+      +isOnline()
+    }
     class BuyerProfile {
       +UUID Id
       +BuyerType Type
@@ -27,11 +33,15 @@ classDiagram
       +UUID Id
       +ApprovalStatus ApprovalStatus
       +bool IsActive
-      +Distance NormalRadius
-      +Distance MaximumRadius
       +approve()
       +suspend()
-      +isEligibleFor(location)
+    }
+    class SupplierDeliverySettings {
+      +Distance NormalRadius
+      +Distance MaximumRadius
+      +Money MinimumOrderValue
+      +bool NationwideDelivery
+      +update()
     }
     class Category {
       +UUID Id
@@ -115,9 +125,11 @@ classDiagram
     }
 
     ApplicationUser "1" *-- "0..*" RefreshToken
+    ApplicationUser "1" *-- "0..1" UserPresence
     ApplicationUser "1" --> "0..1" BuyerProfile
     ApplicationUser "1" --> "0..1" SupplierProfile
     SupplierProfile "0..*" -- "0..*" Category
+    SupplierProfile "1" *-- "0..1" SupplierDeliverySettings
     Category "0..1" --> "0..*" Category : parent
     BuyerProfile "1" --> "0..*" Rfq
     Rfq "1" *-- "1..*" RfqItem
@@ -136,6 +148,7 @@ classDiagram
 | Aggregate root | Owned state | Important invariants |
 |---|---|---|
 | `ApplicationUser` | Refresh-token families | Email uniqueness; token rotation and revocation |
+| `UserPresence` | Last activity heartbeat | One record per user; online status expires after two minutes |
 | `BuyerProfile` | Buyer profile fields | One profile per user; user owns profile |
 | `SupplierProfile` | Categories, delivery areas, preferences | Approved and active to participate; valid radii |
 | `Category` | Category identity and parent link | Unique slug; no parent cycle |

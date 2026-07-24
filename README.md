@@ -2,7 +2,7 @@
 
 A production-oriented MVP for construction-material requests for quotation. Buyers publish structured RFQs, relevant suppliers submit comparable offers, and buyers select one offer.
 
-The repository foundation and Milestone 1 identity are complete. Milestone 2 adds Buyer and Supplier profiles with Romanian-first forms and secure profile switching.
+The repository foundation, identity, and Buyer/Supplier profiles are complete. Milestone 3 adds hierarchical product categories, Romanian supplier delivery settings, and the public “Piața Live” presence page.
 
 ## Technology baseline
 

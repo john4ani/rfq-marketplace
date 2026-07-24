@@ -1,6 +1,6 @@
 import { HttpClient } from '@angular/common/http';
-import { computed, inject, Injectable, signal } from '@angular/core';
-import { finalize, Observable, tap } from 'rxjs';
+import { computed, DestroyRef, inject, Injectable, signal } from '@angular/core';
+import { catchError, finalize, Observable, of, switchMap, tap } from 'rxjs';
 
 export interface TokenResponse { accessToken: string; expiresAt: string; }
 export interface AccountSession { userId: string; email: string; accountType: 'Buyer' | 'Supplier'; }
@@ -9,9 +9,11 @@ export interface LinkedProfile { userId: string; email: string; accountType: 'Bu
 @Injectable({ providedIn: 'root' })
 export class AuthService {
   private readonly http = inject(HttpClient);
+  private readonly destroyRef = inject(DestroyRef);
   private readonly accessTokenState = signal<string | null>(null);
   private readonly profilesState = signal<LinkedProfile[]>([]);
   private readonly activeProfileState = signal<'Buyer' | 'Supplier' | null>(null);
+  private presenceTimer: ReturnType<typeof setInterval> | null = null;
   readonly isAuthenticated = computed(() => this.accessTokenState() !== null);
   readonly accessToken = this.accessTokenState.asReadonly();
   readonly session = computed(() => {
@@ -22,6 +24,8 @@ export class AuthService {
   readonly profiles = computed(() => this.profilesState().length > 0
     ? this.profilesState()
     : this.session() ? [this.session()!] : []);
+
+  constructor() { this.destroyRef.onDestroy(() => this.stopPresence()); }
 
   registerBuyer(email: string, password: string): Observable<void> {
     return this.http.post<void>('/api/v1/auth/register/buyer', { email, password });
@@ -51,12 +55,18 @@ export class AuthService {
   }
 
   logout(): Observable<void> {
-    return this.http.post<void>('/api/v1/auth/logout', {}, { withCredentials: true })
-      .pipe(finalize(() => { this.accessTokenState.set(null); this.profilesState.set([]); this.activeProfileState.set(null); }));
+    this.stopPresence();
+    return this.http.delete<void>('/api/v1/piata-live/presence')
+      .pipe(
+        catchError(() => of(undefined)),
+        switchMap(() => this.http.post<void>('/api/v1/auth/logout', {}, { withCredentials: true })),
+        finalize(() => { this.accessTokenState.set(null); this.profilesState.set([]); this.activeProfileState.set(null); })
+      );
   }
 
   private acceptToken(token: string): void {
     this.accessTokenState.set(token);
+    this.startPresence();
     this.http.get<LinkedProfile[]>('/api/v1/auth/profiles').subscribe({
       next: profiles => {
         this.profilesState.set(profiles);
@@ -64,6 +74,18 @@ export class AuthService {
           this.activeProfileState.set(profiles[0]?.accountType ?? null);
       }
     });
+  }
+
+  private startPresence(): void {
+    this.markOnline();
+    if (this.presenceTimer === null) this.presenceTimer = setInterval(() => this.markOnline(), 30_000);
+  }
+  private stopPresence(): void {
+    if (this.presenceTimer !== null) clearInterval(this.presenceTimer);
+    this.presenceTimer = null;
+  }
+  private markOnline(): void {
+    this.http.post<void>('/api/v1/piata-live/presence', {}).subscribe({ error: () => undefined });
   }
 
   private decodeIdentity(token: string | null): Omit<AccountSession, 'accountType'> | null {

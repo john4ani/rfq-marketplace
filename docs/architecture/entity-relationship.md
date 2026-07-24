@@ -5,6 +5,7 @@ Status: Proposed
 ```mermaid
 erDiagram
     USERS ||--o{ REFRESH_TOKENS : owns
+    USERS ||--o| USER_PRESENCES : reports
     USERS ||--o| BUYER_PROFILES : has
     USERS ||--o| SUPPLIER_PROFILES : has
     USERS ||--o{ USER_ROLES : assigned
@@ -13,6 +14,7 @@ erDiagram
     SUPPLIER_PROFILES ||--o{ SUPPLIER_CATEGORIES : subscribes
     CATEGORIES ||--o{ SUPPLIER_CATEGORIES : selected
     SUPPLIER_PROFILES ||--o{ SUPPLIER_DELIVERY_AREAS : serves
+    SUPPLIER_PROFILES ||--o| SUPPLIER_DELIVERY_SETTINGS : configures
     CATEGORIES ||--o{ CATEGORIES : parent_of
 
     BUYER_PROFILES ||--o{ RFQS : creates
@@ -53,6 +55,10 @@ erDiagram
       timestamptz expires_at
       timestamptz revoked_at
     }
+    USER_PRESENCES {
+      uuid user_id PK,FK
+      timestamptz last_seen_at
+    }
     BUYER_PROFILES {
       uuid id PK,FK
       string display_name
@@ -66,8 +72,6 @@ erDiagram
       boolean is_active
       decimal latitude
       decimal longitude
-      decimal normal_radius_km
-      decimal maximum_radius_km
     }
     CATEGORIES {
       uuid id PK
@@ -81,9 +85,16 @@ erDiagram
       uuid category_id FK
     }
     SUPPLIER_DELIVERY_AREAS {
-      uuid id PK
-      uuid supplier_id FK
-      string county_code
+      uuid supplier_id PK,FK
+      string county PK
+    }
+    SUPPLIER_DELIVERY_SETTINGS {
+      uuid supplier_id PK,FK
+      int normal_radius_km
+      int maximum_radius_km
+      numeric minimum_order_value
+      boolean nationwide_delivery
+      timestamptz updated_at
     }
     RFQS {
       uuid id PK

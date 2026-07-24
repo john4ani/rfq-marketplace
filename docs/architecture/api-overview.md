@@ -15,6 +15,7 @@ Errors: RFC 7807 Problem Details
 | Buyer profile | `GET/PUT /buyers/{buyerId}` | Owning Buyer |
 | Supplier profile | `GET/PUT /suppliers/{supplierId}` | Owning Supplier |
 | Categories | `GET /categories` | Authenticated; public exposure may be allowed |
+| Piața Live | `GET /piata-live`, presence heartbeat | Public directory; authenticated presence |
 | Buyer RFQs | `/rfqs`, `/rfqs/{id}`, items, publish, cancel, close | Owning buyer |
 | Supplier discovery | `/supplier/rfqs` | Approved active supplier |
 | Offers | `/rfqs/{id}/offers`, `/offers/{id}`, submit, revise, withdraw | Resource-dependent |
@@ -70,10 +71,16 @@ GET    /api/v1/buyers/{buyerId}
 PUT    /api/v1/buyers/{buyerId}
 GET    /api/v1/suppliers/{supplierId}
 PUT    /api/v1/suppliers/{supplierId}
+GET    /api/v1/suppliers/{supplierId}/categories
 PUT    /api/v1/suppliers/{supplierId}/categories
+GET    /api/v1/suppliers/{supplierId}/delivery-settings
 PUT    /api/v1/suppliers/{supplierId}/delivery-settings
 
 GET    /api/v1/categories
+POST   /api/v1/categories
+GET    /api/v1/piata-live
+POST   /api/v1/piata-live/presence
+DELETE /api/v1/piata-live/presence
 GET    /api/v1/rfqs/mine
 POST   /api/v1/rfqs
 GET    /api/v1/rfqs/{rfqId}

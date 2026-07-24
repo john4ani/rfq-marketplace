@@ -15,10 +15,12 @@ describe('AuthService', () => {
 
     service.login('buyer@example.test', 'password').subscribe();
     http.expectOne('/api/v1/auth/login').flush({ accessToken: 'access-token', expiresAt: new Date().toISOString() });
+    http.expectOne('/api/v1/piata-live/presence').flush(null);
     http.expectOne('/api/v1/auth/profiles').flush([]);
     expect(service.isAuthenticated()).toBe(true);
 
     service.logout().subscribe();
+    http.expectOne('/api/v1/piata-live/presence').flush(null);
     http.expectOne('/api/v1/auth/logout').flush(null);
 
     expect(service.isAuthenticated()).toBe(false);
@@ -33,6 +35,7 @@ describe('AuthService', () => {
 
     service.login('same@example.test', 'password').subscribe();
     http.expectOne('/api/v1/auth/login').flush({ accessToken, expiresAt: new Date().toISOString() });
+    http.expectOne('/api/v1/piata-live/presence').flush(null);
     http.expectOne('/api/v1/auth/profiles').flush([
       { userId: '11111111-1111-1111-1111-111111111111', email: 'same@example.test', accountType: 'Buyer' },
       { userId: '11111111-1111-1111-1111-111111111111', email: 'same@example.test', accountType: 'Supplier' }

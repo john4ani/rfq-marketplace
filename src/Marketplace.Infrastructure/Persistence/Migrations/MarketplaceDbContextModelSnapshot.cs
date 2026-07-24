@@ -22,6 +22,21 @@ namespace Marketplace.Infrastructure.Persistence.Migrations
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
 
+            modelBuilder.Entity("Marketplace.Domain.LiveMarket.UserPresence", b =>
+                {
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("LastSeenAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("UserId");
+
+                    b.HasIndex("LastSeenAt");
+
+                    b.ToTable("UserPresences", (string)null);
+                });
+
             modelBuilder.Entity("Marketplace.Domain.Profiles.BuyerProfile", b =>
                 {
                     b.Property<Guid>("Id")
@@ -149,6 +164,194 @@ namespace Marketplace.Infrastructure.Persistence.Migrations
                     b.HasKey("Id");
 
                     b.ToTable("SupplierProfiles", (string)null);
+                });
+
+            modelBuilder.Entity("Marketplace.Domain.Suppliers.Category", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("character varying(120)");
+
+                    b.Property<Guid?>("ParentId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Slug")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("character varying(120)");
+
+                    b.Property<int>("SortOrder")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ParentId");
+
+                    b.HasIndex("Slug")
+                        .IsUnique();
+
+                    b.ToTable("Categories", (string)null);
+
+                    b.HasData(
+                        new
+                        {
+                            Id = new Guid("10000000-0000-0000-0000-000000000001"),
+                            IsActive = true,
+                            Name = "Materiale de construcții",
+                            Slug = "materiale-constructii",
+                            SortOrder = 0
+                        },
+                        new
+                        {
+                            Id = new Guid("10000000-0000-0000-0000-000000000002"),
+                            IsActive = true,
+                            Name = "Izolații",
+                            ParentId = new Guid("10000000-0000-0000-0000-000000000001"),
+                            Slug = "izolatii",
+                            SortOrder = 10
+                        },
+                        new
+                        {
+                            Id = new Guid("10000000-0000-0000-0000-000000000003"),
+                            IsActive = true,
+                            Name = "Ciment și mortare",
+                            ParentId = new Guid("10000000-0000-0000-0000-000000000001"),
+                            Slug = "ciment-mortare",
+                            SortOrder = 20
+                        },
+                        new
+                        {
+                            Id = new Guid("10000000-0000-0000-0000-000000000004"),
+                            IsActive = true,
+                            Name = "Zidărie",
+                            ParentId = new Guid("10000000-0000-0000-0000-000000000001"),
+                            Slug = "zidarie",
+                            SortOrder = 30
+                        },
+                        new
+                        {
+                            Id = new Guid("10000000-0000-0000-0000-000000000005"),
+                            IsActive = true,
+                            Name = "Acoperișuri",
+                            ParentId = new Guid("10000000-0000-0000-0000-000000000001"),
+                            Slug = "acoperisuri",
+                            SortOrder = 40
+                        },
+                        new
+                        {
+                            Id = new Guid("10000000-0000-0000-0000-000000000006"),
+                            IsActive = true,
+                            Name = "Lemn și plăci",
+                            ParentId = new Guid("10000000-0000-0000-0000-000000000001"),
+                            Slug = "lemn-placi",
+                            SortOrder = 50
+                        },
+                        new
+                        {
+                            Id = new Guid("10000000-0000-0000-0000-000000000007"),
+                            IsActive = true,
+                            Name = "Gips-carton",
+                            ParentId = new Guid("10000000-0000-0000-0000-000000000001"),
+                            Slug = "gips-carton",
+                            SortOrder = 60
+                        },
+                        new
+                        {
+                            Id = new Guid("10000000-0000-0000-0000-000000000008"),
+                            IsActive = true,
+                            Name = "Finisaje",
+                            ParentId = new Guid("10000000-0000-0000-0000-000000000001"),
+                            Slug = "finisaje",
+                            SortOrder = 70
+                        },
+                        new
+                        {
+                            Id = new Guid("10000000-0000-0000-0000-000000000009"),
+                            IsActive = true,
+                            Name = "Instalații sanitare",
+                            ParentId = new Guid("10000000-0000-0000-0000-000000000001"),
+                            Slug = "instalatii-sanitare",
+                            SortOrder = 80
+                        },
+                        new
+                        {
+                            Id = new Guid("10000000-0000-0000-0000-000000000010"),
+                            IsActive = true,
+                            Name = "Instalații electrice",
+                            ParentId = new Guid("10000000-0000-0000-0000-000000000001"),
+                            Slug = "instalatii-electrice",
+                            SortOrder = 90
+                        });
+                });
+
+            modelBuilder.Entity("Marketplace.Domain.Suppliers.SupplierCategory", b =>
+                {
+                    b.Property<Guid>("SupplierId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("CategoryId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("SupplierId", "CategoryId");
+
+                    b.HasIndex("CategoryId");
+
+                    b.ToTable("SupplierCategories", (string)null);
+                });
+
+            modelBuilder.Entity("Marketplace.Domain.Suppliers.SupplierDeliveryArea", b =>
+                {
+                    b.Property<Guid>("SupplierId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("County")
+                        .HasMaxLength(80)
+                        .HasColumnType("character varying(80)");
+
+                    b.HasKey("SupplierId", "County");
+
+                    b.ToTable("SupplierDeliveryAreas", (string)null);
+                });
+
+            modelBuilder.Entity("Marketplace.Domain.Suppliers.SupplierDeliverySettings", b =>
+                {
+                    b.Property<Guid>("SupplierId")
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("MaximumDeliveryRadiusKm")
+                        .HasColumnType("integer");
+
+                    b.Property<decimal?>("MinimumOrderValue")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)");
+
+                    b.Property<bool>("NationwideDelivery")
+                        .HasColumnType("boolean");
+
+                    b.Property<int>("NormalDeliveryRadiusKm")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("SupplierId");
+
+                    b.ToTable("SupplierDeliverySettings", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_SupplierDeliverySettings_MaximumRadius", "\"MaximumDeliveryRadiusKm\" BETWEEN \"NormalDeliveryRadiusKm\" AND 1000");
+
+                            t.HasCheckConstraint("CK_SupplierDeliverySettings_MinimumOrder", "\"MinimumOrderValue\" IS NULL OR \"MinimumOrderValue\" >= 0");
+
+                            t.HasCheckConstraint("CK_SupplierDeliverySettings_NormalRadius", "\"NormalDeliveryRadiusKm\" BETWEEN 1 AND 1000");
+                        });
                 });
 
             modelBuilder.Entity("Marketplace.Infrastructure.Identity.ApplicationUser", b =>
@@ -391,6 +594,15 @@ namespace Marketplace.Infrastructure.Persistence.Migrations
                     b.ToTable("AspNetUserTokens", (string)null);
                 });
 
+            modelBuilder.Entity("Marketplace.Domain.LiveMarket.UserPresence", b =>
+                {
+                    b.HasOne("Marketplace.Infrastructure.Identity.ApplicationUser", null)
+                        .WithOne()
+                        .HasForeignKey("Marketplace.Domain.LiveMarket.UserPresence", "UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("Marketplace.Domain.Profiles.BuyerProfile", b =>
                 {
                     b.HasOne("Marketplace.Infrastructure.Identity.ApplicationUser", null)
@@ -405,6 +617,47 @@ namespace Marketplace.Infrastructure.Persistence.Migrations
                     b.HasOne("Marketplace.Infrastructure.Identity.ApplicationUser", null)
                         .WithOne()
                         .HasForeignKey("Marketplace.Domain.Profiles.SupplierProfile", "Id")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Marketplace.Domain.Suppliers.Category", b =>
+                {
+                    b.HasOne("Marketplace.Domain.Suppliers.Category", null)
+                        .WithMany()
+                        .HasForeignKey("ParentId")
+                        .OnDelete(DeleteBehavior.Restrict);
+                });
+
+            modelBuilder.Entity("Marketplace.Domain.Suppliers.SupplierCategory", b =>
+                {
+                    b.HasOne("Marketplace.Domain.Suppliers.Category", null)
+                        .WithMany()
+                        .HasForeignKey("CategoryId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Marketplace.Domain.Profiles.SupplierProfile", null)
+                        .WithMany()
+                        .HasForeignKey("SupplierId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Marketplace.Domain.Suppliers.SupplierDeliveryArea", b =>
+                {
+                    b.HasOne("Marketplace.Domain.Profiles.SupplierProfile", null)
+                        .WithMany()
+                        .HasForeignKey("SupplierId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Marketplace.Domain.Suppliers.SupplierDeliverySettings", b =>
+                {
+                    b.HasOne("Marketplace.Domain.Profiles.SupplierProfile", null)
+                        .WithOne()
+                        .HasForeignKey("Marketplace.Domain.Suppliers.SupplierDeliverySettings", "SupplierId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
                 });

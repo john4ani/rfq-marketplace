@@ -1,0 +1,50 @@
+:host { display: block; }
+.live-hero { display: grid; grid-template-columns: minmax(0, 1.3fr) minmax(18rem, .7fr); gap: 2rem; align-items: center; padding: clamp(1.5rem, 4vw, 3rem); border-radius: 1.2rem; color: #fff; background: linear-gradient(135deg, #143d35, #1d735b); box-shadow: 0 18px 45px rgb(20 61 53 / 20%); }
+.live-hero h1 { margin: .2rem 0 .6rem; font-size: clamp(2.4rem, 6vw, 4.8rem); line-height: .95; }
+.live-hero .eyebrow { color: #bdebdc; }
+.hero-copy { max-width: 38rem; font-size: 1.1rem; color: #e5f5ef; }
+.hero-actions { display: flex; flex-wrap: wrap; gap: .75rem; margin-top: 1.5rem; }
+.hero-actions a { padding: .75rem 1rem; border-radius: .45rem; font-weight: 750; text-decoration: none; }
+.primary-action { color: #143d35; background: #fff; }
+.secondary-action { color: #fff; border: 1px solid rgb(255 255 255 / 55%); }
+.market-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: .65rem; }
+.market-stats div { display: grid; gap: .2rem; padding: 1rem; border: 1px solid rgb(255 255 255 / 20%); border-radius: .8rem; background: rgb(255 255 255 / 10%); }
+.market-stats strong { font-size: 1.8rem; }
+.market-stats span { font-size: .8rem; color: #d5eee6; }
+.market-stats .online-stat strong { color: #8ff0c8; }
+.market-toolbar { display: grid; grid-template-columns: minmax(16rem, 1fr) auto auto; gap: 1rem; align-items: end; margin: 1.5rem 0; padding: 1rem; border: 1px solid #dfe6e3; border-radius: .8rem; background: #fff; }
+.search-label { display: grid; gap: .35rem; font-weight: 700; }
+.search-label input { padding: .7rem; border: 1px solid #aeb9b5; border-radius: .4rem; font: inherit; }
+.online-filter { display: flex; align-items: center; gap: .5rem; padding-bottom: .7rem; }
+.online-filter input { width: 1rem; height: 1rem; }
+.market-toolbar small { padding-bottom: .75rem; color: #63716c; }
+.participant-columns { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1.25rem; }
+.participant-group { padding: clamp(1rem, 3vw, 1.5rem); border: 1px solid #dfe6e3; border-radius: 1rem; background: #fff; }
+.group-heading { display: flex; justify-content: space-between; gap: 1rem; align-items: end; margin-bottom: 1rem; }
+.group-heading h2, .group-heading p { margin: 0; }
+.group-heading > span { padding: .3rem .55rem; border-radius: 999px; color: #176b52; background: #e8f7f1; font-size: .8rem; white-space: nowrap; }
+.participant-list { display: grid; gap: .65rem; }
+.participant-card { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: .75rem; align-items: center; padding: .8rem; border: 1px solid #e3e8e6; border-radius: .7rem; background: #fafbfb; }
+.participant-card.online { border-color: #b5dfd0; background: #f4fbf8; }
+.avatar { display: grid; width: 2.5rem; height: 2.5rem; place-items: center; border-radius: 50%; color: #fff; background: #52645e; font-size: .8rem; font-weight: 800; }
+.participant-card.online .avatar { background: #176b52; }
+.participant-card div { display: grid; min-width: 0; }
+.participant-card strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.participant-card small { color: #6a7772; }
+.status { display: flex; align-items: center; gap: .35rem; color: #75817d; font-size: .8rem; }
+.status i { width: .55rem; height: .55rem; border-radius: 50%; background: #a5aeab; }
+.status.online { color: #176b52; font-weight: 700; }
+.status.online i, .pulse-dot { background: #1db77d; box-shadow: 0 0 0 4px rgb(29 183 125 / 13%); }
+.market-state, .empty-state { padding: 2rem; text-align: center; color: #64726d; }
+.market-state button { margin-left: .5rem; }
+.pulse-dot { display: inline-block; width: .55rem; height: .55rem; margin-right: .4rem; border-radius: 50%; }
+@media (max-width: 48rem) {
+  .live-hero, .participant-columns { grid-template-columns: 1fr; }
+  .market-toolbar { grid-template-columns: 1fr; align-items: start; }
+  .online-filter, .market-toolbar small { padding-bottom: 0; }
+}
+@media (max-width: 30rem) {
+  .market-stats { grid-template-columns: 1fr; }
+  .participant-card { grid-template-columns: auto minmax(0, 1fr); }
+  .participant-card .status { grid-column: 2; }
+}

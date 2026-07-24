@@ -1,0 +1,10 @@
+:host { display: block; }
+.settings-card { margin-top: 1.25rem; }
+.choice-grid, .county-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr)); gap: .65rem; }
+.choice-card, .county-choice { display: flex; align-items: center; gap: .65rem; padding: .8rem; border: 1px solid #d7dfdc; border-radius: .7rem; background: #fff; cursor: pointer; }
+.choice-card.selected, .county-choice.selected { border-color: #176b52; background: #edf8f3; }
+.choice-card input, .county-choice input { width: auto; margin: 0; }
+.field-help { margin-top: 0; color: #596965; }
+.custom-category { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: end; gap: 1rem; margin-top: 1rem; }
+.custom-category button { margin-bottom: 0; }
+@media (max-width: 40rem) { .custom-category { grid-template-columns: 1fr; } }

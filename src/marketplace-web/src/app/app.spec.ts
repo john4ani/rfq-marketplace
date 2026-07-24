@@ -11,6 +11,6 @@ describe('App', () => {
     const fixture = TestBed.createComponent(App);
     fixture.detectChanges();
     expect(fixture.componentInstance).toBeTruthy();
-    expect((fixture.nativeElement as HTMLElement).querySelector('.brand')?.textContent).toContain('RFQ Marketplace');
+    expect((fixture.nativeElement as HTMLElement).querySelector('.brand')?.textContent).toContain('Piața Live');
   });
 });
