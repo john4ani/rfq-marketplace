@@ -72,7 +72,8 @@ export class AuthService {
         this.profilesState.set(profiles);
         if (!profiles.some(profile => profile.accountType === this.activeProfileState()))
           this.activeProfileState.set(profiles[0]?.accountType ?? null);
-      }
+      },
+      error: () => undefined
     });
   }
 

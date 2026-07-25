@@ -62,6 +62,7 @@ Local endpoints:
 - Readiness: `http://localhost:5221/health/ready`
 
 The liveness endpoint checks the process only. Readiness also checks PostgreSQL connectivity.
+The Angular shell can start while the API is unavailable. It shows one service-status alert, suppresses further API calls until an explicit retry, and reloads authenticated data when readiness is restored. The initial failed proxy request remains visible in the development terminal as the diagnostic that opened the circuit; replacing its raw Vite `ECONNREFUSED` stack with a concise message is deferred to the post-MVP hardening work in ADR-0013.
 
 ## Build and test
 

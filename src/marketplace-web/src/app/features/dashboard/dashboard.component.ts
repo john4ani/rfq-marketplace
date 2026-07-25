@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { Router, RouterLink } from '@angular/router';
 import { AuthService } from '../../core/auth/auth.service';
 import { AccountSwitcherComponent } from '../profiles/account-switcher.component';
@@ -29,8 +29,10 @@ import { SupplierOfferListComponent } from '../offers/supplier-offer-list.compon
   <section class="dashboard-content">
     @if(section()==='overview'){
       <div class="quick-actions">
-        @if(auth.session()?.accountType==='Buyer'){
+        @if(hasBuyerProfile()){
           <a class="action-card primary" routerLink="/rfqs/new"><span>+</span><div><strong>Creează o cerere</strong><small>Descrie nevoia și public-o în piață</small></div></a>
+        }
+        @if(auth.session()?.accountType==='Buyer'){
           <a class="action-card" routerLink="/"><span>PL</span><div><strong>Vezi Piața Live</strong><small>Urmărește activitatea comunității</small></div></a>
         }@else{
           <a class="action-card primary" routerLink="/open-requests"><span>↗</span><div><strong>Găsește oportunități</strong><small>Vezi cererile potrivite profilului tău</small></div></a>
@@ -61,6 +63,7 @@ export class DashboardComponent {
   readonly signingOut = signal(false);
   readonly error = signal('');
   readonly section = signal<'overview' | 'settings'>('overview');
+  readonly hasBuyerProfile = computed(() => this.auth.profiles().some(profile => profile.accountType === 'Buyer'));
 
   signOut(): void {
     this.signingOut.set(true);

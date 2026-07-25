@@ -3,6 +3,7 @@ import { ApplicationConfig, inject, provideAppInitializer, provideBrowserGlobalE
 import { provideRouter } from '@angular/router';
 import { authInterceptor } from './core/auth/auth.interceptor';
 import { AuthService } from './core/auth/auth.service';
+import { backendAvailabilityInterceptor } from './core/connectivity/backend-availability.interceptor';
 import { routes } from './app.routes';
 import { firstValueFrom, timeout } from 'rxjs';
 
@@ -10,7 +11,7 @@ export const appConfig: ApplicationConfig = {
   providers: [
     provideBrowserGlobalErrorListeners(),
     provideRouter(routes),
-    provideHttpClient(withInterceptors([authInterceptor])),
+    provideHttpClient(withInterceptors([backendAvailabilityInterceptor, authInterceptor])),
     provideAppInitializer(() => firstValueFrom(inject(AuthService).refresh().pipe(timeout(2000))).catch(() => undefined))
   ]
 };

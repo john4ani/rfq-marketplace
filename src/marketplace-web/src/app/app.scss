@@ -7,6 +7,10 @@
 .nav-link:hover, .nav-link:focus-visible, .nav-link.active { color: #176b52; background: #edf7f3; }
 .account-link { color: #fff; background: #176b52; }
 .account-link:hover, .account-link:focus-visible, .account-link.active { color: #fff; background: #0f5942; }
+.service-status { display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding: .85rem clamp(1rem, 5vw, 4rem); border-bottom: 1px solid #e7c881; color: #4f3b0e; background: #fff4d6; }
+.service-status div { display: grid; gap: .15rem; }
+.service-status span { font-size: .9rem; }
+.service-status button { flex: 0 0 auto; padding: .55rem .85rem; border: 1px solid #80651e; border-radius: .5rem; color: #4f3b0e; background: transparent; }
 .shell-content { display: block; max-width: 72rem; min-height: calc(100vh - 58px); margin: 0 auto; padding: clamp(1.5rem, 5vw, 4rem) clamp(1rem, 4vw, 3rem); }
 :host ::ng-deep .auth-card { width: min(100%, 28rem); padding: 2rem; border: 1px solid #dfe3e8; border-radius: .75rem; background: #fff; box-shadow: 0 8px 24px rgb(23 32 51 / 8%); }
 :host ::ng-deep form { display: grid; gap: 1rem; margin: 1.5rem 0; }
@@ -45,6 +49,8 @@
 
 @media (max-width: 40rem) {
   .shell-header { align-items: center; padding-inline: .75rem; }
+  .service-status { align-items: stretch; flex-direction: column; }
+  .service-status button { width: 100%; }
   .shell-header nav { min-width: 0; justify-content: flex-end; overflow-x: auto; }
   .brand > span:last-child { display: none; }
   .home-nav { display: none; }

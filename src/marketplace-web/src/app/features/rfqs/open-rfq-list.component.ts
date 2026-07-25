@@ -1,6 +1,7 @@
 import { DatePipe } from '@angular/common';
-import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { RouterLink } from '@angular/router';
+import { AuthService } from '../../core/auth/auth.service';
 import { OpenRfq, OpenRfqService } from '../../core/rfqs/open-rfq.service';
 import { CategoryOption, SupplierSettingsService } from '../../core/suppliers/supplier-settings.service';
 
@@ -12,7 +13,12 @@ import { CategoryOption, SupplierSettingsService } from '../../core/suppliers/su
     <header>
       <div><p class="eyebrow">Oportunități potrivite</p><h1>Cereri deschise</h1>
         <p>Explorează cererile relevante pentru categoriile și zona ta de livrare.</p></div>
-      <span class="result-count">{{ requests().length }} rezultate</span>
+      <div class="header-actions">
+        <span class="result-count">{{ requests().length }} rezultate</span>
+        @if (hasBuyerProfile()) {
+          <a class="create-request" routerLink="/rfqs/new">+ Creează o cerere</a>
+        }
+      </div>
     </header>
 
     <section class="filters" aria-label="Filtre cereri">
@@ -61,8 +67,10 @@ import { CategoryOption, SupplierSettingsService } from '../../core/suppliers/su
   changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class OpenRfqListComponent {
+  private readonly auth = inject(AuthService);
   private readonly service = inject(OpenRfqService);
   private readonly categoryService = inject(SupplierSettingsService);
+  readonly hasBuyerProfile = computed(() => this.auth.profiles().some(profile => profile.accountType === 'Buyer'));
   readonly requests = signal<OpenRfq[]>([]);
   readonly categories = signal<CategoryOption[]>([]);
   readonly loading = signal(true);

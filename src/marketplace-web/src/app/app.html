@@ -15,4 +15,15 @@
     }
   </nav>
 </header>
+@if (backend.status() === 'unavailable') {
+  <aside class="service-status" role="alert">
+    <div>
+      <strong>Serviciul este temporar indisponibil</strong>
+      <span>Poți folosi navigarea, iar datele vor fi încărcate după reconectare.</span>
+    </div>
+    <button type="button" [disabled]="backend.retrying()" (click)="backend.retry()">
+      {{ backend.retrying() ? 'Se verifică…' : 'Reîncearcă' }}
+    </button>
+  </aside>
+}
 <main class="shell-content"><router-outlet /></main>

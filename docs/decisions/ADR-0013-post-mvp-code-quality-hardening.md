@@ -17,6 +17,7 @@ Known weaknesses include:
 - uneven automated coverage, especially for component interactions and complete user journeys;
 - limited enforcement through linting, formatting, architecture tests, and continuous-integration quality gates;
 - UX and accessibility behavior being corrected reactively instead of consistently through shared patterns.
+- the Angular development proxy still prints a raw Vite `ECONNREFUSED` stack for the initial API request when the backend is unavailable, even though the application now opens a circuit and presents a recoverable service-status message.
 
 A broad rewrite during MVP validation would slow learning and introduce unnecessary regression risk. Leaving the current structure as the permanent baseline would make every later feature slower and less reliable.
 
@@ -43,6 +44,7 @@ The milestone must include:
 9. Add accessibility checks for keyboard use, focus management, semantic labels, validation, and contrast.
 10. Add CI quality gates for build, tests, formatting, linting, migrations, and architecture rules.
 11. Document the resulting conventions with short examples and review guidance.
+12. Replace the raw initial Vite proxy failure with a concise structured development diagnostic while preserving visibility of genuine API and proxy defects.
 
 ## Completion criteria
 

@@ -34,7 +34,7 @@ app.UseMiddleware<CorrelationIdMiddleware>();
 app.UseExceptionHandler();
 app.UseStatusCodePages();
 if (app.Environment.IsDevelopment()) app.MapOpenApi();
-app.UseHttpsRedirection();
+else app.UseHttpsRedirection();
 app.UseCors("frontend");
 app.UseRateLimiter();
 app.UseAuthentication();

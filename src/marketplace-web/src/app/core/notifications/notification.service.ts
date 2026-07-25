@@ -32,7 +32,7 @@ export class NotificationService {
       error:()=>this.loading.set(false)
     });
   }
-  refreshCount(){this.http.get<{count:number}>('/api/v1/notifications/unread-count').subscribe({next:value=>this.unreadCount.set(value.count)});}
+  refreshCount(){this.http.get<{count:number}>('/api/v1/notifications/unread-count').subscribe({next:value=>this.unreadCount.set(value.count),error:()=>undefined});}
   markRead(item:AppNotification){
     if(item.isRead)return;
     this.http.post<AppNotification>(`/api/v1/notifications/${item.id}/read`,{}).subscribe({

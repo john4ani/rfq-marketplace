@@ -19,7 +19,11 @@ import { OpenRfq, OpenRfqService } from '../../core/rfqs/open-rfq.service';
       </div>
     </div>
     <div class="market-pulse"><span>Activitate în piață</span><strong>{{onlineCount()}} online acum</strong>
-      <small>{{buyers().length}} cumpărători · {{suppliers().length}} furnizori</small></div>
+      <small>{{buyers().length}} cumpărători · {{suppliers().length}} furnizori</small>
+      @if(auth.isAuthenticated()){
+        <div class="my-presence"><i aria-hidden="true"></i><div><small>Tu ești online ca</small><b>{{presenceRoleLabel()}}</b></div></div>
+      }
+    </div>
   </section>
 
   <section class="open-requests-home" aria-labelledby="open-requests-title">
@@ -67,9 +71,13 @@ export class LiveMarketComponent implements OnDestroy{
   readonly onlineCount=computed(()=>this.participants().filter(p=>p.isOnline).length);
   readonly onlineBuyers=computed(()=>this.buyers().filter(p=>p.isOnline).length);
   readonly onlineSuppliers=computed(()=>this.suppliers().filter(p=>p.isOnline).length);
+  readonly presenceRoleLabel=computed(()=>{
+    const buyer=this.hasBuyerProfile(),supplier=this.hasSupplierProfile();
+    return buyer&&supplier?'Cumpărător și Furnizor':supplier?'Furnizor':buyer?'Cumpărător':'utilizator conectat';
+  });
   private readonly refreshTimer:ReturnType<typeof setInterval>;private requestsLoaded=false;
   constructor(){this.loadMarket();effect(()=>{if(this.hasSupplierProfile()&&!this.requestsLoaded){this.requestsLoaded=true;this.loadRequests();}});this.refreshTimer=setInterval(()=>this.loadMarket(),30_000);}
   ngOnDestroy(){clearInterval(this.refreshTimer);}
-  private loadMarket(){this.market.getSnapshot(this.auth.session()?.accountType).subscribe({next:value=>this.participants.set(value.participants)});}
+  private loadMarket(){this.market.getSnapshot(this.auth.session()?.accountType).subscribe({next:value=>this.participants.set(value.participants),error:()=>undefined});}
   private loadRequests(){this.requestsLoading.set(true);this.openRfqService.list().subscribe({next:value=>{this.openRequests.set(value);this.requestsLoading.set(false);},error:()=>{this.requestsLoading.set(false);this.requestsError.set('Recomandările nu au putut fi încărcate.');}});}
 }

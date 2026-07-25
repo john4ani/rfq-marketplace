@@ -8,15 +8,31 @@ public sealed class AuthenticationEndpointTests : IClassFixture<WebApplicationFa
 {
     private static readonly string[] BuyerAndSupplierRoles = ["Buyer", "Supplier"];
     private readonly HttpClient _client;
+    private readonly WebApplicationFactory<Program> _factory;
 
     public AuthenticationEndpointTests(WebApplicationFactory<Program> factory)
     {
+        _factory = factory;
         _client = factory.CreateClient(new WebApplicationFactoryClientOptions
         {
             AllowAutoRedirect = false,
             HandleCookies = true,
             BaseAddress = new Uri("https://localhost")
         });
+    }
+
+    [Fact]
+    public async Task DevelopmentHttpRequestsAreNotRedirectedAwayFromBearerAuthentication()
+    {
+        using HttpClient httpClient = _factory.CreateClient(new WebApplicationFactoryClientOptions
+        {
+            AllowAutoRedirect = false,
+            BaseAddress = new Uri("http://localhost")
+        });
+
+        using HttpResponseMessage response = await httpClient.GetAsync("/health/live");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
     }
 
     [Fact]
