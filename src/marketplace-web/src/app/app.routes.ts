@@ -12,5 +12,6 @@ export const routes: Routes = [
   { path: 'rfqs/new', canActivate: [authGuard], loadComponent: () => import('./features/rfqs/rfq-editor.component').then(m => m.RfqEditorComponent) },
   { path: 'rfqs/:rfqId/edit', canActivate: [authGuard], loadComponent: () => import('./features/rfqs/rfq-editor.component').then(m => m.RfqEditorComponent) },
   { path: 'rfqs/:rfqId/offers', canActivate: [authGuard], loadComponent: () => import('./features/offers/buyer-offer-comparison.component').then(m => m.BuyerOfferComparisonComponent) },
+  { path: 'offers/:offerId/conversation', canActivate: [authGuard], loadComponent: () => import('./features/messaging/conversation.component').then(m => m.ConversationComponent) },
   { path: '**', redirectTo: '' }
 ];

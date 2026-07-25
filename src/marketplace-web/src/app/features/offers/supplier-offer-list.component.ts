@@ -40,7 +40,12 @@ type OfferFilter = 'All' | 'Active' | 'Selected' | 'NotSelected' | 'Draft' | 'Wi
               <p>Actualizată {{ offer.updatedAt | date:'dd.MM.yyyy, HH:mm' }}</p></div>
             <div class="offer-value"><small>Valoare ofertă</small><strong>{{ offer.total | currency:'RON':'symbol-narrow':'1.2-2':'ro' }}</strong></div>
             <div class="offer-deadline"><small>Termen cerere</small><strong>{{ offer.quotationDeadline | date:'dd.MM.yyyy, HH:mm' }}</strong></div>
-            <a [routerLink]="['/open-requests', offer.rfqId]">{{ actionLabel(offer.status) }} →</a>
+            <div class="offer-actions">
+              <a [routerLink]="['/open-requests', offer.rfqId]">{{ actionLabel(offer.status) }} →</a>
+              @if (offer.status !== 'Draft') {
+                <a class="message-link" [routerLink]="['/offers', offer.id, 'conversation']">Mesaje</a>
+              }
+            </div>
           </article>
         } @empty {
           <p class="filtered-empty">Nu există oferte cu acest status.</p>

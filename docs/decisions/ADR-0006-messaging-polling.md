@@ -1,6 +1,6 @@
 # ADR-0006: Use HTTP Polling for MVP Messaging
 
-Status: Proposed  
+Status: Accepted
 Date: 2026-07-23
 
 ## Context

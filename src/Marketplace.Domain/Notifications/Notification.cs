@@ -1,6 +1,6 @@
 namespace Marketplace.Domain.Notifications;
 
-public enum NotificationType { OfferReceived, OfferRevised, RequestReopened }
+public enum NotificationType { OfferReceived, OfferRevised, RequestReopened, MessageReceived }
 
 public sealed class Notification
 {

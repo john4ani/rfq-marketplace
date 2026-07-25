@@ -5,6 +5,7 @@ using Marketplace.Domain.LiveMarket;
 using Marketplace.Domain.Rfqs;
 using Marketplace.Domain.Offers;
 using Marketplace.Domain.Notifications;
+using Marketplace.Domain.Messaging;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
@@ -27,6 +28,8 @@ public sealed class MarketplaceDbContext(DbContextOptions<MarketplaceDbContext> 
     public DbSet<Offer> Offers => Set<Offer>();
     public DbSet<OfferItem> OfferItems => Set<OfferItem>();
     public DbSet<Notification> Notifications => Set<Notification>();
+    public DbSet<Conversation> Conversations => Set<Conversation>();
+    public DbSet<Message> Messages => Set<Message>();
 
     protected override void OnModelCreating(ModelBuilder builder)
     {

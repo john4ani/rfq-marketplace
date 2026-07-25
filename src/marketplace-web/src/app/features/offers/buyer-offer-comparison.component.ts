@@ -132,6 +132,7 @@ import { Rfq, RfqService } from '../../core/rfqs/rfq.service';
             </dl>
             @if (entry.offer.paymentTerms) { <div class="terms"><small>Condiții de plată</small><p>{{ entry.offer.paymentTerms }}</p></div> }
             @if (entry.offer.notes) { <div class="terms"><small>Mesaj furnizor</small><p>{{ entry.offer.notes }}</p></div> }
+            <a class="conversation-link" [routerLink]="['/offers', entry.offer.id, 'conversation']">Mesaje cu furnizorul →</a>
             @if (entry.offer.status === 'Selected') {
               <div class="selected">✓ Ofertă selectată</div>
             } @else if (!request.selectedOfferId && pendingOffer()?.offer?.id === entry.offer.id) {

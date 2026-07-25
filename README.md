@@ -4,7 +4,7 @@ A production-oriented, industry-neutral marketplace for requests for quotation. 
 
 The current MVP journey centers on **Piața Live**: providers discover matched open requests, inspect the need, submit or revise an offer, and Buyers receive an in-app notification that links to side-by-side offer comparison. The account dashboard separates day-to-day activity from profile and matching settings, while the participant directory lives on its own focused page.
 
-The repository foundation, identity, Buyer/Supplier profiles, supplier settings, “Piața Live”, RFQ publication, provider offers, buyer comparison, winner selection, and in-app offer notifications are complete through Milestone 5.
+The repository foundation, identity, Buyer/Supplier profiles, supplier settings, “Piața Live”, RFQ publication, provider offers, buyer comparison, winner selection, in-app notifications, and private offer messaging are complete through Milestone 6.
 
 ## Technology baseline
 

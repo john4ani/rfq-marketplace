@@ -37,6 +37,68 @@ namespace Marketplace.Infrastructure.Persistence.Migrations
                     b.ToTable("UserPresences", (string)null);
                 });
 
+            modelBuilder.Entity("Marketplace.Domain.Messaging.Conversation", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("BuyerId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset?>("BuyerLastReadAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("OfferId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("SupplierId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset?>("SupplierLastReadAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("OfferId")
+                        .IsUnique();
+
+                    b.ToTable("Conversations", (string)null);
+                });
+
+            modelBuilder.Entity("Marketplace.Domain.Messaging.Message", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Body")
+                        .IsRequired()
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)");
+
+                    b.Property<Guid>("ConversationId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("SenderId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ConversationId", "CreatedAt");
+
+                    b.ToTable("Messages", (string)null);
+                });
+
             modelBuilder.Entity("Marketplace.Domain.Notifications.Notification", b =>
                 {
                     b.Property<Guid>("Id")
@@ -131,12 +193,12 @@ namespace Marketplace.Infrastructure.Persistence.Migrations
                     b.Property<DateTimeOffset?>("SubmittedAt")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<Guid>("SupplierId")
+                        .HasColumnType("uuid");
+
                     b.Property<decimal?>("TotalPrice")
                         .HasPrecision(18, 2)
                         .HasColumnType("numeric(18,2)");
-
-                    b.Property<Guid>("SupplierId")
-                        .HasColumnType("uuid");
 
                     b.Property<DateTimeOffset>("UpdatedAt")
                         .HasColumnType("timestamp with time zone");
@@ -344,13 +406,13 @@ namespace Marketplace.Infrastructure.Persistence.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
-                    b.Property<bool>("AlternativeProductsAccepted")
-                        .HasColumnType("boolean");
-
                     b.Property<bool>("AllowSplit")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("boolean")
                         .HasDefaultValue(false);
+
+                    b.Property<bool>("AlternativeProductsAccepted")
+                        .HasColumnType("boolean");
 
                     b.Property<Guid>("BuyerId")
                         .HasColumnType("uuid");
@@ -406,16 +468,16 @@ namespace Marketplace.Infrastructure.Persistence.Migrations
                         .HasMaxLength(200)
                         .HasColumnType("character varying(200)");
 
-                    b.Property<int>("ReopenCount")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer")
-                        .HasDefaultValue(0);
-
                     b.Property<DateTimeOffset?>("PublishedAt")
                         .HasColumnType("timestamp with time zone");
 
                     b.Property<DateTimeOffset>("QuotationDeadline")
                         .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("ReopenCount")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasDefaultValue(0);
 
                     b.Property<Guid?>("SelectedOfferId")
                         .HasColumnType("uuid");
@@ -945,6 +1007,24 @@ namespace Marketplace.Infrastructure.Persistence.Migrations
                     b.HasOne("Marketplace.Infrastructure.Identity.ApplicationUser", null)
                         .WithOne()
                         .HasForeignKey("Marketplace.Domain.LiveMarket.UserPresence", "UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Marketplace.Domain.Messaging.Conversation", b =>
+                {
+                    b.HasOne("Marketplace.Domain.Offers.Offer", null)
+                        .WithOne()
+                        .HasForeignKey("Marketplace.Domain.Messaging.Conversation", "OfferId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Marketplace.Domain.Messaging.Message", b =>
+                {
+                    b.HasOne("Marketplace.Domain.Messaging.Conversation", null)
+                        .WithMany()
+                        .HasForeignKey("ConversationId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
                 });

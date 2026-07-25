@@ -1,6 +1,6 @@
 # Domain Model and Aggregate Boundaries
 
-Status: Implemented through the RFQ aggregate; Offer and later aggregates remain proposed
+Status: Implemented through the Conversation aggregate; attachments and later aggregates remain proposed
 
 ```mermaid
 classDiagram

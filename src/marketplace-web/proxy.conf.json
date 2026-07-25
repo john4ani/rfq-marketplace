@@ -1,12 +1,10 @@
 {
   "/api": {
-    "target": "https://localhost:7104",
-    "secure": false,
+    "target": "http://localhost:5221",
     "changeOrigin": true
   },
   "/health": {
-    "target": "https://localhost:7104",
-    "secure": false,
+    "target": "http://localhost:5221",
     "changeOrigin": true
   }
 }

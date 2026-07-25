@@ -1,6 +1,6 @@
 # REST API Overview
 
-Status: Implemented through Milestone 4; later endpoint groups remain proposed
+Status: Implemented through Milestone 6; later endpoint groups remain proposed
 
 Base path: `/api/v1`  
 Format: JSON  
@@ -21,7 +21,7 @@ Errors: RFC 7807 Problem Details
 | Offers | `/rfqs/{id}/offers`, `/offers/{id}`, submit, revise, withdraw | Resource-dependent |
 | Comparison | `/rfqs/{id}/offer-comparison` | Owning buyer only |
 | Acceptance | `/rfqs/{rfqId}/offers/{offerId}/accept` | Owning buyer only |
-| Messaging | `/offers/{id}/conversation`, `/conversations/{id}/messages` | Buyer and that offer's supplier |
+| Messaging | `/offers/{id}/conversation`, messages and read state | Buyer and that offer's supplier |
 | Attachments | upload request, complete, download URL, delete | Authorized parent participant |
 | Administration | `/admin/users`, suppliers, categories, inspection, reports, metrics | Administrator |
 | Health | `/health/live`, `/health/ready` | Operational policy |
@@ -101,9 +101,8 @@ GET    /api/v1/rfqs/{rfqId}/offer-comparison
 POST   /api/v1/rfqs/{rfqId}/offers/{offerId}/accept
 
 GET    /api/v1/offers/{offerId}/conversation
-GET    /api/v1/conversations/{conversationId}/messages
-POST   /api/v1/conversations/{conversationId}/messages
-POST   /api/v1/conversations/{conversationId}/read
+POST   /api/v1/offers/{offerId}/conversation/messages
+POST   /api/v1/offers/{offerId}/conversation/read
 
 POST   /api/v1/attachments/upload-requests
 POST   /api/v1/attachments/{attachmentId}/complete

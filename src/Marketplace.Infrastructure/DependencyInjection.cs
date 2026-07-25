@@ -14,6 +14,8 @@ using Marketplace.Application.Offers;
 using Marketplace.Infrastructure.Offers;
 using Marketplace.Application.Notifications;
 using Marketplace.Infrastructure.Notifications;
+using Marketplace.Application.Messaging;
+using Marketplace.Infrastructure.Messaging;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
@@ -57,6 +59,7 @@ public static class DependencyInjection
         services.AddScoped<IRfqService, RfqService>();
         services.AddScoped<IOfferService, OfferService>();
         services.AddScoped<INotificationService, NotificationService>();
+        services.AddScoped<IMessagingService, MessagingService>();
         return services;
     }
 }

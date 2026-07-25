@@ -72,6 +72,21 @@ public sealed class OfferEndpointTests : IClassFixture<WebApplicationFactory<Pro
             (await _client.PostAsJsonAsync($"/api/v1/notifications/{received.Id}/read", new { })).StatusCode);
         Assert.Equal(0, (await _client.GetFromJsonAsync<UnreadCountResponse>("/api/v1/notifications/unread-count"))!.Count);
 
+        Assert.Equal(HttpStatusCode.OK, (await _client.PostAsJsonAsync(
+            $"/api/v1/offers/{offer.Id}/conversation/messages", new { body = "Putem clarifica termenul de livrare?" })).StatusCode);
+        ConversationResponse conversation =
+            (await _client.GetFromJsonAsync<ConversationResponse>($"/api/v1/offers/{offer.Id}/conversation"))!;
+        ConversationMessageResponse message = Assert.Single(conversation.Messages);
+        Assert.Equal("Putem clarifica termenul de livrare?", message.Body);
+        Assert.True(message.IsMine);
+        Assert.Equal(rfq.Id, conversation.RfqId);
+        Assert.Equal(HttpStatusCode.NoContent,
+            (await _client.PostAsJsonAsync($"/api/v1/offers/{offer.Id}/conversation/read", new { })).StatusCode);
+        notifications = (await _client.GetFromJsonAsync<NotificationResponse[]>("/api/v1/notifications"))!;
+        Assert.Single(notifications, item => item.Type == "MessageReceived" && item.Link == $"/offers/{offer.Id}/conversation");
+        Assert.Equal(HttpStatusCode.NotFound,
+            (await _client.GetAsync($"/api/v1/offers/{Guid.NewGuid()}/conversation")).StatusCode);
+
         Assert.Equal(HttpStatusCode.OK, (await _client.PutAsJsonAsync($"/api/v1/open-rfqs/{rfq.Id}/offer", new {
             deliveryCost = 40m, deliveryDays = 2, validUntil = DateOnly.FromDateTime(DateTime.UtcNow.AddDays(8)),
             paymentTerms = "La livrare", notes = "Oferta revizuită",
@@ -167,4 +182,6 @@ public sealed class OfferEndpointTests : IClassFixture<WebApplicationFactory<Pro
     private sealed record BuyerOfferResponse(string SupplierName, OfferResponse Offer);
     private sealed record NotificationResponse(Guid Id, string Type, string Link, string Message, bool IsRead);
     private sealed record UnreadCountResponse(int Count);
+    private sealed record ConversationResponse(Guid OfferId, Guid RfqId, ConversationMessageResponse[] Messages);
+    private sealed record ConversationMessageResponse(Guid Id, string Body, DateTimeOffset CreatedAt, bool IsMine);
 }
