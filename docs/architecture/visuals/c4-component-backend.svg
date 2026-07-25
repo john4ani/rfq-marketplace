@@ -1,0 +1,106 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="1120" viewBox="0 0 1600 1120" role="img" aria-labelledby="title description">
+  <title id="title">ASP.NET Core backend C4 component overview</title>
+  <desc id="description">A layered view showing the Angular SPA, HTTP pipeline, REST controllers, application contracts, infrastructure services, domain model, Entity Framework context, and PostgreSQL.</desc>
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#52635b"/>
+    </marker>
+    <style>
+      .canvas{fill:#f7f9f8}.boundary{fill:#fff;stroke:#176b52;stroke-width:3}.group{fill:#f1f6f3;stroke:#a9bbb2;stroke-width:2}
+      .api{fill:#eaf1fb;stroke:#7392b7;stroke-width:2}.application{fill:#eeeafd;stroke:#8975b7;stroke-width:2}
+      .infrastructure{fill:#e8f4ed;stroke:#4f8f75;stroke-width:2}.domain{fill:#fff4d6;stroke:#b48a2d;stroke-width:2}
+      .external{fill:#172033;stroke:#172033;stroke-width:2}.database{fill:#176b52;stroke:#176b52;stroke-width:2}
+      .title{font:700 28px Arial,sans-serif;fill:#172033}.subtitle{font:400 16px Arial,sans-serif;fill:#52635b}
+      .label{font:700 16px Arial,sans-serif;fill:#172033}.small{font:400 13px Arial,sans-serif;fill:#52635b}
+      .inverse{font:700 17px Arial,sans-serif;fill:#fff}.inverseSmall{font:400 14px Arial,sans-serif;fill:#e8edf2}
+      .groupLabel{font:700 16px Arial,sans-serif;fill:#176b52;letter-spacing:.5px}.line{fill:none;stroke:#52635b;stroke-width:2.2;marker-end:url(#arrow)}
+      .dashed{fill:none;stroke:#7766a0;stroke-width:2;stroke-dasharray:7 6;marker-end:url(#arrow)}
+    </style>
+  </defs>
+
+  <rect class="canvas" width="1600" height="1120"/>
+  <text class="title" x="70" y="52">ASP.NET Core API — component view</text>
+  <text class="subtitle" x="70" y="80">Current modular-monolith implementation · HTTP boundary, use-case contracts, adapters, domain, and persistence</text>
+
+  <rect class="external" x="610" y="105" width="380" height="70" rx="15"/>
+  <text class="inverse" x="800" y="135" text-anchor="middle">Angular SPA</text>
+  <text class="inverseSmall" x="800" y="158" text-anchor="middle">Authenticated REST JSON client</text>
+
+  <rect class="boundary" x="90" y="215" width="1420" height="780" rx="24"/>
+  <text class="groupLabel" x="125" y="250">ASP.NET CORE MODULAR MONOLITH</text>
+
+  <rect class="api" x="145" y="275" width="1310" height="70" rx="14"/>
+  <text class="label" x="800" y="303" text-anchor="middle">HTTP pipeline</text>
+  <text class="small" x="800" y="328" text-anchor="middle">Correlation ID · problem details · CORS · rate limiting · JWT authentication · authorization · health endpoints</text>
+
+  <rect class="group" x="145" y="380" width="1310" height="145" rx="16"/>
+  <text class="groupLabel" x="175" y="410">REST CONTROLLERS</text>
+
+  <rect class="api" x="180" y="432" width="215" height="65" rx="11"/>
+  <text class="label" x="287" y="460" text-anchor="middle">Identity</text>
+  <text class="small" x="287" y="481" text-anchor="middle">Auth</text>
+
+  <rect class="api" x="430" y="432" width="215" height="65" rx="11"/>
+  <text class="label" x="537" y="460" text-anchor="middle">Profiles &amp; matching</text>
+  <text class="small" x="537" y="481" text-anchor="middle">Profiles · supplier settings</text>
+
+  <rect class="api" x="680" y="432" width="215" height="65" rx="11"/>
+  <text class="label" x="787" y="460" text-anchor="middle">Market discovery</text>
+  <text class="small" x="787" y="481" text-anchor="middle">Piața Live · open RFQs</text>
+
+  <rect class="api" x="930" y="432" width="215" height="65" rx="11"/>
+  <text class="label" x="1037" y="460" text-anchor="middle">Commercial workflow</text>
+  <text class="small" x="1037" y="481" text-anchor="middle">RFQs · offers</text>
+
+  <rect class="api" x="1180" y="432" width="240" height="65" rx="11"/>
+  <text class="label" x="1300" y="460" text-anchor="middle">Engagement</text>
+  <text class="small" x="1300" y="481" text-anchor="middle">Messaging · notifications</text>
+
+  <rect class="group" x="145" y="560" width="1310" height="115" rx="16"/>
+  <text class="groupLabel" x="175" y="590">APPLICATION CONTRACTS &amp; POLICIES</text>
+  <rect class="application" x="180" y="610" width="1010" height="42" rx="10"/>
+  <text class="label" x="685" y="637" text-anchor="middle">Identity · profiles · supplier settings · live market · RFQs · offers · messaging · notifications</text>
+  <rect class="application" x="1220" y="600" width="200" height="62" rx="10"/>
+  <text class="label" x="1320" y="625" text-anchor="middle">Coverage policy</text>
+  <text class="small" x="1320" y="646" text-anchor="middle">whole or partial offer</text>
+
+  <rect class="group" x="145" y="710" width="1310" height="125" rx="16"/>
+  <text class="groupLabel" x="175" y="740">INFRASTRUCTURE IMPLEMENTATIONS</text>
+  <rect class="infrastructure" x="180" y="760" width="230" height="50" rx="10"/>
+  <text class="label" x="295" y="790" text-anchor="middle">Identity &amp; JWT</text>
+  <rect class="infrastructure" x="440" y="760" width="230" height="50" rx="10"/>
+  <text class="label" x="555" y="790" text-anchor="middle">Profiles &amp; settings</text>
+  <rect class="infrastructure" x="700" y="760" width="230" height="50" rx="10"/>
+  <text class="label" x="815" y="790" text-anchor="middle">Market &amp; RFQs</text>
+  <rect class="infrastructure" x="960" y="760" width="200" height="50" rx="10"/>
+  <text class="label" x="1060" y="790" text-anchor="middle">Offers</text>
+  <rect class="infrastructure" x="1190" y="760" width="230" height="50" rx="10"/>
+  <text class="label" x="1305" y="790" text-anchor="middle">Messages &amp; notices</text>
+
+  <rect class="group" x="145" y="870" width="980" height="90" rx="16"/>
+  <text class="groupLabel" x="175" y="900">DOMAIN MODEL</text>
+  <text class="label" x="635" y="932" text-anchor="middle">Roles &amp; presence · profiles &amp; categories · RFQs · offers · conversations · notifications</text>
+
+  <rect class="infrastructure" x="1160" y="870" width="260" height="90" rx="16"/>
+  <text class="label" x="1290" y="907" text-anchor="middle">MarketplaceDbContext</text>
+  <text class="small" x="1290" y="932" text-anchor="middle">EF Core mappings and unit of work</text>
+
+  <rect class="database" x="610" y="1030" width="380" height="68" rx="15"/>
+  <text class="inverse" x="800" y="1058" text-anchor="middle">PostgreSQL</text>
+  <text class="inverseSmall" x="800" y="1081" text-anchor="middle">Marketplace · Identity · tokens · notifications</text>
+
+  <path class="line" d="M800 175 V275"/>
+  <path class="line" d="M800 345 V380"/>
+  <path class="line" d="M800 525 V560"/>
+  <path class="dashed" d="M685 675 V710"/>
+  <path class="line" d="M635 835 V870"/>
+  <path class="line" d="M1290 835 V870"/>
+  <path class="line" d="M1125 915 H1160"/>
+  <path class="line" d="M1290 960 V1000 H800 V1030"/>
+  <path class="dashed" d="M1320 662 V735 H1060 V760"/>
+  <path class="dashed" d="M1320 662 V735 H815 V760"/>
+
+  <text class="small" x="815" y="205">HTTPS JSON</text>
+  <text class="small" x="700" y="699">implemented by adapters</text>
+  <text class="small" x="1140" y="902" text-anchor="end">tracked and persisted</text>
+</svg>

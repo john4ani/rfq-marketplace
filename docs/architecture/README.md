@@ -25,6 +25,8 @@ No application or infrastructure code is included in Milestone 0.
 |---|---|
 | C4 system context | [c4-context.md](c4-context.md) |
 | C4 containers | [c4-container.md](c4-container.md) |
+| C4 Angular frontend components | [c4-component-frontend.md](c4-component-frontend.md) |
+| C4 ASP.NET Core backend components | [c4-component-backend.md](c4-component-backend.md) |
 | Domain model and aggregates | [domain-model.md](domain-model.md) |
 | Database model | [entity-relationship.md](entity-relationship.md) |
 | Main interactions | [sequence-diagrams.md](sequence-diagrams.md) |
