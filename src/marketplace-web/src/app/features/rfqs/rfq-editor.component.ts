@@ -78,6 +78,9 @@ import { ROMANIAN_COUNTIES } from '../../shared/romanian-counties';
       </section>
 
       <section><h2>3. Livrare și termen</h2>
+        <label class="check"><input type="checkbox" formControlName="deliveryRequired">
+          Solicit ca transportul până la adresă să fie inclus în ofertă</label>
+        <p class="help">Dacă debifezi, ridicarea sau transportul se organizează separat și cererea păstrează fluxul actual după selectarea ofertei.</p>
         <label>Adresa de livrare *<input formControlName="deliveryAddress" placeholder="Stradă, număr și detalii de acces">
           @if (form.controls.deliveryAddress.touched && form.controls.deliveryAddress.invalid) { <small class="field-error">Completează adresa de livrare.</small> }</label>
         <div class="two"><label>Localitate *<input formControlName="deliveryLocality">
@@ -149,6 +152,7 @@ export class RfqEditorComponent {
     ]}),
     alternativeProductsAccepted:new FormControl(true,{nonNullable:true}),
     allowSplit:new FormControl(false,{nonNullable:true}),
+    deliveryRequired:new FormControl(true,{nonNullable:true}),
     estimatedBudget:new FormControl<number|null>(null,{validators:Validators.min(0)}),
     buyerNotes:new FormControl<string|null>(null),
     items:new FormArray<FormGroup>([])

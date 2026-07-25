@@ -47,4 +47,30 @@ describe('AuthService', () => {
     http.expectNone('/api/v1/auth/switch-profile');
     http.verify();
   });
+
+  it('requests and completes password recovery without changing session state', () => {
+    TestBed.configureTestingModule({ providers: [provideHttpClient(), provideHttpClientTesting()] });
+    const service = TestBed.inject(AuthService);
+    const http = TestBed.inject(HttpTestingController);
+
+    service.requestPasswordReset('buyer@example.test').subscribe(response =>
+      expect(response?.token).toBe('development-token'));
+    const request = http.expectOne('/api/v1/auth/request-password-reset');
+    expect(request.request.method).toBe('POST');
+    expect(request.request.body).toEqual({ email: 'buyer@example.test' });
+    request.flush({ token: 'development-token' });
+
+    service.resetPassword('buyer@example.test', 'development-token', 'new-password').subscribe();
+    const reset = http.expectOne('/api/v1/auth/reset-password');
+    expect(reset.request.method).toBe('POST');
+    expect(reset.request.body).toEqual({
+      email: 'buyer@example.test',
+      token: 'development-token',
+      newPassword: 'new-password'
+    });
+    reset.flush(null);
+
+    expect(service.isAuthenticated()).toBe(false);
+    http.verify();
+  });
 });

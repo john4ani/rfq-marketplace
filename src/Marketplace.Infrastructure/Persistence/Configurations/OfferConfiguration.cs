@@ -17,6 +17,7 @@ public sealed class OfferConfiguration : IEntityTypeConfiguration<Offer>
         builder.HasKey(offer => offer.Id);
         builder.Property(offer => offer.Currency).HasMaxLength(3).IsRequired();
         builder.Property(offer => offer.PricingMode).HasDefaultValue(OfferPricingMode.Itemized);
+        builder.Property(offer => offer.DeliveryIncluded).HasDefaultValue(false);
         builder.Property(offer => offer.TotalPrice).HasPrecision(18, 2);
         builder.Property(offer => offer.DeliveryCost).HasPrecision(18, 2);
         builder.Property(offer => offer.PaymentTerms).HasMaxLength(500);

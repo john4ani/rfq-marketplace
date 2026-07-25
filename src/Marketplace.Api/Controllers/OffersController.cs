@@ -84,6 +84,38 @@ public sealed class OffersController(IOfferService offerService) : ControllerBas
         }
     }
 
+    [HttpPost("open-rfqs/{rfqId:guid}/delivery/report")]
+    [Authorize(Roles = MarketplaceRoles.Supplier)]
+    public async Task<IActionResult> ReportDelivered(Guid rfqId, CancellationToken cancellationToken)
+    {
+        try
+        {
+            Marketplace.Domain.Rfqs.Rfq? rfq =
+                await offerService.ReportDeliveredAsync(UserId(), rfqId, cancellationToken);
+            return rfq is null ? NotFound() : Ok(RfqResponse.From(rfq));
+        }
+        catch (Marketplace.Domain.Rfqs.RfqRuleException exception)
+        {
+            return InvalidOffer(exception.Message);
+        }
+    }
+
+    [HttpPost("rfqs/{rfqId:guid}/delivery/confirm")]
+    [Authorize(Roles = MarketplaceRoles.Buyer)]
+    public async Task<IActionResult> ConfirmDelivery(Guid rfqId, CancellationToken cancellationToken)
+    {
+        try
+        {
+            Marketplace.Domain.Rfqs.Rfq? rfq =
+                await offerService.ConfirmDeliveryAsync(UserId(), rfqId, cancellationToken);
+            return rfq is null ? NotFound() : Ok(RfqResponse.From(rfq));
+        }
+        catch (Marketplace.Domain.Rfqs.RfqRuleException exception)
+        {
+            return InvalidOffer(exception.Message);
+        }
+    }
+
     private Guid UserId()
     {
         string? subject = User.FindFirstValue(JwtRegisteredClaimNames.Sub) ?? User.FindFirstValue(ClaimTypes.NameIdentifier);
@@ -101,7 +133,8 @@ public sealed record OfferRequest(
     DateOnly ValidUntil,
     string? PaymentTerms,
     string? Notes,
-    IReadOnlyCollection<OfferItemRequest>? Items)
+    IReadOnlyCollection<OfferItemRequest>? Items,
+    bool DeliveryIncluded = true)
 {
     public OfferDraft ToDraft() => new(
         PricingMode,
@@ -111,7 +144,8 @@ public sealed record OfferRequest(
         ValidUntil,
         PaymentTerms,
         Notes,
-        Items?.Select(item => item.ToDraft()).ToArray() ?? []);
+        Items?.Select(item => item.ToDraft()).ToArray() ?? [],
+        DeliveryIncluded);
 }
 public sealed record ReopenRfqRequest(string? Reason, DateTimeOffset? NewQuotationDeadline);
 public sealed record OfferItemRequest(Guid RfqItemId, decimal Quantity, decimal UnitPrice, string? ProductDescription, bool Available)
@@ -123,17 +157,35 @@ public sealed record OfferItemResponse(Guid Id, Guid RfqItemId, decimal Quantity
     public static OfferItemResponse From(OfferItem item) => new(item.Id, item.RfqItemId, item.Quantity, item.UnitPrice, item.ProductDescription, item.Available, item.Quantity * item.UnitPrice);
 }
 public sealed record OfferResponse(Guid Id, Guid RfqId, Guid SupplierId, OfferStatus Status, OfferPricingMode PricingMode,
-    string Currency, decimal? TotalPrice, decimal DeliveryCost, int DeliveryDays,
+    string Currency, decimal? TotalPrice, bool DeliveryIncluded, decimal DeliveryCost, int DeliveryDays,
     DateOnly ValidUntil, string? PaymentTerms, string? Notes, decimal ItemsTotal, decimal Total, DateTimeOffset CreatedAt,
     DateTimeOffset UpdatedAt, DateTimeOffset? SubmittedAt, IReadOnlyCollection<OfferItemResponse> Items)
 {
     public static OfferResponse From(Offer offer) => new(offer.Id, offer.RfqId, offer.SupplierId, offer.Status, offer.PricingMode,
-        offer.Currency, offer.TotalPrice, offer.DeliveryCost, offer.DeliveryDays, offer.ValidUntil, offer.PaymentTerms, offer.Notes, offer.ItemsTotal, offer.Total,
+        offer.Currency, offer.TotalPrice, offer.DeliveryIncluded, offer.DeliveryCost, offer.DeliveryDays, offer.ValidUntil, offer.PaymentTerms, offer.Notes, offer.ItemsTotal, offer.Total,
         offer.CreatedAt, offer.UpdatedAt, offer.SubmittedAt, offer.Items.Select(OfferItemResponse.From).ToArray());
 }
-public sealed record OfferSummaryResponse(Guid Id, Guid RfqId, string RfqTitle, DateTimeOffset QuotationDeadline, OfferStatus Status, decimal Total, DateTimeOffset UpdatedAt)
+public sealed record OfferSummaryResponse(
+    Guid Id,
+    Guid RfqId,
+    string RfqTitle,
+    DateTimeOffset QuotationDeadline,
+    OfferStatus Status,
+    Marketplace.Domain.Rfqs.FulfillmentStatus FulfillmentStatus,
+    bool DeliveryIncluded,
+    decimal Total,
+    DateTimeOffset UpdatedAt)
 {
-    public static OfferSummaryResponse From(OfferSummary value) => new(value.Offer.Id, value.Offer.RfqId, value.RfqTitle, value.QuotationDeadline, value.Offer.Status, value.Offer.Total, value.Offer.UpdatedAt);
+    public static OfferSummaryResponse From(OfferSummary value) => new(
+        value.Offer.Id,
+        value.Offer.RfqId,
+        value.RfqTitle,
+        value.QuotationDeadline,
+        value.Offer.Status,
+        value.FulfillmentStatus,
+        value.Offer.DeliveryIncluded,
+        value.Offer.Total,
+        value.Offer.UpdatedAt);
 }
 public sealed record BuyerOfferResponse(string SupplierName, OfferResponse Offer)
 {

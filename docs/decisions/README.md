@@ -1,6 +1,6 @@
 # Architecture Decision Records
 
-All records are **Proposed** during Milestone 0. They become **Accepted** only after architecture approval.
+Records retain their individual lifecycle status. Implemented decisions are Accepted; infrastructure decisions remain Proposed until Milestone 8 provisions and verifies them.
 
 | ADR | Decision |
 |---|---|
@@ -17,6 +17,8 @@ All records are **Proposed** during Milestone 0. They become **Accepted** only a
 | [ADR-0011](ADR-0011-provider-coverage-and-total-offers.md) | Provider coverage without a product catalogue |
 | [ADR-0012](ADR-0012-defer-ratings-and-reputation.md) | Defer Buyer and Provider ratings beyond the MVP |
 | [ADR-0013](ADR-0013-post-mvp-code-quality-hardening.md) | Schedule code-quality hardening after the MVP |
+| [ADR-0014](ADR-0014-mvp-production-hardening-boundary.md) | MVP production-hardening and deployment boundary |
+| [ADR-0015](ADR-0015-delivery-confirmation-lifecycle.md) | Separate request selection from delivery confirmation |
 
 ## ADR lifecycle
 

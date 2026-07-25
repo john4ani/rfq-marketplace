@@ -24,6 +24,9 @@
 :host ::ng-deep button { padding: .75rem 1rem; border: 0; border-radius: .5rem; color: #fff; background: #176b52; font: inherit; font-weight: 700; cursor: pointer; }
 :host ::ng-deep button:disabled { opacity: .55; cursor: not-allowed; }
 :host ::ng-deep .error { color: #a10f21; }
+:host ::ng-deep .success { padding: .75rem; border-radius: .5rem; color: #126744; background: #e4f5ec; }
+:host ::ng-deep .development-note { padding: .75rem; border-radius: .5rem; color: #5e470f; background: #fff4d6; }
+:host ::ng-deep .development-note a { display: block; margin-top: .35rem; font-weight: 700; }
 :host ::ng-deep .dashboard-intro { display: flex; max-width: none; align-items: center; justify-content: space-between; gap: 1rem; }
 :host ::ng-deep .dashboard-content { max-width: none; }
 :host ::ng-deep .profile-card { width: 100%; margin: 1.5rem 0; padding: clamp(1.25rem, 3vw, 2rem); box-sizing: border-box; border: 1px solid #dfe3e8; border-radius: .75rem; background: #fff; box-shadow: 0 5px 18px rgb(23 32 51 / 5%); }

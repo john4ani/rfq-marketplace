@@ -1,6 +1,6 @@
 # REST API Overview
 
-Status: Implemented through Milestone 6; later endpoint groups remain proposed
+Status: Implemented through Milestone 7; attachments and administration remain proposed
 
 Base path: `/api/v1`  
 Format: JSON  
@@ -14,13 +14,14 @@ Errors: RFC 7807 Problem Details
 | Authentication | `/auth/register/*`, `/auth/login`, `/auth/refresh`, `/auth/logout`, verification/reset | Public or authenticated self |
 | Buyer profile | `GET/PUT /buyers/{buyerId}` | Owning Buyer |
 | Supplier profile | `GET/PUT /suppliers/{supplierId}` | Owning Supplier |
-| Categories | `GET /categories` | Authenticated; public exposure may be allowed |
+| Categories | `GET/POST /categories` | Authenticated read; Provider create during controlled pilot |
 | Piața Live | `GET /piata-live`, presence heartbeat | Public directory; authenticated presence |
 | Buyer RFQs | `/rfqs`, `/rfqs/{id}`, items, publish, cancel, close | Owning buyer |
 | Supplier discovery | `/supplier/rfqs` | Approved active supplier |
 | Offers | `/rfqs/{id}/offers`, `/offers/{id}`, submit, revise, withdraw | Resource-dependent |
 | Comparison | `/rfqs/{id}/offer-comparison` | Owning buyer only |
-| Acceptance | `/rfqs/{rfqId}/offers/{offerId}/accept` | Owning buyer only |
+| Acceptance | `/rfqs/{rfqId}/offers/{offerId}/select` | Owning buyer only |
+| Delivery confirmation | Provider report and Buyer confirmation routes | Selected Provider or owning Buyer |
 | Messaging | `/offers/{id}/conversation`, messages and read state | Buyer and that offer's supplier |
 | Attachments | upload request, complete, download URL, delete | Authorized parent participant |
 | Administration | `/admin/users`, suppliers, categories, inspection, reports, metrics | Administrator |
@@ -38,8 +39,10 @@ Errors: RFC 7807 Problem Details
 | View all offers for RFQ | Owning buyer | Never | Inspect with audit |
 | View one conversation | Owning buyer | Owning supplier | Moderation with audit |
 | Accept offer | Owning buyer | No | No |
+| Report delivery | No | Selected Provider only | No |
+| Confirm receipt | Owning buyer | No | No |
 | Approve/suspend supplier | No | No | Yes |
-| Manage categories | No | No | Yes |
+| Add a missing pilot category | No | Yes, guarded | Proposed moderation |
 
 Every resource action applies backend ownership checks. A role alone is insufficient.
 
@@ -61,10 +64,11 @@ Every resource action applies backend ownership checks. A role alone is insuffic
 POST   /api/v1/auth/register/buyer
 POST   /api/v1/auth/register/supplier
 POST   /api/v1/auth/register
-POST   /api/v1/auth/verify-email
 POST   /api/v1/auth/login
 POST   /api/v1/auth/refresh
 POST   /api/v1/auth/logout
+POST   /api/v1/auth/request-password-reset
+POST   /api/v1/auth/reset-password
 GET    /api/v1/auth/profiles
 
 GET    /api/v1/buyers/{buyerId}
@@ -98,7 +102,9 @@ POST   /api/v1/offers/{offerId}/withdraw
 GET    /api/v1/offers/{offerId}/revisions
 
 GET    /api/v1/rfqs/{rfqId}/offer-comparison
-POST   /api/v1/rfqs/{rfqId}/offers/{offerId}/accept
+POST   /api/v1/rfqs/{rfqId}/offers/{offerId}/select
+POST   /api/v1/open-rfqs/{rfqId}/delivery/report
+POST   /api/v1/rfqs/{rfqId}/delivery/confirm
 
 GET    /api/v1/offers/{offerId}/conversation
 POST   /api/v1/offers/{offerId}/conversation/messages

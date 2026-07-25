@@ -1,6 +1,6 @@
 # Milestone 4 — RFQ Creation and Publication
 
-Status: Ready for review
+Status: Complete
 
 ## Outcome
 

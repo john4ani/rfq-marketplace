@@ -96,13 +96,14 @@ public sealed record RfqRequest(
     string Title, string? ProjectName, string? Description, Guid PrimaryCategoryId,
     string DeliveryAddress, string DeliveryLocality, string County, int? SupplierSearchRadiusKm, decimal? Latitude, decimal? Longitude,
     DateOnly? PreferredDeliveryDate, DateTimeOffset QuotationDeadline, bool AlternativeProductsAccepted,
-    decimal? EstimatedBudget, string? BuyerNotes, IReadOnlyCollection<RfqItemRequest>? Items, bool AllowSplit = false)
+    decimal? EstimatedBudget, string? BuyerNotes, IReadOnlyCollection<RfqItemRequest>? Items, bool AllowSplit = false,
+    bool DeliveryRequired = false)
 {
     public RfqDraft ToDraft() => new(
         Title ?? string.Empty, ProjectName, Description, PrimaryCategoryId,
         DeliveryAddress ?? string.Empty, DeliveryLocality ?? string.Empty, County ?? string.Empty, SupplierSearchRadiusKm ?? 30,
         Latitude, Longitude, PreferredDeliveryDate, QuotationDeadline, AlternativeProductsAccepted,
-        EstimatedBudget, BuyerNotes, Items?.Select(item => item.ToDraft()).ToArray() ?? [], AllowSplit);
+        EstimatedBudget, BuyerNotes, Items?.Select(item => item.ToDraft()).ToArray() ?? [], AllowSplit, DeliveryRequired);
 }
 
 public sealed record RfqItemRequest(
@@ -120,7 +121,9 @@ public sealed record RfqResponse(
     DateOnly? PreferredDeliveryDate, DateTimeOffset QuotationDeadline, bool AlternativeProductsAccepted,
     decimal? EstimatedBudget, string? BuyerNotes, bool AllowSplit, RfqStatus Status, DateTimeOffset CreatedAt,
     DateTimeOffset UpdatedAt, DateTimeOffset? PublishedAt, DateTimeOffset? ClosedAt, Guid? SelectedOfferId,
-    int ReopenCount, IReadOnlyCollection<RfqItemResponse> Items)
+    int ReopenCount, bool DeliveryRequired, FulfillmentStatus FulfillmentStatus,
+    DateTimeOffset? DeliveryReportedAt, DateTimeOffset? DeliveredAt,
+    IReadOnlyCollection<RfqItemResponse> Items)
 {
     public static RfqResponse From(Rfq rfq) => new(
         rfq.Id, rfq.BuyerId, rfq.Title, rfq.ProjectName, rfq.Description, rfq.PrimaryCategoryId,
@@ -128,6 +131,7 @@ public sealed record RfqResponse(
         rfq.PreferredDeliveryDate, rfq.QuotationDeadline, rfq.AlternativeProductsAccepted,
         rfq.EstimatedBudget, rfq.BuyerNotes, rfq.AllowSplit, rfq.Status, rfq.CreatedAt, rfq.UpdatedAt,
         rfq.PublishedAt, rfq.ClosedAt, rfq.SelectedOfferId, rfq.ReopenCount,
+        rfq.DeliveryRequired, rfq.FulfillmentStatus, rfq.DeliveryReportedAt, rfq.DeliveredAt,
         rfq.Items.OrderBy(item => item.ItemNumber).Select(RfqItemResponse.From).ToArray());
 }
 

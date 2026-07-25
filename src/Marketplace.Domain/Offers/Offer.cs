@@ -14,6 +14,7 @@ public sealed class Offer
     public OfferPricingMode PricingMode { get; private set; }
     public string Currency { get; private set; } = "RON";
     public decimal? TotalPrice { get; private set; }
+    public bool DeliveryIncluded { get; private set; }
     public decimal DeliveryCost { get; private set; }
     public int DeliveryDays { get; private set; }
     public DateOnly ValidUntil { get; private set; }
@@ -49,7 +50,7 @@ public sealed class Offer
             throw new OfferRuleException("Oferta nu are modificări noi de trimis.");
         if (PricingMode == OfferPricingMode.Total && TotalPrice is null or <= 0)
             throw new OfferRuleException("Introduceți valoarea totală a ofertei.");
-        if (PricingMode == OfferPricingMode.Itemized && _items.Count == 0 && DeliveryCost <= 0)
+        if (PricingMode == OfferPricingMode.Itemized && _items.Count == 0)
             throw new OfferRuleException("Adăugați cel puțin o poziție sau folosiți oferta cu preț total.");
         if (ValidUntil < DateOnly.FromDateTime(now.UtcDateTime))
             throw new OfferRuleException("Valabilitatea ofertei nu poate fi în trecut.");
@@ -80,12 +81,16 @@ public sealed class Offer
         if (draft.DeliveryCost < 0) throw new OfferRuleException("Costul livrării nu poate fi negativ.");
         if (draft.TotalPrice < 0) throw new OfferRuleException("Valoarea totală a ofertei nu poate fi negativă.");
         if (draft.DeliveryDays < 0 || draft.DeliveryDays > 365) throw new OfferRuleException("Termenul de livrare trebuie să fie între 0 și 365 de zile.");
+        if (!draft.DeliveryIncluded && draft.DeliveryCost > 0)
+            throw new OfferRuleException("Costul livrării poate fi completat doar când transportul este inclus.");
         if (draft.Items.Select(item => item.RfqItemId).Distinct().Count() != draft.Items.Count)
             throw new OfferRuleException("Aceeași poziție nu poate apărea de mai multe ori.");
         PricingMode = draft.PricingMode;
         TotalPrice = draft.PricingMode == OfferPricingMode.Total ? draft.TotalPrice : null;
-        DeliveryCost = draft.PricingMode == OfferPricingMode.Total ? 0 : draft.DeliveryCost;
-        DeliveryDays = draft.DeliveryDays; ValidUntil = draft.ValidUntil;
+        DeliveryIncluded = draft.DeliveryIncluded;
+        DeliveryCost = draft.PricingMode == OfferPricingMode.Total || !draft.DeliveryIncluded ? 0 : draft.DeliveryCost;
+        DeliveryDays = draft.DeliveryIncluded ? draft.DeliveryDays : 0;
+        ValidUntil = draft.ValidUntil;
         PaymentTerms = Clean(draft.PaymentTerms); Notes = Clean(draft.Notes);
         Dictionary<Guid, OfferItem> existing = _items.ToDictionary(item => item.RfqItemId);
         _items.Clear();
@@ -111,6 +116,7 @@ public sealed record OfferDraft(
     DateOnly ValidUntil,
     string? PaymentTerms,
     string? Notes,
-    IReadOnlyCollection<OfferItemDraft> Items);
+    IReadOnlyCollection<OfferItemDraft> Items,
+    bool DeliveryIncluded = true);
 public sealed record OfferItemDraft(Guid RfqItemId, decimal Quantity, decimal UnitPrice, string? ProductDescription, bool Available);
 public sealed class OfferRuleException(string message) : InvalidOperationException(message);

@@ -5,12 +5,15 @@ using Marketplace.Domain.Identity;
 using Marketplace.Domain.Suppliers;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 
 namespace Marketplace.Api.Controllers;
 
 [ApiController]
 [Route("api/v1")]
-public sealed class SupplierSettingsController(ISupplierSettingsService settingsService) : ControllerBase
+public sealed partial class SupplierSettingsController(
+    ISupplierSettingsService settingsService,
+    ILogger<SupplierSettingsController> logger) : ControllerBase
 {
     [Authorize]
     [HttpGet("categories")]
@@ -21,6 +24,7 @@ public sealed class SupplierSettingsController(ISupplierSettingsService settings
     }
 
     [Authorize(Roles = MarketplaceRoles.Supplier)]
+    [EnableRateLimiting("category-creation")]
     [HttpPost("categories")]
     public async Task<IActionResult> AddCategory(AddCategoryRequest request, CancellationToken cancellationToken)
     {
@@ -37,6 +41,16 @@ public sealed class SupplierSettingsController(ISupplierSettingsService settings
         Category category = result.Category;
         if (category.ParentId is null)
             return ValidationProblem(ProblemErrors("name", "Aceasta este deja o categorie principală. Alegeți o categorie de produse."));
+        if (!result.AlreadyExisted && logger.IsEnabled(LogLevel.Information))
+        {
+            string? supplierId = User.FindFirstValue(JwtRegisteredClaimNames.Sub)
+                ?? User.FindFirstValue(ClaimTypes.NameIdentifier);
+            LogCategoryCreated(
+                logger,
+                supplierId,
+                category.Id,
+                category.Name);
+        }
         return Ok(new CategoryCreationResponse(category.Id, category.ParentId, category.Name, category.Slug, result.AlreadyExisted));
     }
 
@@ -114,6 +128,15 @@ public sealed class SupplierSettingsController(ISupplierSettingsService settings
     private NotFoundObjectResult MissingProfile() => NotFound(Problem(title: "Completați mai întâi profilul companiei."));
     private static ValidationProblemDetails ProblemErrors(string field, string message) =>
         new(new Dictionary<string, string[]> { [field] = [message] }) { Title = "Setările nu au putut fi salvate." };
+
+    [LoggerMessage(
+        Level = LogLevel.Information,
+        Message = "Supplier {SupplierId} created category {CategoryId} ({CategoryName})")]
+    private static partial void LogCategoryCreated(
+        ILogger logger,
+        string? supplierId,
+        Guid categoryId,
+        string categoryName);
 }
 
 public sealed record CategoryResponse(Guid Id, Guid? ParentId, string Name, string Slug);

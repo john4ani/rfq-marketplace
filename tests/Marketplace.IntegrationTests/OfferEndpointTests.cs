@@ -45,7 +45,7 @@ public sealed class OfferEndpointTests : IClassFixture<WebApplicationFactory<Pro
             deliveryAddress = "Private 1", deliveryLocality = "Iași", county = "Iași", supplierSearchRadiusKm = 30,
             latitude = (decimal?)null, longitude = (decimal?)null, preferredDeliveryDate = DateOnly.FromDateTime(DateTime.UtcNow.AddDays(10)),
             quotationDeadline = DateTimeOffset.UtcNow.AddDays(2), alternativeProductsAccepted = true,
-            estimatedBudget = 1000m, buyerNotes = (string?)null,
+            deliveryRequired = true, estimatedBudget = 1000m, buyerNotes = (string?)null,
             items = new[] { new { productName = "Product", manufacturerOrBrand = (string?)null, specification = "Spec",
                 quantity = 10m, unit = "Piece", alternativesAccepted = true, buyerNotes = (string?)null } }
         });
@@ -54,7 +54,7 @@ public sealed class OfferEndpointTests : IClassFixture<WebApplicationFactory<Pro
         Assert.Equal(HttpStatusCode.OK, (await _client.PostAsJsonAsync($"/api/v1/rfqs/{rfq.Id}/publish", new { })).StatusCode);
 
         HttpResponseMessage saved = await _client.PutAsJsonAsync($"/api/v1/open-rfqs/{rfq.Id}/offer", new {
-            deliveryCost = 50m, deliveryDays = 3, validUntil = DateOnly.FromDateTime(DateTime.UtcNow.AddDays(7)),
+            deliveryIncluded = true, deliveryCost = 50m, deliveryDays = 3, validUntil = DateOnly.FromDateTime(DateTime.UtcNow.AddDays(7)),
             paymentTerms = "La livrare", notes = "Oferta test",
             items = new[] { new { rfqItemId = rfq.Items[0].Id, quantity = 10m, unitPrice = 90m,
                 productDescription = "Produs echivalent", available = true } }
@@ -88,7 +88,7 @@ public sealed class OfferEndpointTests : IClassFixture<WebApplicationFactory<Pro
             (await _client.GetAsync($"/api/v1/offers/{Guid.NewGuid()}/conversation")).StatusCode);
 
         Assert.Equal(HttpStatusCode.OK, (await _client.PutAsJsonAsync($"/api/v1/open-rfqs/{rfq.Id}/offer", new {
-            deliveryCost = 40m, deliveryDays = 2, validUntil = DateOnly.FromDateTime(DateTime.UtcNow.AddDays(8)),
+            deliveryIncluded = true, deliveryCost = 40m, deliveryDays = 2, validUntil = DateOnly.FromDateTime(DateTime.UtcNow.AddDays(8)),
             paymentTerms = "La livrare", notes = "Oferta revizuită",
             items = new[] { new { rfqItemId = rfq.Items[0].Id, quantity = 10m, unitPrice = 85m,
                 productDescription = "Produs echivalent", available = true } }
@@ -128,7 +128,7 @@ public sealed class OfferEndpointTests : IClassFixture<WebApplicationFactory<Pro
         Assert.Contains(reopenReason, reopenedNotification.Message);
 
         Assert.Equal(HttpStatusCode.OK, (await _client.PutAsJsonAsync($"/api/v1/open-rfqs/{rfq.Id}/offer", new {
-            pricingMode = "Total", totalPrice = 1100m, deliveryCost = 0m, deliveryDays = 2,
+            pricingMode = "Total", totalPrice = 1100m, deliveryIncluded = true, deliveryCost = 0m, deliveryDays = 2,
             validUntil = DateOnly.FromDateTime(DateTime.UtcNow.AddDays(8)),
             paymentTerms = "La livrare", notes = "Acoperă întreaga cerere", items = Array.Empty<object>()
         })).StatusCode);
@@ -146,6 +146,22 @@ public sealed class OfferEndpointTests : IClassFixture<WebApplicationFactory<Pro
         RfqResponse finallySelected = (await _client.GetFromJsonAsync<RfqResponse>($"/api/v1/rfqs/{rfq.Id}"))!;
         Assert.Equal(1, finallySelected.ReopenCount);
         Assert.Equal("OfferSelected", finallySelected.Status);
+        Assert.Equal("AwaitingDelivery", finallySelected.FulfillmentStatus);
+
+        Assert.Equal(HttpStatusCode.OK,
+            (await _client.PostAsJsonAsync($"/api/v1/open-rfqs/{rfq.Id}/delivery/report", new { })).StatusCode);
+        RfqResponse deliveryReported = (await _client.GetFromJsonAsync<RfqResponse>($"/api/v1/rfqs/{rfq.Id}"))!;
+        Assert.Equal("DeliveryReported", deliveryReported.FulfillmentStatus);
+        notifications = (await _client.GetFromJsonAsync<NotificationResponse[]>("/api/v1/notifications"))!;
+        Assert.Single(notifications, item => item.Type == "DeliveryReported" && item.Link == $"/rfqs/{rfq.Id}/offers");
+
+        Assert.Equal(HttpStatusCode.OK,
+            (await _client.PostAsJsonAsync($"/api/v1/rfqs/{rfq.Id}/delivery/confirm", new { })).StatusCode);
+        RfqResponse delivered = (await _client.GetFromJsonAsync<RfqResponse>($"/api/v1/rfqs/{rfq.Id}"))!;
+        Assert.Equal("Closed", delivered.Status);
+        Assert.Equal("Delivered", delivered.FulfillmentStatus);
+        notifications = (await _client.GetFromJsonAsync<NotificationResponse[]>("/api/v1/notifications"))!;
+        Assert.Single(notifications, item => item.Type == "DeliveryConfirmed" && item.Link == $"/open-requests/{rfq.Id}");
 
         HttpResponseMessage generalCreated = await _client.PostAsJsonAsync("/api/v1/rfqs", new {
             title = "General request without lines", projectName = (string?)null, description = "General need",
@@ -176,7 +192,13 @@ public sealed class OfferEndpointTests : IClassFixture<WebApplicationFactory<Pro
     }
     private sealed record TokenResponse(string AccessToken, DateTimeOffset ExpiresAt);
     private sealed record CategoryResponse(Guid Id, Guid? ParentId);
-    private sealed record RfqResponse(Guid Id, string Status, Guid? SelectedOfferId, int ReopenCount, RfqItemResponse[] Items);
+    private sealed record RfqResponse(
+        Guid Id,
+        string Status,
+        Guid? SelectedOfferId,
+        int ReopenCount,
+        string FulfillmentStatus,
+        RfqItemResponse[] Items);
     private sealed record RfqItemResponse(Guid Id);
     private sealed record OfferResponse(Guid Id, string Status, string PricingMode, decimal Total);
     private sealed record BuyerOfferResponse(string SupplierName, OfferResponse Offer);

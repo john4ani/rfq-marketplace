@@ -3,6 +3,7 @@ import { computed, DestroyRef, inject, Injectable, signal } from '@angular/core'
 import { catchError, finalize, Observable, of, switchMap, tap } from 'rxjs';
 
 export interface TokenResponse { accessToken: string; expiresAt: string; }
+export interface PasswordResetRequestResponse { token: string | null; }
 export interface AccountSession { userId: string; email: string; accountType: 'Buyer' | 'Supplier'; }
 export interface LinkedProfile { userId: string; email: string; accountType: 'Buyer' | 'Supplier'; }
 
@@ -37,6 +38,14 @@ export class AuthService {
 
   register(email: string, password: string, accountTypes: ('Buyer' | 'Supplier')[]): Observable<void> {
     return this.http.post<void>('/api/v1/auth/register', { email, password, accountTypes });
+  }
+
+  requestPasswordReset(email: string): Observable<PasswordResetRequestResponse | null> {
+    return this.http.post<PasswordResetRequestResponse | null>('/api/v1/auth/request-password-reset', { email });
+  }
+
+  resetPassword(email: string, token: string, newPassword: string): Observable<void> {
+    return this.http.post<void>('/api/v1/auth/reset-password', { email, token, newPassword });
   }
 
   login(email: string, password: string): Observable<TokenResponse> {

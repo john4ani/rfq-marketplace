@@ -4,7 +4,7 @@ A production-oriented, industry-neutral marketplace for requests for quotation. 
 
 The current MVP journey centers on **Piața Live**: providers discover matched open requests, inspect the need, submit or revise an offer, and Buyers receive an in-app notification that links to side-by-side offer comparison. The account dashboard separates day-to-day activity from profile and matching settings, while the participant directory lives on its own focused page.
 
-The repository foundation, identity, Buyer/Supplier profiles, supplier settings, “Piața Live”, RFQ publication, provider offers, buyer comparison, winner selection, in-app notifications, and private offer messaging are complete through Milestone 6.
+The repository foundation, identity, Buyer/Supplier profiles, supplier settings, “Piața Live”, RFQ publication, provider offers, buyer comparison, winner selection, in-app notifications, private offer messaging, production hardening, password recovery, and the repeatable MVP acceptance gate are complete through Milestone 7.
 
 ## Technology baseline
 
@@ -105,6 +105,8 @@ Configuration uses standard ASP.NET Core precedence. Environment variables overr
 ConnectionStrings__MarketplaceDatabase
 Frontend__Origin
 ```
+
+Outside Development, the API also requires production `AllowedHosts`, a non-placeholder JWT key, SMTP password-reset configuration, and an explicit trusted Caddy proxy IP. See [Milestone 7](docs/milestones/milestone-7-mvp-acceptance-and-production-hardening.md) and `appsettings.Example.json`.
 
 Do not commit `.env`, local settings, credentials, certificates, or production configuration.
 

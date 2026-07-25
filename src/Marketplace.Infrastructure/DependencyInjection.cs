@@ -31,7 +31,13 @@ public static class DependencyInjection
     {
         string connectionString = configuration.GetConnectionString("MarketplaceDatabase")
             ?? throw new InvalidOperationException("Connection string 'MarketplaceDatabase' is required.");
-        services.AddDbContext<MarketplaceDbContext>(options => options.UseNpgsql(connectionString, npgsql => npgsql.MigrationsAssembly(typeof(MarketplaceDbContext).Assembly.FullName)));
+        services.AddDbContext<MarketplaceDbContext>(options => options.UseNpgsql(
+            connectionString,
+            npgsql =>
+            {
+                npgsql.MigrationsAssembly(typeof(MarketplaceDbContext).Assembly.FullName);
+                npgsql.EnableRetryOnFailure(5, TimeSpan.FromSeconds(5), null);
+            }));
         services.AddIdentityCore<ApplicationUser>(options =>
         {
             options.User.RequireUniqueEmail = true;
@@ -42,7 +48,10 @@ public static class DependencyInjection
             options.Password.RequireNonAlphanumeric = false;
             options.SignIn.RequireConfirmedEmail = false;
         }).AddRoles<IdentityRole<Guid>>().AddEntityFrameworkStores<MarketplaceDbContext>().AddDefaultTokenProviders();
+        services.Configure<DataProtectionTokenProviderOptions>(options =>
+            options.TokenLifespan = TimeSpan.FromMinutes(30));
         services.Configure<JwtOptions>(configuration.GetRequiredSection(JwtOptions.SectionName));
+        services.Configure<PasswordResetEmailOptions>(configuration.GetSection(PasswordResetEmailOptions.SectionName));
         JwtOptions jwt = configuration.GetRequiredSection(JwtOptions.SectionName).Get<JwtOptions>()
             ?? throw new InvalidOperationException("JWT configuration is required.");
         if (Encoding.UTF8.GetByteCount(jwt.SigningKey) < 32) throw new InvalidOperationException("JWT signing key must contain at least 32 bytes.");
@@ -53,6 +62,7 @@ public static class DependencyInjection
         services.AddAuthorization();
         services.AddSingleton(TimeProvider.System);
         services.AddScoped<IIdentityService, IdentityService>();
+        services.AddScoped<IPasswordResetDelivery, SmtpPasswordResetDelivery>();
         services.AddScoped<IProfileService, ProfileService>();
         services.AddScoped<ISupplierSettingsService, SupplierSettingsService>();
         services.AddScoped<ILiveMarketService, LiveMarketService>();

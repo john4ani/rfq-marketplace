@@ -168,6 +168,11 @@ namespace Marketplace.Infrastructure.Persistence.Migrations
                     b.Property<int>("DeliveryDays")
                         .HasColumnType("integer");
 
+                    b.Property<bool>("DeliveryIncluded")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false);
+
                     b.Property<string>("Notes")
                         .HasMaxLength(2000)
                         .HasColumnType("character varying(2000)");
@@ -432,6 +437,9 @@ namespace Marketplace.Infrastructure.Persistence.Migrations
                     b.Property<DateTimeOffset>("CreatedAt")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<DateTimeOffset?>("DeliveredAt")
+                        .HasColumnType("timestamp with time zone");
+
                     b.Property<string>("DeliveryAddress")
                         .IsRequired()
                         .HasMaxLength(300)
@@ -442,6 +450,14 @@ namespace Marketplace.Infrastructure.Persistence.Migrations
                         .HasMaxLength(120)
                         .HasColumnType("character varying(120)");
 
+                    b.Property<DateTimeOffset?>("DeliveryReportedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<bool>("DeliveryRequired")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false);
+
                     b.Property<string>("Description")
                         .HasMaxLength(4000)
                         .HasColumnType("character varying(4000)");
@@ -449,6 +465,11 @@ namespace Marketplace.Infrastructure.Persistence.Migrations
                     b.Property<decimal?>("EstimatedBudget")
                         .HasPrecision(18, 2)
                         .HasColumnType("numeric(18,2)");
+
+                    b.Property<int>("FulfillmentStatus")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasDefaultValue(0);
 
                     b.Property<decimal?>("Latitude")
                         .HasPrecision(9, 6)

@@ -2,6 +2,7 @@ import { HttpClient } from '@angular/common/http';
 import { inject, Injectable } from '@angular/core';
 
 export type RfqStatus = 'Draft' | 'Published' | 'ReceivingOffers' | 'OfferSelected' | 'Closed' | 'Cancelled';
+export type FulfillmentStatus = 'NotApplicable' | 'AwaitingDelivery' | 'DeliveryReported' | 'Delivered';
 export type UnitOfMeasure = 'Piece' | 'Pack' | 'Bag' | 'Kilogram' | 'Tonne' | 'Metre' | 'SquareMetre' | 'CubicMetre' | 'Litre' | 'Pallet' | 'Other';
 
 export interface RfqItem {
@@ -13,11 +14,12 @@ export interface RfqDraft {
   title: string; projectName: string | null; description: string | null; primaryCategoryId: string;
   deliveryAddress: string; deliveryLocality: string; county: string; supplierSearchRadiusKm: number; latitude: number | null; longitude: number | null;
   preferredDeliveryDate: string | null; quotationDeadline: string; alternativeProductsAccepted: boolean;
-  estimatedBudget: number | null; buyerNotes: string | null; items: RfqItem[]; allowSplit: boolean;
+  estimatedBudget: number | null; buyerNotes: string | null; items: RfqItem[]; allowSplit: boolean; deliveryRequired: boolean;
 }
 export interface Rfq extends RfqDraft {
   id: string; buyerId: string; status: RfqStatus; createdAt: string; updatedAt: string;
   publishedAt: string | null; closedAt: string | null; selectedOfferId: string | null; reopenCount: number;
+  fulfillmentStatus: FulfillmentStatus; deliveryReportedAt: string | null; deliveredAt: string | null;
 }
 
 @Injectable({ providedIn: 'root' })

@@ -24,7 +24,9 @@ public sealed class RfqConfiguration : IEntityTypeConfiguration<Rfq>
         builder.Property(rfq => rfq.County).HasMaxLength(80).IsRequired();
         builder.Property(rfq => rfq.SupplierSearchRadiusKm).HasDefaultValue(30);
         builder.Property(rfq => rfq.AllowSplit).HasDefaultValue(false);
+        builder.Property(rfq => rfq.DeliveryRequired).HasDefaultValue(false);
         builder.Property(rfq => rfq.ReopenCount).HasDefaultValue(0);
+        builder.Property(rfq => rfq.FulfillmentStatus).HasDefaultValue(FulfillmentStatus.NotApplicable);
         builder.Property(rfq => rfq.Latitude).HasPrecision(9, 6);
         builder.Property(rfq => rfq.Longitude).HasPrecision(9, 6);
         builder.Property(rfq => rfq.EstimatedBudget).HasPrecision(18, 2);

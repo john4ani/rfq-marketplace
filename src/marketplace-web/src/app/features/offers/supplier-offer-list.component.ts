@@ -46,6 +46,18 @@ type OfferFilter = 'All' | 'Active' | 'Selected' | 'NotSelected' | 'Draft' | 'Wi
                 <a class="message-link" [routerLink]="['/offers', offer.id, 'conversation']">Mesaje</a>
               }
             </div>
+            @if (offer.status === 'Selected' && offer.deliveryIncluded) {
+              <div class="delivery-action">
+                <strong>{{ fulfillmentLabel(offer.fulfillmentStatus) }}</strong>
+                @if (offer.fulfillmentStatus === 'AwaitingDelivery' && pendingDeliveryId() !== offer.id) {
+                  <button type="button" (click)="pendingDeliveryId.set(offer.id)">Marchează ca livrată</button>
+                } @else if (offer.fulfillmentStatus === 'AwaitingDelivery') {
+                  <p>Confirmi că produsele au fost livrate cumpărătorului? Acesta va fi notificat să confirme primirea.</p>
+                  <div><button type="button" class="secondary" (click)="pendingDeliveryId.set(null)">Renunță</button>
+                    <button type="button" (click)="reportDelivered(offer)" [disabled]="deliveryBusy()">Confirmă livrarea</button></div>
+                }
+              </div>
+            }
           </article>
         } @empty {
           <p class="filtered-empty">Nu există oferte cu acest status.</p>
@@ -61,6 +73,8 @@ export class SupplierOfferListComponent {
   readonly offers = signal<OfferSummary[]>([]);
   readonly loading = signal(true);
   readonly error = signal('');
+  readonly deliveryBusy = signal(false);
+  readonly pendingDeliveryId = signal<string | null>(null);
   readonly filter = signal<OfferFilter>('All');
   readonly filterOptions: ReadonlyArray<{ value: OfferFilter; label: string }> = [
     { value: 'All', label: 'Toate' },
@@ -104,5 +118,33 @@ export class SupplierOfferListComponent {
 
   actionLabel(status: OfferStatus): string {
     return status === 'Draft' ? 'Continuă oferta' : status === 'Selected' ? 'Vezi oferta acceptată' : 'Vezi cererea';
+  }
+
+  fulfillmentLabel(status: OfferSummary['fulfillmentStatus']): string {
+    return ({
+      NotApplicable: 'Transport neinclus',
+      AwaitingDelivery: 'Livrare de efectuat',
+      DeliveryReported: 'Livrare declarată · așteaptă confirmarea cumpărătorului',
+      Delivered: 'Livrare confirmată'
+    })[status];
+  }
+
+  reportDelivered(offer: OfferSummary): void {
+    if (this.deliveryBusy()) return;
+    this.deliveryBusy.set(true);
+    this.error.set('');
+    this.service.reportDelivered(offer.rfqId).subscribe({
+      next: () => {
+        this.offers.update(items => items.map(item => item.id === offer.id
+          ? { ...item, fulfillmentStatus: 'DeliveryReported' }
+          : item));
+        this.pendingDeliveryId.set(null);
+        this.deliveryBusy.set(false);
+      },
+      error: error => {
+        this.deliveryBusy.set(false);
+        this.error.set(error.error?.errors?.offer?.[0] ?? 'Livrarea nu a putut fi declarată.');
+      }
+    });
   }
 }

@@ -13,7 +13,7 @@ import { Rfq, RfqService } from '../../core/rfqs/rfq.service';
     @if (rfq(); as request) {
       <header><div><p class="eyebrow">Gestionare cerere</p><h1>{{ request.title }}</h1>
         <p>Urmărește cererea, gestionează termenul și compară ofertele primite.</p></div>
-        <div class="header-state"><span class="status">{{ statusLabel(request.status) }}</span><span>{{ offers().length }} oferte eligibile</span></div></header>
+        <div class="header-state"><span class="status">{{ request.fulfillmentStatus === 'Delivered' ? 'Livrată' : statusLabel(request.status) }}</span><span>{{ offers().length }} oferte eligibile</span></div></header>
       <section class="request-overview">
         <div class="overview-heading"><div><p class="eyebrow">Cererea trimisă</p><h2>Stare și detalii</h2></div>
           @if (canManage(request)) {
@@ -26,6 +26,7 @@ import { Rfq, RfqService } from '../../core/rfqs/rfq.service';
         <dl class="request-facts">
           <div><dt>Termen oferte</dt><dd>{{ request.quotationDeadline | date:'dd.MM.yyyy, HH:mm' }}</dd></div>
           <div><dt>Livrare</dt><dd>{{ request.deliveryLocality }}, {{ request.county }}</dd></div>
+          <div><dt>Transport în ofertă</dt><dd>{{ request.deliveryRequired ? 'Solicitat' : 'Opțional' }}</dd></div>
           <div><dt>Buget estimat</dt><dd>{{ request.estimatedBudget ? (request.estimatedBudget | currency:'RON':'symbol-narrow':'1.0-2':'ro') : 'Nespecificat' }}</dd></div>
           <div><dt>Îndeplinire</dt><dd>{{ request.allowSplit ? 'Poate fi împărțită' : 'Un singur furnizor' }}</dd></div>
         </dl>
@@ -70,9 +71,25 @@ import { Rfq, RfqService } from '../../core/rfqs/rfq.service';
       </section>
       @if (request.selectedOfferId) {
         <section class="decision">
-          <div class="success"><strong>Oferta câștigătoare a fost selectată.</strong><span>Cererea este închisă pentru alte oferte.</span></div>
+          <div class="success"><strong>{{ request.fulfillmentStatus === 'Delivered' ? 'Livrarea a fost confirmată.' : 'Oferta câștigătoare a fost selectată.' }}</strong>
+            <span>{{ request.fulfillmentStatus === 'Delivered' ? 'Cererea este finalizată cu statusul Livrată.' : 'Cererea este închisă pentru alte oferte.' }}</span></div>
+          @if (request.fulfillmentStatus === 'AwaitingDelivery') {
+            <p class="reopen-limit" role="status">Transport inclus · furnizorul urmează să declare livrarea.</p>
+          } @else if (request.fulfillmentStatus === 'DeliveryReported') {
+            <div class="confirm-selection" role="group" aria-label="Confirmă primirea livrării">
+              <div><strong>Furnizorul a declarat livrarea</strong>
+                <p>Confirmă numai după ce ai primit și verificat produsele.</p></div>
+              @if (!confirmDeliveryPending()) {
+                <button type="button" (click)="confirmDeliveryPending.set(true)">Am primit produsele</button>
+              } @else {
+                <div class="confirm-actions"><button class="secondary" type="button" (click)="confirmDeliveryPending.set(false)">Verific mai târziu</button>
+                  <button type="button" (click)="confirmDelivery()" [disabled]="busy()">Confirmă primirea și finalizează</button></div>
+              }
+            </div>
+          }
           @if (request.reopenCount >= 1) {
             <p class="reopen-limit" role="status">Această cerere a fost deja redeschisă o dată. Selecția curentă este finală și nu mai poate fi anulată prin redeschidere.</p>
+          } @else if (request.fulfillmentStatus === 'DeliveryReported' || request.fulfillmentStatus === 'Delivered') {
           } @else if (!showReopen()) {
             <button class="reopen-trigger" type="button" (click)="startReopen(request.quotationDeadline)">Ai făcut o greșeală? Redeschide cererea</button>
           } @else {
@@ -121,13 +138,14 @@ import { Rfq, RfqService } from '../../core/rfqs/rfq.service';
               @if (entry.offer.status === 'Selected') { <span class="recommend">Câștigătoare</span> }<h2>{{ entry.supplierName }}</h2></div>
               <div class="price"><small>Total</small><strong>{{ entry.offer.total | currency:'RON':'symbol-narrow':'1.2-2':'ro' }}</strong></div></div>
             <dl>
-              @if (entry.offer.pricingMode === 'Total') {
+              @if (entry.offer.pricingMode === 'Total' || request.items.length === 0) {
                 <div><dt>Tip ofertă</dt><dd>Preț total · întreaga cerere</dd></div>
               } @else {
                 <div><dt>Produse / servicii</dt><dd>{{ entry.offer.itemsTotal | currency:'RON':'symbol-narrow':'1.2-2':'ro' }}</dd></div>
                 <div><dt>Cost livrare</dt><dd>{{ entry.offer.deliveryCost | currency:'RON':'symbol-narrow':'1.2-2':'ro' }}</dd></div>
               }
               <div><dt>Termen livrare</dt><dd>{{ entry.offer.deliveryDays }} zile</dd></div>
+              <div><dt>Transport</dt><dd>{{ entry.offer.deliveryIncluded ? 'Inclus' : 'Neinclus' }}</dd></div>
               <div><dt>Valabilă până la</dt><dd>{{ entry.offer.validUntil | date:'dd.MM.yyyy' }}</dd></div>
             </dl>
             @if (entry.offer.paymentTerms) { <div class="terms"><small>Condiții de plată</small><p>{{ entry.offer.paymentTerms }}</p></div> }
@@ -139,7 +157,8 @@ import { Rfq, RfqService } from '../../core/rfqs/rfq.service';
               <div class="confirm-selection" role="group" aria-label="Confirmă selectarea ofertei">
                 <div><strong>Confirmă furnizorul</strong>
                   <p>{{ entry.supplierName }} · {{ entry.offer.total | currency:'RON':'symbol-narrow':'1.2-2':'ro' }}</p>
-                  <small>După confirmare, cererea nu va mai primi oferte. O poți redeschide ulterior, indicând motivul.</small>
+                  <small>După confirmare, cererea nu va mai primi oferte.
+                    {{ entry.offer.deliveryIncluded ? 'Furnizorul va declara livrarea, apoi vei confirma primirea.' : 'Transportul se organizează separat.' }}</small>
                 </div>
                 <div class="confirm-actions">
                   <button class="secondary" type="button" (click)="cancelSelection()">Renunță</button>
@@ -175,6 +194,7 @@ export class BuyerOfferComparisonComponent {
   readonly originalDeadline = signal('');
   readonly reopenError = signal('');
   readonly pendingOffer = signal<BuyerOffer | null>(null);
+  readonly confirmDeliveryPending = signal(false);
   readonly showDeadline = signal(false);
   readonly showCancel = signal(false);
   readonly newDeadline = signal('');
@@ -289,6 +309,22 @@ export class BuyerOfferComparisonComponent {
       error: error => {
         this.busy.set(false);
         this.error.set(error.error?.errors?.offer?.[0] ?? 'Oferta nu a putut fi selectată.');
+      }
+    });
+  }
+
+  confirmDelivery(): void {
+    if (this.busy()) return;
+    this.busy.set(true);
+    this.error.set('');
+    this.offerService.confirmDelivery(this.id).subscribe({
+      next: () => {
+        this.confirmDeliveryPending.set(false);
+        this.load();
+      },
+      error: error => {
+        this.busy.set(false);
+        this.error.set(error.error?.errors?.offer?.[0] ?? 'Primirea nu a putut fi confirmată.');
       }
     });
   }

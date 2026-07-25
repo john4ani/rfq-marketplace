@@ -1,12 +1,12 @@
 # RFQ Marketplace Architecture
 
-Status: Proposed  
-Scope: Milestone 0 — Architecture & Design  
-Last updated: 2026-07-23
+Status: Implemented application baseline; AWS deployment proposed
+Scope: Milestones 0–8
+Last updated: 2026-07-25
 
 This directory is the design baseline for the industry-neutral RFQ Marketplace MVP. The initial geography is Romania and construction materials are the first category, while the platform model is intended to support additional markets and industries. The application, documentation, and development language is English.
 
-No application or infrastructure code is included in Milestone 0.
+Application functionality is implemented through Milestone 7. AWS infrastructure and deployment automation remain proposed for Milestone 8.
 
 ## Architecture principles
 
@@ -51,7 +51,7 @@ Accepted ADRs are not rewritten to hide prior decisions. A later ADR supersedes 
 
 ## Shared assumptions
 
-1. One user has one primary marketplace persona in the MVP, although Identity roles permit controlled additional roles.
+1. One identity may have Buyer and Provider profiles simultaneously; valid actions are not hidden merely because the other profile is active.
 2. One supplier profile represents one company; one buyer profile represents one buyer account.
 3. RON is the only enabled currency, but offers store the ISO currency code.
 4. PostgreSQL `numeric` and C# `decimal` are used for money; floating-point types are prohibited.
@@ -61,9 +61,9 @@ Accepted ADRs are not rewritten to hide prior decisions. A later ADR supersedes 
 8. Submitted offers explicitly respond to every requested line, including unavailable lines.
 9. Messaging is one private conversation per offer and uses polling in the MVP.
 10. PostgreSQL is hosted on the same Lightsail instance as the API for the initial deployment.
-11. Notifications use a PostgreSQL-backed outbox processed by a hosted service in the API process.
-12. Attachments are private in S3 and accessed only through short-lived presigned URLs issued after authorization.
+11. MVP notifications are persisted in PostgreSQL and delivered in-app. A durable email outbox remains proposed.
+12. Attachments and their private S3 delivery remain post-MVP.
 
-## Approval gate
+## Delivery gate
 
-All documents and ADRs have status **Proposed** until reviewed. Application implementation begins only after this milestone is approved.
+Implemented application behavior follows [the MVP acceptance checklist](../operations/mvp-acceptance-checklist.md). Documents for unimplemented AWS resources retain Proposed status until Milestone 8.

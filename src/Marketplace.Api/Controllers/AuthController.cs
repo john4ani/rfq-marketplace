@@ -10,7 +10,11 @@ namespace Marketplace.Api.Controllers;
 [ApiController]
 [Route("api/v1/auth")]
 [EnableRateLimiting("authentication")]
-public sealed class AuthController(IIdentityService identityService, IWebHostEnvironment environment) : ControllerBase
+public sealed partial class AuthController(
+    IIdentityService identityService,
+    IPasswordResetDelivery passwordResetDelivery,
+    IWebHostEnvironment environment,
+    ILogger<AuthController> logger) : ControllerBase
 {
     [HttpPost("register/buyer")]
     public Task<IActionResult> RegisterBuyer(RegisterRequest request, CancellationToken cancellationToken) =>
@@ -67,6 +71,17 @@ public sealed class AuthController(IIdentityService identityService, IWebHostEnv
     public async Task<IActionResult> RequestPasswordReset(EmailRequest request, CancellationToken cancellationToken)
     {
         string? token = await identityService.CreatePasswordResetTokenAsync(request.Email, cancellationToken);
+        if (token is not null && !environment.IsDevelopment())
+        {
+            try
+            {
+                await passwordResetDelivery.SendAsync(request.Email.Trim(), token, cancellationToken);
+            }
+            catch (PasswordResetDeliveryException exception)
+            {
+                LogPasswordResetDeliveryFailure(logger, exception);
+            }
+        }
         return Accepted(environment.IsDevelopment() ? new DevelopmentTokenResponse(token) : null);
     }
 
@@ -98,6 +113,11 @@ public sealed class AuthController(IIdentityService identityService, IWebHostEnv
         string? subject = User.FindFirst("sub")?.Value ?? User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
         return Guid.TryParse(subject, out userId);
     }
+
+    [LoggerMessage(
+        Level = LogLevel.Error,
+        Message = "Password-reset email delivery failed; the enumeration-safe response was preserved")]
+    private static partial void LogPasswordResetDeliveryFailure(ILogger logger, Exception exception);
 }
 
 public sealed record RegisterRequest([Required, EmailAddress] string Email, [Required, MinLength(8)] string Password);

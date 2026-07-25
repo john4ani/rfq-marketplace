@@ -18,9 +18,11 @@ public sealed class OfferService(MarketplaceDbContext dbContext, TimeProvider ti
     {
         var rows = await dbContext.Offers.AsNoTracking().Include(offer => offer.Items)
             .Where(offer => offer.SupplierId == supplierId)
-            .Join(dbContext.Rfqs, offer => offer.RfqId, rfq => rfq.Id, (offer, rfq) => new { offer, rfq.Title, rfq.QuotationDeadline })
+            .Join(dbContext.Rfqs, offer => offer.RfqId, rfq => rfq.Id,
+                (offer, rfq) => new { offer, rfq.Title, rfq.QuotationDeadline, rfq.FulfillmentStatus })
             .OrderByDescending(row => row.offer.UpdatedAt).ToArrayAsync(cancellationToken);
-        return rows.Select(row => new OfferSummary(row.offer, row.Title, row.QuotationDeadline)).ToArray();
+        return rows.Select(row => new OfferSummary(
+            row.offer, row.Title, row.QuotationDeadline, row.FulfillmentStatus)).ToArray();
     }
 
     public async Task<Offer> SaveDraftAsync(Guid supplierId, Guid rfqId, OfferDraft draft, CancellationToken cancellationToken)
@@ -96,9 +98,71 @@ public sealed class OfferService(MarketplaceDbContext dbContext, TimeProvider ti
         DateTimeOffset now = timeProvider.GetUtcNow();
         foreach (Offer offer in await dbContext.Offers.Where(offer => offer.RfqId == rfqId).ToListAsync(cancellationToken))
             if (offer.Id == offerId) offer.Select(now); else offer.Reject(now);
-        rfq.SelectOffer(offerId, now);
+        rfq.SelectOffer(offerId, selected.DeliveryIncluded, now);
         await dbContext.SaveChangesAsync(cancellationToken);
         return selected;
+    }
+
+    public async Task<Rfq?> ReportDeliveredAsync(
+        Guid supplierId,
+        Guid rfqId,
+        CancellationToken cancellationToken)
+    {
+        Rfq? rfq = await dbContext.Rfqs.SingleOrDefaultAsync(item => item.Id == rfqId, cancellationToken);
+        if (rfq is null) return null;
+        Offer? selected = rfq.SelectedOfferId.HasValue
+            ? await dbContext.Offers.SingleOrDefaultAsync(
+                offer => offer.Id == rfq.SelectedOfferId && offer.SupplierId == supplierId,
+                cancellationToken)
+            : null;
+        if (selected is null) return null;
+
+        DateTimeOffset now = timeProvider.GetUtcNow();
+        rfq.ReportDelivered(now);
+        string supplierName = await dbContext.SupplierProfiles
+            .Where(profile => profile.Id == supplierId)
+            .Select(profile => profile.TradingName)
+            .SingleAsync(cancellationToken);
+        dbContext.Notifications.Add(Notification.Create(
+            rfq.BuyerId,
+            NotificationType.DeliveryReported,
+            "Livrare declarată",
+            $"{supplierName} a declarat livrată cererea „{rfq.Title}”. Confirmă primirea după verificare.",
+            $"/rfqs/{rfq.Id}/offers",
+            $"rfq:{rfq.Id}:delivery-reported",
+            now));
+        await dbContext.SaveChangesAsync(cancellationToken);
+        return rfq;
+    }
+
+    public async Task<Rfq?> ConfirmDeliveryAsync(
+        Guid buyerId,
+        Guid rfqId,
+        CancellationToken cancellationToken)
+    {
+        Rfq? rfq = await dbContext.Rfqs.SingleOrDefaultAsync(
+            item => item.Id == rfqId && item.BuyerId == buyerId,
+            cancellationToken);
+        if (rfq is null) return null;
+        Offer? selected = rfq.SelectedOfferId.HasValue
+            ? await dbContext.Offers.SingleOrDefaultAsync(
+                offer => offer.Id == rfq.SelectedOfferId,
+                cancellationToken)
+            : null;
+        if (selected is null) return null;
+
+        DateTimeOffset now = timeProvider.GetUtcNow();
+        rfq.ConfirmDelivery(now);
+        dbContext.Notifications.Add(Notification.Create(
+            selected.SupplierId,
+            NotificationType.DeliveryConfirmed,
+            "Livrare confirmată",
+            $"Cumpărătorul a confirmat primirea pentru cererea „{rfq.Title}”.",
+            $"/open-requests/{rfq.Id}",
+            $"rfq:{rfq.Id}:delivery-confirmed",
+            now));
+        await dbContext.SaveChangesAsync(cancellationToken);
+        return rfq;
     }
 
     public async Task<Rfq?> ReopenAsync(

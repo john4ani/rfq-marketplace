@@ -2,7 +2,13 @@ import { HttpClient } from '@angular/common/http';
 import { DestroyRef, effect, inject, Injectable, signal } from '@angular/core';
 import { AuthService } from '../auth/auth.service';
 
-export type NotificationType = 'OfferReceived' | 'OfferRevised';
+export type NotificationType =
+  | 'OfferReceived'
+  | 'OfferRevised'
+  | 'RequestReopened'
+  | 'MessageReceived'
+  | 'DeliveryReported'
+  | 'DeliveryConfirmed';
 export interface AppNotification {
   id:string; type:NotificationType; title:string; message:string; link:string;
   createdAt:string; readAt:string|null; isRead:boolean;

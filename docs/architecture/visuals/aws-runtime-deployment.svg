@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1600" height="950" viewBox="0 0 1600 950" role="img" aria-labelledby="title desc">
   <title id="title">RFQ Marketplace AWS runtime deployment</title>
-  <desc id="desc">AWS-style deployment view showing CloudFront and S3 frontend delivery, a Lightsail host with Caddy, API, PostgreSQL, private attachment storage, Parameter Store, SES, and backups.</desc>
+  <desc id="desc">AWS-style deployment view showing same-origin CloudFront routing to S3 for the frontend and to a Lightsail Caddy origin for API paths, with PostgreSQL, Parameter Store, SES, optional future attachment storage, and backups.</desc>
   <defs>
     <style>
       text{font-family:Arial,Helvetica,sans-serif;fill:#172033}
@@ -15,7 +15,7 @@
   </defs>
   <rect width="1600" height="950" fill="#ffffff"/>
   <text class="title" x="60" y="62">RFQ Marketplace — AWS Runtime Deployment</text>
-  <text class="subtitle" x="60" y="94">Low-cost MVP · one API process · one PostgreSQL database · private attachments</text>
+  <text class="subtitle" x="60" y="94">Low-cost MVP · same-origin browser routing · one API process · one PostgreSQL database</text>
 
   <rect class="boundary" x="220" y="125" width="1320" height="750" rx="20"/>
   <text class="label" x="250" y="162">AWS account · selected European region</text>
@@ -48,7 +48,7 @@
   <text class="name" x="1122" y="487">PostgreSQL</text><text class="detail" x="1122" y="517">Named persistent volume</text>
 
   <rect class="service storage" x="285" y="660" width="205" height="100" rx="14"/>
-  <text class="name" x="387" y="702">Attachments S3</text><text class="detail" x="387" y="732">Private + encrypted</text>
+  <text class="name" x="387" y="702">Attachments S3</text><text class="detail" x="387" y="732">Post-MVP · private</text>
 
   <rect class="service security" x="555" y="660" width="205" height="100" rx="14"/>
   <text class="name" x="657" y="702">Parameter Store</text><text class="detail" x="657" y="732">Secrets + configuration</text>
@@ -62,7 +62,7 @@
   <path class="arrow arrow-public" d="M183 392C235 350 255 330 295 322"/>
   <path class="arrow arrow-public" d="M445 320H490"/>
   <path class="arrow" d="M567 370L500 390"/>
-  <path class="arrow arrow-public" d="M183 438C430 550 650 338 780 335"/>
+  <path class="arrow arrow-public" d="M645 335H780"/>
   <path class="arrow" d="M945 335H1020"/>
   <path class="arrow" d="M1122 385V445"/>
   <path class="arrow" d="M1065 385C850 500 580 555 407 660"/>
@@ -72,6 +72,7 @@
 
   <text class="note" x="211" y="365">HTTPS</text>
   <text class="note" x="610" y="315">app.example.com</text>
-  <text class="note" x="645" y="407">api.example.com</text>
-  <text class="note" x="775" y="905">Public entry points: CloudFront and Caddy only · PostgreSQL and API container ports remain private</text>
+  <text class="note" x="660" y="315">/api/* + /health/*</text>
+  <text class="note" x="660" y="355">api-origin.example.com</text>
+  <text class="note" x="720" y="905">Public browser entry point: CloudFront · Caddy accepts origin traffic · PostgreSQL and API ports remain private</text>
 </svg>

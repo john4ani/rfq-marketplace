@@ -22,7 +22,7 @@ import { Rfq, RfqService, RfqStatus } from '../../core/rfqs/rfq.service';
       <div class="rfq-list">
         @for (rfq of rfqs(); track rfq.id) {
           <article>
-            <div><span class="status" [class]="rfq.status.toLowerCase()">{{ statusLabel(rfq.status) }}</span>
+            <div><span class="status" [class]="rfq.status.toLowerCase()">{{ rfq.fulfillmentStatus === 'Delivered' ? 'Livrată' : statusLabel(rfq.status) }}</span>
               <h3>{{ rfq.title }}</h3>
               <p>{{ rfq.items.length }} {{ rfq.items.length === 1 ? 'material' : 'materiale' }} · {{ rfq.deliveryLocality }}, {{ rfq.county }}</p>
               <small>Termen oferte: {{ rfq.quotationDeadline | date:'dd.MM.yyyy, HH:mm' }}</small>

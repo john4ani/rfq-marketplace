@@ -15,13 +15,27 @@ stateDiagram-v2
     ReceivingOffers --> OfferSelected: Buyer accepts valid offer
     ReceivingOffers --> Cancelled: Buyer cancels
     ReceivingOffers --> Expired: Deadline passes
-    OfferSelected --> Closed: Buyer closes after confirmation
+    OfferSelected --> Closed: Buyer confirms receipt when delivery is included
     Cancelled --> [*]
     Expired --> [*]
     Closed --> [*]
 ```
 
 Commercial fields are editable in `Draft`. After publication, changes are audited; after the first offer, quantity and specification changes are blocked in the MVP.
+
+## Fulfilment lifecycle
+
+```mermaid
+stateDiagram-v2
+    [*] --> NotApplicable: Selected offer excludes transport
+    [*] --> AwaitingDelivery: Selected offer includes transport
+    AwaitingDelivery --> DeliveryReported: Selected Provider declares delivery
+    DeliveryReported --> Delivered: Buyer confirms receipt
+    NotApplicable --> [*]
+    Delivered --> [*]
+```
+
+Procurement and fulfilment are separate state dimensions. The UI presents `Delivered` as the final request status when fulfilment reaches that state. The post-MVP workflow may add dispatch and in-transit states as defined by ADR-0015.
 
 ## Offer lifecycle
 

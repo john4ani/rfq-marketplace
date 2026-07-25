@@ -1,6 +1,7 @@
 namespace Marketplace.Domain.Rfqs;
 
 public enum RfqStatus { Draft, Published, ReceivingOffers, OfferSelected, Closed, Cancelled }
+public enum FulfillmentStatus { NotApplicable, AwaitingDelivery, DeliveryReported, Delivered }
 
 public sealed class Rfq
 {
@@ -22,6 +23,7 @@ public sealed class Rfq
     public DateTimeOffset QuotationDeadline { get; private set; }
     public bool AlternativeProductsAccepted { get; private set; }
     public bool AllowSplit { get; private set; }
+    public bool DeliveryRequired { get; private set; }
     public decimal? EstimatedBudget { get; private set; }
     public string? BuyerNotes { get; private set; }
     public RfqStatus Status { get; private set; }
@@ -31,6 +33,9 @@ public sealed class Rfq
     public DateTimeOffset? ClosedAt { get; private set; }
     public Guid? SelectedOfferId { get; private set; }
     public int ReopenCount { get; private set; }
+    public FulfillmentStatus FulfillmentStatus { get; private set; }
+    public DateTimeOffset? DeliveryReportedAt { get; private set; }
+    public DateTimeOffset? DeliveredAt { get; private set; }
     public IReadOnlyCollection<RfqItem> Items => _items;
 
     public static Rfq Create(Guid id, Guid buyerId, RfqDraft draft, DateTimeOffset now)
@@ -87,12 +92,35 @@ public sealed class Rfq
         UpdatedAt = now;
     }
 
-    public void SelectOffer(Guid offerId, DateTimeOffset now)
+    public void SelectOffer(Guid offerId, bool deliveryIncluded, DateTimeOffset now)
     {
         if (Status is not (RfqStatus.Published or RfqStatus.ReceivingOffers))
             throw new RfqRuleException("Nu se mai poate selecta o ofertă pentru această cerere.");
+        if (DeliveryRequired && !deliveryIncluded)
+            throw new RfqRuleException("Cererea solicită transport inclus. Selectați o ofertă care include livrarea.");
         SelectedOfferId = offerId;
         Status = RfqStatus.OfferSelected;
+        FulfillmentStatus = deliveryIncluded ? FulfillmentStatus.AwaitingDelivery : FulfillmentStatus.NotApplicable;
+        ClosedAt = now;
+        UpdatedAt = now;
+    }
+
+    public void ReportDelivered(DateTimeOffset now)
+    {
+        if (Status != RfqStatus.OfferSelected || FulfillmentStatus != FulfillmentStatus.AwaitingDelivery)
+            throw new RfqRuleException("Livrarea nu poate fi declarată în starea curentă.");
+        FulfillmentStatus = FulfillmentStatus.DeliveryReported;
+        DeliveryReportedAt = now;
+        UpdatedAt = now;
+    }
+
+    public void ConfirmDelivery(DateTimeOffset now)
+    {
+        if (Status != RfqStatus.OfferSelected || FulfillmentStatus != FulfillmentStatus.DeliveryReported)
+            throw new RfqRuleException("Livrarea poate fi confirmată doar după ce furnizorul o declară efectuată.");
+        FulfillmentStatus = FulfillmentStatus.Delivered;
+        Status = RfqStatus.Closed;
+        DeliveredAt = now;
         ClosedAt = now;
         UpdatedAt = now;
     }
@@ -103,6 +131,8 @@ public sealed class Rfq
             throw new RfqRuleException("Doar o cerere cu ofertă selectată poate fi redeschisă.");
         if (ReopenCount >= 1)
             throw new RfqRuleException("Cererea a fost deja redeschisă o dată și nu mai poate fi redeschisă.");
+        if (FulfillmentStatus is FulfillmentStatus.DeliveryReported or FulfillmentStatus.Delivered)
+            throw new RfqRuleException("Cererea nu mai poate fi redeschisă după declararea livrării.");
         string cleanReason = reason?.Trim() ?? string.Empty;
         if (cleanReason.Length < 10)
             throw new RfqRuleException("Motivul redeschiderii trebuie să aibă cel puțin 10 caractere.");
@@ -115,6 +145,9 @@ public sealed class Rfq
         QuotationDeadline = deadline;
         SelectedOfferId = null;
         Status = RfqStatus.ReceivingOffers;
+        FulfillmentStatus = FulfillmentStatus.NotApplicable;
+        DeliveryReportedAt = null;
+        DeliveredAt = null;
         ClosedAt = null;
         ReopenCount++;
         UpdatedAt = now;
@@ -136,6 +169,7 @@ public sealed class Rfq
         QuotationDeadline = draft.QuotationDeadline;
         AlternativeProductsAccepted = draft.AlternativeProductsAccepted;
         AllowSplit = draft.AllowSplit;
+        DeliveryRequired = draft.DeliveryRequired;
         EstimatedBudget = draft.EstimatedBudget;
         BuyerNotes = Clean(draft.BuyerNotes);
         RfqItem[] existingItems = _items.OrderBy(item => item.ItemNumber).ToArray();
@@ -175,6 +209,7 @@ public sealed record RfqDraft(
     string Title, string? ProjectName, string? Description, Guid PrimaryCategoryId,
     string DeliveryAddress, string DeliveryLocality, string County, int SupplierSearchRadiusKm, decimal? Latitude, decimal? Longitude,
     DateOnly? PreferredDeliveryDate, DateTimeOffset QuotationDeadline, bool AlternativeProductsAccepted,
-    decimal? EstimatedBudget, string? BuyerNotes, IReadOnlyCollection<RfqItemDraft> Items, bool AllowSplit = false);
+    decimal? EstimatedBudget, string? BuyerNotes, IReadOnlyCollection<RfqItemDraft> Items, bool AllowSplit = false,
+    bool DeliveryRequired = false);
 
 public sealed class RfqRuleException(string message) : InvalidOperationException(message);

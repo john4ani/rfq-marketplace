@@ -11,7 +11,8 @@ import { AuthService } from '../../core/auth/auth.service';
     <label class="checkbox-label"><input type="checkbox" [checked]="showPassword()" (change)="showPassword.set(!showPassword())">Arată parola</label>
     @if (error()) { <p class="error" role="alert">{{ error() }}</p> }
     <button type="submit" [disabled]="form.invalid || submitting()">Autentificare</button>
-  </form><p>Nu aveți cont? <a routerLink="/register">Creați un cont</a></p></section>`,
+  </form><p><a routerLink="/forgot-password">Ați uitat parola?</a></p>
+  <p>Nu aveți cont? <a routerLink="/register">Creați un cont</a></p></section>`,
   changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class SignInComponent {

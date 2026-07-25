@@ -15,6 +15,7 @@ export interface OpenRfq {
   preferredDeliveryDate: string | null;
   quotationDeadline: string;
   alternativeProductsAccepted: boolean;
+  deliveryRequired: boolean;
   estimatedBudget: number | null;
   publishedAt: string | null;
   isPartialMatch: boolean;

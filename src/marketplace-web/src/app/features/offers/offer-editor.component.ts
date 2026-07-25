@@ -59,9 +59,25 @@ import { OpenRfq } from '../../core/rfqs/open-rfq.service';
           </div>
         }
 
+        <fieldset class="pricing-mode delivery-choice">
+          <legend>Transport</legend>
+          <label [class.selected]="draft().deliveryIncluded">
+            <input type="radio" name="deliveryIncluded" [value]="true"
+              [ngModel]="draft().deliveryIncluded" (ngModelChange)="setDeliveryIncluded($event)">
+            <span><strong>Transport inclus</strong><small>Vei putea declara livrarea, iar cumpărătorul va confirma primirea.</small></span>
+          </label>
+          <label [class.selected]="!draft().deliveryIncluded" [class.unavailable]="request().deliveryRequired">
+            <input type="radio" name="deliveryIncluded" [value]="false" [disabled]="request().deliveryRequired"
+              [ngModel]="draft().deliveryIncluded" (ngModelChange)="setDeliveryIncluded($event)">
+            <span><strong>Fără transport</strong><small>{{ request().deliveryRequired ? 'Cumpărătorul solicită transport inclus.' : 'Ridicarea sau transportul se organizează separat.' }}</small></span>
+          </label>
+        </fieldset>
+
         <div class="terms">
-          <label>Livrare (zile)<input type="number" min="0" max="365" [(ngModel)]="draft().deliveryDays"></label>
-          @if (draft().pricingMode === 'Itemized') {
+          @if (draft().deliveryIncluded) {
+            <label>Livrare (zile)<input type="number" min="0" max="365" [(ngModel)]="draft().deliveryDays"></label>
+          }
+          @if (draft().pricingMode === 'Itemized' && draft().deliveryIncluded) {
             <label>{{ request().items.length ? 'Cost livrare (lei)' : 'Valoare totală ofertă (lei)' }}
               <input type="number" min="0" step=".01" [(ngModel)]="draft().deliveryCost">
             </label>
@@ -92,7 +108,7 @@ import { OpenRfq } from '../../core/rfqs/open-rfq.service';
     header,.actions,.total{display:flex;justify-content:space-between;gap:1rem;align-items:center}.badge{background:#e9f4ec;color:#185c32;padding:.4rem .7rem;border-radius:99px}
     .pricing-mode{display:grid;grid-template-columns:minmax(0,1fr);gap:.75rem;margin:1rem 0;padding:0;border:0}.pricing-mode legend{grid-column:1/-1;font-weight:800;margin-bottom:.25rem}
     .pricing-mode label{display:flex;align-items:flex-start;gap:.65rem;padding:1rem;border:1px solid #d6dfda;border-radius:12px;background:#fff;cursor:pointer}
-    .pricing-mode label.selected{border-color:#176b3a;background:#edf7f1}.pricing-mode input{width:auto;margin-top:.2rem}.pricing-mode span{display:grid;gap:.25rem}.pricing-mode small{color:#56645d}
+    .pricing-mode label.selected{border-color:#176b3a;background:#edf7f1}.pricing-mode label.unavailable{cursor:not-allowed;opacity:.62}.pricing-mode input{width:auto;margin-top:.2rem}.pricing-mode span{display:grid;gap:.25rem}.pricing-mode small{color:#56645d}
     .quick-quote{display:grid;grid-template-columns:minmax(0,1fr);gap:1rem;align-items:end;margin:1rem 0;padding:1rem;background:#f3f8f5;border-radius:12px}.quick-quote p{margin:0}
     .lines{display:grid;gap:.75rem;margin:1rem 0}.line{display:grid;grid-template-columns:minmax(0,1fr);gap:.75rem;align-items:end;padding:1rem;background:#f7faf8;border-radius:12px}.line small{display:block}
     .terms{display:grid;grid-template-columns:minmax(0,1fr);gap:.75rem}label{min-width:0;display:grid;gap:.35rem;font-size:.88rem}input,textarea{box-sizing:border-box;min-width:0;width:100%;padding:.7rem;border:1px solid #bdc9c1;border-radius:8px}
@@ -114,6 +130,7 @@ export class OfferEditorComponent {
   readonly draft = signal<OfferDraft>({
     pricingMode: 'Total',
     totalPrice: null,
+    deliveryIncluded: true,
     deliveryCost: 0,
     deliveryDays: 2,
     validUntil: this.validity(),
@@ -130,16 +147,21 @@ export class OfferEditorComponent {
       this.initialized = true;
       this.draft.update(value => ({
         ...value,
-        pricingMode: request.items.length > 0 && !request.isPartialMatch ? 'Total' : 'Itemized',
+        pricingMode: request.isPartialMatch ? 'Itemized' : 'Total',
+        deliveryIncluded: request.deliveryRequired || value.deliveryIncluded,
         items: this.requestItems()
       }));
       this.service.getForRequest(request.id).subscribe(value => {
         if (!value) return;
+        const normalizeGeneralOffer = request.items.length === 0
+          && value.pricingMode === 'Itemized'
+          && value.items.length === 0;
         this.offer.set(value);
         this.draft.set({
-          pricingMode: value.pricingMode,
-          totalPrice: value.totalPrice,
-          deliveryCost: value.deliveryCost,
+          pricingMode: normalizeGeneralOffer ? 'Total' : value.pricingMode,
+          totalPrice: normalizeGeneralOffer ? value.total : value.totalPrice,
+          deliveryIncluded: value.deliveryIncluded,
+          deliveryCost: normalizeGeneralOffer ? 0 : value.deliveryCost,
           deliveryDays: value.deliveryDays,
           validUntil: value.validUntil,
           paymentTerms: value.paymentTerms,
@@ -160,6 +182,16 @@ export class OfferEditorComponent {
       pricingMode: mode,
       totalPrice: mode === 'Total' ? value.totalPrice : null,
       items: mode === 'Itemized' && value.items.length === 0 ? this.requestItems() : value.items
+    }));
+  }
+
+  setDeliveryIncluded(included: boolean): void {
+    if (!included && this.request().deliveryRequired) return;
+    this.draft.update(value => ({
+      ...value,
+      deliveryIncluded: included,
+      deliveryCost: included ? value.deliveryCost : 0,
+      deliveryDays: included ? Math.max(value.deliveryDays, 1) : 0
     }));
   }
 

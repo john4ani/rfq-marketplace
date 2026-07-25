@@ -1,6 +1,6 @@
 # ADR-0004: Use ASP.NET Core Identity, JWTs, and Rotating Refresh Tokens
 
-Status: Proposed  
+Status: Accepted
 Date: 2026-07-23
 
 ## Context
@@ -10,6 +10,8 @@ The SPA needs email/password registration, verification, recovery, roles, revoca
 ## Decision
 
 Use ASP.NET Core Identity for users and password security. Issue short-lived JWT access tokens and opaque rotating refresh tokens. Store access tokens in SPA memory and refresh tokens as hashes server-side, delivered through Secure HttpOnly cookies.
+
+Password-reset requests return the same accepted response whether or not an account exists. Development may return the generated token for local testing. Non-development environments send a reset link through configured SMTP; AWS SES SMTP is the initial production transport.
 
 ## Alternatives considered
 

@@ -16,6 +16,7 @@ flowchart TB
         end
 
         frontend["Private S3 bucket<br/>Angular artifacts"]
+        apiOriginDns["Route 53 private-facing name<br/>API origin"]
         attachments["Private S3 bucket<br/>User attachments"]
         parameters["Parameter Store<br/>Runtime configuration"]
         ses["SES identity and email transport"]
@@ -33,8 +34,9 @@ flowchart TB
 
     user --> route53
     route53 --> cloudfront
-    cloudfront --> frontend
-    route53 --> firewall
+    cloudfront -->|"Default behaviour"| frontend
+    cloudfront -->|"/api/* and /health/*"| apiOriginDns
+    apiOriginDns --> firewall
     firewall --> caddy
     caddy --> api
     api --> postgres
@@ -51,9 +53,10 @@ flowchart TB
 ## Deployment properties
 
 - `app.example.com` resolves to CloudFront.
-- `api.example.com` resolves to the Lightsail static IP and Caddy.
+- Angular uses relative `/api/*` URLs. CloudFront's default behaviour serves S3, while ordered `/api/*` and `/health/*` behaviours use Caddy as the API origin.
+- An origin-only DNS name resolves to the Lightsail static IP and is not presented as the browser API base URL.
 - The API and PostgreSQL ports are not exposed publicly.
-- Caddy manages API TLS; CloudFront uses ACM for frontend TLS.
+- Caddy manages origin TLS; CloudFront uses ACM for the public frontend TLS.
 - PostgreSQL data survives container restarts through a named volume.
 - Backups must be stored off-instance and restoration must be tested before production.
 - Terraform provisions infrastructure. Deployment automation delivers application artifacts and runs migrations.

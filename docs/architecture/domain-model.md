@@ -55,11 +55,15 @@ classDiagram
       +UUID Id
       +UUID BuyerId
       +RfqStatus Status
+      +bool DeliveryRequired
+      +FulfillmentStatus FulfillmentStatus
       +DateTime QuotationDeadline
       +int SupplierSearchRadiusKm
       +publish()
       +cancel()
       +selectOffer()
+      +reportDelivered()
+      +confirmDelivery()
     }
     class RfqItem {
       +UUID Id
@@ -73,6 +77,7 @@ classDiagram
       +UUID RfqId
       +UUID SupplierId
       +OfferStatus Status
+      +bool DeliveryIncluded
       +Money Total
       +decimal Completeness
       +submit()
