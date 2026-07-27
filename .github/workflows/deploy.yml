@@ -70,7 +70,7 @@ jobs:
           } >> "$GITHUB_OUTPUT"
 
       - name: Render production environment
-        run: deploy/scripts/render-environment.sh "$PARAMETER_PATH" "$API_IMAGE" .deployment.env
+        run: bash deploy/scripts/render-environment.sh "$PARAMETER_PATH" "$API_IMAGE" .deployment.env
 
       - name: Build Angular
         working-directory: src/marketplace-web
