@@ -34,6 +34,7 @@ postgres-data/
 
 # Terraform
 **/.terraform/
+**/backend.hcl
 *.tfstate
 *.tfstate.*
 *.tfplan

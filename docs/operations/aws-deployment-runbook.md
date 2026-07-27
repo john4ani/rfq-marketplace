@@ -32,7 +32,14 @@ terraform apply bootstrap.tfplan
 terraform output
 ```
 
-Do not destroy this root casually. The state bucket uses `prevent_destroy`, versioning, encryption, public-access blocking, and lifecycle retention.
+After the first apply, copy `backend.hcl.example` to the ignored `backend.hcl`, set the real bucket name, and migrate the bootstrap state:
+
+```powershell
+terraform init -migrate-state -backend-config=backend.hcl
+terraform plan
+```
+
+Do not destroy this root casually. Its own state now lives under `bootstrap/terraform.tfstate`. The state bucket uses `prevent_destroy`, versioning, encryption, public-access blocking, and lifecycle retention.
 
 ## 3. Configure staging inputs
 

@@ -1,0 +1,5 @@
+bucket       = "rfq-marketplace-tfstate-123456789012-eu-central-1"
+key          = "bootstrap/terraform.tfstate"
+region       = "eu-central-1"
+encrypt      = true
+use_lockfile = true
