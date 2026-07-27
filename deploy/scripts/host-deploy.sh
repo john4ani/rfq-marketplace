@@ -49,6 +49,13 @@ rollback() {
       --file compose.production.yaml \
       --env-file .env \
       up --detach --remove-orphans postgres api caddy || true
+  else
+    rm -f "${current_link}"
+    cd "${release_directory}"
+    docker compose --project-name rfq-marketplace \
+      --file compose.production.yaml \
+      --env-file .env \
+      stop api caddy || true
   fi
   exit "${exit_code}"
 }
@@ -81,7 +88,7 @@ for attempt in {1..24}; do
       --file compose.production.yaml \
       --env-file .env \
       exec -T api \
-      curl --fail --silent --show-error http://127.0.0.1:8080/health/ready >/dev/null; then
+      sh -c 'curl --fail --silent --show-error --header "Host: $API_ORIGIN_HOST" http://127.0.0.1:8080/health/ready' >/dev/null; then
     trap - ERR
     echo "Release ${release_id} is ready."
     find "${application_root}/releases" -mindepth 1 -maxdepth 1 -type d -printf '%T@ %p\n' \
