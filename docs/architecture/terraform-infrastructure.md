@@ -1,6 +1,6 @@
 # Terraform Infrastructure Diagram
 
-Status: Implemented in code; AWS staging not yet provisioned
+Status: Implemented and drift-free in AWS staging
 
 ```mermaid
 flowchart LR

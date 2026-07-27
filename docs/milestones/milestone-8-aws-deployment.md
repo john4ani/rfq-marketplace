@@ -1,6 +1,6 @@
 # Milestone 8: AWS deployment
 
-Status: Implementation complete; live AWS staging deployment pending
+Status: AWS staging deployed and verified; production pending
 Last updated: 2026-07-27
 
 ## Outcome
@@ -36,29 +36,35 @@ The full application regression suite must pass again before the implementation 
 
 ## Live staging acceptance
 
-- [ ] Bootstrap state and GitHub OIDC resources provisioned in `eu-central-1`.
-- [ ] Staging Terraform plan reviewed and applied.
-- [ ] SES sender and SNS subscription confirmed.
-- [ ] GitHub `staging` environment variables configured.
-- [ ] Deployment workflow completes from the committed `main` SHA.
-- [ ] CloudFront frontend and `/health/ready` respond over HTTPS.
+- [x] Bootstrap state and GitHub OIDC resources provisioned in `eu-central-1`.
+- [x] Staging Terraform plan reviewed and applied.
+- [ ] SES sender and SNS subscription confirmed. SES is verified; the recreated SNS subscription awaits email confirmation.
+- [x] GitHub `staging` environment variables configured.
+- [x] Deployment workflow completes from the committed `main` SHA.
+- [x] CloudFront frontend and `/health/ready` respond over HTTPS.
 - [ ] Authentication, dual-role navigation, request publication, offer submission, comparison, messaging, selection, reopen-once, and delivery confirmation smoke-tested.
 - [ ] API-unavailable frontend behavior remains useful and recoverable.
-- [ ] Backup copied to S3 and restore rehearsal completed.
-- [ ] Restricted SSH, private buckets, alarms, and CloudFront behavior inspected in AWS.
+- [ ] Backup copied to S3 and restore rehearsal completed. Two live backups are in S3; restore was rehearsed locally against the production runtime, not against live staging.
+- [x] Restricted SSH, private buckets, alarms, and CloudFront behavior inspected in AWS.
+
+## Live staging evidence
+
+- Frontend: `https://d3gmo2aqxxbvqe.cloudfront.net`
+- API origin: `https://63-185-35-216.sslip.io` (CloudFront origin, not the user-facing base URL)
+- Successful deployment: [GitHub Actions run 30249552658](https://github.com/john4ani/rfq-marketplace/actions/runs/30249552658), commit `d192c319544072b7712966ede90da4ab4ea31db9`
+- Successful standalone backup: [GitHub Actions run 30250372063](https://github.com/john4ani/rfq-marketplace/actions/runs/30250372063), commit `6f782d1f02feb1646e9dfe6952937e5ae89384a3`
+- Browser smoke: landing page, direct `/sign-in` SPA route, synthetic dual-role registration, authentication, Buyer dashboard, Provider role switch, and Provider empty states passed without console warnings/errors.
+- Runtime: API and PostgreSQL report healthy; neither publishes a host port. Caddy is the only public container.
+- Security: SSH is restricted to `86.123.72.160/32`; Terraform reports no drift; CloudFront and all S3 buckets are deployed with the documented access controls.
+- Backups: the encrypted/versioned S3 backup bucket contains checksum-paired deployment and standalone-workflow backups.
 
 ## Production gate
 
 Production additionally requires a controlled domain/Route 53 hosted zone, protected GitHub environment approval, confirmed SES sending capability, a reviewed staging acceptance record, and an agreed maintenance/rollback window.
 
-## External inputs and costs
+## Production inputs and costs
 
-AWS provisioning is intentionally not automatic from a local test. It requires:
-
-- approval for the selected Lightsail bundle and ongoing AWS charges;
-- an owned operations email for ACME, SNS confirmation, and SES sender verification;
-- explicit approval to commit and push the deployment workflow;
-- a domain and Route 53 hosted zone for production (not required for staging).
+Staging uses the approved Lightsail bundle and usage-based supporting services. Production still requires a domain and Route 53 hosted zone, protected GitHub environment approval, a production maintenance window, and explicit production cost approval.
 
 The proposed staging host is Lightsail `small_3_0` in `eu-central-1` (2 GB RAM, 2 vCPU, 60 GB SSD). Its current listed fixed price must be rechecked immediately before creation; CloudFront, S3, email, and data transfer are usage-based.
 

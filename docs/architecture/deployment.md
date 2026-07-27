@@ -1,6 +1,6 @@
 # Deployment Diagram
 
-Status: Implemented in code; AWS staging not yet provisioned
+Status: Implemented and verified in AWS staging
 
 ```mermaid
 flowchart TB
