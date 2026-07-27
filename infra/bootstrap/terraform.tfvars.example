@@ -1,2 +1,7 @@
 aws_region        = "eu-central-1"
 state_bucket_name = "rfq-marketplace-tfstate-123456789012-eu-central-1"
+budget_alert_email = "operations@example.com"
+
+# Account-wide monthly cost guardrail. Alerts are sent at 80% actual spend,
+# 100% forecasted spend, and 100% actual spend.
+monthly_budget_limit_usd = 20

@@ -40,6 +40,14 @@ export class AuthService {
     return this.http.post<void>('/api/v1/auth/register', { email, password, accountTypes });
   }
 
+  addProfile(accountType: 'Buyer' | 'Supplier'): Observable<TokenResponse> {
+    return this.http.post<TokenResponse>(`/api/v1/auth/profiles/${accountType}`, {}, { withCredentials: true })
+      .pipe(tap(response => {
+        this.activeProfileState.set(accountType);
+        this.acceptToken(response.accessToken);
+      }));
+  }
+
   requestPasswordReset(email: string): Observable<PasswordResetRequestResponse | null> {
     return this.http.post<PasswordResetRequestResponse | null>('/api/v1/auth/request-password-reset', { email });
   }

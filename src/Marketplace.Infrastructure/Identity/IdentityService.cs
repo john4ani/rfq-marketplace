@@ -86,6 +86,25 @@ public sealed class IdentityService(
         return result;
     }
 
+    public async Task<ProfileAdditionResult> AddProfileAsync(Guid currentUserId, string accountType, CancellationToken cancellationToken)
+    {
+        if (accountType is not (MarketplaceRoles.Buyer or MarketplaceRoles.Supplier))
+            return new(null, ["Profilul poate fi doar Cumpărător sau Furnizor."]);
+
+        ApplicationUser? user = await userManager.FindByIdAsync(currentUserId.ToString());
+        if (user is null)
+            return new(null, ["Contul autentificat nu mai există."]);
+
+        if (!await userManager.IsInRoleAsync(user, accountType))
+        {
+            IdentityResult assigned = await userManager.AddToRoleAsync(user, accountType);
+            if (!assigned.Succeeded)
+                return new(null, assigned.Errors.Select(error => error.Description).ToArray());
+        }
+
+        return new(await IssueAsync(user, Guid.NewGuid(), cancellationToken), []);
+    }
+
     public async Task<IReadOnlyCollection<LinkedAccount>> GetLinkedAccountsAsync(Guid currentUserId, CancellationToken cancellationToken)
     {
         ApplicationUser? current = await userManager.FindByIdAsync(currentUserId.ToString());

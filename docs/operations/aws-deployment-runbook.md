@@ -22,7 +22,7 @@ The expected AWS account must be confirmed before continuing. The deployment def
 
 ## 2. Bootstrap remote state and GitHub OIDC once
 
-Choose a globally unique state bucket name. From `infra/bootstrap`:
+Choose a globally unique state bucket name. Set `budget_alert_email` to the account owner/operations email and `monthly_budget_limit_usd` to the approved account-wide monthly guardrail. From `infra/bootstrap`:
 
 ```powershell
 Copy-Item terraform.tfvars.example terraform.tfvars
@@ -40,6 +40,8 @@ terraform plan
 ```
 
 Do not destroy this root casually. Its own state now lives under `bootstrap/terraform.tfstate`. The state bucket uses `prevent_destroy`, versioning, encryption, public-access blocking, and lifecycle retention.
+
+The bootstrap root also owns the single account-wide AWS cost budget. For the current staging baseline it is `$20/month`, with direct email alerts at 80% actual spend, 100% forecasted spend, and 100% actual spend. Budget notifications are advisory rather than a hard service shutdown, and AWS billing data can lag usage.
 
 ## 3. Configure staging inputs
 

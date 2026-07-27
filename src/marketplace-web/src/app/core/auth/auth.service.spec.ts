@@ -48,6 +48,36 @@ describe('AuthService', () => {
     http.verify();
   });
 
+  it('adds and activates a missing profile with the refreshed access token', () => {
+    TestBed.configureTestingModule({ providers: [provideHttpClient(), provideHttpClientTesting()] });
+    const service = TestBed.inject(AuthService);
+    const http = TestBed.inject(HttpTestingController);
+    const buyerToken = token({ sub: '11111111-1111-1111-1111-111111111111', email: 'same@example.test', role: 'Buyer' });
+    const dualToken = token({ sub: '11111111-1111-1111-1111-111111111111', email: 'same@example.test', role: ['Buyer', 'Supplier'] });
+
+    service.login('same@example.test', 'password').subscribe();
+    http.expectOne('/api/v1/auth/login').flush({ accessToken: buyerToken, expiresAt: new Date().toISOString() });
+    http.expectOne('/api/v1/piata-live/presence').flush(null);
+    http.expectOne('/api/v1/auth/profiles').flush([
+      { userId: '11111111-1111-1111-1111-111111111111', email: 'same@example.test', accountType: 'Buyer' }
+    ]);
+
+    service.addProfile('Supplier').subscribe();
+    const addition = http.expectOne('/api/v1/auth/profiles/Supplier');
+    expect(addition.request.method).toBe('POST');
+    expect(addition.request.withCredentials).toBe(true);
+    addition.flush({ accessToken: dualToken, expiresAt: new Date().toISOString() });
+    http.expectOne('/api/v1/piata-live/presence').flush(null);
+    http.expectOne('/api/v1/auth/profiles').flush([
+      { userId: '11111111-1111-1111-1111-111111111111', email: 'same@example.test', accountType: 'Buyer' },
+      { userId: '11111111-1111-1111-1111-111111111111', email: 'same@example.test', accountType: 'Supplier' }
+    ]);
+
+    expect(service.session()?.accountType).toBe('Supplier');
+    expect(service.profiles().map(profile => profile.accountType)).toEqual(['Buyer', 'Supplier']);
+    http.verify();
+  });
+
   it('requests and completes password recovery without changing session state', () => {
     TestBed.configureTestingModule({ providers: [provideHttpClient(), provideHttpClientTesting()] });
     const service = TestBed.inject(AuthService);

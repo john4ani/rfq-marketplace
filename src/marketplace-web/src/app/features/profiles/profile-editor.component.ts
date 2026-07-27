@@ -1,5 +1,5 @@
 import { HttpErrorResponse } from '@angular/common/http';
-import { ChangeDetectionStrategy, Component, effect, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, effect, inject, output, signal } from '@angular/core';
 import { FormControl, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
 import { AuthService } from '../../core/auth/auth.service';
 import { ProfileService } from '../../core/profiles/profile.service';
@@ -52,6 +52,7 @@ import { Observable } from 'rxjs';
 })
 export class ProfileEditorComponent {
   readonly auth = inject(AuthService); private readonly profiles = inject(ProfileService);
+  readonly profileSaved = output<'Buyer' | 'Supplier'>();
   readonly counties = ROMANIAN_COUNTIES; readonly loading = signal(false); readonly saving = signal(false); readonly message = signal(''); readonly hasError = signal(false);
   readonly buyerForm = new FormGroup({
     displayName: new FormControl('', { nonNullable: true, validators: Validators.required }),
@@ -85,7 +86,7 @@ export class ProfileEditorComponent {
   saveSupplier(): void { const session = this.auth.session(); if (!session || this.supplierForm.invalid) return; this.save(this.profiles.saveSupplier(session.userId, this.supplierForm.getRawValue())); }
   private save(request: Observable<unknown>): void {
     this.saving.set(true); this.message.set('');
-    request.subscribe({ next: () => { this.saving.set(false); this.hasError.set(false); this.message.set('Profilul a fost salvat.'); }, error: () => { this.saving.set(false); this.hasError.set(true); this.message.set('Profilul nu a putut fi salvat. Verificați câmpurile și conexiunea cu API-ul.'); } });
+    request.subscribe({ next: () => { this.saving.set(false); this.hasError.set(false); this.message.set('Profilul a fost salvat.'); const accountType = this.auth.session()?.accountType; if (accountType) this.profileSaved.emit(accountType); }, error: () => { this.saving.set(false); this.hasError.set(true); this.message.set('Profilul nu a putut fi salvat. Verificați câmpurile și conexiunea cu API-ul.'); } });
   }
   private loadError(error: HttpErrorResponse): void {
     this.loading.set(false);

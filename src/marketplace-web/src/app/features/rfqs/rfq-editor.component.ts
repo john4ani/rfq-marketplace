@@ -177,7 +177,18 @@ export class RfqEditorComponent {
       });
     } else {
       const session=this.auth.session();
-      if(session) this.profiles.getBuyer(session.userId).subscribe({next:p=>this.form.patchValue({deliveryLocality:p.defaultCity,county:p.defaultCounty,supplierSearchRadiusKm:p.marketRadiusKm})});
+      if(session) this.profiles.getBuyer(session.userId).subscribe({
+        next:p=>this.form.patchValue({deliveryLocality:p.defaultCity,county:p.defaultCounty,supplierSearchRadiusKm:p.marketRadiusKm}),
+        error:error=>{
+          if(error.status===404) {
+            void this.router.navigate(['/dashboard'], {
+              queryParams:{section:'settings',returnUrl:'/rfqs/new'}
+            });
+          } else {
+            this.fail('Profilul de cumpărător nu a putut fi verificat. Reîncarcă pagina și încearcă din nou.');
+          }
+        }
+      });
     }
   }
 

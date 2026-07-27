@@ -11,7 +11,7 @@ Errors: RFC 7807 Problem Details
 
 | Area | Main endpoints | Access |
 |---|---|---|
-| Authentication | `/auth/register/*`, `/auth/login`, `/auth/refresh`, `/auth/logout`, verification/reset | Public or authenticated self |
+| Authentication | `/auth/register/*`, `/auth/login`, `/auth/refresh`, `/auth/logout`, `/auth/profiles/*`, verification/reset | Public or authenticated self |
 | Buyer profile | `GET/PUT /buyers/{buyerId}` | Owning Buyer |
 | Supplier profile | `GET/PUT /suppliers/{supplierId}` | Owning Supplier |
 | Categories | `GET/POST /categories` | Authenticated read; Provider create during controlled pilot |
@@ -70,6 +70,7 @@ POST   /api/v1/auth/logout
 POST   /api/v1/auth/request-password-reset
 POST   /api/v1/auth/reset-password
 GET    /api/v1/auth/profiles
+POST   /api/v1/auth/profiles/{accountType}
 
 GET    /api/v1/buyers/{buyerId}
 PUT    /api/v1/buyers/{buyerId}

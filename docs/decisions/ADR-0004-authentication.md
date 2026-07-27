@@ -13,6 +13,8 @@ Use ASP.NET Core Identity for users and password security. Issue short-lived JWT
 
 Password-reset requests return the same accepted response whether or not an account exists. Development may return the generated token for local testing. Non-development environments send a reset link through configured SMTP; AWS SES SMTP is the initial production transport.
 
+Buyer and Provider are additive profiles on one identity, not mutually exclusive account types. An authenticated user may add the missing role without creating another email/password identity. The API issues a replacement access/refresh-token pair immediately so authorization reflects the added role; the role itself is retained even before its business profile details are completed.
+
 ## Alternatives considered
 
 - Long-lived JWT only: rejected because revocation is weak.
@@ -22,7 +24,7 @@ Password-reset requests return the same accepted response whether or not an acco
 
 ## Consequences
 
-Refresh endpoints require careful cookie, CORS, CSRF, reuse-detection, and token-family handling. Already issued access tokens remain valid until their short expiry.
+Refresh endpoints require careful cookie, CORS, CSRF, reuse-detection, and token-family handling. Already issued access tokens remain valid until their short expiry. Adding a role rotates the current refresh token and returns a new access token.
 
 ## Security and operational implications
 

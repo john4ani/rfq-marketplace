@@ -10,7 +10,7 @@ import { HttpErrorResponse } from '@angular/common/http';
     <fieldset><legend>Cum vrei să folosești platforma?</legend><div class="role-options">
       <button type="button" [class.active]="selectedRoles().includes('Buyer')" [attr.aria-pressed]="selectedRoles().includes('Buyer')" (click)="toggleRole('Buyer')"><strong>Cumpărător</strong><span>Hai să economisim bani</span></button>
       <button type="button" [class.active]="selectedRoles().includes('Supplier')" [attr.aria-pressed]="selectedRoles().includes('Supplier')" (click)="toggleRole('Supplier')"><strong>Furnizor</strong><span>Hai să facem bani</span></button>
-    </div><small>Poți selecta unul sau ambele profiluri.</small></fieldset>
+    </div><small>Poți selecta unul sau ambele profiluri și îl poți adăuga pe celălalt mai târziu din Contul meu.</small></fieldset>
     <label>E-mail<input type="email" formControlName="email" autocomplete="email"><small>Folosește o adresă de e-mail pe care o poți reține.</small></label>
     <label>Parolă<input [type]="showPassword() ? 'text' : 'password'" formControlName="password" autocomplete="new-password"><small>Folosește cel puțin 8 caractere. Nu sunt obligatorii simboluri sau litere mari.</small></label>
     <label class="checkbox-label"><input type="checkbox" [checked]="showPassword()" (change)="showPassword.set(!showPassword())">Arată parola</label>

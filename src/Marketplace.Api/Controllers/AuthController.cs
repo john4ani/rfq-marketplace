@@ -58,6 +58,27 @@ public sealed partial class AuthController(
         return Ok(await identityService.GetLinkedAccountsAsync(userId, cancellationToken));
     }
 
+    [Authorize]
+    [DisableRateLimiting]
+    [HttpPost("profiles/{accountType}")]
+    public async Task<IActionResult> AddProfile(string accountType, CancellationToken cancellationToken)
+    {
+        if (!CurrentUserId(out Guid userId)) return Unauthorized();
+        ProfileAdditionResult result = await identityService.AddProfileAsync(userId, accountType, cancellationToken);
+        if (!result.Succeeded)
+            return ValidationProblem(new ValidationProblemDetails(
+                new Dictionary<string, string[]> { ["accountType"] = result.Errors.ToArray() })
+            {
+                Title = "Profilul nu a putut fi adăugat."
+            });
+
+        if (Request.Cookies.TryGetValue("refreshToken", out string? currentToken))
+            await identityService.RevokeAsync(currentToken, cancellationToken);
+        AuthenticationResult authentication = result.Authentication!;
+        SetRefreshCookie(authentication.RefreshToken, authentication.AccessTokenExpiresAt.AddDays(14));
+        return Ok(new TokenResponse(authentication.AccessToken, authentication.AccessTokenExpiresAt));
+    }
+
     [HttpPost("logout")]
     public async Task<IActionResult> Logout(CancellationToken cancellationToken)
     {

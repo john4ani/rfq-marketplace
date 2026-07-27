@@ -124,6 +124,8 @@ Production migrations run as an explicit, idempotent deployment step before the 
 
 Milestone 8 uses Terraform, GitHub Actions OIDC, CloudFront with a private S3 frontend, and a low-cost Lightsail host running Caddy, the API, and PostgreSQL. Start with the [AWS deployment runbook](docs/operations/aws-deployment-runbook.md), the [backup and restore runbook](docs/operations/database-backup-and-restore.md), and the [Milestone 8 record](docs/milestones/milestone-8-aws-deployment.md).
 
+The bootstrap Terraform root also manages the account-wide monthly AWS cost budget and its direct email alerts.
+
 ## Architecture
 
 Start with [the architecture index](docs/architecture/README.md) and [the ADR index](docs/decisions/README.md). Design-affecting changes must update the relevant documents and diagrams.

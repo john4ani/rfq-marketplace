@@ -1,5 +1,5 @@
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
-import { Router, RouterLink } from '@angular/router';
+import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { AuthService } from '../../core/auth/auth.service';
 import { AccountSwitcherComponent } from '../profiles/account-switcher.component';
 import { ProfileEditorComponent } from '../profiles/profile-editor.component';
@@ -19,7 +19,7 @@ import { SupplierOfferListComponent } from '../offers/supplier-offer-list.compon
   </section>
 
   <section class="workspace-bar">
-    <div><span>Profil activ</span><app-account-switcher /></div>
+    <div><span>Profil activ</span><app-account-switcher (profileAdded)="openNewProfile($event)" /></div>
     <nav aria-label="Secțiuni cont">
       <button type="button" [class.active]="section()==='overview'" (click)="section.set('overview')">Activitate</button>
       <button type="button" [class.active]="section()==='settings'" (click)="section.set('settings')">Profil și preferințe</button>
@@ -49,7 +49,13 @@ import { SupplierOfferListComponent } from '../offers/supplier-offer-list.compon
     }@else{
       <div class="settings-intro"><div><p class="eyebrow">Configurare</p><h2>Profil și preferințe</h2></div>
         <p>Informațiile complete îmbunătățesc relevanța potrivirilor și încrederea partenerilor.</p></div>
-      <app-profile-editor />
+      @if (returnUrl()) {
+        <section class="onboarding-callout" role="status">
+          <strong>Completează profilul de cumpărător înainte de prima cerere.</strong>
+          <span>Folosim localitatea și raza de interes pentru livrare și potrivirea furnizorilor. După salvare, revenim automat la cerere.</span>
+        </section>
+      }
+      <app-profile-editor (profileSaved)="resumeAfterProfileSave($event)" />
       <app-supplier-settings />
     }
     @if (error()) { <p class="error" role="alert">{{ error() }}</p> }
@@ -60,10 +66,27 @@ import { SupplierOfferListComponent } from '../offers/supplier-offer-list.compon
 export class DashboardComponent {
   readonly auth = inject(AuthService);
   private readonly router = inject(Router);
+  private readonly route = inject(ActivatedRoute);
   readonly signingOut = signal(false);
   readonly error = signal('');
-  readonly section = signal<'overview' | 'settings'>('overview');
+  readonly section = signal<'overview' | 'settings'>(this.route.snapshot.queryParamMap.get('section') === 'settings' ? 'settings' : 'overview');
+  readonly returnUrl = signal(this.safeReturnUrl(this.route.snapshot.queryParamMap.get('returnUrl')));
   readonly hasBuyerProfile = computed(() => this.auth.profiles().some(profile => profile.accountType === 'Buyer'));
+
+  openNewProfile(accountType: 'Buyer' | 'Supplier'): void {
+    this.auth.switchProfile(accountType);
+    this.returnUrl.set(null);
+    this.section.set('settings');
+  }
+
+  resumeAfterProfileSave(accountType: 'Buyer' | 'Supplier'): void {
+    const destination = this.returnUrl();
+    if (accountType === 'Buyer' && destination) void this.router.navigateByUrl(destination);
+  }
+
+  private safeReturnUrl(value: string | null): string | null {
+    return value === '/rfqs/new' ? value : null;
+  }
 
   signOut(): void {
     this.signingOut.set(true);

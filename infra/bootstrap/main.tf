@@ -62,3 +62,39 @@ resource "aws_iam_openid_connect_provider" "github_actions" {
 
   client_id_list = ["sts.amazonaws.com"]
 }
+
+resource "aws_budgets_budget" "account_monthly_cost" {
+  # Preserve and adopt the account's original budget instead of creating
+  # overlapping email alerts for the same account-wide spend.
+  name         = "My Monthly Cost Budget"
+  budget_type  = "COST"
+  limit_amount = tostring(var.monthly_budget_limit_usd)
+  limit_unit   = "USD"
+  time_unit    = "MONTHLY"
+
+  notification {
+    comparison_operator        = "GREATER_THAN"
+    threshold                  = 80
+    threshold_type             = "PERCENTAGE"
+    notification_type          = "ACTUAL"
+    subscriber_email_addresses = [var.budget_alert_email]
+  }
+
+  notification {
+    comparison_operator        = "GREATER_THAN"
+    threshold                  = 100
+    threshold_type             = "PERCENTAGE"
+    notification_type          = "FORECASTED"
+    subscriber_email_addresses = [var.budget_alert_email]
+  }
+
+  notification {
+    comparison_operator        = "GREATER_THAN"
+    threshold                  = 100
+    threshold_type             = "PERCENTAGE"
+    notification_type          = "ACTUAL"
+    subscriber_email_addresses = [var.budget_alert_email]
+  }
+
+  tags = var.tags
+}

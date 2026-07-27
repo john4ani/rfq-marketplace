@@ -1,6 +1,8 @@
+import { HttpErrorResponse } from '@angular/common/http';
 import { TestBed } from '@angular/core/testing';
-import { provideRouter } from '@angular/router';
-import { of } from 'rxjs';
+import { provideRouter, Router } from '@angular/router';
+import { Observable, of, throwError } from 'rxjs';
+import { vi } from 'vitest';
 import { AuthService } from '../../core/auth/auth.service';
 import { ProfileService } from '../../core/profiles/profile.service';
 import { RfqService } from '../../core/rfqs/rfq.service';
@@ -8,17 +10,33 @@ import { SupplierSettingsService } from '../../core/suppliers/supplier-settings.
 import { RfqEditorComponent } from './rfq-editor.component';
 
 describe('RfqEditorComponent material positions', () => {
+  let buyerProfileResponse: Observable<unknown>;
+
   beforeEach(async () => {
+    buyerProfileResponse = of({ defaultCity: 'Iași', defaultCounty: 'Iași', marketRadiusKm: 30 });
     await TestBed.configureTestingModule({
       imports: [RfqEditorComponent],
       providers: [
         provideRouter([]),
         { provide: AuthService, useValue: { session: () => ({ userId: 'buyer-id', email: 'buyer@example.com', accountType: 'Buyer' }) } },
         { provide: SupplierSettingsService, useValue: { getCategories: () => of([]) } },
-        { provide: ProfileService, useValue: { getBuyer: () => of({ defaultCity: 'Iași', defaultCounty: 'Iași', marketRadiusKm: 30 }) } },
+        { provide: ProfileService, useValue: { getBuyer: () => buyerProfileResponse } },
         { provide: RfqService, useValue: {} }
       ]
     }).compileComponents();
+  });
+
+  it('redirects a Buyer without completed Buyer details to the relevant profile form', () => {
+    buyerProfileResponse = throwError(() => new HttpErrorResponse({ status: 404 }));
+    const router = TestBed.inject(Router);
+    const navigate = vi.spyOn(router, 'navigate').mockResolvedValue(true);
+
+    const fixture = TestBed.createComponent(RfqEditorComponent);
+    fixture.detectChanges();
+
+    expect(navigate).toHaveBeenCalledWith(['/dashboard'], {
+      queryParams: { section: 'settings', returnUrl: '/rfqs/new' }
+    });
   });
 
   it('collapses a completed position and focuses the newly added one', async () => {

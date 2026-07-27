@@ -19,6 +19,7 @@ Deliver a repeatable, low-cost AWS deployment for the accepted MVP without Kuber
 - Daily and on-demand checksum-verified PostgreSQL backups copied to a private encrypted S3 bucket.
 - SSM Parameter Store configuration and `SecureString` secret delivery.
 - CPU and instance-status alarms through SNS.
+- One account-wide `$20/month` AWS cost budget, with direct email alerts at 80% actual, 100% forecasted, and 100% actual spend.
 
 ## Verified locally
 
@@ -56,6 +57,7 @@ The full application regression suite must pass again before the implementation 
 - Browser smoke: landing page, direct `/sign-in` SPA route, synthetic dual-role registration, authentication, Buyer dashboard, Provider role switch, and Provider empty states passed without console warnings/errors.
 - Runtime: API and PostgreSQL report healthy; neither publishes a host port. Caddy is the only public container.
 - Security: SSH is restricted to `86.123.72.160/32`; Terraform reports no drift; CloudFront and all S3 buckets are deployed with the documented access controls.
+- Cost governance: the pre-existing account budget is adopted into bootstrap Terraform and alerts `john4ani@gmail.com` before and at the approved monthly guardrail.
 - Backups: the encrypted/versioned S3 backup bucket contains checksum-paired deployment and standalone-workflow backups.
 
 ## Production gate
