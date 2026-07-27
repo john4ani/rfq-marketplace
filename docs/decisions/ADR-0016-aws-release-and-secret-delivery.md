@@ -23,7 +23,7 @@ Deployments are auditable and reproducible without static AWS credentials. Rollb
 
 ## Security and operational implications
 
-The deployment role is scoped to the environment resources. SSH is normally restricted to the administrator CIDR and temporarily replaced with the GitHub runner `/32` only during a job; the restriction is restored in an always-running cleanup step. Secrets do not appear in Terraform state, release archives, or logs.
+The deployment role is scoped to the environment resources and trusts the exact environment-qualified GitHub OIDC subject. This repository's subject contains GitHub's immutable owner and repository IDs rather than only the display names. SSH is normally restricted to the administrator CIDR and temporarily replaced with the GitHub runner `/32` only during a job; the restriction is restored in an always-running cleanup step. Secrets do not appear in Terraform state, release archives, or logs.
 
 ## Revisit when
 

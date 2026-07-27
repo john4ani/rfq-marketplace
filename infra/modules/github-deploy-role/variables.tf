@@ -6,8 +6,9 @@ variable "github_oidc_provider_arn" {
   type = string
 }
 
-variable "github_repository" {
-  type = string
+variable "github_oidc_repository_subject" {
+  description = "Repository portion of GitHub's OIDC sub claim, including immutable IDs when GitHub emits them."
+  type        = string
 }
 
 variable "github_environment" {

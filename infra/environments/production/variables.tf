@@ -12,9 +12,9 @@ variable "admin_cidr" {
   type = string
 }
 
-variable "github_repository" {
+variable "github_oidc_repository_subject" {
   type    = string
-  default = "john4ani/rfq-marketplace"
+  default = "john4ani@31954109/rfq-marketplace@1309971212"
 }
 
 variable "lightsail_bundle_id" {

@@ -126,15 +126,15 @@ resource "aws_ssm_parameter" "runtime" {
 module "github_deploy_role" {
   source = "../github-deploy-role"
 
-  name                        = "${local.name}-github-deploy"
-  github_oidc_provider_arn    = local.oidc_provider_arn
-  github_repository           = var.github_repository
-  github_environment          = var.environment
-  frontend_bucket_arn         = module.storage.frontend_bucket_arn
-  backups_bucket_arn          = module.storage.backups_bucket_arn
-  cloudfront_distribution_arn = module.frontend.distribution_arn
-  parameter_path_arn          = "arn:${data.aws_partition.current.partition}:ssm:${var.aws_region}:${data.aws_caller_identity.current.account_id}:parameter${local.parameter_path}/"
-  tags                        = local.common_tags
+  name                           = "${local.name}-github-deploy"
+  github_oidc_provider_arn       = local.oidc_provider_arn
+  github_oidc_repository_subject = var.github_oidc_repository_subject
+  github_environment             = var.environment
+  frontend_bucket_arn            = module.storage.frontend_bucket_arn
+  backups_bucket_arn             = module.storage.backups_bucket_arn
+  cloudfront_distribution_arn    = module.frontend.distribution_arn
+  parameter_path_arn             = "arn:${data.aws_partition.current.partition}:ssm:${var.aws_region}:${data.aws_caller_identity.current.account_id}:parameter${local.parameter_path}/"
+  tags                           = local.common_tags
 }
 
 module "monitoring" {
