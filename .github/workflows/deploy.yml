@@ -110,7 +110,12 @@ jobs:
             --protocol ssh \
             --query accessDetails.privateKey \
             --output text > /tmp/lightsail-key
-          chmod 600 /tmp/lightsail-key
+          aws lightsail get-instance-access-details \
+            --instance-name '${{ steps.config.outputs.instance_name }}' \
+            --protocol ssh \
+            --query accessDetails.certKey \
+            --output text > /tmp/lightsail-key-cert.pub
+          chmod 600 /tmp/lightsail-key /tmp/lightsail-key-cert.pub
           mkdir -p ~/.ssh
           username="$(aws lightsail get-instance-access-details \
             --instance-name '${{ steps.config.outputs.instance_name }}' \
@@ -230,4 +235,4 @@ jobs:
           aws lightsail put-instance-public-ports \
             --instance-name '${{ steps.config.outputs.instance_name }}' \
             --port-infos file:///tmp/ports-restricted.json
-          rm -f /tmp/lightsail-key .deployment.env
+          rm -f /tmp/lightsail-key /tmp/lightsail-key-cert.pub .deployment.env
