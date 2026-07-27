@@ -73,15 +73,17 @@ Confirm the email sent by SNS. Confirm the SES sender identity separately. An SE
 
 ## 5. Store deployment secrets
 
-Create SES SMTP credentials for `eu-central-1` in AWS. Then run from the repository root:
+After Terraform creates the environment-specific SMTP user, generate region-specific SES SMTP credentials and store them directly in SSM:
 
 ```powershell
-.\scripts\Set-DeploymentSecrets.ps1 -EnvironmentName staging `
-  -SmtpUsername (Read-Host 'SES SMTP username' -AsSecureString) `
-  -SmtpPassword (Read-Host 'SES SMTP password' -AsSecureString)
+.\scripts\Initialize-SesSmtpCredentials.ps1 `
+  -EnvironmentName staging `
+  -IamUserName (terraform -chdir=infra/environments/staging output -json deployment |
+    ConvertFrom-Json |
+    Select-Object -ExpandProperty ses_smtp_user_name)
 ```
 
-The helper generates strong PostgreSQL and JWT secrets when they are omitted and stores all four values as SSM `SecureString` parameters. It does not print them.
+The helper creates at most one new IAM access key, derives the region-specific SMTP password, generates strong PostgreSQL and JWT secrets, and stores all four values as SSM `SecureString` parameters. It prints no credentials and deletes the new access key if secret storage fails.
 
 ## 6. Configure GitHub environment
 

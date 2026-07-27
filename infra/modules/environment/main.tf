@@ -70,6 +70,28 @@ resource "aws_sesv2_email_identity" "sender" {
   tags           = local.common_tags
 }
 
+resource "aws_iam_user" "ses_smtp" {
+  name = "${local.name}-ses-smtp"
+  tags = local.common_tags
+}
+
+data "aws_iam_policy_document" "ses_smtp" {
+  statement {
+    sid = "SendMarketplaceEmail"
+    actions = [
+      "ses:SendEmail",
+      "ses:SendRawEmail"
+    ]
+    resources = ["*"]
+  }
+}
+
+resource "aws_iam_user_policy" "ses_smtp" {
+  name   = "${local.name}-ses-send"
+  user   = aws_iam_user.ses_smtp.name
+  policy = data.aws_iam_policy_document.ses_smtp.json
+}
+
 locals {
   runtime_parameters = {
     "acme-email"                 = var.acme_email

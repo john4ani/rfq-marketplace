@@ -41,3 +41,7 @@ output "parameter_path" {
 output "alerts_topic_arn" {
   value = module.monitoring.alerts_topic_arn
 }
+
+output "ses_smtp_user_name" {
+  value = aws_iam_user.ses_smtp.name
+}

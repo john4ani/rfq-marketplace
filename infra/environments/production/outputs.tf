@@ -11,5 +11,6 @@ output "deployment" {
     github_deploy_role_arn  = module.environment.github_deploy_role_arn
     parameter_path          = module.environment.parameter_path
     alerts_topic_arn        = module.environment.alerts_topic_arn
+    ses_smtp_user_name      = module.environment.ses_smtp_user_name
   }
 }
