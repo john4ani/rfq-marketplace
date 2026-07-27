@@ -1,5 +1,5 @@
-#!/usr/bin/env bash
-set -Eeuo pipefail
+#!/bin/sh
+set -eu
 
 export DEBIAN_FRONTEND=noninteractive
 
@@ -39,7 +39,7 @@ install -d -m 0750 -o ubuntu -g ubuntu \
   /opt/rfq-marketplace/backups
 install -d -m 0700 -o 1654 -g 1654 /opt/rfq-marketplace/shared/data-protection-keys
 
-if [[ ! -f /swapfile ]]; then
+if [ ! -f /swapfile ]; then
   fallocate -l 1G /swapfile
   chmod 600 /swapfile
   mkswap /swapfile
