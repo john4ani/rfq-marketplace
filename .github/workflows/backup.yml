@@ -81,23 +81,16 @@ jobs:
             --instance-name '${{ steps.config.outputs.instance_name }}' \
             --port-infos file:///tmp/ports.json
 
-          aws lightsail get-instance-access-details \
+          access_details="$(aws lightsail get-instance-access-details \
             --instance-name '${{ steps.config.outputs.instance_name }}' \
             --protocol ssh \
-            --query accessDetails.privateKey \
-            --output text > /tmp/lightsail-key
-          aws lightsail get-instance-access-details \
-            --instance-name '${{ steps.config.outputs.instance_name }}' \
-            --protocol ssh \
-            --query accessDetails.certKey \
-            --output text > /tmp/lightsail-key-cert.pub
+            --output json)"
+          jq --raw-output '.accessDetails.privateKey' <<< "$access_details" > /tmp/lightsail-key
+          jq --raw-output '.accessDetails.certKey' <<< "$access_details" > /tmp/lightsail-key-cert.pub
           chmod 600 /tmp/lightsail-key /tmp/lightsail-key-cert.pub
           mkdir -p ~/.ssh
-          username="$(aws lightsail get-instance-access-details \
-            --instance-name '${{ steps.config.outputs.instance_name }}' \
-            --protocol ssh \
-            --query accessDetails.username \
-            --output text)"
+          username="$(jq --raw-output '.accessDetails.username' <<< "$access_details")"
+          unset access_details
 
           for attempt in {1..18}; do
             if ssh-keyscan -T 5 -H "$instance_ip" >> ~/.ssh/known_hosts 2>/dev/null; then
