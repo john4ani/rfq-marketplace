@@ -96,6 +96,7 @@ Create a GitHub environment named `staging`. Add environment variables from Terr
 | `AWS_DEPLOY_ROLE_ARN` | `deployment.github_deploy_role_arn` |
 
 Create `production` separately and require manual approval. Do not share environment-specific role ARNs.
+After production is deployed and its first manual backup succeeds, create the repository-level variable `PRODUCTION_BACKUP_ENABLED=true` to enable the daily production schedule. Manual staging and production backup runs do not depend on that flag.
 
 ## 7. Deploy
 
