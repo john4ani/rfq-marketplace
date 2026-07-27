@@ -1,6 +1,6 @@
 # Terraform Infrastructure Diagram
 
-Status: Proposed
+Status: Implemented in code; AWS staging not yet provisioned
 
 ```mermaid
 flowchart LR
@@ -10,14 +10,14 @@ flowchart LR
         stateBucket["Private versioned S3 state bucket<br/>Encryption + native lockfile"]
     end
 
-    subgraph Environment["Environment root: dev or prod"]
+    subgraph Environment["Environment root: staging or production"]
         root["Environment composition<br/>providers, versions, variables"]
         lightsail["module.lightsail-host"]
         frontend["module.frontend"]
-        attachment["module.attachments"]
-        dns["module.dns"]
-        email["module.email"]
-        oidc["module.identity-federation"]
+        storage["module.storage"]
+        deployRole["module.github-deploy-role"]
+        monitoring["module.monitoring"]
+        parameters["SSM runtime parameters"]
     end
 
     operator --> Bootstrap
@@ -25,14 +25,11 @@ flowchart LR
     root -->|"Separate environment state key"| stateBucket
     root --> lightsail
     root --> frontend
-    root --> attachment
-    root --> dns
-    root --> email
-    root --> oidc
-    frontend -->|"Distribution domain and certificate validation"| dns
-    lightsail -->|"Static IP"| dns
-    email -->|"SES verification and DKIM records"| dns
-    oidc -->|"Least-privilege deploy roles"| operator
+    root --> storage
+    root --> deployRole
+    root --> monitoring
+    root --> parameters
+    deployRole -->|"Least-privilege OIDC role"| operator
 ```
 
 ## Terraform/application boundary
@@ -58,7 +55,7 @@ Terraform does not:
 
 ## Environment isolation
 
-- `dev` and `prod` are separate Terraform roots and state keys.
+- `staging` and `production` are separate Terraform roots and state keys.
 - Environment-specific values are passed through non-secret reviewed variables.
 - Secret `.tfvars`, state, plans, and `.terraform/` are excluded from Git.
 - Provider and Terraform versions are constrained.

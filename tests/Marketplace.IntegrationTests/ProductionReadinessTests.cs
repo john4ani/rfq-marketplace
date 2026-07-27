@@ -19,6 +19,7 @@ public sealed class ProductionReadinessTests
         Assert.Contains("Jwt__SigningKey", error.Message, StringComparison.Ordinal);
         Assert.Contains("PasswordReset_ResetPageUrl", error.Message, StringComparison.Ordinal);
         Assert.Contains("ReverseProxy__KnownProxies", error.Message, StringComparison.Ordinal);
+        Assert.Contains("DataProtection__KeysPath", error.Message, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -30,6 +31,7 @@ public sealed class ProductionReadinessTests
             ["Frontend:Origin"] = "https://app.marketplace.test",
             ["Jwt:SigningKey"] = "a-production-signing-key-with-more-than-32-bytes",
             ["AllowedHosts"] = "api.marketplace.test",
+            ["DataProtection:KeysPath"] = "/var/lib/marketplace/data-protection-keys",
             ["PasswordReset:ResetPageUrl"] = "https://app.marketplace.test/reset-password",
             ["PasswordReset:SmtpHost"] = "email-smtp.eu-central-1.amazonaws.com",
             ["PasswordReset:SmtpPort"] = "587",

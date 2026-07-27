@@ -1,6 +1,6 @@
 # Architecture Decision Records
 
-Records retain their individual lifecycle status. Implemented decisions are Accepted; infrastructure decisions remain Proposed until Milestone 8 provisions and verifies them.
+Records retain their individual lifecycle status. Implemented decisions are Accepted. Milestone 8 infrastructure decisions are accepted because their implementation and local production-runtime validation are complete; the milestone record separately tracks whether AWS has actually been provisioned and verified.
 
 | ADR | Decision |
 |---|---|
@@ -19,6 +19,7 @@ Records retain their individual lifecycle status. Implemented decisions are Acce
 | [ADR-0013](ADR-0013-post-mvp-code-quality-hardening.md) | Schedule code-quality hardening after the MVP |
 | [ADR-0014](ADR-0014-mvp-production-hardening-boundary.md) | MVP production-hardening and deployment boundary |
 | [ADR-0015](ADR-0015-delivery-confirmation-lifecycle.md) | Separate request selection from delivery confirmation |
+| [ADR-0016](ADR-0016-aws-release-and-secret-delivery.md) | Immutable AWS releases, OIDC deployment, and SSM secrets |
 
 ## ADR lifecycle
 

@@ -1,0 +1,77 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:17.10-alpine3.24
+        env:
+          POSTGRES_DB: marketplace
+          POSTGRES_USER: marketplace
+          POSTGRES_PASSWORD: marketplace-ci-only
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U marketplace -d marketplace"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+
+    env:
+      ASPNETCORE_ENVIRONMENT: Development
+      ConnectionStrings__MarketplaceDatabase: Host=localhost;Port=5432;Database=marketplace;Username=marketplace;Password=marketplace-ci-only
+      Frontend__Origin: http://localhost:4200
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-dotnet@v5
+        with:
+          global-json-file: global.json
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24.18.0
+          package-manager-cache: false
+
+      - name: Enable pnpm
+        run: corepack enable && corepack prepare pnpm@11.9.0 --activate
+
+      - name: Restore .NET
+        run: |
+          dotnet tool restore
+          dotnet restore Marketplace.slnx
+
+      - name: Build .NET
+        run: dotnet build Marketplace.slnx --configuration Release --no-restore
+
+      - name: Apply database migrations
+        run: dotnet ef database update --project src/Marketplace.Infrastructure --startup-project src/Marketplace.Api --configuration Release
+
+      - name: Test .NET
+        run: dotnet test Marketplace.slnx --configuration Release --no-build --logger "console;verbosity=normal"
+
+      - name: Install frontend dependencies
+        working-directory: src/marketplace-web
+        run: pnpm install --frozen-lockfile
+
+      - name: Test frontend
+        working-directory: src/marketplace-web
+        run: pnpm exec ng test --watch=false --reporters=verbose --progress=false
+
+      - name: Build frontend
+        working-directory: src/marketplace-web
+        run: pnpm build
+
+      - name: Build production API image
+        run: docker build --file src/Marketplace.Api/Dockerfile --tag rfq-marketplace-api:${{ github.sha }} .

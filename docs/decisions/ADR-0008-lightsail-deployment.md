@@ -1,6 +1,6 @@
 # ADR-0008: Deploy API and PostgreSQL with Docker Compose on Lightsail
 
-Status: Proposed  
+Status: Accepted
 Date: 2026-07-23
 
 ## Context

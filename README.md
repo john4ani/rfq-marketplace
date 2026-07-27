@@ -4,7 +4,7 @@ A production-oriented, industry-neutral marketplace for requests for quotation. 
 
 The current MVP journey centers on **Piața Live**: providers discover matched open requests, inspect the need, submit or revise an offer, and Buyers receive an in-app notification that links to side-by-side offer comparison. The account dashboard separates day-to-day activity from profile and matching settings, while the participant directory lives on its own focused page.
 
-The repository foundation, identity, Buyer/Supplier profiles, supplier settings, “Piața Live”, RFQ publication, provider offers, buyer comparison, winner selection, in-app notifications, private offer messaging, production hardening, password recovery, and the repeatable MVP acceptance gate are complete through Milestone 7.
+The repository foundation, identity, Buyer/Supplier profiles, supplier settings, “Piața Live”, RFQ publication, provider offers, buyer comparison, winner selection, in-app notifications, private offer messaging, production hardening, password recovery, and the repeatable MVP acceptance gate are complete through Milestone 7. Milestone 8 adds the implemented AWS deployment foundation; provisioning and live staging verification remain pending.
 
 ## Technology baseline
 
@@ -118,7 +118,11 @@ Migrations are owned by `Marketplace.Infrastructure`. Create a migration with:
 dotnet ef migrations add <Name> --project src/Marketplace.Infrastructure --startup-project src/Marketplace.Api --output-dir Persistence/Migrations
 ```
 
-Production migration execution will be added to the deployment workflow. The API does not silently migrate the production database on startup.
+Production migrations run as an explicit, idempotent deployment step before the new API release becomes active. The API does not silently migrate the production database on startup.
+
+## AWS deployment
+
+Milestone 8 uses Terraform, GitHub Actions OIDC, CloudFront with a private S3 frontend, and a low-cost Lightsail host running Caddy, the API, and PostgreSQL. Start with the [AWS deployment runbook](docs/operations/aws-deployment-runbook.md), the [backup and restore runbook](docs/operations/database-backup-and-restore.md), and the [Milestone 8 record](docs/milestones/milestone-8-aws-deployment.md).
 
 ## Architecture
 

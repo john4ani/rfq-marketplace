@@ -1,6 +1,6 @@
 # ADR-0010: Use Separate Terraform Roots and S3 State
 
-Status: Proposed  
+Status: Accepted
 Date: 2026-07-23
 
 ## Context
@@ -9,7 +9,7 @@ Development and production require clear isolation, safe collaboration, encrypte
 
 ## Decision
 
-Create a separately applied bootstrap configuration for a private, encrypted, versioned S3 state bucket. Use separate `dev` and `prod` Terraform roots and keys, with native S3 lockfile locking.
+Create a separately applied bootstrap configuration for a private, encrypted, versioned S3 state bucket. Use separate `staging` and `production` Terraform roots and keys, with native S3 lockfile locking.
 
 ## Alternatives considered
 

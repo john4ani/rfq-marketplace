@@ -1,0 +1,153 @@
+name: Database backup
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: AWS environment to back up
+        required: true
+        type: choice
+        options:
+          - staging
+          - production
+  schedule:
+    - cron: "17 2 * * *"
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: database-backup-${{ inputs.environment || 'production' }}
+  cancel-in-progress: false
+
+jobs:
+  backup:
+    name: Back up ${{ inputs.environment || 'production' }}
+    if: vars.AWS_DEPLOY_ROLE_ARN != ''
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment: ${{ inputs.environment || 'production' }}
+
+    env:
+      AWS_REGION: ${{ vars.AWS_REGION }}
+      PARAMETER_PATH: /rfq-marketplace/${{ inputs.environment || 'production' }}
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: aws-actions/configure-aws-credentials@v6.1.1
+        with:
+          role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION }}
+          allowed-account-ids: ${{ vars.AWS_ACCOUNT_ID }}
+
+      - name: Load backup configuration
+        id: config
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          get_parameter() {
+            aws ssm get-parameter \
+              --name "${PARAMETER_PATH}/$1" \
+              --query Parameter.Value \
+              --output text
+          }
+          {
+            echo "instance_name=$(get_parameter instance-name)"
+            echo "backups_bucket=$(get_parameter backups-bucket)"
+            echo "admin_cidr=$(get_parameter admin-cidr)"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Open temporary SSH access
+        id: ssh
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          runner_ip="$(curl --fail --silent --show-error https://checkip.amazonaws.com | tr -d '[:space:]')"
+          instance_ip="$(aws lightsail get-instance \
+            --instance-name '${{ steps.config.outputs.instance_name }}' \
+            --query instance.publicIpAddress \
+            --output text)"
+          cat > /tmp/ports.json <<JSON
+          [
+            {"fromPort":22,"toPort":22,"protocol":"tcp","cidrs":["${runner_ip}/32"]},
+            {"fromPort":80,"toPort":80,"protocol":"tcp","cidrs":["0.0.0.0/0"]},
+            {"fromPort":443,"toPort":443,"protocol":"tcp","cidrs":["0.0.0.0/0"]},
+            {"fromPort":443,"toPort":443,"protocol":"udp","cidrs":["0.0.0.0/0"]}
+          ]
+          JSON
+          aws lightsail put-instance-public-ports \
+            --instance-name '${{ steps.config.outputs.instance_name }}' \
+            --port-infos file:///tmp/ports.json
+
+          aws lightsail get-instance-access-details \
+            --instance-name '${{ steps.config.outputs.instance_name }}' \
+            --protocol ssh \
+            --query accessDetails.privateKey \
+            --output text > /tmp/lightsail-key
+          chmod 600 /tmp/lightsail-key
+          mkdir -p ~/.ssh
+          username="$(aws lightsail get-instance-access-details \
+            --instance-name '${{ steps.config.outputs.instance_name }}' \
+            --protocol ssh \
+            --query accessDetails.username \
+            --output text)"
+
+          for attempt in {1..18}; do
+            if ssh-keyscan -T 5 -H "$instance_ip" >> ~/.ssh/known_hosts 2>/dev/null; then
+              break
+            fi
+            echo "SSH readiness attempt ${attempt}/18 has not passed yet."
+            sleep 5
+          done
+
+          echo "instance_ip=$instance_ip" >> "$GITHUB_OUTPUT"
+          echo "username=$username" >> "$GITHUB_OUTPUT"
+
+      - name: Create and copy encrypted off-instance backup
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          destination="${{ steps.ssh.outputs.username }}@${{ steps.ssh.outputs.instance_ip }}"
+          backup_script="/opt/rfq-marketplace/current/scripts/database-backup.sh"
+          backup_path="$(ssh -i /tmp/lightsail-key "$destination" "$backup_script")"
+          if [[ "$backup_path" == "FIRST_DEPLOYMENT" ]]; then
+            echo "No deployed database exists yet; backup was skipped."
+            exit 0
+          fi
+
+          scp -i /tmp/lightsail-key \
+            "$destination:$backup_path" \
+            "$destination:${backup_path}.sha256" \
+            /tmp/
+          (
+            cd /tmp
+            sha256sum --check "$(basename "${backup_path}.sha256")"
+          )
+          aws s3 cp "/tmp/$(basename "$backup_path")" \
+            "s3://${{ steps.config.outputs.backups_bucket }}/database/$(basename "$backup_path")" \
+            --sse AES256
+          aws s3 cp "/tmp/$(basename "${backup_path}.sha256")" \
+            "s3://${{ steps.config.outputs.backups_bucket }}/database/$(basename "${backup_path}.sha256")" \
+            --sse AES256
+
+          ssh -i /tmp/lightsail-key "$destination" \
+            "find /opt/rfq-marketplace/backups -type f -mtime +7 -delete"
+
+      - name: Restore restricted SSH access
+        if: always() && steps.config.outputs.instance_name != ''
+        shell: bash
+        run: |
+          cat > /tmp/ports-restricted.json <<JSON
+          [
+            {"fromPort":22,"toPort":22,"protocol":"tcp","cidrs":["${{ steps.config.outputs.admin_cidr }}"]},
+            {"fromPort":80,"toPort":80,"protocol":"tcp","cidrs":["0.0.0.0/0"]},
+            {"fromPort":443,"toPort":443,"protocol":"tcp","cidrs":["0.0.0.0/0"]},
+            {"fromPort":443,"toPort":443,"protocol":"udp","cidrs":["0.0.0.0/0"]}
+          ]
+          JSON
+          aws lightsail put-instance-public-ports \
+            --instance-name '${{ steps.config.outputs.instance_name }}' \
+            --port-infos file:///tmp/ports-restricted.json
+          rm -f /tmp/lightsail-key

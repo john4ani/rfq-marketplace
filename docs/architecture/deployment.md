@@ -1,6 +1,6 @@
 # Deployment Diagram
 
-Status: Proposed
+Status: Implemented in code; AWS staging not yet provisioned
 
 ```mermaid
 flowchart TB
@@ -16,7 +16,7 @@ flowchart TB
         end
 
         frontend["Private S3 bucket<br/>Angular artifacts"]
-        apiOriginDns["Route 53 private-facing name<br/>API origin"]
+        apiOriginDns["API origin DNS<br/>Route 53 or sslip.io"]
         attachments["Private S3 bucket<br/>User attachments"]
         parameters["Parameter Store<br/>Runtime configuration"]
         ses["SES identity and email transport"]
@@ -27,6 +27,7 @@ flowchart TB
             api["API container<br/>Internal port only; non-root"]
             postgres["PostgreSQL container<br/>Internal network only"]
             volume[("Named persistent<br/>PostgreSQL volume")]
+            keys[("Persistent Data Protection<br/>key directory")]
         end
 
         backups["Encrypted off-host<br/>database backups"]
@@ -39,6 +40,7 @@ flowchart TB
     apiOriginDns --> firewall
     firewall --> caddy
     caddy --> api
+    api --> keys
     api --> postgres
     postgres --> volume
     api --> attachments
@@ -52,15 +54,17 @@ flowchart TB
 
 ## Deployment properties
 
-- `app.example.com` resolves to CloudFront.
+- With a custom domain, `app.example.com` resolves to CloudFront. Domainless staging uses the generated CloudFront hostname.
 - Angular uses relative `/api/*` URLs. CloudFront's default behaviour serves S3, while ordered `/api/*` and `/health/*` behaviours use Caddy as the API origin.
-- An origin-only DNS name resolves to the Lightsail static IP and is not presented as the browser API base URL.
+- An origin-only DNS name resolves to the Lightsail static IP. Domainless staging uses `<static-ip>.sslip.io` so Caddy can obtain origin TLS without buying a domain.
 - The API and PostgreSQL ports are not exposed publicly.
 - Caddy manages origin TLS; CloudFront uses ACM for the public frontend TLS.
 - PostgreSQL data survives container restarts through a named volume.
+- ASP.NET Core Data Protection keys survive API replacement in a host directory restricted to the container user. The MVP stores those keys on the encrypted host disk rather than adding a separate KMS integration.
 - Backups must be stored off-instance and restoration must be tested before production.
 - Terraform provisions infrastructure. Deployment automation delivers application artifacts and runs migrations.
 - Production deployment requires a protected environment/manual approval.
+- GitHub Actions receives temporary AWS credentials through OIDC; there are no long-lived AWS keys in GitHub.
 
 ## Availability constraint
 

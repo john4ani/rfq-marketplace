@@ -15,6 +15,7 @@ public static class ProductionReadiness
         string frontendOrigin = configuration["Frontend:Origin"] ?? string.Empty;
         string signingKey = configuration["Jwt:SigningKey"] ?? string.Empty;
         string allowedHosts = configuration["AllowedHosts"] ?? string.Empty;
+        string dataProtectionKeysPath = configuration["DataProtection:KeysPath"] ?? string.Empty;
 
         if (string.IsNullOrWhiteSpace(connectionString)
             || ContainsPlaceholder(connectionString))
@@ -28,6 +29,9 @@ public static class ProductionReadiness
             || allowedHosts is "*" or "localhost"
             || allowedHosts.Contains("example.com", StringComparison.OrdinalIgnoreCase))
             errors.Add("AllowedHosts must list the production API host.");
+        if (string.IsNullOrWhiteSpace(dataProtectionKeysPath)
+            || !Path.IsPathRooted(dataProtectionKeysPath))
+            errors.Add("DataProtection__KeysPath must be an absolute persistent directory.");
 
         Require(configuration, errors,
             "PasswordReset:ResetPageUrl",

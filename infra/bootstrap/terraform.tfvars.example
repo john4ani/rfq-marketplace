@@ -1,0 +1,2 @@
+aws_region        = "eu-central-1"
+state_bucket_name = "rfq-marketplace-tfstate-123456789012-eu-central-1"

@@ -1,0 +1,146 @@
+name: rfq-marketplace
+
+services:
+  postgres:
+    image: postgres:17.10-alpine3.24
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      PGDATA: /var/lib/postgresql/data
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      marketplace:
+        ipv4_address: 172.28.0.4
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+      start_period: 20s
+    restart: unless-stopped
+    shm_size: 256mb
+    security_opt:
+      - no-new-privileges:true
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
+
+  migrate:
+    image: ${API_IMAGE}
+    entrypoint: ["/app/efbundle"]
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      ConnectionStrings__MarketplaceDatabase: ${MARKETPLACE_DATABASE_CONNECTION}
+      DOTNET_BUNDLE_EXTRACT_BASE_DIR: /tmp/.net
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      marketplace:
+        ipv4_address: 172.28.0.5
+    read_only: true
+    tmpfs:
+      - /tmp:size=128m,mode=1777
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    profiles:
+      - tools
+
+  api:
+    image: ${API_IMAGE}
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      ASPNETCORE_HTTP_PORTS: 8080
+      API_ORIGIN_HOST: ${API_ORIGIN_HOST}
+      AllowedHosts: ${API_ORIGIN_HOST}
+      ConnectionStrings__MarketplaceDatabase: ${MARKETPLACE_DATABASE_CONNECTION}
+      DataProtection__KeysPath: /var/lib/marketplace/data-protection-keys
+      Frontend__Origin: ${FRONTEND_ORIGIN}
+      Jwt__Issuer: ${JWT_ISSUER}
+      Jwt__Audience: ${JWT_AUDIENCE}
+      Jwt__SigningKey: ${JWT_SIGNING_KEY}
+      PasswordReset__ResetPageUrl: ${FRONTEND_ORIGIN}/reset-password
+      PasswordReset__SmtpHost: ${SMTP_HOST}
+      PasswordReset__SmtpPort: ${SMTP_PORT}
+      PasswordReset__SmtpUsername: ${SMTP_USERNAME}
+      PasswordReset__SmtpPassword: ${SMTP_PASSWORD}
+      PasswordReset__FromAddress: ${SMTP_FROM_ADDRESS}
+      PasswordReset__FromName: ${SMTP_FROM_NAME}
+      PasswordReset__EnableSsl: "true"
+      ReverseProxy__KnownProxies__0: 172.28.0.2
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      marketplace:
+        ipv4_address: 172.28.0.3
+    volumes:
+      - ${DATA_PROTECTION_KEYS_PATH:-./.data-protection-keys}:/var/lib/marketplace/data-protection-keys
+    read_only: true
+    tmpfs:
+      - /tmp:size=128m,mode=1777
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      test: ["CMD-SHELL", "curl --fail --silent --show-error --header \"Host: $${API_ORIGIN_HOST}\" http://127.0.0.1:8080/health/ready"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 20s
+    restart: unless-stopped
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
+
+  caddy:
+    image: caddy:2.11.4-alpine
+    environment:
+      ACME_EMAIL: ${ACME_EMAIL}
+      API_ORIGIN_HOST: ${API_ORIGIN_HOST}
+    depends_on:
+      api:
+        condition: service_healthy
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    networks:
+      marketplace:
+        ipv4_address: 172.28.0.2
+    cap_drop:
+      - ALL
+    cap_add:
+      - NET_BIND_SERVICE
+    security_opt:
+      - no-new-privileges:true
+    restart: unless-stopped
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
+
+networks:
+  marketplace:
+    ipam:
+      config:
+        - subnet: 172.28.0.0/24
+
+volumes:
+  postgres_data:
+  caddy_data:
+  caddy_config:

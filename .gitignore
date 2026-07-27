@@ -30,6 +30,7 @@ appsettings.Local.json
 *.pid
 *.log
 postgres-data/
+.data-protection-keys/
 
 # Terraform
 **/.terraform/
