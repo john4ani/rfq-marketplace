@@ -15,6 +15,20 @@ public sealed class RfqTests
     }
 
     [Fact]
+    public void ProcurementNeedDefaultsAndNormalizedViewsRemainCompatible()
+    {
+        Rfq rfq = Rfq.Create(Guid.NewGuid(), Guid.NewGuid(), Draft([
+            new("Montaj", null, "Include manopera", 1, UnitOfMeasure.Other, false, null, null, RequirementKind.Service)
+        ]), Now);
+
+        Assert.Equal(ProcurementNeedSource.Manual, rfq.Source);
+        Assert.Equal(ProcurementInputType.StructuredForm, rfq.InputType);
+        Assert.Equal(ProcurementNeedStatus.Draft, rfq.NeedStatus);
+        Assert.Equal("Strada Test 1", rfq.DeliveryConstraints.Address);
+        Assert.Equal(RequirementKind.Service, rfq.Items.Single().Kind);
+    }
+
+    [Fact]
     public void PublishedRequestCannotBeEdited()
     {
         RfqDraft draft = Draft([new("Ciment", null, null, 20, UnitOfMeasure.Bag, true, null)]);
@@ -88,6 +102,7 @@ public sealed class RfqTests
         rfq.ConfirmDelivery(Now.AddDays(1).AddMinutes(1));
         Assert.Equal(FulfillmentStatus.Delivered, rfq.FulfillmentStatus);
         Assert.Equal(RfqStatus.Closed, rfq.Status);
+        Assert.Equal(ProcurementOutcome.PurchasedThroughCompaSpot, rfq.Outcome);
     }
 
     [Fact]
@@ -115,6 +130,17 @@ public sealed class RfqTests
 
         Assert.Throws<RfqRuleException>(() => rfq.Cancel(Now.AddMinutes(2)));
         Assert.Equal(RfqStatus.OfferSelected, rfq.Status);
+    }
+
+    [Fact]
+    public void CancellationRecordsProcurementOutcome()
+    {
+        Rfq rfq = Rfq.Create(Guid.NewGuid(), Guid.NewGuid(), Draft([]), Now);
+        rfq.Cancel(Now.AddMinutes(1));
+
+        Assert.Equal(ProcurementNeedStatus.Cancelled, rfq.NeedStatus);
+        Assert.Equal(ProcurementOutcome.Cancelled, rfq.Outcome);
+        Assert.Equal(Now.AddMinutes(1), rfq.OutcomeRecordedAt);
     }
 
     private static RfqDraft Draft(IReadOnlyCollection<RfqItemDraft> items) => new(

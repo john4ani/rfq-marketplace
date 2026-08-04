@@ -32,8 +32,14 @@ public sealed class RfqEndpointTests : IClassFixture<WebApplicationFactory<Progr
         Assert.Equal(HttpStatusCode.Created, created.StatusCode);
         RfqResponse rfq = (await created.Content.ReadFromJsonAsync<RfqResponse>())!;
         Assert.Equal("Draft", rfq.Status);
+        Assert.Equal("Manual", rfq.Source);
+        Assert.Equal("StructuredForm", rfq.InputType);
+        Assert.Equal("Draft", rfq.NeedStatus);
+        Assert.Equal("Renovare", rfq.ProjectContext?.Name);
+        Assert.Equal("Strada Test 1", rfq.DeliveryConstraints.Address);
         Assert.Equal(30, rfq.SupplierSearchRadiusKm);
         Assert.Equal(2, rfq.Items.Length);
+        Assert.Equal("Service", rfq.Items[1].Kind);
 
         Assert.Equal(HttpStatusCode.OK, (await _client.PutAsJsonAsync($"/api/v1/rfqs/{rfq.Id}", Request(categoryId, "Materiale actualizate", 25))).StatusCode);
         RfqResponse published = (await (await _client.PostAsJsonAsync($"/api/v1/rfqs/{rfq.Id}/publish", new { })).Content.ReadFromJsonAsync<RfqResponse>())!;
@@ -53,17 +59,20 @@ public sealed class RfqEndpointTests : IClassFixture<WebApplicationFactory<Progr
         RfqResponse cancelled = (await (await _client.PostAsJsonAsync(
             $"/api/v1/rfqs/{rfq.Id}/cancel", new { })).Content.ReadFromJsonAsync<RfqResponse>())!;
         Assert.Equal("Cancelled", cancelled.Status);
+        Assert.Equal("Cancelled", cancelled.Outcome);
+        AuditResponse[] history = (await _client.GetFromJsonAsync<AuditResponse[]>($"/api/v1/rfqs/{rfq.Id}/history"))!;
+        Assert.Equal("Created,Updated,Published,DeadlineExtended,Cancelled", string.Join(',', history.Select(entry => entry.Type)));
     }
 
     private static object Request(Guid categoryId, string title, decimal quantity, bool includeSecondItem = false) => new {
-        title,projectName="Renovare",description="Necesar test",primaryCategoryId=categoryId,
+        source="Manual",inputType="StructuredForm",title,projectName="Renovare",description="Necesar test",primaryCategoryId=categoryId,
         deliveryAddress="Strada Test 1",deliveryLocality="Iași",county="Iași",latitude=(decimal?)null,longitude=(decimal?)null,
         preferredDeliveryDate=DateOnly.FromDateTime(DateTime.UtcNow.AddDays(10)),
         quotationDeadline=DateTimeOffset.UtcNow.AddDays(2),alternativeProductsAccepted=true,estimatedBudget=5000m,buyerNotes=(string?)null,
         items=(includeSecondItem
-            ? new[]{new{productName="Ciment",manufacturerOrBrand=(string?)null,specification="40 kg",quantity,unit="Bag",alternativesAccepted=true,buyerNotes=(string?)null},
-                new{productName="Nisip",manufacturerOrBrand=(string?)null,specification="spălat",quantity=2m,unit="Tonne",alternativesAccepted=true,buyerNotes=(string?)null}}
-            : new[]{new{productName="Ciment",manufacturerOrBrand=(string?)null,specification="40 kg",quantity,unit="Bag",alternativesAccepted=true,buyerNotes=(string?)null}})
+            ? new[]{new{kind="Product",productName="Ciment",manufacturerOrBrand=(string?)null,specification="40 kg",quantity,unit="Bag",alternativesAccepted=true,buyerNotes=(string?)null},
+                new{kind="Service",productName="Transport",manufacturerOrBrand=(string?)null,specification="Livrare la adresă",quantity=2m,unit="Other",alternativesAccepted=true,buyerNotes=(string?)null}}
+            : new[]{new{kind="Product",productName="Ciment",manufacturerOrBrand=(string?)null,specification="40 kg",quantity,unit="Bag",alternativesAccepted=true,buyerNotes=(string?)null}})
     };
     private static Guid UserId(string token) {
         string part=token.Split('.')[1]; string json=System.Text.Encoding.UTF8.GetString(Convert.FromBase64String(part.PadRight(part.Length+(4-part.Length%4)%4,'=').Replace('-','+').Replace('_','/')));
@@ -72,6 +81,11 @@ public sealed class RfqEndpointTests : IClassFixture<WebApplicationFactory<Progr
     private sealed record TokenResponse(string AccessToken, DateTimeOffset ExpiresAt);
     private sealed record CategoryResponse(Guid Id, Guid? ParentId, string Name, string Slug);
     private sealed record RfqResponse(
-        Guid Id, string Status, int SupplierSearchRadiusKm, DateTimeOffset QuotationDeadline, RfqItemResponse[] Items);
-    private sealed record RfqItemResponse(Guid Id, string ProductName, decimal Quantity);
+        Guid Id, string Status, string Source, string InputType, string NeedStatus,
+        ProjectContextResponse? ProjectContext, DeliveryConstraintsResponse DeliveryConstraints,
+        string? Outcome, int SupplierSearchRadiusKm, DateTimeOffset QuotationDeadline, RfqItemResponse[] Items);
+    private sealed record ProjectContextResponse(string? Name, string? Description);
+    private sealed record DeliveryConstraintsResponse(string Address);
+    private sealed record RfqItemResponse(Guid Id, string ProductName, decimal Quantity, string Kind);
+    private sealed record AuditResponse(Guid Id, string Type);
 }

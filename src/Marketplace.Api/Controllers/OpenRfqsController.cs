@@ -59,6 +59,10 @@ public sealed record OpenRfqResponse(
     decimal? EstimatedBudget,
     DateTimeOffset? PublishedAt,
     bool IsPartialMatch,
+    ProcurementNeedSource Source,
+    ProcurementInputType InputType,
+    ProcurementNeedStatus NeedStatus,
+    ProjectContextResponse? ProjectContext,
     IReadOnlyCollection<RfqItemResponse> Items)
 {
     public static OpenRfqResponse From(OpenRfq result)
@@ -81,6 +85,10 @@ public sealed record OpenRfqResponse(
             rfq.EstimatedBudget,
             rfq.PublishedAt,
             result.IsPartialMatch,
+            rfq.Source,
+            rfq.InputType,
+            rfq.NeedStatus,
+            ProjectContextResponse.From(rfq.ProjectContext),
             rfq.Items.Where(item => result.MatchingItemIds is null || result.MatchingItemIds.Contains(item.Id))
                 .OrderBy(item => item.ItemNumber).Select(RfqItemResponse.From).ToArray());
     }

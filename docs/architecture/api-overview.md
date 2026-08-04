@@ -16,7 +16,7 @@ Errors: RFC 7807 Problem Details
 | Supplier profile | `GET/PUT /suppliers/{supplierId}` | Owning Supplier |
 | Categories | `GET/POST /categories` | Authenticated read; Provider create during controlled pilot |
 | Piața Live | `GET /piata-live`, presence heartbeat | Public directory; authenticated presence |
-| Buyer RFQs | `/rfqs`, `/rfqs/{id}`, items, publish, cancel, close | Owning buyer |
+| Buyer procurement needs/RFQs | `/rfqs`, `/rfqs/{id}`, history, publish, cancel, deadline | Owning buyer |
 | Supplier discovery | `/supplier/rfqs` | Approved active supplier |
 | Offers | `/rfqs/{id}/offers`, `/offers/{id}`, submit, revise, withdraw | Resource-dependent |
 | Comparison | `/rfqs/{id}/offer-comparison` | Owning buyer only |
@@ -89,9 +89,11 @@ DELETE /api/v1/piata-live/presence
 GET    /api/v1/rfqs/mine
 POST   /api/v1/rfqs
 GET    /api/v1/rfqs/{rfqId}
+GET    /api/v1/rfqs/{rfqId}/history
 PUT    /api/v1/rfqs/{rfqId}
 POST   /api/v1/rfqs/{rfqId}/publish
 POST   /api/v1/rfqs/{rfqId}/cancel
+POST   /api/v1/rfqs/{rfqId}/extend-deadline
 
 GET    /api/v1/supplier/rfqs
 GET    /api/v1/supplier/rfqs/{rfqId}
@@ -121,6 +123,10 @@ GET    /health/ready
 ```
 
 RFQ material paste parsing is deliberately handled in Angular for immediate feedback. The backend still validates every parsed material when the complete draft is saved.
+
+### ProcurementNeed compatibility
+
+The `/rfqs` contract remains backward-compatible and adds `source`, `inputType`, `needStatus`, `projectContext`, `deliveryConstraints`, outcome fields, and a `kind` (`Product` or `Service`) on each requirement line. Older payloads default to manual structured input and product lines. `GET /rfqs/{rfqId}/history` is Buyer-owned and returns the ordered immutable lifecycle audit trail. Supplier open-request responses include the generic context and requirement kind but continue to omit the exact delivery address.
 
 For authenticated users, Piața Live accepts the active profile type. The first-version locality filter shows the home city first and then other participants in the same county. `approximateRadiusKm` reports the saved Buyer market radius or Supplier delivery radius, but exact kilometre filtering is deferred until reliable coordinates are available. Anonymous visitors continue seeing the full public market.
 

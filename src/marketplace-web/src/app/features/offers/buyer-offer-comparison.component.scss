@@ -22,6 +22,13 @@ button.secondary{border:1px solid #9bb4a7;color:#245f42;background:#fff}
 .request-details{padding:0;border:1px solid #dfe6e2;border-radius:.8rem;background:#fff}
 .request-details summary{display:flex;justify-content:space-between;gap:1rem;padding:1rem;cursor:pointer;font-weight:800}
 .request-details summary span{color:#647169;font-size:.85rem}
+.request-history{padding:0;border:1px solid #dfe6e2;border-radius:.8rem;background:#fff}
+.request-history summary{display:flex;justify-content:space-between;padding:1rem;cursor:pointer;font-weight:800}
+.request-history summary span{color:#647169;font-size:.85rem}
+.request-history ol{display:grid;gap:0;margin:0;padding:0 1rem 1rem;list-style:none}
+.request-history li{display:grid;grid-template-columns:auto 1fr;gap:.75rem;padding:.7rem 0;border-top:1px solid #edf1ef}
+.request-history li div{display:grid;gap:.15rem}.request-history small{color:#657169}.request-history p{margin:.2rem 0 0;color:#526158}
+.history-marker{width:.65rem;height:.65rem;margin-top:.35rem;border:3px solid #dceee5;border-radius:50%;background:#176b52}
 .request-copy{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:1rem;padding:0 1rem 1rem}
 .request-copy div{padding:.85rem;border-radius:.7rem;background:#f6f8f7}
 .request-copy small,.request-items small{color:#657169}

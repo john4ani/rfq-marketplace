@@ -27,7 +27,7 @@ Current Rfq ≈ approved ProcurementNeed + executable RFQ
 Current RfqItem ≈ RequirementLine
 ```
 
-This mapping is deliberate for the first phases. CompaSpot will extend the current aggregate incrementally instead of renaming or duplicating it before real workflows require separation.
+This mapping is deliberate for the first phases. Step 2 implements it: the existing aggregate now records source/input type, product or service requirement lines, outcome fields, and audit history, while normalized need status, project context, and delivery constraints are exposed without duplicating persisted lifecycle data. CompaSpot will split the aggregate only when real workflows require independent pre-approval or publication lifecycles.
 
 ## MVP circuit
 

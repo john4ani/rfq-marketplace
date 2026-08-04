@@ -25,6 +25,7 @@ public sealed class MarketplaceDbContext(DbContextOptions<MarketplaceDbContext> 
     public DbSet<UserPresence> UserPresences => Set<UserPresence>();
     public DbSet<Rfq> Rfqs => Set<Rfq>();
     public DbSet<RfqItem> RfqItems => Set<RfqItem>();
+    public DbSet<ProcurementNeedAuditEvent> ProcurementNeedAuditEvents => Set<ProcurementNeedAuditEvent>();
     public DbSet<Offer> Offers => Set<Offer>();
     public DbSet<OfferItem> OfferItems => Set<OfferItem>();
     public DbSet<Notification> Notifications => Set<Notification>();

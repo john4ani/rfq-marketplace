@@ -13,6 +13,10 @@ registerLocaleData(localeRo);
 describe('BuyerOfferComparisonComponent', () => {
   const request: Rfq = {
     id:'rfq-1',buyerId:'buyer-1',title:'Materiale renovare',projectName:'Apartament',
+    source:'Manual',inputType:'StructuredForm',needStatus:'Published',
+    projectContext:{name:'Apartament',description:'Necesar complet'},
+    deliveryConstraints:{address:'Strada Test 1',locality:'Iași',county:'Iași',supplierSearchRadiusKm:30,latitude:null,longitude:null,preferredDeliveryDate:null,transportRequired:true},
+    outcome:null,outcomeReason:null,outcomeRecordedAt:null,
     description:'Necesar complet',primaryCategoryId:'category-1',deliveryAddress:'Strada Test 1',
     deliveryLocality:'Iași',county:'Iași',supplierSearchRadiusKm:30,latitude:null,longitude:null,
     preferredDeliveryDate:null,quotationDeadline:'2026-08-01T10:00:00.000Z',
@@ -21,7 +25,7 @@ describe('BuyerOfferComparisonComponent', () => {
     publishedAt:'2026-07-24T10:00:00.000Z',closedAt:null,selectedOfferId:null,reopenCount:0,
     deliveryRequired:true,fulfillmentStatus:'NotApplicable',deliveryReportedAt:null,deliveredAt:null,
     items:[{id:'item-1',itemNumber:1,productName:'Ciment',manufacturerOrBrand:null,
-      specification:'40 kg',quantity:20,unit:'Bag',alternativesAccepted:true,buyerNotes:null,categoryId:null}]
+      specification:'40 kg',quantity:20,unit:'Bag',alternativesAccepted:true,buyerNotes:null,categoryId:null,kind:'Product'}]
   };
 
   beforeEach(async () => {
@@ -31,6 +35,7 @@ describe('BuyerOfferComparisonComponent', () => {
         {provide:ActivatedRoute,useValue:{snapshot:{paramMap:{get:()=>request.id}}}},
         {provide:RfqService,useValue:{
           get:()=>of(request),
+          getHistory:()=>of([]),
           extendDeadline:()=>of({...request,quotationDeadline:'2026-08-02T10:00:00.000Z'}),
           cancel:()=>of({...request,status:'Cancelled'})
         }},
@@ -70,7 +75,8 @@ describe('BuyerOfferComparisonComponent', () => {
         status: 'OfferSelected',
         selectedOfferId: 'offer-1',
         fulfillmentStatus: 'DeliveryReported'
-      })
+      }),
+      getHistory: () => of([])
     }});
     const fixture=TestBed.createComponent(BuyerOfferComparisonComponent);
     fixture.detectChanges();
@@ -84,7 +90,7 @@ describe('BuyerOfferComparisonComponent', () => {
 
   it('does not present a legacy general-offer total as delivery cost', async () => {
     const generalRequest = { ...request, items: [] };
-    TestBed.overrideProvider(RfqService, { useValue: { get: () => of(generalRequest) } });
+    TestBed.overrideProvider(RfqService, { useValue: { get: () => of(generalRequest), getHistory: () => of([]) } });
     TestBed.overrideProvider(OfferService, { useValue: {
       forBuyer: () => of([{
         supplierName: 'Furnizor Test',

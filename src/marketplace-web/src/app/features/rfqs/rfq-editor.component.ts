@@ -5,7 +5,7 @@ import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { switchMap } from 'rxjs';
 import { AuthService } from '../../core/auth/auth.service';
 import { ProfileService } from '../../core/profiles/profile.service';
-import { Rfq, RfqDraft, RfqService, UnitOfMeasure } from '../../core/rfqs/rfq.service';
+import { RequirementKind, Rfq, RfqDraft, RfqService, UnitOfMeasure } from '../../core/rfqs/rfq.service';
 import { CategoryOption, SupplierSettingsService } from '../../core/suppliers/supplier-settings.service';
 import { ROMANIAN_COUNTIES } from '../../shared/romanian-counties';
 
@@ -53,11 +53,12 @@ import { ROMANIAN_COUNTIES } from '../../shared/romanian-counties';
                 (toggle)="onItemToggle(index, $event)">
                 <summary><span class="item-index">{{ index + 1 }}</span><span class="item-summary">
                   <strong>{{ item.controls['productName'].value || 'Poziție nouă' }}</strong>
-                  <small>{{ item.controls['quantity'].value }} {{ unitLabel(item.controls['unit'].value) }}
+                  <small>{{ kindLabel(item.controls['kind'].value) }} · {{ item.controls['quantity'].value }} {{ unitLabel(item.controls['unit'].value) }}
                     · {{ categoryName(item.controls['categoryId'].value) }}</small></span><span class="collapse-hint">Detalii</span></summary>
                 <div class="item-fields">
                   <button class="remove" type="button" (click)="removeItem(index)" aria-label="Șterge poziția">Șterge</button>
-                  <div class="two"><label>Denumire *<input #productNameInput formControlName="productName" placeholder="Exemplu: Ciment 40 kg">
+                  <div class="two"><label>Tip poziție *<select formControlName="kind"><option value="Product">Produs</option><option value="Service">Serviciu</option></select></label>
+                    <label>Denumire produs / serviciu *<input #productNameInput formControlName="productName" placeholder="Exemplu: Ciment 40 kg sau montaj">
                     @if (item.controls['productName'].touched && item.controls['productName'].invalid) { <small class="field-error">Completează denumirea poziției {{ index + 1 }}.</small> }</label>
                     <label>Categorie furnizor<select formControlName="categoryId"><option value="">Categoria principală</option>
                       @for (category of selectableCategories(); track category.id) { <option [value]="category.id">{{ category.name }}</option> }</select>
@@ -204,6 +205,7 @@ export class RfqEditorComponent {
 
     this.items.push(new FormGroup({
       productName:new FormControl(value?.productName??'',{nonNullable:true,validators:Validators.required}),
+      kind:new FormControl<RequirementKind>(value?.kind??'Product',{nonNullable:true}),
       manufacturerOrBrand:new FormControl(value?.manufacturerOrBrand??null),
       specification:new FormControl(value?.specification??null),
       quantity:new FormControl(value?.quantity??1,{nonNullable:true,validators:[Validators.required,Validators.min(.01)]}),
@@ -270,7 +272,7 @@ export class RfqEditorComponent {
   }
   private toDraft():RfqDraft {
     const value=this.form.getRawValue();
-    return {...value,latitude:null,longitude:null,quotationDeadline:new Date(value.quotationDeadline).toISOString(),items:value.items} as RfqDraft;
+    return {...value,source:'Manual',inputType:'StructuredForm',latitude:null,longitude:null,quotationDeadline:new Date(value.quotationDeadline).toISOString(),items:value.items} as RfqDraft;
   }
   private parseUnit(value:string):UnitOfMeasure|null {
     const key=value.toLocaleLowerCase('ro-RO').replace(/[ăâ]/g,'a').replace(/ț/g,'t').replace(/ș/g,'s').trim();
@@ -278,6 +280,7 @@ export class RfqEditorComponent {
     return aliases[key]??null;
   }
   unitLabel(value: unknown): string { return this.units.find(unit => unit.value === value)?.label ?? 'unități'; }
+  kindLabel(value: unknown): string { return value === 'Service' ? 'Serviciu' : 'Produs'; }
   categoryName(value: unknown): string {
     if (!value) return this.categories().find(category => category.id === this.form.controls.primaryCategoryId.value)?.name ?? 'Categoria principală';
     return this.categories().find(category => category.id === value)?.name ?? 'Categorie';

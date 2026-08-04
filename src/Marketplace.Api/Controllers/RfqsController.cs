@@ -24,6 +24,14 @@ public sealed class RfqsController(IRfqService rfqService) : ControllerBase
         return rfq is null ? NotFound() : Ok(RfqResponse.From(rfq));
     }
 
+    [HttpGet("{rfqId:guid}/history")]
+    public async Task<IActionResult> History(Guid rfqId, CancellationToken cancellationToken)
+    {
+        IReadOnlyCollection<ProcurementNeedAuditEvent>? history =
+            await rfqService.GetHistoryAsync(BuyerId(), rfqId, cancellationToken);
+        return history is null ? NotFound() : Ok(history.Select(ProcurementNeedAuditResponse.From));
+    }
+
     [HttpPost]
     public async Task<IActionResult> Create(RfqRequest request, CancellationToken cancellationToken)
     {
@@ -107,20 +115,23 @@ public sealed record RfqRequest(
     string DeliveryAddress, string DeliveryLocality, string County, int? SupplierSearchRadiusKm, decimal? Latitude, decimal? Longitude,
     DateOnly? PreferredDeliveryDate, DateTimeOffset QuotationDeadline, bool AlternativeProductsAccepted,
     decimal? EstimatedBudget, string? BuyerNotes, IReadOnlyCollection<RfqItemRequest>? Items, bool AllowSplit = false,
-    bool DeliveryRequired = false)
+    bool DeliveryRequired = false, ProcurementNeedSource Source = ProcurementNeedSource.Manual,
+    ProcurementInputType InputType = ProcurementInputType.StructuredForm)
 {
     public RfqDraft ToDraft() => new(
         Title ?? string.Empty, ProjectName, Description, PrimaryCategoryId,
         DeliveryAddress ?? string.Empty, DeliveryLocality ?? string.Empty, County ?? string.Empty, SupplierSearchRadiusKm ?? 30,
         Latitude, Longitude, PreferredDeliveryDate, QuotationDeadline, AlternativeProductsAccepted,
-        EstimatedBudget, BuyerNotes, Items?.Select(item => item.ToDraft()).ToArray() ?? [], AllowSplit, DeliveryRequired);
+        EstimatedBudget, BuyerNotes, Items?.Select(item => item.ToDraft()).ToArray() ?? [], AllowSplit, DeliveryRequired,
+        Source, InputType);
 }
 
 public sealed record RfqItemRequest(
     string ProductName, string? ManufacturerOrBrand, string? Specification, decimal Quantity,
-    UnitOfMeasure Unit, bool AlternativesAccepted, string? BuyerNotes, Guid? CategoryId)
+    UnitOfMeasure Unit, bool AlternativesAccepted, string? BuyerNotes, Guid? CategoryId,
+    RequirementKind Kind = RequirementKind.Product)
 {
-    public RfqItemDraft ToDraft() => new(ProductName ?? string.Empty, ManufacturerOrBrand, Specification, Quantity, Unit, AlternativesAccepted, BuyerNotes, CategoryId);
+    public RfqItemDraft ToDraft() => new(ProductName ?? string.Empty, ManufacturerOrBrand, Specification, Quantity, Unit, AlternativesAccepted, BuyerNotes, CategoryId, Kind);
 }
 
 public sealed record ExtendRfqDeadlineRequest(DateTimeOffset QuotationDeadline);
@@ -133,6 +144,9 @@ public sealed record RfqResponse(
     DateTimeOffset UpdatedAt, DateTimeOffset? PublishedAt, DateTimeOffset? ClosedAt, Guid? SelectedOfferId,
     int ReopenCount, bool DeliveryRequired, FulfillmentStatus FulfillmentStatus,
     DateTimeOffset? DeliveryReportedAt, DateTimeOffset? DeliveredAt,
+    ProcurementNeedSource Source, ProcurementInputType InputType, ProcurementNeedStatus NeedStatus,
+    ProjectContextResponse? ProjectContext, DeliveryConstraintsResponse DeliveryConstraints,
+    ProcurementOutcome? Outcome, string? OutcomeReason, DateTimeOffset? OutcomeRecordedAt,
     IReadOnlyCollection<RfqItemResponse> Items)
 {
     public static RfqResponse From(Rfq rfq) => new(
@@ -142,14 +156,42 @@ public sealed record RfqResponse(
         rfq.EstimatedBudget, rfq.BuyerNotes, rfq.AllowSplit, rfq.Status, rfq.CreatedAt, rfq.UpdatedAt,
         rfq.PublishedAt, rfq.ClosedAt, rfq.SelectedOfferId, rfq.ReopenCount,
         rfq.DeliveryRequired, rfq.FulfillmentStatus, rfq.DeliveryReportedAt, rfq.DeliveredAt,
+        rfq.Source, rfq.InputType, rfq.NeedStatus,
+        ProjectContextResponse.From(rfq.ProjectContext), DeliveryConstraintsResponse.From(rfq.DeliveryConstraints),
+        rfq.Outcome, rfq.OutcomeReason, rfq.OutcomeRecordedAt,
         rfq.Items.OrderBy(item => item.ItemNumber).Select(RfqItemResponse.From).ToArray());
 }
 
 public sealed record RfqItemResponse(
     Guid Id, int ItemNumber, string ProductName, string? ManufacturerOrBrand, string? Specification,
-    decimal Quantity, UnitOfMeasure Unit, bool AlternativesAccepted, string? BuyerNotes, Guid? CategoryId)
+    decimal Quantity, UnitOfMeasure Unit, bool AlternativesAccepted, string? BuyerNotes, Guid? CategoryId,
+    RequirementKind Kind)
 {
     public static RfqItemResponse From(RfqItem item) => new(
         item.Id, item.ItemNumber, item.ProductName, item.ManufacturerOrBrand, item.Specification,
-        item.Quantity, item.Unit, item.AlternativesAccepted, item.BuyerNotes, item.CategoryId);
+        item.Quantity, item.Unit, item.AlternativesAccepted, item.BuyerNotes, item.CategoryId, item.Kind);
+}
+
+public sealed record ProjectContextResponse(string? Name, string? Description)
+{
+    public static ProjectContextResponse? From(ProjectContext? context) =>
+        context is null ? null : new(context.Name, context.Description);
+}
+
+public sealed record DeliveryConstraintsResponse(
+    string Address, string Locality, string County, int SupplierSearchRadiusKm,
+    decimal? Latitude, decimal? Longitude, DateOnly? PreferredDeliveryDate, bool TransportRequired)
+{
+    public static DeliveryConstraintsResponse From(DeliveryConstraints constraints) => new(
+        constraints.Address, constraints.Locality, constraints.County, constraints.SupplierSearchRadiusKm,
+        constraints.Latitude, constraints.Longitude, constraints.PreferredDeliveryDate, constraints.TransportRequired);
+}
+
+public sealed record ProcurementNeedAuditResponse(
+    Guid Id, Guid ProcurementNeedId, Guid ActorId, ProcurementNeedAuditEventType Type,
+    ProcurementNeedStatus FromStatus, ProcurementNeedStatus ToStatus, string? Details, DateTimeOffset OccurredAt)
+{
+    public static ProcurementNeedAuditResponse From(ProcurementNeedAuditEvent auditEvent) => new(
+        auditEvent.Id, auditEvent.ProcurementNeedId, auditEvent.ActorId, auditEvent.Type,
+        auditEvent.FromStatus, auditEvent.ToStatus, auditEvent.Details, auditEvent.OccurredAt);
 }

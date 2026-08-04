@@ -27,7 +27,11 @@ Exit criteria: full builds/tests pass, preserved database upgrades, real browser
 
 ## Pasul 2 — Evolve Request toward ProcurementNeed
 
-Add source/input type, explicit need status, normalized delivery constraints, requirement-line semantics, optional generic project context, outcome fields, and audit events. Keep current IDs and API compatibility where practical. Introduce separate publication/recipient records only when required for explainable delivery and invitations.
+**Status:** implemented; automated, migration, and browser acceptance evidence is recorded in the Step 2 verification report.
+
+**Outcome:** the existing request is now the first backward-compatible ProcurementNeed implementation: it records source/input type, exposes an explicit need status, normalizes delivery constraints and optional project context, supports product or service requirement lines, carries outcome fields, and records an immutable lifecycle history.
+
+Current IDs, routes, flat compatibility fields, and existing data remain valid. Separate publication/recipient records remain deferred until explainable delivery or invitation behavior gives them an independent lifecycle. See [ADR-0017](../decisions/ADR-0017-evolve-rfq-as-procurement-need.md).
 
 ## Pasul 3 — First assisted-intake slice
 

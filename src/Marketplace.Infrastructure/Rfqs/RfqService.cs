@@ -5,7 +5,10 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Marketplace.Infrastructure.Rfqs;
 
-public sealed class RfqService(MarketplaceDbContext dbContext, TimeProvider timeProvider) : IRfqService
+public sealed class RfqService(
+    MarketplaceDbContext dbContext,
+    TimeProvider timeProvider,
+    IProcurementNeedAuditTrail auditTrail) : IRfqService
 {
     public async Task<IReadOnlyCollection<Rfq>> GetMineAsync(Guid buyerId, CancellationToken cancellationToken) =>
         await dbContext.Rfqs.AsNoTracking().Include(rfq => rfq.Items).Where(rfq => rfq.BuyerId == buyerId)
@@ -15,11 +18,28 @@ public sealed class RfqService(MarketplaceDbContext dbContext, TimeProvider time
         dbContext.Rfqs.AsNoTracking().Include(rfq => rfq.Items)
             .SingleOrDefaultAsync(rfq => rfq.Id == rfqId && rfq.BuyerId == buyerId, cancellationToken);
 
+    public async Task<IReadOnlyCollection<ProcurementNeedAuditEvent>?> GetHistoryAsync(
+        Guid buyerId, Guid rfqId, CancellationToken cancellationToken)
+    {
+        if (!await dbContext.Rfqs.AsNoTracking()
+                .AnyAsync(rfq => rfq.Id == rfqId && rfq.BuyerId == buyerId, cancellationToken))
+            return null;
+
+        return await dbContext.ProcurementNeedAuditEvents.AsNoTracking()
+            .Where(auditEvent => auditEvent.ProcurementNeedId == rfqId)
+            .OrderBy(auditEvent => auditEvent.OccurredAt)
+            .ThenBy(auditEvent => auditEvent.Id)
+            .ToArrayAsync(cancellationToken);
+    }
+
     public async Task<Rfq> CreateAsync(Guid buyerId, RfqDraft draft, CancellationToken cancellationToken)
     {
         await ValidateReferences(buyerId, draft, cancellationToken);
-        Rfq rfq = Rfq.Create(Guid.NewGuid(), buyerId, draft, timeProvider.GetUtcNow());
+        DateTimeOffset now = timeProvider.GetUtcNow();
+        Rfq rfq = Rfq.Create(Guid.NewGuid(), buyerId, draft, now);
         dbContext.Rfqs.Add(rfq);
+        auditTrail.Record(rfq.Id, buyerId, ProcurementNeedAuditEventType.Created,
+            ProcurementNeedStatus.Draft, rfq.NeedStatus, null, now);
         await dbContext.SaveChangesAsync(cancellationToken);
         return rfq;
     }
@@ -29,7 +49,11 @@ public sealed class RfqService(MarketplaceDbContext dbContext, TimeProvider time
         await ValidateReferences(buyerId, draft, cancellationToken);
         Rfq? rfq = await Find(buyerId, rfqId, cancellationToken);
         if (rfq is null) return null;
-        rfq.Update(draft, timeProvider.GetUtcNow());
+        DateTimeOffset now = timeProvider.GetUtcNow();
+        ProcurementNeedStatus previousStatus = rfq.NeedStatus;
+        rfq.Update(draft, now);
+        auditTrail.Record(rfq.Id, buyerId, ProcurementNeedAuditEventType.Updated,
+            previousStatus, rfq.NeedStatus, null, now);
         await SaveRfqChangesAsync(cancellationToken);
         return rfq;
     }
@@ -38,7 +62,11 @@ public sealed class RfqService(MarketplaceDbContext dbContext, TimeProvider time
     {
         Rfq? rfq = await Find(buyerId, rfqId, cancellationToken);
         if (rfq is null) return null;
-        rfq.Publish(timeProvider.GetUtcNow());
+        DateTimeOffset now = timeProvider.GetUtcNow();
+        ProcurementNeedStatus previousStatus = rfq.NeedStatus;
+        rfq.Publish(now);
+        auditTrail.Record(rfq.Id, buyerId, ProcurementNeedAuditEventType.Published,
+            previousStatus, rfq.NeedStatus, null, now);
         await SaveRfqChangesAsync(cancellationToken);
         return rfq;
     }
@@ -47,7 +75,11 @@ public sealed class RfqService(MarketplaceDbContext dbContext, TimeProvider time
     {
         Rfq? rfq = await Find(buyerId, rfqId, cancellationToken);
         if (rfq is null) return null;
-        rfq.Cancel(timeProvider.GetUtcNow());
+        DateTimeOffset now = timeProvider.GetUtcNow();
+        ProcurementNeedStatus previousStatus = rfq.NeedStatus;
+        rfq.Cancel(now);
+        auditTrail.Record(rfq.Id, buyerId, ProcurementNeedAuditEventType.Cancelled,
+            previousStatus, rfq.NeedStatus, null, now);
         await SaveRfqChangesAsync(cancellationToken);
         return rfq;
     }
@@ -57,7 +89,11 @@ public sealed class RfqService(MarketplaceDbContext dbContext, TimeProvider time
     {
         Rfq? rfq = await Find(buyerId, rfqId, cancellationToken);
         if (rfq is null) return null;
-        rfq.ExtendQuotationDeadline(newDeadline, timeProvider.GetUtcNow());
+        DateTimeOffset now = timeProvider.GetUtcNow();
+        ProcurementNeedStatus previousStatus = rfq.NeedStatus;
+        rfq.ExtendQuotationDeadline(newDeadline, now);
+        auditTrail.Record(rfq.Id, buyerId, ProcurementNeedAuditEventType.DeadlineExtended,
+            previousStatus, rfq.NeedStatus, null, now);
         await SaveRfqChangesAsync(cancellationToken);
         return rfq;
     }

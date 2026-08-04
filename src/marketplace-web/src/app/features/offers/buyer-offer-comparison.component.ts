@@ -3,7 +3,7 @@ import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@a
 import { ActivatedRoute, RouterLink } from '@angular/router';
 import { forkJoin } from 'rxjs';
 import { BuyerOffer, OfferService } from '../../core/offers/offer.service';
-import { Rfq, RfqService } from '../../core/rfqs/rfq.service';
+import { ProcurementNeedAuditEvent, Rfq, RfqService } from '../../core/rfqs/rfq.service';
 
 @Component({
   selector: 'app-buyer-offer-comparison',
@@ -29,6 +29,7 @@ import { Rfq, RfqService } from '../../core/rfqs/rfq.service';
           <div><dt>Transport în ofertă</dt><dd>{{ request.deliveryRequired ? 'Solicitat' : 'Opțional' }}</dd></div>
           <div><dt>Buget estimat</dt><dd>{{ request.estimatedBudget ? (request.estimatedBudget | currency:'RON':'symbol-narrow':'1.0-2':'ro') : 'Nespecificat' }}</dd></div>
           <div><dt>Îndeplinire</dt><dd>{{ request.allowSplit ? 'Poate fi împărțită' : 'Un singur furnizor' }}</dd></div>
+          <div><dt>Origine</dt><dd>{{ inputLabel(request.inputType) }}</dd></div>
         </dl>
         <details class="request-details">
           <summary>Vezi cererea completă <span>{{ request.items.length }} {{ request.items.length === 1 ? 'poziție' : 'poziții' }}</span></summary>
@@ -43,6 +44,7 @@ import { Rfq, RfqService } from '../../core/rfqs/rfq.service';
             <ol class="request-items">
               @for (item of request.items; track item.id; let index = $index) {
                 <li><div><strong>{{ item.productName }}</strong>
+                  <small>{{ item.kind === 'Service' ? 'Serviciu' : 'Produs' }}</small>
                   @if (item.specification) { <small>{{ item.specification }}</small> }</div>
                   <span>{{ item.quantity }} {{ unitLabel(item.unit) }}</span></li>
               }
@@ -50,6 +52,16 @@ import { Rfq, RfqService } from '../../core/rfqs/rfq.service';
           } @else {
             <p class="general-request">Cerere generală, fără poziții individuale.</p>
           }
+        </details>
+        <details class="request-history">
+          <summary>Istoric cerere <span>{{ history().length }} evenimente</span></summary>
+          <ol>
+            @for (event of history(); track event.id) {
+              <li><span class="history-marker" aria-hidden="true"></span><div><strong>{{ eventLabel(event.type) }}</strong>
+                <small>{{ event.occurredAt | date:'dd.MM.yyyy, HH:mm' }}</small>
+                @if (event.details) { <p>{{ event.details }}</p> }</div></li>
+            } @empty { <li><div><span>Istoricul nu este încă disponibil.</span></div></li> }
+          </ol>
         </details>
         @if (showDeadline()) {
           <form class="management-form" (submit)="extendDeadline($event)">
@@ -185,6 +197,7 @@ export class BuyerOfferComparisonComponent {
   private readonly id = inject(ActivatedRoute).snapshot.paramMap.get('rfqId') ?? '';
   readonly rfq = signal<Rfq | null>(null);
   readonly offers = signal<BuyerOffer[]>([]);
+  readonly history = signal<ProcurementNeedAuditEvent[]>([]);
   readonly loading = signal(true);
   readonly busy = signal(false);
   readonly error = signal('');
@@ -228,6 +241,22 @@ export class BuyerOfferComparisonComponent {
       Cancelled: 'Anulată'
     };
     return labels[status];
+  }
+
+  inputLabel(inputType: Rfq['inputType']): string {
+    const labels: Record<Rfq['inputType'], string> = {
+      StructuredForm: 'Formular structurat', FreeText: 'Text liber', ShoppingList: 'Listă de cumpărături', ProjectDescription: 'Descriere proiect'
+    };
+    return labels[inputType];
+  }
+
+  eventLabel(type: ProcurementNeedAuditEvent['type']): string {
+    const labels: Record<ProcurementNeedAuditEvent['type'], string> = {
+      Created:'Cerere creată', Updated:'Cerere actualizată', Published:'Cerere publicată', OfferReceived:'Ofertă primită',
+      DeadlineExtended:'Termen prelungit', OfferSelected:'Ofertă selectată', Reopened:'Cerere redeschisă',
+      DeliveryReported:'Livrare declarată', Completed:'Cerere finalizată', Cancelled:'Cerere anulată', Migrated:'Cerere existentă preluată'
+    };
+    return labels[type];
   }
 
   unitLabel(unit: Rfq['items'][number]['unit']): string {
@@ -361,10 +390,11 @@ export class BuyerOfferComparisonComponent {
   private load(): void {
     this.loading.set(true);
     this.error.set('');
-    forkJoin({ request: this.rfqService.get(this.id), offers: this.offerService.forBuyer(this.id) }).subscribe({
+    forkJoin({ request: this.rfqService.get(this.id), offers: this.offerService.forBuyer(this.id), history: this.rfqService.getHistory(this.id) }).subscribe({
       next: result => {
         this.rfq.set(result.request);
         this.offers.set(result.offers);
+        this.history.set(result.history);
         this.loading.set(false);
         this.busy.set(false);
       },

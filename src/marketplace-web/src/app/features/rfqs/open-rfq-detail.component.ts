@@ -30,7 +30,7 @@ import { OfferEditorComponent } from '../offers/offer-editor.component';
             @if (rfq.items.length === 0) { <div class="general-request"><strong>Cerere generală</strong><p>Cumpărătorul nu a introdus poziții individuale. Poți răspunde cu un preț total și condițiile comerciale.</p></div> }
             @for (item of rfq.items; track item.id) {
               <article class="material"><span class="item-number">{{ $index + 1 }}</span><div><strong>{{ item.productName }}</strong>
-                <small>{{ item.specification || item.manufacturerOrBrand || 'Fără specificație suplimentară' }}</small></div>
+                <small>{{ item.kind === 'Service' ? 'Serviciu' : 'Produs' }} · {{ item.specification || item.manufacturerOrBrand || 'Fără specificație suplimentară' }}</small></div>
                 <span>{{ item.quantity }} · {{ item.unit }}</span></article>
             }
           </section>

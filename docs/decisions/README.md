@@ -20,6 +20,7 @@ Records retain their individual lifecycle status. Implemented decisions are Acce
 | [ADR-0014](ADR-0014-mvp-production-hardening-boundary.md) | MVP production-hardening and deployment boundary |
 | [ADR-0015](ADR-0015-delivery-confirmation-lifecycle.md) | Separate request selection from delivery confirmation |
 | [ADR-0016](ADR-0016-aws-release-and-secret-delivery.md) | Immutable AWS releases, OIDC deployment, and SSM secrets |
+| [ADR-0017](ADR-0017-evolve-rfq-as-procurement-need.md) | Evolve RFQ as the first ProcurementNeed implementation |
 
 ## ADR lifecycle
 

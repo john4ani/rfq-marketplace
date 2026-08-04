@@ -67,6 +67,7 @@ public static class DependencyInjection
         services.AddScoped<ISupplierSettingsService, SupplierSettingsService>();
         services.AddScoped<ILiveMarketService, LiveMarketService>();
         services.AddScoped<IRfqService, RfqService>();
+        services.AddScoped<IProcurementNeedAuditTrail, ProcurementNeedAuditTrail>();
         services.AddScoped<IOfferService, OfferService>();
         services.AddScoped<INotificationService, NotificationService>();
         services.AddScoped<IMessagingService, MessagingService>();

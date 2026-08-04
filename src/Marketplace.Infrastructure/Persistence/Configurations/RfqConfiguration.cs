@@ -24,6 +24,8 @@ public sealed class RfqConfiguration : IEntityTypeConfiguration<Rfq>
         builder.Property(rfq => rfq.DeliveryLocality).HasMaxLength(120).IsRequired();
         builder.Property(rfq => rfq.County).HasMaxLength(80).IsRequired();
         builder.Property(rfq => rfq.SupplierSearchRadiusKm).HasDefaultValue(30);
+        builder.Property(rfq => rfq.Source).HasDefaultValue(ProcurementNeedSource.Manual);
+        builder.Property(rfq => rfq.InputType).HasDefaultValue(ProcurementInputType.StructuredForm);
         builder.Property(rfq => rfq.AllowSplit).HasDefaultValue(false);
         builder.Property(rfq => rfq.DeliveryRequired).HasDefaultValue(false);
         builder.Property(rfq => rfq.ReopenCount).HasDefaultValue(0);
@@ -32,6 +34,10 @@ public sealed class RfqConfiguration : IEntityTypeConfiguration<Rfq>
         builder.Property(rfq => rfq.Longitude).HasPrecision(9, 6);
         builder.Property(rfq => rfq.EstimatedBudget).HasPrecision(18, 2);
         builder.Property(rfq => rfq.BuyerNotes).HasMaxLength(2000);
+        builder.Property(rfq => rfq.OutcomeReason).HasMaxLength(1000);
+        builder.Ignore(rfq => rfq.NeedStatus);
+        builder.Ignore(rfq => rfq.ProjectContext);
+        builder.Ignore(rfq => rfq.DeliveryConstraints);
         builder.HasIndex(rfq => new { rfq.BuyerId, rfq.Status });
         builder.HasIndex(rfq => new { rfq.Status, rfq.QuotationDeadline });
         builder.HasOne<BuyerProfile>().WithMany().HasForeignKey(rfq => rfq.BuyerId).OnDelete(DeleteBehavior.Restrict);

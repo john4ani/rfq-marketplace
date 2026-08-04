@@ -9,6 +9,7 @@ public sealed class RfqItem
     public Guid RfqId { get; private set; }
     public int ItemNumber { get; private set; }
     public Guid? CategoryId { get; private set; }
+    public RequirementKind Kind { get; private set; }
     public string ProductName { get; private set; } = string.Empty;
     public string? ManufacturerOrBrand { get; private set; }
     public string? Specification { get; private set; }
@@ -26,10 +27,12 @@ public sealed class RfqItem
 
     internal void Update(int itemNumber, RfqItemDraft draft)
     {
-        if (string.IsNullOrWhiteSpace(draft.ProductName)) throw new RfqRuleException($"Denumirea materialului de la poziția {itemNumber} este obligatorie.");
+        if (string.IsNullOrWhiteSpace(draft.ProductName)) throw new RfqRuleException($"Denumirea produsului sau serviciului de la poziția {itemNumber} este obligatorie.");
         if (draft.Quantity <= 0) throw new RfqRuleException($"Cantitatea de la poziția {itemNumber} trebuie să fie mai mare decât zero.");
+        if (!Enum.IsDefined(draft.Kind)) throw new RfqRuleException($"Tipul poziției {itemNumber} nu este valid.");
         ItemNumber = itemNumber;
         CategoryId = draft.CategoryId;
+        Kind = draft.Kind;
         ProductName = draft.ProductName.Trim();
         ManufacturerOrBrand = Clean(draft.ManufacturerOrBrand);
         Specification = Clean(draft.Specification);
@@ -50,4 +53,5 @@ public sealed record RfqItemDraft(
     UnitOfMeasure Unit,
     bool AlternativesAccepted,
     string? BuyerNotes,
-    Guid? CategoryId = null);
+    Guid? CategoryId = null,
+    RequirementKind Kind = RequirementKind.Product);

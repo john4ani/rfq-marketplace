@@ -76,6 +76,17 @@ describe('RfqEditorComponent material positions', () => {
     expect((fixture.nativeElement as HTMLElement).querySelector<HTMLDetailsElement>('details.item')?.open).toBe(true);
   });
 
+  it('captures a service as an explicit requirement-line kind', () => {
+    const fixture = TestBed.createComponent(RfqEditorComponent);
+    fixture.detectChanges();
+
+    fixture.componentInstance.addItem({ productName: 'Montaj', quantity: 1, unit: 'Other', kind: 'Service' });
+    fixture.detectChanges();
+
+    expect(fixture.componentInstance.items.at(0).controls['kind'].value).toBe('Service');
+    expect(fixture.componentInstance.kindLabel('Service')).toBe('Serviciu');
+  });
+
   it('lists exact validation errors and focuses the first invalid field', async () => {
     const fixture = TestBed.createComponent(RfqEditorComponent);
     fixture.detectChanges();

@@ -8,7 +8,10 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Marketplace.Infrastructure.Offers;
 
-public sealed class OfferService(MarketplaceDbContext dbContext, TimeProvider timeProvider) : IOfferService
+public sealed class OfferService(
+    MarketplaceDbContext dbContext,
+    TimeProvider timeProvider,
+    IProcurementNeedAuditTrail auditTrail) : IOfferService
 {
     public Task<Offer?> GetMineForRfqAsync(Guid supplierId, Guid rfqId, CancellationToken cancellationToken) =>
         dbContext.Offers.AsNoTracking().Include(offer => offer.Items)
@@ -50,7 +53,10 @@ public sealed class OfferService(MarketplaceDbContext dbContext, TimeProvider ti
         Offer? offer = await dbContext.Offers.Include(item => item.Items)
             .SingleOrDefaultAsync(item => item.SupplierId == supplierId && item.RfqId == rfqId, cancellationToken);
         if (offer is null) return null;
+        ProcurementNeedStatus previousStatus = rfq.NeedStatus;
         offer.Submit(now); rfq.MarkOfferReceived(now);
+        auditTrail.Record(rfq.Id, supplierId, ProcurementNeedAuditEventType.OfferReceived,
+            previousStatus, rfq.NeedStatus, null, now);
         string supplierName = await dbContext.SupplierProfiles.Where(profile => profile.Id == supplierId)
             .Select(profile => profile.TradingName).SingleAsync(cancellationToken);
         NotificationType notificationType = offer.RevisionNumber == 1 ? NotificationType.OfferReceived : NotificationType.OfferRevised;
@@ -96,9 +102,12 @@ public sealed class OfferService(MarketplaceDbContext dbContext, TimeProvider ti
             .SingleOrDefaultAsync(offer => offer.Id == offerId && offer.RfqId == rfqId, cancellationToken);
         if (selected is null || selected.Status is not (OfferStatus.Submitted or OfferStatus.Revised)) return null;
         DateTimeOffset now = timeProvider.GetUtcNow();
+        ProcurementNeedStatus previousStatus = rfq.NeedStatus;
         foreach (Offer offer in await dbContext.Offers.Where(offer => offer.RfqId == rfqId).ToListAsync(cancellationToken))
             if (offer.Id == offerId) offer.Select(now); else offer.Reject(now);
         rfq.SelectOffer(offerId, selected.DeliveryIncluded, now);
+        auditTrail.Record(rfq.Id, buyerId, ProcurementNeedAuditEventType.OfferSelected,
+            previousStatus, rfq.NeedStatus, null, now);
         await SaveRfqChangesAsync(cancellationToken);
         return selected;
     }
@@ -118,7 +127,10 @@ public sealed class OfferService(MarketplaceDbContext dbContext, TimeProvider ti
         if (selected is null) return null;
 
         DateTimeOffset now = timeProvider.GetUtcNow();
+        ProcurementNeedStatus previousStatus = rfq.NeedStatus;
         rfq.ReportDelivered(now);
+        auditTrail.Record(rfq.Id, supplierId, ProcurementNeedAuditEventType.DeliveryReported,
+            previousStatus, rfq.NeedStatus, null, now);
         string supplierName = await dbContext.SupplierProfiles
             .Where(profile => profile.Id == supplierId)
             .Select(profile => profile.TradingName)
@@ -152,7 +164,10 @@ public sealed class OfferService(MarketplaceDbContext dbContext, TimeProvider ti
         if (selected is null) return null;
 
         DateTimeOffset now = timeProvider.GetUtcNow();
+        ProcurementNeedStatus previousStatus = rfq.NeedStatus;
         rfq.ConfirmDelivery(now);
+        auditTrail.Record(rfq.Id, buyerId, ProcurementNeedAuditEventType.Completed,
+            previousStatus, rfq.NeedStatus, null, now);
         dbContext.Notifications.Add(Notification.Create(
             selected.SupplierId,
             NotificationType.DeliveryConfirmed,
@@ -177,7 +192,10 @@ public sealed class OfferService(MarketplaceDbContext dbContext, TimeProvider ti
         if (rfq is null) return null;
 
         DateTimeOffset now = timeProvider.GetUtcNow();
+        ProcurementNeedStatus previousStatus = rfq.NeedStatus;
         rfq.Reopen(reason, newQuotationDeadline, now);
+        auditTrail.Record(rfq.Id, buyerId, ProcurementNeedAuditEventType.Reopened,
+            previousStatus, rfq.NeedStatus, reason, now);
         Offer[] offers = await dbContext.Offers
             .Where(offer => offer.RfqId == rfqId)
             .ToArrayAsync(cancellationToken);

@@ -18,6 +18,10 @@ describe('RfqService', () => {
     service.publish('rfq-1').subscribe();
     const request=http.expectOne('/api/v1/rfqs/rfq-1/publish');expect(request.request.method).toBe('POST');request.flush({});
   });
+  it('loads the owned request audit history',()=>{
+    service.getHistory('rfq-1').subscribe(values=>expect(values).toEqual([]));
+    const request=http.expectOne('/api/v1/rfqs/rfq-1/history');expect(request.request.method).toBe('GET');request.flush([]);
+  });
   it('extends the quotation deadline',()=>{
     service.extendDeadline('rfq-1','2026-08-01T10:00:00.000Z').subscribe();
     const request=http.expectOne('/api/v1/rfqs/rfq-1/extend-deadline');

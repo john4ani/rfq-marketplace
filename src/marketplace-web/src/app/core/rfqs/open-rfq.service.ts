@@ -1,9 +1,13 @@
 import { HttpClient, HttpParams } from '@angular/common/http';
 import { inject, Injectable } from '@angular/core';
-import { RfqItem } from './rfq.service';
+import { ProcurementInputType, ProcurementNeedSource, ProcurementNeedStatus, RfqItem } from './rfq.service';
 
 export interface OpenRfq {
   id: string;
+  source: ProcurementNeedSource;
+  inputType: ProcurementInputType;
+  needStatus: ProcurementNeedStatus;
+  projectContext: { name: string | null; description: string | null } | null;
   title: string;
   projectName: string | null;
   description: string | null;

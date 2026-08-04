@@ -405,6 +405,43 @@ namespace Marketplace.Infrastructure.Persistence.Migrations
                     b.ToTable("SupplierProfiles", (string)null);
                 });
 
+            modelBuilder.Entity("Marketplace.Domain.Rfqs.ProcurementNeedAuditEvent", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("ActorId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Details")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
+                    b.Property<int>("FromStatus")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTimeOffset>("OccurredAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("ProcurementNeedId")
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("ToStatus")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("Type")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ActorId");
+
+                    b.HasIndex("ProcurementNeedId", "OccurredAt");
+
+                    b.ToTable("ProcurementNeedAuditEvents", (string)null);
+                });
+
             modelBuilder.Entity("Marketplace.Domain.Rfqs.Rfq", b =>
                 {
                     b.Property<Guid>("Id")
@@ -471,6 +508,11 @@ namespace Marketplace.Infrastructure.Persistence.Migrations
                         .HasColumnType("integer")
                         .HasDefaultValue(0);
 
+                    b.Property<int>("InputType")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasDefaultValue(0);
+
                     b.Property<decimal?>("Latitude")
                         .HasPrecision(9, 6)
                         .HasColumnType("numeric(9,6)");
@@ -478,6 +520,16 @@ namespace Marketplace.Infrastructure.Persistence.Migrations
                     b.Property<decimal?>("Longitude")
                         .HasPrecision(9, 6)
                         .HasColumnType("numeric(9,6)");
+
+                    b.Property<int?>("Outcome")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("OutcomeReason")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
+                    b.Property<DateTimeOffset?>("OutcomeRecordedAt")
+                        .HasColumnType("timestamp with time zone");
 
                     b.Property<DateOnly?>("PreferredDeliveryDate")
                         .HasColumnType("date");
@@ -502,6 +554,11 @@ namespace Marketplace.Infrastructure.Persistence.Migrations
 
                     b.Property<Guid?>("SelectedOfferId")
                         .HasColumnType("uuid");
+
+                    b.Property<int>("Source")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasDefaultValue(0);
 
                     b.Property<int>("Status")
                         .HasColumnType("integer");
@@ -559,6 +616,11 @@ namespace Marketplace.Infrastructure.Persistence.Migrations
 
                     b.Property<int>("ItemNumber")
                         .HasColumnType("integer");
+
+                    b.Property<int>("Kind")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasDefaultValue(0);
 
                     b.Property<string>("ManufacturerOrBrand")
                         .HasMaxLength(160)
@@ -1109,6 +1171,15 @@ namespace Marketplace.Infrastructure.Persistence.Migrations
                     b.HasOne("Marketplace.Infrastructure.Identity.ApplicationUser", null)
                         .WithOne()
                         .HasForeignKey("Marketplace.Domain.Profiles.SupplierProfile", "Id")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Marketplace.Domain.Rfqs.ProcurementNeedAuditEvent", b =>
+                {
+                    b.HasOne("Marketplace.Domain.Rfqs.Rfq", null)
+                        .WithMany()
+                        .HasForeignKey("ProcurementNeedId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
                 });

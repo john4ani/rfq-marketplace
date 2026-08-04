@@ -11,6 +11,10 @@ registerLocaleData(localeRo);
 describe('OfferEditorComponent', () => {
   const generalRequest: OpenRfq = {
     id: 'rfq-general',
+    source: 'Manual',
+    inputType: 'StructuredForm',
+    needStatus: 'Published',
+    projectContext: null,
     title: 'Cerere generală',
     projectName: null,
     description: 'Fără poziții individuale',
@@ -36,8 +40,8 @@ describe('OfferEditorComponent', () => {
     deliveryRequired: false,
     isPartialMatch: true,
     items: [
-      { id: 'item-1', itemNumber: 1, productName: 'Ciment', manufacturerOrBrand: null, specification: null, quantity: 2, unit: 'Bag', alternativesAccepted: true, buyerNotes: null, categoryId: null },
-      { id: 'item-2', itemNumber: 2, productName: 'Nisip', manufacturerOrBrand: null, specification: null, quantity: 1, unit: 'Tonne', alternativesAccepted: true, buyerNotes: null, categoryId: null }
+      { id: 'item-1', itemNumber: 1, productName: 'Ciment', manufacturerOrBrand: null, specification: null, quantity: 2, unit: 'Bag', alternativesAccepted: true, buyerNotes: null, categoryId: null, kind: 'Product' },
+      { id: 'item-2', itemNumber: 2, productName: 'Montaj', manufacturerOrBrand: null, specification: null, quantity: 1, unit: 'Other', alternativesAccepted: true, buyerNotes: null, categoryId: null, kind: 'Service' }
     ]
   };
 

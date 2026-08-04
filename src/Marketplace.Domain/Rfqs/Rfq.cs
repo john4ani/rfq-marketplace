@@ -9,6 +9,8 @@ public sealed class Rfq
     private Rfq() { }
     public Guid Id { get; private set; }
     public Guid BuyerId { get; private set; }
+    public ProcurementNeedSource Source { get; private set; }
+    public ProcurementInputType InputType { get; private set; }
     public string Title { get; private set; } = string.Empty;
     public string? ProjectName { get; private set; }
     public string? Description { get; private set; }
@@ -36,12 +38,44 @@ public sealed class Rfq
     public FulfillmentStatus FulfillmentStatus { get; private set; }
     public DateTimeOffset? DeliveryReportedAt { get; private set; }
     public DateTimeOffset? DeliveredAt { get; private set; }
+    public ProcurementOutcome? Outcome { get; private set; }
+    public string? OutcomeReason { get; private set; }
+    public DateTimeOffset? OutcomeRecordedAt { get; private set; }
     public IReadOnlyCollection<RfqItem> Items => _items;
+    public ProcurementNeedStatus NeedStatus => Status switch
+    {
+        RfqStatus.Draft => ProcurementNeedStatus.Draft,
+        RfqStatus.Published => ProcurementNeedStatus.Published,
+        RfqStatus.ReceivingOffers => ProcurementNeedStatus.ReceivingResponses,
+        RfqStatus.OfferSelected => ProcurementNeedStatus.Awarded,
+        RfqStatus.Closed => ProcurementNeedStatus.Completed,
+        RfqStatus.Cancelled => ProcurementNeedStatus.Cancelled,
+        _ => throw new InvalidOperationException($"Unsupported request status: {Status}.")
+    };
+    public ProjectContext? ProjectContext
+    {
+        get
+        {
+            var context = new ProjectContext(ProjectName, Description);
+            return context.IsEmpty ? null : context;
+        }
+    }
+    public DeliveryConstraints DeliveryConstraints => new(
+        DeliveryAddress, DeliveryLocality, County, SupplierSearchRadiusKm,
+        Latitude, Longitude, PreferredDeliveryDate, DeliveryRequired);
 
     public static Rfq Create(Guid id, Guid buyerId, RfqDraft draft, DateTimeOffset now)
     {
         ValidateDraft(draft);
-        var rfq = new Rfq { Id = id, BuyerId = buyerId, Status = RfqStatus.Draft, CreatedAt = now };
+        var rfq = new Rfq
+        {
+            Id = id,
+            BuyerId = buyerId,
+            Source = draft.Source,
+            InputType = draft.InputType,
+            Status = RfqStatus.Draft,
+            CreatedAt = now
+        };
         rfq.Apply(draft, now);
         return rfq;
     }
@@ -69,6 +103,9 @@ public sealed class Rfq
             throw new RfqRuleException("Cererea nu mai poate fi anulată după selectarea unei oferte.");
         Status = RfqStatus.Cancelled;
         ClosedAt = now;
+        Outcome = ProcurementOutcome.Cancelled;
+        OutcomeReason = null;
+        OutcomeRecordedAt = now;
         UpdatedAt = now;
     }
 
@@ -124,6 +161,9 @@ public sealed class Rfq
         Status = RfqStatus.Closed;
         DeliveredAt = now;
         ClosedAt = now;
+        Outcome = ProcurementOutcome.PurchasedThroughCompaSpot;
+        OutcomeReason = null;
+        OutcomeRecordedAt = now;
         UpdatedAt = now;
     }
 
@@ -151,6 +191,9 @@ public sealed class Rfq
         DeliveryReportedAt = null;
         DeliveredAt = null;
         ClosedAt = null;
+        Outcome = null;
+        OutcomeReason = null;
+        OutcomeRecordedAt = null;
         ReopenCount++;
         UpdatedAt = now;
     }
@@ -202,6 +245,8 @@ public sealed class Rfq
             throw new RfqRuleException("Adresa, localitatea și județul de livrare sunt obligatorii.");
         if (draft.SupplierSearchRadiusKm is < 1 or > 1000) throw new RfqRuleException("Raza de căutare a furnizorilor trebuie să fie între 1 și 1.000 km.");
         if (draft.EstimatedBudget < 0) throw new RfqRuleException("Bugetul estimat nu poate fi negativ.");
+        if (!Enum.IsDefined(draft.Source)) throw new RfqRuleException("Sursa cererii nu este validă.");
+        if (!Enum.IsDefined(draft.InputType)) throw new RfqRuleException("Tipul de intrare al cererii nu este valid.");
     }
 
     private static string? Clean(string? value) => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
@@ -212,7 +257,8 @@ public sealed record RfqDraft(
     string DeliveryAddress, string DeliveryLocality, string County, int SupplierSearchRadiusKm, decimal? Latitude, decimal? Longitude,
     DateOnly? PreferredDeliveryDate, DateTimeOffset QuotationDeadline, bool AlternativeProductsAccepted,
     decimal? EstimatedBudget, string? BuyerNotes, IReadOnlyCollection<RfqItemDraft> Items, bool AllowSplit = false,
-    bool DeliveryRequired = false);
+    bool DeliveryRequired = false, ProcurementNeedSource Source = ProcurementNeedSource.Manual,
+    ProcurementInputType InputType = ProcurementInputType.StructuredForm);
 
 public sealed class RfqRuleException(string message) : InvalidOperationException(message);
 public sealed class RfqConcurrencyException(string message, Exception innerException) : Exception(message, innerException);
