@@ -26,6 +26,7 @@ describe('LiveMarketComponent', () => {
         { provide: LiveMarketService, useValue: { getSnapshot: () => of({
           generatedAt: new Date().toISOString(), isLocationFiltered: true, filterCity: 'Iași',
           filterCounty: 'Iași', approximateRadiusKm: 30,
+          onlineUserCount: 1, onlineBuyerCount: 1, onlineSupplierCount: 1,
           participants: [
             { id: 'user-id', name: 'Buyer', profileType: 'Buyer', isOnline: true, city: 'Iași', county: 'Iași', isSameCity: true },
             { id: 'user-id', name: 'Provider', profileType: 'Supplier', isOnline: true, city: 'Iași', county: 'Iași', isSameCity: true }
@@ -42,7 +43,7 @@ describe('LiveMarketComponent', () => {
     const text = fixture.nativeElement.textContent;
     expect(text).toContain('Tu ești online ca');
     expect(text).toContain('Cumpărător și Furnizor');
-    expect(text).toContain('2 online acum');
+    expect(text).toContain('1 online acum');
     expect(text).toContain('1 cumpărători online');
     expect(text).toContain('1 furnizori online');
   });

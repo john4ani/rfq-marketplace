@@ -123,6 +123,9 @@ GET    /health/ready
 RFQ material paste parsing is deliberately handled in Angular for immediate feedback. The backend still validates every parsed material when the complete draft is saved.
 
 For authenticated users, Piața Live accepts the active profile type. The first-version locality filter shows the home city first and then other participants in the same county. `approximateRadiusKm` reports the saved Buyer market radius or Supplier delivery radius, but exact kilometre filtering is deferred until reliable coordinates are available. Anonymous visitors continue seeing the full public market.
+
+The snapshot exposes `onlineUserCount`, `onlineBuyerCount`, and `onlineSupplierCount` separately from `participants`. The headline count is the number of distinct recently active Buyer/Supplier identities, including accounts whose public profiles are not complete. A dual-role account counts once in `onlineUserCount` and once in each applicable role count. `participants` remains the privacy-safe directory of completed public profiles and may be location-filtered.
+
 ### Supplier open-request discovery
 
 ```text

@@ -23,6 +23,8 @@
 :host ::ng-deep input, :host ::ng-deep select { padding: .7rem; border: 1px solid #aeb6c2; border-radius: .35rem; font: inherit; }
 :host ::ng-deep button { padding: .75rem 1rem; border: 0; border-radius: .5rem; color: #fff; background: #176b52; font: inherit; font-weight: 700; cursor: pointer; }
 :host ::ng-deep button:disabled { opacity: .55; cursor: not-allowed; }
+:host ::ng-deep .button-link { display: inline-flex; justify-content: center; padding: .75rem 1rem; border-radius: .5rem; color: #fff; background: #176b52; font-weight: 700; text-decoration: none; }
+:host ::ng-deep .button-link:hover, :host ::ng-deep .button-link:focus-visible { background: #0f5942; }
 :host ::ng-deep .error { color: #a10f21; }
 :host ::ng-deep .success { padding: .75rem; border-radius: .5rem; color: #126744; background: #e4f5ec; }
 :host ::ng-deep .development-note { padding: .75rem; border-radius: .5rem; color: #5e470f; background: #fff4d6; }

@@ -76,7 +76,7 @@ export class ParticipantDirectoryComponent implements OnDestroy {
   });
   readonly buyers = computed(() => this.filtered().filter(participant => participant.profileType === 'Buyer'));
   readonly suppliers = computed(() => this.filtered().filter(participant => participant.profileType === 'Supplier'));
-  readonly onlineCount = computed(() => (this.snapshot()?.participants ?? []).filter(participant => participant.isOnline).length);
+  readonly onlineCount = computed(() => this.snapshot()?.onlineUserCount ?? 0);
   private readonly refreshTimer: ReturnType<typeof setInterval>;
 
   constructor() {

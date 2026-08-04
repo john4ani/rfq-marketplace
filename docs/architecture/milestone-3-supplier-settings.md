@@ -14,6 +14,7 @@ Status: Implemented, pending review
 - Nationwide delivery replaces county selection; stored county rows are cleared when it is enabled.
 - Minimum order value is optional and stored in Romanian lei for the initial market.
 - The public landing page is called “Piața Live”. It lists completed Buyer and active Supplier profile names without exposing email addresses or contact details.
+- Live totals count distinct authenticated identities with a recent presence heartbeat, independently of public-profile completion and location filtering. A dual-role identity counts once in the headline and once in each applicable role total; the participant directory continues to expose only completed public profiles.
 - A lightweight authenticated heartbeat marks the whole user identity online. Both profiles appear online when a dual-profile user is connected.
 - Presence expires after two minutes without a heartbeat. Angular sends a heartbeat every 30 seconds and the landing page refreshes every 15 seconds.
 - SignalR, WebSockets, Redis, and a separate presence service are intentionally unnecessary for this MVP.

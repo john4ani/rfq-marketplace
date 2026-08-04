@@ -13,6 +13,9 @@ export interface LiveParticipant {
 export interface LiveMarketSnapshot {
   generatedAt: string;
   participants: LiveParticipant[];
+  onlineUserCount: number;
+  onlineBuyerCount: number;
+  onlineSupplierCount: number;
   isLocationFiltered: boolean;
   filterCity: string | null;
   filterCounty: string | null;

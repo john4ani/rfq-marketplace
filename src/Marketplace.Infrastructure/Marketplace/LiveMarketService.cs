@@ -13,6 +13,17 @@ public sealed class LiveMarketService(MarketplaceDbContext dbContext, TimeProvid
     {
         DateTimeOffset now = timeProvider.GetUtcNow();
         DateTimeOffset onlineSince = now.Subtract(OnlineTimeout);
+        var onlineRoles = await (
+            from presence in dbContext.UserPresences.AsNoTracking()
+            join userRole in dbContext.UserRoles.AsNoTracking() on presence.UserId equals userRole.UserId
+            join role in dbContext.Roles.AsNoTracking() on userRole.RoleId equals role.Id
+            where presence.LastSeenAt >= onlineSince
+                && (role.Name == "Buyer" || role.Name == "Supplier")
+            select new { presence.UserId, Role = role.Name! })
+            .ToArrayAsync(cancellationToken);
+        int onlineUserCount = onlineRoles.Select(item => item.UserId).Distinct().Count();
+        int onlineBuyerCount = onlineRoles.Count(item => item.Role == "Buyer");
+        int onlineSupplierCount = onlineRoles.Count(item => item.Role == "Supplier");
         LiveMarketParticipant[] buyers = await (
             from profile in dbContext.BuyerProfiles.AsNoTracking()
             join presence in dbContext.UserPresences.AsNoTracking() on profile.Id equals presence.UserId into presences
@@ -41,7 +52,16 @@ public sealed class LiveMarketService(MarketplaceDbContext dbContext, TimeProvid
             .ThenByDescending(participant => participant.IsOnline)
             .ThenBy(participant => participant.Name, StringComparer.CurrentCultureIgnoreCase)
             .ToArray();
-        return new(now, participants, origin is not null, origin?.City, origin?.County, origin?.RadiusKm);
+        return new(
+            now,
+            participants,
+            onlineUserCount,
+            onlineBuyerCount,
+            onlineSupplierCount,
+            origin is not null,
+            origin?.City,
+            origin?.County,
+            origin?.RadiusKm);
     }
 
     public async Task MarkOnlineAsync(Guid userId, CancellationToken cancellationToken)

@@ -32,6 +32,8 @@ Expected result: every command exits successfully. Existing Angular component-st
 ### Anonymous and recovery
 
 - Piața Live loads without authentication.
+- Registration accepts only one submission while account creation is in progress and presents a single sign-in action after success.
+- An authenticated user who opens `/register` is redirected to the account dashboard.
 - The frontend shell and public navigation remain usable when the API is unavailable.
 - Sign-in links to password recovery.
 - Password-recovery requests show the same success response for known and unknown addresses.

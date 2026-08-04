@@ -18,6 +18,27 @@ public sealed class LiveMarketEndpointTests : IClassFixture<WebApplicationFactor
     }
 
     [Fact]
+    public async Task AuthenticatedUserCountsAsOnlineBeforePublicProfilesAreCompleted()
+    {
+        string unique = Guid.NewGuid().ToString("N");
+        string email = $"presence-{unique}@example.test";
+        const string password = "password";
+        Assert.Equal(HttpStatusCode.Created, (await _client.PostAsJsonAsync("/api/v1/auth/register", new { email, password, accountTypes = BuyerAndSupplierRoles })).StatusCode);
+        TokenResponse? login = await (await _client.PostAsJsonAsync("/api/v1/auth/login", new { email, password })).Content.ReadFromJsonAsync<TokenResponse>();
+        Assert.NotNull(login);
+        Guid id = UserId(login.AccessToken);
+        _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", login.AccessToken);
+
+        LiveMarketSnapshot? snapshot = await _client.GetFromJsonAsync<LiveMarketSnapshot>("/api/v1/piata-live?profileType=Buyer");
+
+        Assert.NotNull(snapshot);
+        Assert.True(snapshot.OnlineUserCount >= 1);
+        Assert.True(snapshot.OnlineBuyerCount >= 1);
+        Assert.True(snapshot.OnlineSupplierCount >= 1);
+        Assert.DoesNotContain(snapshot.Participants, participant => participant.Id == id);
+    }
+
+    [Fact]
     public async Task CompletedProfilesAppearPubliclyAndPresenceChangesImmediately()
     {
         string unique = Guid.NewGuid().ToString("N");
@@ -46,7 +67,10 @@ public sealed class LiveMarketEndpointTests : IClassFixture<WebApplicationFactor
         foreach (HttpResponseMessage response in concurrentResponses) response.Dispose();
 
         LiveMarketSnapshot? online = await _publicClient.GetFromJsonAsync<LiveMarketSnapshot>("/api/v1/piata-live");
-        Assert.Contains(online!.Participants, participant => participant.Id == id && participant.ProfileType == "Buyer" && participant.IsOnline);
+        Assert.True(online!.OnlineUserCount >= 1);
+        Assert.True(online.OnlineBuyerCount >= 1);
+        Assert.True(online.OnlineSupplierCount >= 1);
+        Assert.Contains(online.Participants, participant => participant.Id == id && participant.ProfileType == "Buyer" && participant.IsOnline);
         Assert.Contains(online.Participants, participant => participant.Id == id && participant.ProfileType == "Supplier" && participant.IsOnline);
         LiveMarketSnapshot? nearby = await _client.GetFromJsonAsync<LiveMarketSnapshot>("/api/v1/piata-live?profileType=Buyer");
         Assert.True(nearby!.IsLocationFiltered);
@@ -69,6 +93,6 @@ public sealed class LiveMarketEndpointTests : IClassFixture<WebApplicationFactor
     }
 
     private sealed record TokenResponse(string AccessToken, DateTimeOffset ExpiresAt);
-    private sealed record LiveMarketSnapshot(DateTimeOffset GeneratedAt, LiveParticipant[] Participants, bool IsLocationFiltered, string? FilterCity, string? FilterCounty, int? ApproximateRadiusKm);
+    private sealed record LiveMarketSnapshot(DateTimeOffset GeneratedAt, LiveParticipant[] Participants, int OnlineUserCount, int OnlineBuyerCount, int OnlineSupplierCount, bool IsLocationFiltered, string? FilterCity, string? FilterCounty, int? ApproximateRadiusKm);
     private sealed record LiveParticipant(Guid Id, string Name, string ProfileType, bool IsOnline, string City, string County, bool IsSameCity);
 }

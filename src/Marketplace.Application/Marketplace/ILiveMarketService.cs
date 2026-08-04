@@ -10,6 +10,9 @@ public interface ILiveMarketService
 public sealed record LiveMarketSnapshot(
     DateTimeOffset GeneratedAt,
     IReadOnlyCollection<LiveMarketParticipant> Participants,
+    int OnlineUserCount,
+    int OnlineBuyerCount,
+    int OnlineSupplierCount,
     bool IsLocationFiltered,
     string? FilterCity,
     string? FilterCounty,

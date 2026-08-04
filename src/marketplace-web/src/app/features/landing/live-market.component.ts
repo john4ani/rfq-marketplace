@@ -68,9 +68,9 @@ export class LiveMarketComponent implements OnDestroy{
   readonly hasBuyerProfile=computed(()=>this.auth.profiles().some(p=>p.accountType==='Buyer'));
   readonly buyers=computed(()=>this.participants().filter(p=>p.profileType==='Buyer'));
   readonly suppliers=computed(()=>this.participants().filter(p=>p.profileType==='Supplier'));
-  readonly onlineCount=computed(()=>this.participants().filter(p=>p.isOnline).length);
-  readonly onlineBuyers=computed(()=>this.buyers().filter(p=>p.isOnline).length);
-  readonly onlineSuppliers=computed(()=>this.suppliers().filter(p=>p.isOnline).length);
+  readonly onlineCount=signal(0);
+  readonly onlineBuyers=signal(0);
+  readonly onlineSuppliers=signal(0);
   readonly presenceRoleLabel=computed(()=>{
     const buyer=this.hasBuyerProfile(),supplier=this.hasSupplierProfile();
     return buyer&&supplier?'Cumpărător și Furnizor':supplier?'Furnizor':buyer?'Cumpărător':'utilizator conectat';
@@ -78,6 +78,11 @@ export class LiveMarketComponent implements OnDestroy{
   private readonly refreshTimer:ReturnType<typeof setInterval>;private requestsLoaded=false;
   constructor(){this.loadMarket();effect(()=>{if(this.hasSupplierProfile()&&!this.requestsLoaded){this.requestsLoaded=true;this.loadRequests();}});this.refreshTimer=setInterval(()=>this.loadMarket(),30_000);}
   ngOnDestroy(){clearInterval(this.refreshTimer);}
-  private loadMarket(){this.market.getSnapshot(this.auth.session()?.accountType).subscribe({next:value=>this.participants.set(value.participants),error:()=>undefined});}
+  private loadMarket(){this.market.getSnapshot(this.auth.session()?.accountType).subscribe({next:value=>{
+    this.participants.set(value.participants);
+    this.onlineCount.set(value.onlineUserCount);
+    this.onlineBuyers.set(value.onlineBuyerCount);
+    this.onlineSuppliers.set(value.onlineSupplierCount);
+  },error:()=>undefined});}
   private loadRequests(){this.requestsLoading.set(true);this.openRfqService.list().subscribe({next:value=>{this.openRequests.set(value);this.requestsLoading.set(false);},error:()=>{this.requestsLoading.set(false);this.requestsError.set('Recomandările nu au putut fi încărcate.');}});}
 }
