@@ -30,7 +30,7 @@ public sealed class RfqService(MarketplaceDbContext dbContext, TimeProvider time
         Rfq? rfq = await Find(buyerId, rfqId, cancellationToken);
         if (rfq is null) return null;
         rfq.Update(draft, timeProvider.GetUtcNow());
-        await dbContext.SaveChangesAsync(cancellationToken);
+        await SaveRfqChangesAsync(cancellationToken);
         return rfq;
     }
 
@@ -39,7 +39,7 @@ public sealed class RfqService(MarketplaceDbContext dbContext, TimeProvider time
         Rfq? rfq = await Find(buyerId, rfqId, cancellationToken);
         if (rfq is null) return null;
         rfq.Publish(timeProvider.GetUtcNow());
-        await dbContext.SaveChangesAsync(cancellationToken);
+        await SaveRfqChangesAsync(cancellationToken);
         return rfq;
     }
 
@@ -48,7 +48,7 @@ public sealed class RfqService(MarketplaceDbContext dbContext, TimeProvider time
         Rfq? rfq = await Find(buyerId, rfqId, cancellationToken);
         if (rfq is null) return null;
         rfq.Cancel(timeProvider.GetUtcNow());
-        await dbContext.SaveChangesAsync(cancellationToken);
+        await SaveRfqChangesAsync(cancellationToken);
         return rfq;
     }
 
@@ -58,7 +58,7 @@ public sealed class RfqService(MarketplaceDbContext dbContext, TimeProvider time
         Rfq? rfq = await Find(buyerId, rfqId, cancellationToken);
         if (rfq is null) return null;
         rfq.ExtendQuotationDeadline(newDeadline, timeProvider.GetUtcNow());
-        await dbContext.SaveChangesAsync(cancellationToken);
+        await SaveRfqChangesAsync(cancellationToken);
         return rfq;
     }
 
@@ -165,6 +165,20 @@ public sealed class RfqService(MarketplaceDbContext dbContext, TimeProvider time
 
     private Task<Rfq?> Find(Guid buyerId, Guid rfqId, CancellationToken cancellationToken) =>
         dbContext.Rfqs.Include(rfq => rfq.Items).SingleOrDefaultAsync(rfq => rfq.Id == rfqId && rfq.BuyerId == buyerId, cancellationToken);
+
+    private async Task SaveRfqChangesAsync(CancellationToken cancellationToken)
+    {
+        try
+        {
+            await dbContext.SaveChangesAsync(cancellationToken);
+        }
+        catch (DbUpdateConcurrencyException exception)
+        {
+            throw new RfqConcurrencyException(
+                "Cererea a fost modificată între timp. Reîncarcă pagina înainte de a continua.",
+                exception);
+        }
+    }
 
     private async Task ValidateReferences(Guid buyerId, RfqDraft draft, CancellationToken cancellationToken)
     {

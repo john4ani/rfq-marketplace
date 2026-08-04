@@ -51,6 +51,8 @@ Expected result: every command exits successfully. Existing Angular component-st
 - Compare offers and select one with a clear confirmation.
 - Reopen an awarded request once with a reason; a second manual reopening is rejected.
 - Open and send private offer messages.
+- A completed request cannot be cancelled after an offer is selected.
+- If another action changes the request first, the Buyer receives a reload-and-retry message instead of silently overwriting it.
 
 ### Provider
 
@@ -60,6 +62,17 @@ Expected result: every command exits successfully. Existing Angular component-st
 - Review made offers and distinguish awaiting, accepted, not-selected, and withdrawn states.
 - Retain access to the originating request after selection.
 - Open and send private offer messages.
+- Mark an item unavailable and confirm it remains visible but is excluded from the offer total.
+- Repeated clicks while an offer save/submit is pending create only one operation.
+
+### Separate Buyer and Provider circuit
+
+- Use two different registered identities, not one dual-role identity.
+- Buyer creates and publishes a request with at least two positions.
+- An eligible Provider discovers the request through category and delivery-area matching.
+- Provider saves and submits an offer; Buyer receives an `OfferReceived` notification linked to comparison.
+- Buyer comparison shows the Provider, the available-line total, delivery cost, and unavailable positions.
+- Provider cannot open the Buyer's private request endpoint and Buyer cannot write a Provider offer.
 
 ### Dual-role account
 

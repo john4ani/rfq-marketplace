@@ -43,6 +43,7 @@ public sealed class RfqsController(IRfqService rfqService) : ControllerBase
             Rfq? rfq = await rfqService.UpdateAsync(BuyerId(), rfqId, request.ToDraft(), cancellationToken);
             return rfq is null ? NotFound() : Ok(RfqResponse.From(rfq));
         }
+        catch (RfqConcurrencyException exception) { return StaleRfq(exception.Message); }
         catch (RfqRuleException exception) { return InvalidRfq(exception.Message); }
     }
 
@@ -54,6 +55,7 @@ public sealed class RfqsController(IRfqService rfqService) : ControllerBase
             Rfq? rfq = await rfqService.PublishAsync(BuyerId(), rfqId, cancellationToken);
             return rfq is null ? NotFound() : Ok(RfqResponse.From(rfq));
         }
+        catch (RfqConcurrencyException exception) { return StaleRfq(exception.Message); }
         catch (RfqRuleException exception) { return InvalidRfq(exception.Message); }
     }
 
@@ -65,6 +67,7 @@ public sealed class RfqsController(IRfqService rfqService) : ControllerBase
             Rfq? rfq = await rfqService.CancelAsync(BuyerId(), rfqId, cancellationToken);
             return rfq is null ? NotFound() : Ok(RfqResponse.From(rfq));
         }
+        catch (RfqConcurrencyException exception) { return StaleRfq(exception.Message); }
         catch (RfqRuleException exception) { return InvalidRfq(exception.Message); }
     }
 
@@ -78,6 +81,7 @@ public sealed class RfqsController(IRfqService rfqService) : ControllerBase
                 BuyerId(), rfqId, request.QuotationDeadline, cancellationToken);
             return rfq is null ? NotFound() : Ok(RfqResponse.From(rfq));
         }
+        catch (RfqConcurrencyException exception) { return StaleRfq(exception.Message); }
         catch (RfqRuleException exception) { return InvalidRfq(exception.Message); }
     }
 
@@ -86,6 +90,12 @@ public sealed class RfqsController(IRfqService rfqService) : ControllerBase
         string? subject = User.FindFirstValue(JwtRegisteredClaimNames.Sub) ?? User.FindFirstValue(ClaimTypes.NameIdentifier);
         return Guid.TryParse(subject, out Guid id) ? id : throw new UnauthorizedAccessException();
     }
+
+    private ConflictObjectResult StaleRfq(string message) => Conflict(new ProblemDetails
+    {
+        Title = "Cererea a fost modificată.",
+        Detail = message
+    });
 
     private ActionResult InvalidRfq(string message) => ValidationProblem(
         new ValidationProblemDetails(new Dictionary<string, string[]> { ["rfq"] = [message] })

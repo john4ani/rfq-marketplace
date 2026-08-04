@@ -1,7 +1,7 @@
 import { registerLocaleData } from '@angular/common';
 import localeRo from '@angular/common/locales/ro';
 import { TestBed } from '@angular/core/testing';
-import { of } from 'rxjs';
+import { of, Subject } from 'rxjs';
 import { OfferService } from '../../core/offers/offer.service';
 import { OpenRfq } from '../../core/rfqs/open-rfq.service';
 import { OfferEditorComponent } from './offer-editor.component';
@@ -27,6 +27,18 @@ describe('OfferEditorComponent', () => {
     publishedAt: '2026-07-25T10:00:00.000Z',
     isPartialMatch: false,
     items: []
+  };
+
+  const itemizedRequest: OpenRfq = {
+    ...generalRequest,
+    id: 'rfq-itemized',
+    title: 'Cerere cu poziții',
+    deliveryRequired: false,
+    isPartialMatch: true,
+    items: [
+      { id: 'item-1', itemNumber: 1, productName: 'Ciment', manufacturerOrBrand: null, specification: null, quantity: 2, unit: 'Bag', alternativesAccepted: true, buyerNotes: null, categoryId: null },
+      { id: 'item-2', itemNumber: 2, productName: 'Nisip', manufacturerOrBrand: null, specification: null, quantity: 1, unit: 'Tonne', alternativesAccepted: true, buyerNotes: null, categoryId: null }
+    ]
   };
 
   it('uses an all-inclusive total for a general request', async () => {
@@ -83,5 +95,43 @@ describe('OfferEditorComponent', () => {
     expect(fixture.componentInstance.draft().pricingMode).toBe('Total');
     expect(fixture.componentInstance.draft().totalPrice).toBe(1_250);
     expect(fixture.componentInstance.draft().deliveryCost).toBe(0);
+  });
+
+  it('excludes unavailable positions from the displayed total', async () => {
+    await TestBed.configureTestingModule({
+      imports: [OfferEditorComponent],
+      providers: [{ provide: OfferService, useValue: { getForRequest: () => of(null) } }]
+    }).compileComponents();
+    const fixture = TestBed.createComponent(OfferEditorComponent);
+    fixture.componentRef.setInput('request', itemizedRequest);
+    fixture.detectChanges();
+
+    fixture.componentInstance.draft.update(value => ({
+      ...value,
+      deliveryCost: 30,
+      items: [
+        { ...value.items[0], quantity: 2, unitPrice: 100, available: true },
+        { ...value.items[1], quantity: 1, unitPrice: 999, available: false }
+      ]
+    }));
+
+    expect(fixture.componentInstance.total()).toBe(230);
+  });
+
+  it('does not send the same save operation twice while it is pending', async () => {
+    const pending = new Subject<never>();
+    const save = vi.fn().mockReturnValue(pending);
+    await TestBed.configureTestingModule({
+      imports: [OfferEditorComponent],
+      providers: [{ provide: OfferService, useValue: { getForRequest: () => of(null), save } }]
+    }).compileComponents();
+    const fixture = TestBed.createComponent(OfferEditorComponent);
+    fixture.componentRef.setInput('request', generalRequest);
+    fixture.detectChanges();
+
+    fixture.componentInstance.save();
+    fixture.componentInstance.save();
+
+    expect(save).toHaveBeenCalledTimes(1);
   });
 });

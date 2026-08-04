@@ -16,6 +16,7 @@ public sealed class RfqConfiguration : IEntityTypeConfiguration<Rfq>
             table.HasCheckConstraint("CK_Rfqs_SupplierSearchRadiusKm", "\"SupplierSearchRadiusKm\" BETWEEN 1 AND 1000");
         });
         builder.HasKey(rfq => rfq.Id);
+        builder.Property<uint>("xmin").IsRowVersion();
         builder.Property(rfq => rfq.Title).HasMaxLength(200).IsRequired();
         builder.Property(rfq => rfq.ProjectName).HasMaxLength(200);
         builder.Property(rfq => rfq.Description).HasMaxLength(4000);

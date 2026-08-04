@@ -106,6 +106,17 @@ public sealed class RfqTests
         Assert.Contains("transport inclus", exception.Message);
     }
 
+    [Fact]
+    public void RequestCannotBeCancelledAfterAnOfferWasSelected()
+    {
+        Rfq rfq = Rfq.Create(Guid.NewGuid(), Guid.NewGuid(), Draft([]), Now);
+        rfq.Publish(Now);
+        rfq.SelectOffer(Guid.NewGuid(), false, Now.AddMinutes(1));
+
+        Assert.Throws<RfqRuleException>(() => rfq.Cancel(Now.AddMinutes(2)));
+        Assert.Equal(RfqStatus.OfferSelected, rfq.Status);
+    }
+
     private static RfqDraft Draft(IReadOnlyCollection<RfqItemDraft> items) => new(
         "Materiale renovare", null, null, Guid.NewGuid(), "Strada Test 1", "Iași", "Iași", 30,
         null, null, null, Now.AddDays(2), true, null, null, items);

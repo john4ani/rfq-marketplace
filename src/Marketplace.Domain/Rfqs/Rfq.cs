@@ -65,6 +65,8 @@ public sealed class Rfq
     public void Cancel(DateTimeOffset now)
     {
         if (Status == RfqStatus.Cancelled) throw new RfqRuleException("Cererea este deja anulată.");
+        if (Status is not (RfqStatus.Draft or RfqStatus.Published or RfqStatus.ReceivingOffers))
+            throw new RfqRuleException("Cererea nu mai poate fi anulată după selectarea unei oferte.");
         Status = RfqStatus.Cancelled;
         ClosedAt = now;
         UpdatedAt = now;
@@ -213,3 +215,4 @@ public sealed record RfqDraft(
     bool DeliveryRequired = false);
 
 public sealed class RfqRuleException(string message) : InvalidOperationException(message);
+public sealed class RfqConcurrencyException(string message, Exception innerException) : Exception(message, innerException);

@@ -25,7 +25,7 @@ public sealed class Offer
     public DateTimeOffset? SubmittedAt { get; private set; }
     public int RevisionNumber { get; private set; }
     public IReadOnlyCollection<OfferItem> Items => _items;
-    public decimal ItemsTotal => _items.Sum(item => item.Quantity * item.UnitPrice);
+    public decimal ItemsTotal => _items.Where(item => item.Available).Sum(item => item.Quantity * item.UnitPrice);
     public decimal Total => PricingMode == OfferPricingMode.Total
         ? TotalPrice ?? 0
         : ItemsTotal + DeliveryCost;

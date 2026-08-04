@@ -61,7 +61,7 @@ public sealed class OfferService(MarketplaceDbContext dbContext, TimeProvider ti
             $"{supplierName} {action} pentru „{rfq.Title}”.",
             $"/rfqs/{rfq.Id}/offers",
             $"offer:{offer.Id}:revision:{offer.RevisionNumber}", now));
-        await dbContext.SaveChangesAsync(cancellationToken);
+        await SaveRfqChangesAsync(cancellationToken);
         return offer;
     }
 
@@ -99,7 +99,7 @@ public sealed class OfferService(MarketplaceDbContext dbContext, TimeProvider ti
         foreach (Offer offer in await dbContext.Offers.Where(offer => offer.RfqId == rfqId).ToListAsync(cancellationToken))
             if (offer.Id == offerId) offer.Select(now); else offer.Reject(now);
         rfq.SelectOffer(offerId, selected.DeliveryIncluded, now);
-        await dbContext.SaveChangesAsync(cancellationToken);
+        await SaveRfqChangesAsync(cancellationToken);
         return selected;
     }
 
@@ -131,7 +131,7 @@ public sealed class OfferService(MarketplaceDbContext dbContext, TimeProvider ti
             $"/rfqs/{rfq.Id}/offers",
             $"rfq:{rfq.Id}:delivery-reported",
             now));
-        await dbContext.SaveChangesAsync(cancellationToken);
+        await SaveRfqChangesAsync(cancellationToken);
         return rfq;
     }
 
@@ -161,7 +161,7 @@ public sealed class OfferService(MarketplaceDbContext dbContext, TimeProvider ti
             $"/open-requests/{rfq.Id}",
             $"rfq:{rfq.Id}:delivery-confirmed",
             now));
-        await dbContext.SaveChangesAsync(cancellationToken);
+        await SaveRfqChangesAsync(cancellationToken);
         return rfq;
     }
 
@@ -194,7 +194,7 @@ public sealed class OfferService(MarketplaceDbContext dbContext, TimeProvider ti
                 $"rfq:{rfq.Id}:reopened:{now.ToUnixTimeMilliseconds()}:{supplierId}",
                 now));
 
-        await dbContext.SaveChangesAsync(cancellationToken);
+        await SaveRfqChangesAsync(cancellationToken);
         return rfq;
     }
 
@@ -265,6 +265,20 @@ public sealed class OfferService(MarketplaceDbContext dbContext, TimeProvider ti
             : rfq.Items.Where(item => currentCategories.Contains(item.CategoryId ?? rfq.PrimaryCategoryId))
                 .Select(item => item.Id).ToHashSet();
         return new(rfq, coverage, itemIds);
+    }
+
+    private async Task SaveRfqChangesAsync(CancellationToken cancellationToken)
+    {
+        try
+        {
+            await dbContext.SaveChangesAsync(cancellationToken);
+        }
+        catch (DbUpdateConcurrencyException exception)
+        {
+            throw new RfqConcurrencyException(
+                "Cererea a fost modificată între timp. Reîncarcă pagina înainte de a continua.",
+                exception);
+        }
     }
 
     private sealed record EligibleOfferRequest(

@@ -379,9 +379,9 @@ export class BuyerOfferComparisonComponent {
     });
   }
 
-  private apiError(error: { error?: { errors?: Record<string, string[]> } }, fallback: string): string {
+  private apiError(error: { error?: { errors?: Record<string, string[]>; detail?: string } }, fallback: string): string {
     const messages = error.error?.errors ? Object.values(error.error.errors).flat() : [];
-    return messages[0] ?? fallback;
+    return messages[0] ?? error.error?.detail ?? fallback;
   }
 
   private localDateTime(value: Date): string {

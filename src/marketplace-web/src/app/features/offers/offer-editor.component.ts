@@ -49,9 +49,10 @@ import { OpenRfq } from '../../core/rfqs/open-rfq.service';
               <div class="line">
                 <div><strong>{{ request().items[index].productName }}</strong>
                   <small>Cerut: {{ request().items[index].quantity }} {{ request().items[index].unit }}</small></div>
-                <label>Cantitate<input type="number" min=".001" step=".001" [(ngModel)]="item.quantity"></label>
-                <label>Preț unitar (lei)<input type="number" min="0" step=".01" [(ngModel)]="item.unitPrice"></label>
+                <label>Cantitate<input type="number" min=".001" step=".001" [disabled]="!item.available" [(ngModel)]="item.quantity"></label>
+                <label>Preț unitar (lei)<input type="number" min="0" step=".01" [disabled]="!item.available" [(ngModel)]="item.unitPrice"></label>
                 <label class="available"><input type="checkbox" [(ngModel)]="item.available"> Disponibil</label>
+                @if (!item.available) { <small class="excluded">Poziția nu este inclusă în total.</small> }
               </div>
             } @empty {
               <p class="notice">Cererea este generală. Introdu valoarea totală a ofertei mai jos.</p>
@@ -112,7 +113,7 @@ import { OpenRfq } from '../../core/rfqs/open-rfq.service';
     .quick-quote{display:grid;grid-template-columns:minmax(0,1fr);gap:1rem;align-items:end;margin:1rem 0;padding:1rem;background:#f3f8f5;border-radius:12px}.quick-quote p{margin:0}
     .lines{display:grid;gap:.75rem;margin:1rem 0}.line{display:grid;grid-template-columns:minmax(0,1fr);gap:.75rem;align-items:end;padding:1rem;background:#f7faf8;border-radius:12px}.line small{display:block}
     .terms{display:grid;grid-template-columns:minmax(0,1fr);gap:.75rem}label{min-width:0;display:grid;gap:.35rem;font-size:.88rem}input,textarea{box-sizing:border-box;min-width:0;width:100%;padding:.7rem;border:1px solid #bdc9c1;border-radius:8px}
-    .available{display:flex;align-items:center}.available input{width:auto}.total{margin:1rem 0;padding-top:1rem;border-top:1px solid #ddd}.actions{justify-content:flex-end;flex-wrap:wrap}
+    .available{display:flex;align-items:center}.available input{width:auto}.excluded{color:#7a4b16}.total{margin:1rem 0;padding-top:1rem;border-top:1px solid #ddd}.actions{justify-content:flex-end;flex-wrap:wrap}
     button{border:0;border-radius:9px;padding:.75rem 1rem;background:#176b3a;color:white;font-weight:700}.secondary{background:#eaf1ec;color:#16462b}.danger{background:#a93838}.error{color:#a32626}.success{color:#176b3a}
     @container (min-width:34rem){.pricing-mode,.quick-quote{grid-template-columns:repeat(2,minmax(0,1fr))}.line{grid-template-columns:repeat(2,minmax(0,1fr))}.line>div{grid-column:1/-1}.terms{grid-template-columns:repeat(3,minmax(0,1fr))}}
     @container (min-width:50rem){.line{grid-template-columns:minmax(180px,1fr) 140px 150px 110px}.line>div{grid-column:auto}}
@@ -197,7 +198,8 @@ export class OfferEditorComponent {
 
   total(): number {
     if (this.draft().pricingMode === 'Total') return this.draft().totalPrice ?? 0;
-    return this.draft().items.reduce((sum, item) => sum + item.quantity * item.unitPrice, 0) + this.draft().deliveryCost;
+    return this.draft().items.reduce(
+      (sum, item) => sum + (item.available ? item.quantity * item.unitPrice : 0), 0) + this.draft().deliveryCost;
   }
 
   label(status: string): string {
@@ -212,8 +214,10 @@ export class OfferEditorComponent {
   }
 
   save(after?: () => void): void {
+    if (this.busy()) return;
     this.busy.set(true);
     this.error.set('');
+    this.message.set('');
     const value = this.draft();
     const payload = {
       ...value,
@@ -228,12 +232,13 @@ export class OfferEditorComponent {
       },
       error: error => {
         this.busy.set(false);
-        this.error.set(error.error?.errors?.offer?.[0] ?? 'Oferta nu a putut fi salvată.');
+        this.error.set(error.error?.errors?.offer?.[0] ?? error.error?.detail ?? 'Oferta nu a putut fi salvată.');
       }
     });
   }
 
   submit(): void {
+    if (this.busy()) return;
     this.save(() => {
       this.busy.set(true);
       this.service.submit(this.request().id).subscribe({
@@ -244,7 +249,7 @@ export class OfferEditorComponent {
         },
         error: error => {
           this.busy.set(false);
-          this.error.set(error.error?.errors?.offer?.[0] ?? 'Oferta nu a putut fi trimisă.');
+          this.error.set(error.error?.errors?.offer?.[0] ?? error.error?.detail ?? 'Oferta nu a putut fi trimisă.');
         }
       });
     });

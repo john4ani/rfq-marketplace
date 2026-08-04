@@ -286,6 +286,7 @@ export class RfqEditorComponent {
     if(error.status===0)return 'API-ul nu poate fi contactat. Pornește Marketplace.Api și încearcă din nou.';
     const messages=error.error?.errors?Object.values(error.error.errors as Record<string,string[]>).flat():[];
     if(messages.length)return messages.join(' ');
+    if(error.error?.detail)return error.error.detail;
     if(error.status===401)return 'Sesiunea a expirat. Autentifică-te din nou.';
     if(error.status===403)return 'Comută pe profilul de cumpărător pentru a salva o cerere.';
     return `Cererea nu a putut fi salvată (HTTP ${error.status}).`;

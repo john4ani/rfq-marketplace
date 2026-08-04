@@ -3,6 +3,7 @@ using System.Security.Claims;
 using Marketplace.Application.Offers;
 using Marketplace.Domain.Identity;
 using Marketplace.Domain.Offers;
+using Marketplace.Domain.Rfqs;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -41,7 +42,9 @@ public sealed class OffersController(IOfferService offerService) : ControllerBas
         try {
             Offer? offer = await offerService.SubmitAsync(UserId(), rfqId, cancellationToken);
             return offer is null ? NotFound() : Ok(OfferResponse.From(offer));
-        } catch (OfferRuleException exception) { return InvalidOffer(exception.Message); }
+        }
+        catch (RfqConcurrencyException exception) { return StaleRfq(exception.Message); }
+        catch (OfferRuleException exception) { return InvalidOffer(exception.Message); }
     }
 
     [HttpPost("offers/{offerId:guid}/withdraw")]
@@ -66,7 +69,9 @@ public sealed class OffersController(IOfferService offerService) : ControllerBas
         try {
             Offer? offer = await offerService.SelectAsync(UserId(), rfqId, offerId, cancellationToken);
             return offer is null ? NotFound() : Ok(OfferResponse.From(offer));
-        } catch (Exception exception) when (exception is OfferRuleException or Marketplace.Domain.Rfqs.RfqRuleException) {
+        }
+        catch (RfqConcurrencyException exception) { return StaleRfq(exception.Message); }
+        catch (Exception exception) when (exception is OfferRuleException or RfqRuleException) {
             return InvalidOffer(exception.Message);
         }
     }
@@ -76,10 +81,12 @@ public sealed class OffersController(IOfferService offerService) : ControllerBas
     public async Task<IActionResult> Reopen(Guid rfqId, ReopenRfqRequest request, CancellationToken cancellationToken)
     {
         try {
-            Marketplace.Domain.Rfqs.Rfq? rfq = await offerService.ReopenAsync(
+            Rfq? rfq = await offerService.ReopenAsync(
                 UserId(), rfqId, request.Reason ?? string.Empty, request.NewQuotationDeadline, cancellationToken);
             return rfq is null ? NotFound() : Ok(RfqResponse.From(rfq));
-        } catch (Marketplace.Domain.Rfqs.RfqRuleException exception) {
+        }
+        catch (RfqConcurrencyException exception) { return StaleRfq(exception.Message); }
+        catch (RfqRuleException exception) {
             return InvalidOffer(exception.Message);
         }
     }
@@ -90,11 +97,12 @@ public sealed class OffersController(IOfferService offerService) : ControllerBas
     {
         try
         {
-            Marketplace.Domain.Rfqs.Rfq? rfq =
+            Rfq? rfq =
                 await offerService.ReportDeliveredAsync(UserId(), rfqId, cancellationToken);
             return rfq is null ? NotFound() : Ok(RfqResponse.From(rfq));
         }
-        catch (Marketplace.Domain.Rfqs.RfqRuleException exception)
+        catch (RfqConcurrencyException exception) { return StaleRfq(exception.Message); }
+        catch (RfqRuleException exception)
         {
             return InvalidOffer(exception.Message);
         }
@@ -106,11 +114,12 @@ public sealed class OffersController(IOfferService offerService) : ControllerBas
     {
         try
         {
-            Marketplace.Domain.Rfqs.Rfq? rfq =
+            Rfq? rfq =
                 await offerService.ConfirmDeliveryAsync(UserId(), rfqId, cancellationToken);
             return rfq is null ? NotFound() : Ok(RfqResponse.From(rfq));
         }
-        catch (Marketplace.Domain.Rfqs.RfqRuleException exception)
+        catch (RfqConcurrencyException exception) { return StaleRfq(exception.Message); }
+        catch (RfqRuleException exception)
         {
             return InvalidOffer(exception.Message);
         }
@@ -121,6 +130,12 @@ public sealed class OffersController(IOfferService offerService) : ControllerBas
         string? subject = User.FindFirstValue(JwtRegisteredClaimNames.Sub) ?? User.FindFirstValue(ClaimTypes.NameIdentifier);
         return Guid.TryParse(subject, out Guid id) ? id : throw new UnauthorizedAccessException();
     }
+    private ConflictObjectResult StaleRfq(string message) => Conflict(new ProblemDetails
+    {
+        Title = "Cererea a fost modificată.",
+        Detail = message
+    });
+
     private ActionResult InvalidOffer(string message) => ValidationProblem(new ValidationProblemDetails(
         new Dictionary<string, string[]> { ["offer"] = [message] }) { Title = "Oferta nu a putut fi procesată." });
 }
