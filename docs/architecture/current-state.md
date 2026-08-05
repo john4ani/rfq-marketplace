@@ -30,21 +30,21 @@ The current model does not yet separate organizations and memberships. `BuyerPro
 |---|---|---|
 | User | `ApplicationUser` + Identity roles | Complete for MVP identity |
 | Organization / membership | Company fields embedded in profiles | Missing as independent concepts |
-| ProcurementNeed | `Rfq` after the need is structured | Partial conceptual coverage |
+| ProcurementNeed | Backward-compatible `Rfq` evolution after the need is structured | Strong MVP coverage |
 | RequirementLine | `RfqItem` | Strong initial coverage |
-| ProjectContext | `ProjectName` and description fields | Partial |
+| ProjectContext | Optional normalized project name and description | Implemented |
 | RFQ / Request | `Rfq` aggregate and Buyer endpoints | Complete existing workflow |
 | Publication | `Rfq.Publish` status transition | Implemented without recipient records |
 | Matching | `RfqService.GetOpenAsync` + `ProviderCoveragePolicy` | Implemented, reasons not returned |
 | Capabilities | Supplier categories, delivery settings, multi-category flag | Implemented at category level |
-| Offer / OfferLine | `Offer`, `OfferItem`, total/itemized pricing | Implemented with noted gaps |
-| Offer comparison | Buyer comparison page ordered by total | Implemented, coverage explanation partial |
-| Notifications | In-app notification records and polling | Implemented for offers/messages/reopening/delivery |
-| Outcome | selection and delivery lifecycle only | Partial |
+| Offer / OfferLine | `Offer`, `OfferItem`, explicit coverage, tax, alternatives and delivery terms | Implemented for MVP |
+| Offer comparison | Position matrix, comparable totals and explained trade-offs | Implemented for MVP |
+| Notifications | In-app records, polling and deduplicated outcome follow-up | Implemented for current workflows |
+| Outcome | Eight terminal real-world outcomes plus automatic cancellation/delivery results | Implemented for MVP |
 | Trust / verification | pending Supplier approval field, profile completeness | Partial and not operationalized |
 | Invitation / referral / discovery | none | Missing |
-| Audit / analytics | correlation logs only | Missing as product data |
-| AI intake | none | Missing by design until stabilization |
+| Audit / analytics | Immutable procurement history with minimal outcome funnel events | Partial; general event platform remains Pasul 9 |
+| AI intake | Resumable clarification, model extraction and human-approved draft | Implemented first slice |
 | Administration | none | Missing |
 
 ## Existing request-to-offer flow
@@ -57,12 +57,13 @@ The current model does not yet separate organizations and memberships. `BuyerPro
 6. Offer submission changes the request to `ReceivingOffers` and creates an in-app Buyer notification.
 7. The Buyer compares submitted/revised offers and selects one. Competing submitted offers become not selected.
 8. If transport is included, Provider delivery reporting and Buyer confirmation complete the delivery lifecycle.
+9. The Buyer records the real procurement outcome; expired open requests create one linked follow-up notification when the Buyer returns.
 
 ## Persistence and migrations
 
-EF Core owns 14 ordered migrations from the initial foundation through delivery confirmation. The preserved local database is current as of this audit. Important constraints include unique normalized email, one offer per Provider/request, unique line numbers, unique offer lines, positive quantities, non-negative prices, and unique notification deduplication keys.
+EF Core owns 18 ordered migrations from the initial foundation through ProcurementNeed evolution, assisted intake, and explicit offer comparison. Important constraints include unique normalized email, one offer per Provider/request, unique line numbers, unique offer lines, positive quantities, non-negative prices, and unique notification deduplication keys.
 
-No row-version or other optimistic-concurrency token currently protects RFQ decision transitions.
+PostgreSQL `xmin` optimistic concurrency protects RFQ decision transitions and returns a reload-oriented conflict response.
 
 ## Frontend state and UX
 

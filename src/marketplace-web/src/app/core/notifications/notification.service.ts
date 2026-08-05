@@ -8,7 +8,8 @@ export type NotificationType =
   | 'RequestReopened'
   | 'MessageReceived'
   | 'DeliveryReported'
-  | 'DeliveryConfirmed';
+  | 'DeliveryConfirmed'
+  | 'ProcurementOutcomeRequested';
 export interface AppNotification {
   id:string; type:NotificationType; title:string; message:string; link:string;
   createdAt:string; readAt:string|null; isRead:boolean;

@@ -94,6 +94,7 @@ GET    /api/v1/rfqs/{rfqId}/history
 PUT    /api/v1/rfqs/{rfqId}
 POST   /api/v1/rfqs/{rfqId}/publish
 POST   /api/v1/rfqs/{rfqId}/cancel
+POST   /api/v1/rfqs/{rfqId}/outcome
 POST   /api/v1/rfqs/{rfqId}/extend-deadline
 
 GET    /api/v1/assisted-intakes/availability
@@ -135,6 +136,8 @@ Assisted-intake sessions are persisted, owner-scoped and rate-limited. Each extr
 ### ProcurementNeed compatibility
 
 The `/rfqs` contract remains backward-compatible and adds `source`, `inputType`, `needStatus`, `projectContext`, `deliveryConstraints`, outcome fields, and a `kind` (`Product` or `Service`) on each requirement line. Older payloads default to manual structured input and product lines. `GET /rfqs/{rfqId}/history` is Buyer-owned and returns the ordered immutable lifecycle audit trail. Supplier open-request responses include the generic context and requirement kind but continue to omit the exact delivery address.
+
+`POST /rfqs/{rfqId}/outcome` is Buyer-owned and terminal. It accepts one supported `outcome` plus an optional `reason`; `Other` requires a reason. A CompaSpot purchase requires a selected offer, a participant purchase requires at least one response, and cancellation remains the separate cancellation command. Successful recording closes the request and appends `OutcomeRecorded`. Cancellation and confirmed delivery also append this funnel event for a complete outcome series. When an open request passes its quotation deadline without an outcome, notification polling materializes one deduplicated `ProcurementOutcomeRequested` notification. This just-in-time approach needs no scheduler and does no work for offline Buyers until they return.
 
 For authenticated users, Piața Live accepts the active profile type. The first-version locality filter shows the home city first and then other participants in the same county. `approximateRadiusKm` reports the saved Buyer market radius or Supplier delivery radius, but exact kilometre filtering is deferred until reliable coordinates are available. Anonymous visitors continue seeing the full public market.
 

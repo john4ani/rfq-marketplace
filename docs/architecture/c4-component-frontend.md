@@ -1,7 +1,7 @@
 # C4 Level 3 — Angular Frontend Components
 
 Status: Current implementation
-Last updated: 2026-08-04
+Last updated: 2026-08-05
 
 This view expands the **Angular SPA** container from the C4 container diagram. Components are grouped by responsibility rather than by individual source file so that the diagram remains useful as the UI evolves.
 
@@ -23,7 +23,7 @@ flowchart LR
             landing["Piața Live and discovery<br/>Live market, participants,<br/>open request list and detail"]
             account["Account workspace<br/>Dashboard, role switcher,<br/>profiles and supplier settings"]
             requests["Request workflow<br/>Assisted intake, advanced editor<br/>and Buyer request list"]
-            offers["Offer workflow<br/>Provider offer editor/list and<br/>Buyer offer comparison"]
+            offers["Offer workflow<br/>Provider offer editor/list,<br/>comparison and outcome feedback"]
             messaging["Private messaging<br/>Offer conversation"]
         end
 
@@ -84,7 +84,7 @@ flowchart LR
 | Piața Live and discovery | Public market activity, dual-role presence, participant directory, matched open requests, and request detail |
 | Account workspace | Buyer/Provider role switching, role-specific activity, profile editing, matching preferences, and request creation entry |
 | Request workflow | Run clarification → research → editable proposal → human confirmation; transfer directly to the advanced editor when AI is unavailable; list/publish/cancel/extend/reopen Buyer requests |
-| Offer workflow | Create/revise/submit/withdraw Provider offers with explicit coverage, tax, alternatives and delivery terms; compare every requested line and select a complete Buyer offer |
+| Offer workflow | Create/revise/submit/withdraw Provider offers with explicit coverage, tax, alternatives and delivery terms; compare every requested line, select a complete offer, and record the terminal procurement outcome in a focused child component |
 | Private messaging | Poll and send messages within the conversation authorized for one submitted offer |
 | Notification menu | Poll unread count, load notifications, mark items read, and follow notification links |
 | Auth service and state | Access token, linked profiles, active role, refresh, logout, and online-presence heartbeat |

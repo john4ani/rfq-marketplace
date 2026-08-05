@@ -5,14 +5,24 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Marketplace.Infrastructure.Notifications;
 
-public sealed class NotificationService(MarketplaceDbContext dbContext, TimeProvider timeProvider) : INotificationService
+public sealed class NotificationService(
+    MarketplaceDbContext dbContext,
+    TimeProvider timeProvider,
+    ProcurementOutcomeReminderService outcomeReminders) : INotificationService
 {
-    public async Task<IReadOnlyCollection<Notification>> GetAsync(Guid recipientId, CancellationToken cancellationToken) =>
-        await dbContext.Notifications.AsNoTracking().Where(item => item.RecipientId == recipientId)
+    public async Task<IReadOnlyCollection<Notification>> GetAsync(Guid recipientId, CancellationToken cancellationToken)
+    {
+        await outcomeReminders.EnsureDueAsync(recipientId, cancellationToken);
+        return await dbContext.Notifications.AsNoTracking().Where(item => item.RecipientId == recipientId)
             .OrderByDescending(item => item.CreatedAt).Take(50).ToListAsync(cancellationToken);
+    }
 
-    public Task<int> GetUnreadCountAsync(Guid recipientId, CancellationToken cancellationToken) =>
-        dbContext.Notifications.CountAsync(item => item.RecipientId == recipientId && item.ReadAt == null, cancellationToken);
+    public async Task<int> GetUnreadCountAsync(Guid recipientId, CancellationToken cancellationToken)
+    {
+        await outcomeReminders.EnsureDueAsync(recipientId, cancellationToken);
+        return await dbContext.Notifications.CountAsync(
+            item => item.RecipientId == recipientId && item.ReadAt == null, cancellationToken);
+    }
 
     public async Task<Notification?> MarkReadAsync(Guid recipientId, Guid notificationId, CancellationToken cancellationToken)
     {
@@ -32,4 +42,5 @@ public sealed class NotificationService(MarketplaceDbContext dbContext, TimeProv
         foreach (Notification notification in unread) notification.MarkRead(now);
         await dbContext.SaveChangesAsync(cancellationToken);
     }
+
 }

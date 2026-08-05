@@ -29,4 +29,11 @@ describe('RfqService', () => {
     expect(request.request.body).toEqual({quotationDeadline:'2026-08-01T10:00:00.000Z'});
     request.flush({});
   });
+  it('records the procurement outcome',()=>{
+    service.recordOutcome('rfq-1','PurchasedElsewhere','Am cumpărat local.').subscribe();
+    const request=http.expectOne('/api/v1/rfqs/rfq-1/outcome');
+    expect(request.request.method).toBe('POST');
+    expect(request.request.body).toEqual({outcome:'PurchasedElsewhere',reason:'Am cumpărat local.'});
+    request.flush({});
+  });
 });

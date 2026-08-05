@@ -109,6 +109,39 @@ public sealed class Rfq
         UpdatedAt = now;
     }
 
+    public void RecordOutcome(ProcurementOutcome outcome, string? reason, DateTimeOffset now)
+    {
+        if (!Enum.IsDefined(outcome))
+            throw new RfqRuleException("Rezultatul selectat nu este valid.");
+        if (Outcome.HasValue)
+            throw new RfqRuleException("Rezultatul acestei cereri a fost deja înregistrat.");
+        if (Status == RfqStatus.Draft)
+            throw new RfqRuleException("Publică cererea înainte de a înregistra rezultatul achiziției.");
+        if (Status == RfqStatus.Cancelled || outcome == ProcurementOutcome.Cancelled)
+            throw new RfqRuleException("Pentru acest rezultat, folosește acțiunea de anulare a cererii.");
+        if (outcome == ProcurementOutcome.PurchasedThroughCompaSpot && !SelectedOfferId.HasValue)
+            throw new RfqRuleException("Selectează mai întâi oferta cumpărată prin CompaSpot.");
+        if (Status == RfqStatus.OfferSelected && outcome != ProcurementOutcome.PurchasedThroughCompaSpot)
+            throw new RfqRuleException("O ofertă este deja selectată. Redeschide cererea dacă achiziția nu s-a realizat prin CompaSpot.");
+        if (Status == RfqStatus.OfferSelected && FulfillmentStatus is FulfillmentStatus.AwaitingDelivery or FulfillmentStatus.DeliveryReported)
+            throw new RfqRuleException("Finalizează mai întâi confirmarea livrării pentru oferta selectată.");
+        if (Status == RfqStatus.Closed)
+            throw new RfqRuleException("Cererea este deja finalizată.");
+
+        string? cleanReason = Clean(reason);
+        if (outcome == ProcurementOutcome.Other && string.IsNullOrWhiteSpace(cleanReason))
+            throw new RfqRuleException("Descrie pe scurt celălalt rezultat al cererii.");
+        if (cleanReason?.Length > 1000)
+            throw new RfqRuleException("Explicația rezultatului poate avea cel mult 1.000 de caractere.");
+
+        Outcome = outcome;
+        OutcomeReason = cleanReason;
+        OutcomeRecordedAt = now;
+        Status = RfqStatus.Closed;
+        ClosedAt = now;
+        UpdatedAt = now;
+    }
+
     public void ExtendQuotationDeadline(DateTimeOffset newDeadline, DateTimeOffset now)
     {
         if (Status is not (RfqStatus.Published or RfqStatus.ReceivingOffers))

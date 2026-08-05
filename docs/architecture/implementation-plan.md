@@ -49,7 +49,9 @@ Offers now carry explicit full/partial coverage, missing positions, alternatives
 
 ## Pasul 5 — Procurement outcome and feedback
 
-Record purchased through CompaSpot, purchased from a participant, purchased elsewhere, postponed, cancelled, no suitable offer, insufficient responses, or another reason. Add follow-up notifications and funnel events.
+**Status:** implemented; automated and browser acceptance evidence is recorded in the Step 5 verification report.
+
+Buyers can close the real-world procurement loop as purchased through CompaSpot, purchased from a participant, purchased elsewhere, postponed, cancelled, no suitable offer, insufficient responses, or another explained result. Expired open requests create one idempotent in-app follow-up when the Buyer next connects. Every result is immutable and emits an `OutcomeRecorded` audit event that supplies the MVP funnel without introducing the general analytics platform reserved for Pasul 9. See [ADR-0020](../decisions/ADR-0020-procurement-outcome-feedback-loop.md).
 
 ## Pasul 6 — Invitations and referrals
 

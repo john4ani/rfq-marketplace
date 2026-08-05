@@ -1,5 +1,6 @@
 using Marketplace.Application.Categories;
 using Marketplace.Application.Rfqs;
+using Marketplace.Domain.Offers;
 using Marketplace.Domain.Rfqs;
 using Marketplace.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
@@ -79,8 +80,38 @@ public sealed class RfqService(
         DateTimeOffset now = timeProvider.GetUtcNow();
         ProcurementNeedStatus previousStatus = rfq.NeedStatus;
         rfq.Cancel(now);
+        await RejectOpenOffers(rfqId, now, cancellationToken);
         auditTrail.Record(rfq.Id, buyerId, ProcurementNeedAuditEventType.Cancelled,
             previousStatus, rfq.NeedStatus, null, now);
+        auditTrail.Record(rfq.Id, buyerId, ProcurementNeedAuditEventType.OutcomeRecorded,
+            previousStatus, rfq.NeedStatus, $"Outcome={rfq.Outcome}", now.AddTicks(1));
+        await SaveRfqChangesAsync(cancellationToken);
+        return rfq;
+    }
+
+    public async Task<Rfq?> RecordOutcomeAsync(
+        Guid buyerId,
+        Guid rfqId,
+        ProcurementOutcome outcome,
+        string? reason,
+        CancellationToken cancellationToken)
+    {
+        Rfq? rfq = await Find(buyerId, rfqId, cancellationToken);
+        if (rfq is null) return null;
+        if (outcome == ProcurementOutcome.PurchasedFromParticipant
+            && !await dbContext.Offers.AnyAsync(offer => offer.RfqId == rfqId
+                && (offer.Status == OfferStatus.Submitted || offer.Status == OfferStatus.Revised), cancellationToken))
+            throw new RfqRuleException("Acest rezultat este disponibil doar când cererea a primit cel puțin o ofertă.");
+
+        DateTimeOffset now = timeProvider.GetUtcNow();
+        ProcurementNeedStatus previousStatus = rfq.NeedStatus;
+        rfq.RecordOutcome(outcome, reason, now);
+        await RejectOpenOffers(rfqId, now, cancellationToken);
+        string details = string.IsNullOrWhiteSpace(rfq.OutcomeReason)
+            ? $"Outcome={rfq.Outcome}"
+            : $"Outcome={rfq.Outcome}; Reason={rfq.OutcomeReason}";
+        auditTrail.Record(rfq.Id, buyerId, ProcurementNeedAuditEventType.OutcomeRecorded,
+            previousStatus, rfq.NeedStatus, details, now);
         await SaveRfqChangesAsync(cancellationToken);
         return rfq;
     }
@@ -212,6 +243,12 @@ public sealed class RfqService(
 
     private Task<Rfq?> Find(Guid buyerId, Guid rfqId, CancellationToken cancellationToken) =>
         dbContext.Rfqs.Include(rfq => rfq.Items).SingleOrDefaultAsync(rfq => rfq.Id == rfqId && rfq.BuyerId == buyerId, cancellationToken);
+
+    private async Task RejectOpenOffers(Guid rfqId, DateTimeOffset now, CancellationToken cancellationToken)
+    {
+        Offer[] offers = await dbContext.Offers.Where(offer => offer.RfqId == rfqId).ToArrayAsync(cancellationToken);
+        foreach (Offer offer in offers) offer.Reject(now);
+    }
 
     private async Task SaveRfqChangesAsync(CancellationToken cancellationToken)
     {

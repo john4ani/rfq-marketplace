@@ -7,7 +7,7 @@ export type ProcurementInputType = 'StructuredForm' | 'FreeText' | 'ShoppingList
 export type ProcurementNeedStatus = 'Draft' | 'Published' | 'ReceivingResponses' | 'Awarded' | 'Completed' | 'Cancelled';
 export type RequirementKind = 'Product' | 'Service';
 export type ProcurementOutcome = 'PurchasedThroughCompaSpot' | 'PurchasedFromParticipant' | 'PurchasedElsewhere' | 'Postponed' | 'Cancelled' | 'NoSuitableOffer' | 'InsufficientResponses' | 'Other';
-export type ProcurementNeedAuditEventType = 'Created' | 'Updated' | 'Published' | 'OfferReceived' | 'DeadlineExtended' | 'OfferSelected' | 'Reopened' | 'DeliveryReported' | 'Completed' | 'Cancelled' | 'Migrated';
+export type ProcurementNeedAuditEventType = 'Created' | 'Updated' | 'Published' | 'OfferReceived' | 'DeadlineExtended' | 'OfferSelected' | 'Reopened' | 'DeliveryReported' | 'Completed' | 'Cancelled' | 'OutcomeRecorded' | 'Migrated';
 export type FulfillmentStatus = 'NotApplicable' | 'AwaitingDelivery' | 'DeliveryReported' | 'Delivered';
 export type UnitOfMeasure = 'Piece' | 'Pack' | 'Bag' | 'Kilogram' | 'Tonne' | 'Metre' | 'SquareMetre' | 'CubicMetre' | 'Litre' | 'Pallet' | 'Other';
 
@@ -48,6 +48,9 @@ export class RfqService {
   update(id: string, draft: RfqDraft) { return this.http.put<Rfq>(`/api/v1/rfqs/${id}`, draft); }
   publish(id: string) { return this.http.post<Rfq>(`/api/v1/rfqs/${id}/publish`, {}); }
   cancel(id: string) { return this.http.post<Rfq>(`/api/v1/rfqs/${id}/cancel`, {}); }
+  recordOutcome(id: string, outcome: ProcurementOutcome, reason: string | null) {
+    return this.http.post<Rfq>(`/api/v1/rfqs/${id}/outcome`, { outcome, reason });
+  }
   extendDeadline(id: string, quotationDeadline: string) {
     return this.http.post<Rfq>(`/api/v1/rfqs/${id}/extend-deadline`, { quotationDeadline });
   }

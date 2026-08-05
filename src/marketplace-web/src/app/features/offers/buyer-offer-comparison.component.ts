@@ -4,10 +4,11 @@ import { ActivatedRoute, RouterLink } from '@angular/router';
 import { forkJoin } from 'rxjs';
 import { BuyerOffer, OfferItem, OfferService, OfferTaxTreatment } from '../../core/offers/offer.service';
 import { ProcurementNeedAuditEvent, Rfq, RfqService } from '../../core/rfqs/rfq.service';
+import { ProcurementOutcomeComponent } from './procurement-outcome.component';
 
 @Component({
   selector: 'app-buyer-offer-comparison',
-  imports: [RouterLink, CurrencyPipe, DatePipe],
+  imports: [RouterLink, CurrencyPipe, DatePipe, ProcurementOutcomeComponent],
   template: `<section class="compare">
     <a class="back" routerLink="/dashboard">← Cererile mele</a>
     @if (rfq(); as request) {
@@ -81,6 +82,7 @@ import { ProcurementNeedAuditEvent, Rfq, RfqService } from '../../core/rfqs/rfq.
           </div>
         }
       </section>
+      <app-procurement-outcome [request]="request" [offerCount]="offers().length" (recorded)="outcomeRecorded($event)" />
       @if (request.selectedOfferId) {
         <section class="decision">
           <div class="success"><strong>{{ request.fulfillmentStatus === 'Delivered' ? 'Livrarea a fost confirmată.' : 'Oferta câștigătoare a fost selectată.' }}</strong>
@@ -259,6 +261,7 @@ export class BuyerOfferComparisonComponent {
     return request.status === 'Published' || request.status === 'ReceivingOffers';
   }
 
+
   statusLabel(status: Rfq['status']): string {
     const labels: Record<Rfq['status'], string> = {
       Draft: 'Ciornă',
@@ -282,10 +285,12 @@ export class BuyerOfferComparisonComponent {
     const labels: Record<ProcurementNeedAuditEvent['type'], string> = {
       Created:'Cerere creată', Updated:'Cerere actualizată', Published:'Cerere publicată', OfferReceived:'Ofertă primită',
       DeadlineExtended:'Termen prelungit', OfferSelected:'Ofertă selectată', Reopened:'Cerere redeschisă',
-      DeliveryReported:'Livrare declarată', Completed:'Cerere finalizată', Cancelled:'Cerere anulată', Migrated:'Cerere existentă preluată'
+      DeliveryReported:'Livrare declarată', Completed:'Cerere finalizată', Cancelled:'Cerere anulată',
+      Migrated:'Cerere existentă preluată', OutcomeRecorded:'Rezultat achiziție înregistrat'
     };
     return labels[type];
   }
+
 
   unitLabel(unit: Rfq['items'][number]['unit']): string {
     const labels: Record<Rfq['items'][number]['unit'], string> = {
@@ -327,6 +332,11 @@ export class BuyerOfferComparisonComponent {
     this.managementError.set('');
     this.showCancel.set(false);
     this.showDeadline.set(true);
+  }
+
+  outcomeRecorded(request: Rfq): void {
+    this.rfq.set(request);
+    this.rfqService.getHistory(this.id).subscribe(history => this.history.set(history));
   }
 
   cancelManagement(): void {

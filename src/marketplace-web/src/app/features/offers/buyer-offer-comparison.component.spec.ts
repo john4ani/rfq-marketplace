@@ -37,7 +37,8 @@ describe('BuyerOfferComparisonComponent', () => {
           get:()=>of(request),
           getHistory:()=>of([]),
           extendDeadline:()=>of({...request,quotationDeadline:'2026-08-02T10:00:00.000Z'}),
-          cancel:()=>of({...request,status:'Cancelled'})
+          cancel:()=>of({...request,status:'Cancelled'}),
+          recordOutcome:()=>of({...request,status:'Closed',outcome:'PurchasedElsewhere'})
         }},
         {provide:OfferService,useValue:{forBuyer:()=>of([])}}
       ]
@@ -66,6 +67,14 @@ describe('BuyerOfferComparisonComponent', () => {
 
     expect((fixture.nativeElement as HTMLElement).querySelector('.management-form')?.textContent)
       .toContain('Prelungește termenul pentru oferte');
+  });
+
+  it('asks for the real outcome after the quotation deadline', () => {
+    const fixture=TestBed.createComponent(BuyerOfferComparisonComponent);
+    fixture.detectChanges();
+
+    expect((fixture.nativeElement as HTMLElement).querySelector('app-procurement-outcome form')?.textContent)
+      .toContain('Cum s-a încheiat achiziția?');
   });
 
   it('hides reopening after the provider reports delivery', async () => {

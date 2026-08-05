@@ -43,7 +43,8 @@ public enum ProcurementNeedAuditEventType
     DeliveryReported,
     Completed,
     Cancelled,
-    Migrated
+    Migrated,
+    OutcomeRecorded
 }
 
 public sealed class ProcurementNeedAuditEvent

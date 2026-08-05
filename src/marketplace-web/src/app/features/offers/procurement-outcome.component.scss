@@ -1,0 +1,15 @@
+:host{display:block}
+.eyebrow{margin:0;color:#176b52;font-size:.78rem;font-weight:850;letter-spacing:.1em;text-transform:uppercase}
+form,.complete,.prompt{display:grid;gap:1rem;padding:1.25rem;border:1px solid #bdd8ca;border-radius:1rem;background:#f4faf7}
+form h2,form p,.complete h2,.complete p{margin:.2rem 0}
+form label{display:grid;gap:.4rem;font-weight:750}
+select,textarea{padding:.75rem;border:1px solid #9eb5a9;border-radius:.6rem;background:#fff;font:inherit}
+form>small,.complete>span,.prompt span{color:#637168}
+.actions{display:flex;justify-content:flex-end;gap:.6rem}
+.complete{grid-template-columns:1fr auto;align-items:center}
+.prompt{grid-template-columns:1fr auto;align-items:center;padding:1rem}
+.prompt div{display:grid;gap:.2rem}
+button{border:0;border-radius:.6rem;padding:.7rem 1rem;color:#fff;background:#176b52;font:inherit;font-weight:750;cursor:pointer}
+button:disabled{opacity:.55;cursor:not-allowed}.secondary{border:1px solid #9bb4a7;color:#245f42;background:#fff}
+.error{padding:1rem;border-radius:.75rem;color:#a32626;background:#fff0ee}
+@media(max-width:42rem){.actions{align-items:stretch;flex-direction:column}.complete,.prompt{grid-template-columns:1fr}}

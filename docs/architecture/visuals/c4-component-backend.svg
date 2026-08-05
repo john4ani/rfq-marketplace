@@ -75,7 +75,7 @@
   <rect class="infrastructure" x="960" y="760" width="200" height="50" rx="10"/>
   <text class="label" x="1060" y="790" text-anchor="middle">Offers</text>
   <rect class="infrastructure" x="1190" y="760" width="230" height="50" rx="10"/>
-  <text class="label" x="1305" y="790" text-anchor="middle">Messages &amp; notices</text>
+  <text class="label" x="1305" y="790" text-anchor="middle">Messages · notices · reminders</text>
 
   <rect class="group" x="145" y="870" width="980" height="90" rx="16"/>
   <text class="groupLabel" x="175" y="900">DOMAIN MODEL</text>

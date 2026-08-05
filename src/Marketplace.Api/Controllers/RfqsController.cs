@@ -79,6 +79,20 @@ public sealed class RfqsController(IRfqService rfqService) : ControllerBase
         catch (RfqRuleException exception) { return InvalidRfq(exception.Message); }
     }
 
+    [HttpPost("{rfqId:guid}/outcome")]
+    public async Task<IActionResult> RecordOutcome(
+        Guid rfqId, RecordProcurementOutcomeRequest request, CancellationToken cancellationToken)
+    {
+        try
+        {
+            Rfq? rfq = await rfqService.RecordOutcomeAsync(
+                BuyerId(), rfqId, request.Outcome, request.Reason, cancellationToken);
+            return rfq is null ? NotFound() : Ok(RfqResponse.From(rfq));
+        }
+        catch (RfqConcurrencyException exception) { return StaleRfq(exception.Message); }
+        catch (RfqRuleException exception) { return InvalidRfq(exception.Message); }
+    }
+
     [HttpPost("{rfqId:guid}/extend-deadline")]
     public async Task<IActionResult> ExtendDeadline(
         Guid rfqId, ExtendRfqDeadlineRequest request, CancellationToken cancellationToken)
@@ -135,6 +149,7 @@ public sealed record RfqItemRequest(
 }
 
 public sealed record ExtendRfqDeadlineRequest(DateTimeOffset QuotationDeadline);
+public sealed record RecordProcurementOutcomeRequest(ProcurementOutcome Outcome, string? Reason);
 
 public sealed record RfqResponse(
     Guid Id, Guid BuyerId, string Title, string? ProjectName, string? Description, Guid PrimaryCategoryId,

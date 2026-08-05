@@ -1,7 +1,7 @@
 # C4 Level 3 — ASP.NET Core Backend Components
 
 Status: Current implementation
-Last updated: 2026-08-04
+Last updated: 2026-08-05
 
 This view expands the **ASP.NET Core API** container from the C4 container diagram. It describes the implemented modular-monolith structure: controllers depend on application contracts, infrastructure services implement those contracts, and PostgreSQL is accessed through the shared EF Core context.
 
@@ -45,7 +45,7 @@ flowchart TB
         marketServices["Live-market and RFQ services"]
         intakeService["Assisted-intake service<br/>OpenAI-compatible extraction<br/>and advanced-form fallback"]
         offerService["Offer service"]
-        engagementServices["Messaging and notification services"]
+        engagementServices["Messaging, notification and<br/>outcome-reminder services"]
         dbContext["MarketplaceDbContext<br/>EF Core unit of work and mappings"]
     end
 
@@ -123,7 +123,7 @@ flowchart TB
 | REST controllers | Translate HTTP requests and authenticated identity into application-contract calls and HTTP responses |
 | Application contracts | Define the use cases available to the API without coupling controllers to EF Core implementations |
 | Provider coverage policy | Share category-hierarchy compatibility and deterministically validate whether an offer covers an entire request or only part of it |
-| Infrastructure services | Implement identity, profile, discovery, RFQ, offer, messaging, and notification use cases |
+| Infrastructure services | Implement identity, profile, discovery, RFQ, offer, messaging, notification, and just-in-time outcome-reminder use cases |
 | Domain model | Own entity state and invariants for profiles, matching configuration, RFQs, offers, conversations, and notifications |
 | MarketplaceDbContext | Map domain/identity state, track transactions, and persist changes through Npgsql |
 | Health endpoints | Distinguish process liveness from database-backed readiness |
@@ -137,6 +137,7 @@ flowchart TB
 - Infrastructure services use purpose-built EF Core queries directly; a generic repository is intentionally not introduced.
 - Authorization is enforced at the HTTP boundary and resource ownership is revalidated in application implementations.
 - State changes and their in-app notifications share the same `MarketplaceDbContext` transaction where the workflow requires atomicity.
+- Outcome reminders are materialized on authenticated notification reads after a deadline, using the existing unique deduplication key rather than adding a scheduler for the MVP.
 
 ## Main source locations
 

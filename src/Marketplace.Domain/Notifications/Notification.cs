@@ -7,7 +7,8 @@ public enum NotificationType
     RequestReopened,
     MessageReceived,
     DeliveryReported,
-    DeliveryConfirmed
+    DeliveryConfirmed,
+    ProcurementOutcomeRequested
 }
 
 public sealed class Notification

@@ -79,6 +79,7 @@ public static class DependencyInjection
         services.AddScoped<IAssistedIntakeService, AssistedIntakeService>();
         services.AddScoped<IProcurementNeedAuditTrail, ProcurementNeedAuditTrail>();
         services.AddScoped<IOfferService, OfferService>();
+        services.AddScoped<ProcurementOutcomeReminderService>();
         services.AddScoped<INotificationService, NotificationService>();
         services.AddScoped<IMessagingService, MessagingService>();
         return services;

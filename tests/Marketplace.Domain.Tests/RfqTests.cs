@@ -143,6 +143,42 @@ public sealed class RfqTests
         Assert.Equal(Now.AddMinutes(1), rfq.OutcomeRecordedAt);
     }
 
+    [Fact]
+    public void PublishedRequestCanBeClosedWithProcurementOutcome()
+    {
+        Rfq rfq = Rfq.Create(Guid.NewGuid(), Guid.NewGuid(), Draft([]), Now);
+        rfq.Publish(Now);
+
+        rfq.RecordOutcome(ProcurementOutcome.PurchasedElsewhere, "Preț mai bun în magazin.", Now.AddHours(1));
+
+        Assert.Equal(RfqStatus.Closed, rfq.Status);
+        Assert.Equal(ProcurementNeedStatus.Completed, rfq.NeedStatus);
+        Assert.Equal(ProcurementOutcome.PurchasedElsewhere, rfq.Outcome);
+        Assert.Equal("Preț mai bun în magazin.", rfq.OutcomeReason);
+    }
+
+    [Fact]
+    public void OtherOutcomeRequiresAnExplanation()
+    {
+        Rfq rfq = Rfq.Create(Guid.NewGuid(), Guid.NewGuid(), Draft([]), Now);
+        rfq.Publish(Now);
+
+        RfqRuleException exception = Assert.Throws<RfqRuleException>(() =>
+            rfq.RecordOutcome(ProcurementOutcome.Other, " ", Now.AddHours(1)));
+
+        Assert.Contains("Descrie", exception.Message);
+    }
+
+    [Fact]
+    public void MarketplacePurchaseRequiresSelectedOffer()
+    {
+        Rfq rfq = Rfq.Create(Guid.NewGuid(), Guid.NewGuid(), Draft([]), Now);
+        rfq.Publish(Now);
+
+        Assert.Throws<RfqRuleException>(() =>
+            rfq.RecordOutcome(ProcurementOutcome.PurchasedThroughCompaSpot, null, Now.AddHours(1)));
+    }
+
     private static RfqDraft Draft(IReadOnlyCollection<RfqItemDraft> items) => new(
         "Materiale renovare", null, null, Guid.NewGuid(), "Strada Test 1", "Iași", "Iași", 30,
         null, null, null, Now.AddDays(2), true, null, null, items);

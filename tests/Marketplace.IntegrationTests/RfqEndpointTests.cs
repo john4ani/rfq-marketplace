@@ -2,15 +2,22 @@ using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text.Json;
+using Marketplace.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace Marketplace.IntegrationTests;
 
 public sealed class RfqEndpointTests : IClassFixture<WebApplicationFactory<Program>>
 {
+    private readonly WebApplicationFactory<Program> _factory;
     private readonly HttpClient _client;
-    public RfqEndpointTests(WebApplicationFactory<Program> factory) =>
+    public RfqEndpointTests(WebApplicationFactory<Program> factory)
+    {
+        _factory = factory;
         _client = factory.CreateClient(new() { BaseAddress = new Uri("https://localhost"), HandleCookies = true });
+    }
 
     [Fact]
     public async Task BuyerCanCreateUpdateAndPublishOwnRequest()
@@ -56,12 +63,42 @@ public sealed class RfqEndpointTests : IClassFixture<WebApplicationFactory<Progr
         RfqResponse[] mine = (await _client.GetFromJsonAsync<RfqResponse[]>("/api/v1/rfqs/mine"))!;
         Assert.Contains(mine, item => item.Id == rfq.Id);
         Assert.Equal(HttpStatusCode.NotFound, (await _client.GetAsync($"/api/v1/rfqs/{Guid.NewGuid()}")).StatusCode);
+
+        HttpResponseMessage outcomeCreated = await _client.PostAsJsonAsync(
+            "/api/v1/rfqs", Request(categoryId, "Cerere cu rezultat", 5));
+        RfqResponse outcomeRfq = (await outcomeCreated.Content.ReadFromJsonAsync<RfqResponse>())!;
+        await _client.PostAsJsonAsync($"/api/v1/rfqs/{outcomeRfq.Id}/publish", new { });
+        Assert.Equal(HttpStatusCode.BadRequest, (await _client.PostAsJsonAsync(
+            $"/api/v1/rfqs/{outcomeRfq.Id}/outcome", new { outcome = "Other", reason = " " })).StatusCode);
+        RfqResponse recorded = (await (await _client.PostAsJsonAsync(
+            $"/api/v1/rfqs/{outcomeRfq.Id}/outcome",
+            new { outcome = "PurchasedElsewhere", reason = "Am găsit produsul local." })).Content.ReadFromJsonAsync<RfqResponse>())!;
+        Assert.Equal("Closed", recorded.Status);
+        Assert.Equal("PurchasedElsewhere", recorded.Outcome);
+        Assert.Equal("Am găsit produsul local.", recorded.OutcomeReason);
+        AuditResponse[] outcomeHistory = (await _client.GetFromJsonAsync<AuditResponse[]>($"/api/v1/rfqs/{outcomeRfq.Id}/history"))!;
+        Assert.Equal("Created,Published,OutcomeRecorded", string.Join(',', outcomeHistory.Select(entry => entry.Type)));
+
+        RfqResponse reminderRfq = (await (await _client.PostAsJsonAsync(
+            "/api/v1/rfqs", Request(categoryId, "Cerere expirată", 3))).Content.ReadFromJsonAsync<RfqResponse>())!;
+        await _client.PostAsJsonAsync($"/api/v1/rfqs/{reminderRfq.Id}/publish", new { });
+        using (IServiceScope scope = _factory.Services.CreateScope())
+        {
+            MarketplaceDbContext database = scope.ServiceProvider.GetRequiredService<MarketplaceDbContext>();
+            await database.Rfqs.Where(item => item.Id == reminderRfq.Id)
+                .ExecuteUpdateAsync(update => update.SetProperty(item => item.QuotationDeadline, DateTimeOffset.UtcNow.AddMinutes(-1)));
+        }
+        NotificationResponse[] reminders = (await _client.GetFromJsonAsync<NotificationResponse[]>("/api/v1/notifications"))!;
+        Assert.Single(reminders, item => item.Type == "ProcurementOutcomeRequested" && item.Link == $"/rfqs/{reminderRfq.Id}/offers");
+        reminders = (await _client.GetFromJsonAsync<NotificationResponse[]>("/api/v1/notifications"))!;
+        Assert.Single(reminders, item => item.Type == "ProcurementOutcomeRequested" && item.Link == $"/rfqs/{reminderRfq.Id}/offers");
+
         RfqResponse cancelled = (await (await _client.PostAsJsonAsync(
             $"/api/v1/rfqs/{rfq.Id}/cancel", new { })).Content.ReadFromJsonAsync<RfqResponse>())!;
         Assert.Equal("Cancelled", cancelled.Status);
         Assert.Equal("Cancelled", cancelled.Outcome);
         AuditResponse[] history = (await _client.GetFromJsonAsync<AuditResponse[]>($"/api/v1/rfqs/{rfq.Id}/history"))!;
-        Assert.Equal("Created,Updated,Published,DeadlineExtended,Cancelled", string.Join(',', history.Select(entry => entry.Type)));
+        Assert.Equal("Created,Updated,Published,DeadlineExtended,Cancelled,OutcomeRecorded", string.Join(',', history.Select(entry => entry.Type)));
     }
 
     private static object Request(Guid categoryId, string title, decimal quantity, bool includeSecondItem = false) => new {
@@ -83,9 +120,10 @@ public sealed class RfqEndpointTests : IClassFixture<WebApplicationFactory<Progr
     private sealed record RfqResponse(
         Guid Id, string Status, string Source, string InputType, string NeedStatus,
         ProjectContextResponse? ProjectContext, DeliveryConstraintsResponse DeliveryConstraints,
-        string? Outcome, int SupplierSearchRadiusKm, DateTimeOffset QuotationDeadline, RfqItemResponse[] Items);
+        string? Outcome, string? OutcomeReason, int SupplierSearchRadiusKm, DateTimeOffset QuotationDeadline, RfqItemResponse[] Items);
     private sealed record ProjectContextResponse(string? Name, string? Description);
     private sealed record DeliveryConstraintsResponse(string Address);
     private sealed record RfqItemResponse(Guid Id, string ProductName, decimal Quantity, string Kind);
     private sealed record AuditResponse(Guid Id, string Type);
+    private sealed record NotificationResponse(Guid Id, string Type, string Link);
 }
