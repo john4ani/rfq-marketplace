@@ -149,7 +149,11 @@ public sealed record OfferRequest(
     string? PaymentTerms,
     string? Notes,
     IReadOnlyCollection<OfferItemRequest>? Items,
-    bool DeliveryIncluded = true)
+    bool DeliveryIncluded = true,
+    OfferCoverage Coverage = OfferCoverage.Full,
+    OfferTaxTreatment TaxTreatment = OfferTaxTreatment.NotSpecified,
+    decimal? VatRate = null,
+    OfferDeliveryTerms? DeliveryTerms = null)
 {
     public OfferDraft ToDraft() => new(
         PricingMode,
@@ -160,24 +164,32 @@ public sealed record OfferRequest(
         PaymentTerms,
         Notes,
         Items?.Select(item => item.ToDraft()).ToArray() ?? [],
-        DeliveryIncluded);
+        DeliveryIncluded,
+        Coverage,
+        TaxTreatment,
+        VatRate,
+        DeliveryTerms);
 }
 public sealed record ReopenRfqRequest(string? Reason, DateTimeOffset? NewQuotationDeadline);
-public sealed record OfferItemRequest(Guid RfqItemId, decimal Quantity, decimal UnitPrice, string? ProductDescription, bool Available)
+public sealed record OfferItemRequest(Guid RfqItemId, decimal Quantity, decimal UnitPrice, string? ProductDescription, bool Available, bool IsAlternative = false)
 {
-    public OfferItemDraft ToDraft() => new(RfqItemId, Quantity, UnitPrice, ProductDescription, Available);
+    public OfferItemDraft ToDraft() => new(RfqItemId, Quantity, UnitPrice, ProductDescription, Available, IsAlternative);
 }
-public sealed record OfferItemResponse(Guid Id, Guid RfqItemId, decimal Quantity, decimal UnitPrice, string? ProductDescription, bool Available, decimal LineTotal)
+public sealed record OfferItemResponse(Guid Id, Guid RfqItemId, decimal Quantity, decimal UnitPrice, string? ProductDescription, bool Available, bool IsAlternative, decimal LineTotal)
 {
-    public static OfferItemResponse From(OfferItem item) => new(item.Id, item.RfqItemId, item.Quantity, item.UnitPrice, item.ProductDescription, item.Available, item.Quantity * item.UnitPrice);
+    public static OfferItemResponse From(OfferItem item) => new(item.Id, item.RfqItemId, item.Quantity, item.UnitPrice, item.ProductDescription, item.Available, item.IsAlternative, item.Available ? item.Quantity * item.UnitPrice : 0);
 }
 public sealed record OfferResponse(Guid Id, Guid RfqId, Guid SupplierId, OfferStatus Status, OfferPricingMode PricingMode,
+    OfferCoverage Coverage, OfferTaxTreatment TaxTreatment, decimal? VatRate, OfferDeliveryTerms DeliveryTerms,
     string Currency, decimal? TotalPrice, bool DeliveryIncluded, decimal DeliveryCost, int DeliveryDays,
-    DateOnly ValidUntil, string? PaymentTerms, string? Notes, decimal ItemsTotal, decimal Total, DateTimeOffset CreatedAt,
+    DateOnly ValidUntil, string? PaymentTerms, string? Notes, decimal ItemsTotal, decimal NetTotal, decimal VatAmount,
+    decimal Total, bool HasComparableTotal, DateTimeOffset CreatedAt,
     DateTimeOffset UpdatedAt, DateTimeOffset? SubmittedAt, IReadOnlyCollection<OfferItemResponse> Items)
 {
     public static OfferResponse From(Offer offer) => new(offer.Id, offer.RfqId, offer.SupplierId, offer.Status, offer.PricingMode,
-        offer.Currency, offer.TotalPrice, offer.DeliveryIncluded, offer.DeliveryCost, offer.DeliveryDays, offer.ValidUntil, offer.PaymentTerms, offer.Notes, offer.ItemsTotal, offer.Total,
+        offer.Coverage, offer.TaxTreatment, offer.VatRate, offer.DeliveryTerms,
+        offer.Currency, offer.TotalPrice, offer.DeliveryIncluded, offer.DeliveryCost, offer.DeliveryDays, offer.ValidUntil, offer.PaymentTerms, offer.Notes,
+        offer.ItemsTotal, offer.NetTotal, offer.VatAmount, offer.Total, offer.HasComparableTotal,
         offer.CreatedAt, offer.UpdatedAt, offer.SubmittedAt, offer.Items.Select(OfferItemResponse.From).ToArray());
 }
 public sealed record OfferSummaryResponse(
@@ -186,9 +198,12 @@ public sealed record OfferSummaryResponse(
     string RfqTitle,
     DateTimeOffset QuotationDeadline,
     OfferStatus Status,
+    OfferCoverage Coverage,
+    OfferTaxTreatment TaxTreatment,
     Marketplace.Domain.Rfqs.FulfillmentStatus FulfillmentStatus,
     bool DeliveryIncluded,
     decimal Total,
+    bool HasComparableTotal,
     DateTimeOffset UpdatedAt)
 {
     public static OfferSummaryResponse From(OfferSummary value) => new(
@@ -197,12 +212,15 @@ public sealed record OfferSummaryResponse(
         value.RfqTitle,
         value.QuotationDeadline,
         value.Offer.Status,
+        value.Offer.Coverage,
+        value.Offer.TaxTreatment,
         value.FulfillmentStatus,
         value.Offer.DeliveryIncluded,
         value.Offer.Total,
+        value.Offer.HasComparableTotal,
         value.Offer.UpdatedAt);
 }
-public sealed record BuyerOfferResponse(string SupplierName, OfferResponse Offer)
+public sealed record BuyerOfferResponse(string SupplierName, OfferResponse Offer, OfferCoverageDetails CoverageDetails)
 {
-    public static BuyerOfferResponse From(BuyerOffer value) => new(value.SupplierName, OfferResponse.From(value.Offer));
+    public static BuyerOfferResponse From(BuyerOffer value) => new(value.SupplierName, OfferResponse.From(value.Offer), value.CoverageDetails);
 }

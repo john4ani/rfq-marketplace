@@ -84,7 +84,7 @@ flowchart LR
 | Piața Live and discovery | Public market activity, dual-role presence, participant directory, matched open requests, and request detail |
 | Account workspace | Buyer/Provider role switching, role-specific activity, profile editing, matching preferences, and request creation entry |
 | Request workflow | Run clarification → research → editable proposal → human confirmation; transfer directly to the advanced editor when AI is unavailable; list/publish/cancel/extend/reopen Buyer requests |
-| Offer workflow | Create/revise/submit/withdraw Provider offers and compare/select Buyer offers |
+| Offer workflow | Create/revise/submit/withdraw Provider offers with explicit coverage, tax, alternatives and delivery terms; compare every requested line and select a complete Buyer offer |
 | Private messaging | Poll and send messages within the conversation authorized for one submitted offer |
 | Notification menu | Poll unread count, load notifications, mark items read, and follow notification links |
 | Auth service and state | Access token, linked profiles, active role, refresh, logout, and online-presence heartbeat |

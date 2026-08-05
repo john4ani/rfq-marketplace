@@ -36,9 +36,10 @@ type OfferFilter = 'All' | 'Active' | 'Selected' | 'NotSelected' | 'Draft' | 'Wi
         @for (offer of visibleOffers(); track offer.id) {
           <article [class.selected]="offer.status === 'Selected'" [class.not-selected]="offer.status === 'NotSelected'">
             <div class="offer-main"><span class="status" [class]="offer.status.toLowerCase()">{{ statusLabel(offer.status) }}</span>
+              <span class="status coverage">{{ offer.coverage === 'Full' ? 'Completă' : 'Parțială' }}</span>
               <h3>{{ offer.rfqTitle }}</h3>
               <p>Actualizată {{ offer.updatedAt | date:'dd.MM.yyyy, HH:mm' }}</p></div>
-            <div class="offer-value"><small>Valoare ofertă</small><strong>{{ offer.total | currency:'RON':'symbol-narrow':'1.2-2':'ro' }}</strong></div>
+            <div class="offer-value"><small>{{ offer.hasComparableTotal ? 'Total de plată' : 'Total incomplet' }}</small><strong>{{ offer.total | currency:'RON':'symbol-narrow':'1.2-2':'ro' }}</strong></div>
             <div class="offer-deadline"><small>Termen cerere</small><strong>{{ offer.quotationDeadline | date:'dd.MM.yyyy, HH:mm' }}</strong></div>
             <div class="offer-actions">
               <a [routerLink]="['/open-requests', offer.rfqId]">{{ actionLabel(offer.status) }} →</a>

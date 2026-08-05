@@ -19,8 +19,8 @@ Errors: RFC 7807 Problem Details
 | Buyer procurement needs/RFQs | `/rfqs`, `/rfqs/{id}`, history, publish, cancel, deadline | Owning buyer |
 | Assisted intake | `/assisted-intakes`, resume, clarify, approve | Owning buyer |
 | Supplier discovery | `/supplier/rfqs` | Approved active supplier |
-| Offers | `/rfqs/{id}/offers`, `/offers/{id}`, submit, revise, withdraw | Resource-dependent |
-| Comparison | `/rfqs/{id}/offer-comparison` | Owning buyer only |
+| Offers | `/open-rfqs/{id}/offer`, `/offers/mine`, submit, revise, withdraw | Resource-dependent |
+| Comparison | `/rfqs/{id}/offers`; coverage, missing lines, tax and commercial totals | Owning buyer only |
 | Acceptance | `/rfqs/{rfqId}/offers/{offerId}/select` | Owning buyer only |
 | Delivery confirmation | Provider report and Buyer confirmation routes | Selected Provider or owning Buyer |
 | Messaging | `/offers/{id}/conversation`, messages and read state | Buyer and that offer's supplier |
@@ -104,14 +104,13 @@ POST   /api/v1/assisted-intakes/{sessionId}/approve
 
 GET    /api/v1/supplier/rfqs
 GET    /api/v1/supplier/rfqs/{rfqId}
-POST   /api/v1/rfqs/{rfqId}/offers
-GET    /api/v1/offers/{offerId}
-PUT    /api/v1/offers/{offerId}
-POST   /api/v1/offers/{offerId}/submit
+GET    /api/v1/open-rfqs/{rfqId}/offer
+PUT    /api/v1/open-rfqs/{rfqId}/offer
+POST   /api/v1/open-rfqs/{rfqId}/offer/submit
 POST   /api/v1/offers/{offerId}/withdraw
-GET    /api/v1/offers/{offerId}/revisions
+GET    /api/v1/offers/mine
 
-GET    /api/v1/rfqs/{rfqId}/offer-comparison
+GET    /api/v1/rfqs/{rfqId}/offers
 POST   /api/v1/rfqs/{rfqId}/offers/{offerId}/select
 POST   /api/v1/open-rfqs/{rfqId}/delivery/report
 POST   /api/v1/rfqs/{rfqId}/delivery/confirm

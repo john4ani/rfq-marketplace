@@ -2,12 +2,16 @@ import { HttpClient } from '@angular/common/http';
 import { inject, Injectable } from '@angular/core';
 export type OfferStatus = 'Draft'|'Submitted'|'Revised'|'Withdrawn'|'Selected'|'NotSelected';
 export type OfferPricingMode = 'Itemized'|'Total';
-export interface OfferItem { id?:string; rfqItemId:string; quantity:number; unitPrice:number; productDescription:string|null; available:boolean; lineTotal?:number; }
-export interface OfferDraft { pricingMode:OfferPricingMode; totalPrice:number|null; deliveryIncluded:boolean; deliveryCost:number; deliveryDays:number; validUntil:string; paymentTerms:string|null; notes:string|null; items:OfferItem[]; }
-export interface Offer extends OfferDraft { id:string;rfqId:string;supplierId:string;status:OfferStatus;currency:string;itemsTotal:number;total:number;createdAt:string;updatedAt:string;submittedAt:string|null; }
+export type OfferCoverage = 'Full'|'Partial';
+export type OfferTaxTreatment = 'NotSpecified'|'VatIncluded'|'VatExcluded'|'NotApplicable';
+export type OfferDeliveryTerms = 'IncludedInPrice'|'AddedToTotal'|'BuyerPickup'|'ArrangedSeparately';
+export interface OfferItem { id?:string; rfqItemId:string; quantity:number; unitPrice:number; productDescription:string|null; available:boolean; isAlternative:boolean; lineTotal?:number; }
+export interface OfferDraft { pricingMode:OfferPricingMode; totalPrice:number|null; deliveryIncluded:boolean; deliveryCost:number; deliveryDays:number; validUntil:string; paymentTerms:string|null; notes:string|null; items:OfferItem[]; coverage:OfferCoverage; taxTreatment:OfferTaxTreatment; vatRate:number|null; deliveryTerms:OfferDeliveryTerms; }
+export interface Offer extends OfferDraft { id:string;rfqId:string;supplierId:string;status:OfferStatus;currency:string;itemsTotal:number;netTotal:number;vatAmount:number;total:number;hasComparableTotal:boolean;createdAt:string;updatedAt:string;submittedAt:string|null; }
 export type FulfillmentStatus = 'NotApplicable'|'AwaitingDelivery'|'DeliveryReported'|'Delivered';
-export interface OfferSummary { id:string;rfqId:string;rfqTitle:string;quotationDeadline:string;status:OfferStatus;fulfillmentStatus:FulfillmentStatus;deliveryIncluded:boolean;total:number;updatedAt:string; }
-export interface BuyerOffer { supplierName:string;offer:Offer; }
+export interface OfferSummary { id:string;rfqId:string;rfqTitle:string;quotationDeadline:string;status:OfferStatus;coverage:OfferCoverage;taxTreatment:OfferTaxTreatment;fulfillmentStatus:FulfillmentStatus;deliveryIncluded:boolean;total:number;hasComparableTotal:boolean;updatedAt:string; }
+export interface OfferCoverageDetails { requestedPositionCount:number;coveredPositionCount:number;missingRfqItemIds:string[]; }
+export interface BuyerOffer { supplierName:string;offer:Offer;coverageDetails:OfferCoverageDetails; }
 @Injectable({providedIn:'root'})
 export class OfferService {
  private readonly http=inject(HttpClient);

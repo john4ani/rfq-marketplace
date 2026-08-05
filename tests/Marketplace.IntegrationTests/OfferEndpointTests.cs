@@ -54,6 +54,7 @@ public sealed class OfferEndpointTests : IClassFixture<WebApplicationFactory<Pro
         Assert.Equal(HttpStatusCode.OK, (await _client.PostAsJsonAsync($"/api/v1/rfqs/{rfq.Id}/publish", new { })).StatusCode);
 
         HttpResponseMessage saved = await _client.PutAsJsonAsync($"/api/v1/open-rfqs/{rfq.Id}/offer", new {
+            coverage = "Full", taxTreatment = "VatIncluded", vatRate = 19m, deliveryTerms = "AddedToTotal",
             deliveryIncluded = true, deliveryCost = 50m, deliveryDays = 3, validUntil = DateOnly.FromDateTime(DateTime.UtcNow.AddDays(7)),
             paymentTerms = "La livrare", notes = "Oferta test",
             items = new[] { new { rfqItemId = rfq.Items[0].Id, quantity = 10m, unitPrice = 90m,
@@ -62,6 +63,9 @@ public sealed class OfferEndpointTests : IClassFixture<WebApplicationFactory<Pro
         Assert.Equal(HttpStatusCode.OK, saved.StatusCode);
         OfferResponse offer = (await saved.Content.ReadFromJsonAsync<OfferResponse>())!;
         Assert.Equal(950m, offer.Total);
+        Assert.Equal("Full", offer.Coverage);
+        Assert.Equal("VatIncluded", offer.TaxTreatment);
+        Assert.True(offer.VatAmount > 0);
         Assert.Equal("Submitted", (await (await _client.PostAsJsonAsync($"/api/v1/open-rfqs/{rfq.Id}/offer/submit", new { }))
             .Content.ReadFromJsonAsync<OfferResponse>())!.Status);
         NotificationResponse[] notifications = (await _client.GetFromJsonAsync<NotificationResponse[]>("/api/v1/notifications"))!;
@@ -88,6 +92,7 @@ public sealed class OfferEndpointTests : IClassFixture<WebApplicationFactory<Pro
             (await _client.GetAsync($"/api/v1/offers/{Guid.NewGuid()}/conversation")).StatusCode);
 
         Assert.Equal(HttpStatusCode.OK, (await _client.PutAsJsonAsync($"/api/v1/open-rfqs/{rfq.Id}/offer", new {
+            coverage = "Full", taxTreatment = "VatIncluded", vatRate = 19m, deliveryTerms = "AddedToTotal",
             deliveryIncluded = true, deliveryCost = 40m, deliveryDays = 2, validUntil = DateOnly.FromDateTime(DateTime.UtcNow.AddDays(8)),
             paymentTerms = "La livrare", notes = "Oferta revizuită",
             items = new[] { new { rfqItemId = rfq.Items[0].Id, quantity = 10m, unitPrice = 85m,
@@ -101,6 +106,8 @@ public sealed class OfferEndpointTests : IClassFixture<WebApplicationFactory<Pro
         BuyerOfferResponse[] comparison = (await _client.GetFromJsonAsync<BuyerOfferResponse[]>($"/api/v1/rfqs/{rfq.Id}/offers"))!;
         Assert.Single(comparison);
         Assert.Equal("Provider Offer SRL", comparison[0].SupplierName);
+        Assert.Equal(1, comparison[0].CoverageDetails.CoveredPositionCount);
+        Assert.Empty(comparison[0].CoverageDetails.MissingRfqItemIds);
         Assert.Equal(HttpStatusCode.OK,
             (await _client.PostAsJsonAsync($"/api/v1/rfqs/{rfq.Id}/offers/{offer.Id}/select", new { })).StatusCode);
         RfqResponse selected = (await _client.GetFromJsonAsync<RfqResponse>($"/api/v1/rfqs/{rfq.Id}"))!;
@@ -128,7 +135,8 @@ public sealed class OfferEndpointTests : IClassFixture<WebApplicationFactory<Pro
         Assert.Contains(reopenReason, reopenedNotification.Message);
 
         Assert.Equal(HttpStatusCode.OK, (await _client.PutAsJsonAsync($"/api/v1/open-rfqs/{rfq.Id}/offer", new {
-            pricingMode = "Total", totalPrice = 1100m, deliveryIncluded = true, deliveryCost = 0m, deliveryDays = 2,
+            pricingMode = "Total", coverage = "Full", taxTreatment = "VatIncluded", vatRate = 19m, deliveryTerms = "IncludedInPrice",
+            totalPrice = 1100m, deliveryIncluded = true, deliveryCost = 0m, deliveryDays = 2,
             validUntil = DateOnly.FromDateTime(DateTime.UtcNow.AddDays(8)),
             paymentTerms = "La livrare", notes = "Acoperă întreaga cerere", items = Array.Empty<object>()
         })).StatusCode);
@@ -176,7 +184,8 @@ public sealed class OfferEndpointTests : IClassFixture<WebApplicationFactory<Pro
         Assert.Equal(HttpStatusCode.OK,
             (await _client.PostAsJsonAsync($"/api/v1/rfqs/{generalRfq.Id}/publish", new { })).StatusCode);
         Assert.Equal(HttpStatusCode.OK, (await _client.PutAsJsonAsync($"/api/v1/open-rfqs/{generalRfq.Id}/offer", new {
-            pricingMode = "Total", totalPrice = 1250m, deliveryCost = 0m, deliveryDays = 4, validUntil = DateOnly.FromDateTime(DateTime.UtcNow.AddDays(7)),
+            pricingMode = "Total", coverage = "Full", taxTreatment = "VatIncluded", vatRate = 19m, deliveryTerms = "IncludedInPrice",
+            totalPrice = 1250m, deliveryCost = 0m, deliveryDays = 4, validUntil = DateOnly.FromDateTime(DateTime.UtcNow.AddDays(7)),
             paymentTerms = "La livrare", notes = "Ofertă generală", items = Array.Empty<object>()
         })).StatusCode);
         OfferResponse submittedGeneral = (await (await _client.PostAsJsonAsync(
@@ -200,8 +209,9 @@ public sealed class OfferEndpointTests : IClassFixture<WebApplicationFactory<Pro
         string FulfillmentStatus,
         RfqItemResponse[] Items);
     private sealed record RfqItemResponse(Guid Id);
-    private sealed record OfferResponse(Guid Id, string Status, string PricingMode, decimal Total);
-    private sealed record BuyerOfferResponse(string SupplierName, OfferResponse Offer);
+    private sealed record OfferResponse(Guid Id, string Status, string PricingMode, string Coverage, string TaxTreatment, decimal VatAmount, decimal Total);
+    private sealed record CoverageResponse(int CoveredPositionCount, Guid[] MissingRfqItemIds);
+    private sealed record BuyerOfferResponse(string SupplierName, OfferResponse Offer, CoverageResponse CoverageDetails);
     private sealed record NotificationResponse(Guid Id, string Type, string Link, string Message, bool IsRead);
     private sealed record UnreadCountResponse(int Count);
     private sealed record ConversationResponse(Guid OfferId, Guid RfqId, ConversationMessageResponse[] Messages);

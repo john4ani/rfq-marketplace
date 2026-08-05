@@ -10,6 +10,7 @@ public sealed class OfferItem
     public decimal UnitPrice { get; private set; }
     public string? ProductDescription { get; private set; }
     public bool Available { get; private set; }
+    public bool IsAlternative { get; private set; }
     public static OfferItem Create(Guid id, Guid offerId, OfferItemDraft draft)
     {
         var item = new OfferItem { Id = id, OfferId = offerId };
@@ -21,8 +22,11 @@ public sealed class OfferItem
         if (draft.RfqItemId == Guid.Empty) throw new OfferRuleException("Poziția cererii este obligatorie.");
         if (draft.Quantity <= 0) throw new OfferRuleException("Cantitatea ofertată trebuie să fie mai mare decât zero.");
         if (draft.UnitPrice < 0) throw new OfferRuleException("Prețul unitar nu poate fi negativ.");
+        if (draft.IsAlternative && string.IsNullOrWhiteSpace(draft.ProductDescription))
+            throw new OfferRuleException("Descrie produsul sau serviciul alternativ propus.");
         RfqItemId = draft.RfqItemId; Quantity = draft.Quantity; UnitPrice = draft.UnitPrice;
         ProductDescription = string.IsNullOrWhiteSpace(draft.ProductDescription) ? null : draft.ProductDescription.Trim();
         Available = draft.Available;
+        IsAlternative = draft.IsAlternative;
     }
 }

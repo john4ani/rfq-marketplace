@@ -22,6 +22,7 @@ Records retain their individual lifecycle status. Implemented decisions are Acce
 | [ADR-0016](ADR-0016-aws-release-and-secret-delivery.md) | Immutable AWS releases, OIDC deployment, and SSM secrets |
 | [ADR-0017](ADR-0017-evolve-rfq-as-procurement-need.md) | Evolve RFQ as the first ProcurementNeed implementation |
 | [ADR-0018](ADR-0018-assisted-procurement-intake.md) | Assisted procurement intake as a bounded draft adapter |
+| [ADR-0019](ADR-0019-explicit-offer-comparability.md) | Explicit offer completeness and commercial comparability |
 
 ## ADR lifecycle
 

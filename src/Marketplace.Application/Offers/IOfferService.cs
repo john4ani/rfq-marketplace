@@ -22,4 +22,8 @@ public sealed record OfferSummary(
     string RfqTitle,
     DateTimeOffset QuotationDeadline,
     FulfillmentStatus FulfillmentStatus);
-public sealed record BuyerOffer(Offer Offer, string SupplierName);
+public sealed record OfferCoverageDetails(
+    int RequestedPositionCount,
+    int CoveredPositionCount,
+    IReadOnlyCollection<Guid> MissingRfqItemIds);
+public sealed record BuyerOffer(Offer Offer, string SupplierName, OfferCoverageDetails CoverageDetails);

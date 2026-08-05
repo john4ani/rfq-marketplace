@@ -1,3 +1,4 @@
+using Marketplace.Application.Categories;
 using Marketplace.Application.Rfqs;
 using Marketplace.Domain.Rfqs;
 using Marketplace.Infrastructure.Persistence;
@@ -110,7 +111,7 @@ public sealed class RfqService(
         Dictionary<Guid, Guid?> categoryParents = await dbContext.Categories.AsNoTracking()
             .Where(category => category.IsActive)
             .ToDictionaryAsync(category => category.Id, category => category.ParentId, cancellationToken);
-        HashSet<Guid> compatibleSupplierCategories = ExpandCategoryCompatibility(supplierCategoryIds, categoryParents);
+        HashSet<Guid> compatibleSupplierCategories = CategoryCompatibilityPolicy.Expand(supplierCategoryIds, categoryParents);
         Guid[] compatibleSupplierCategoryIds = compatibleSupplierCategories.ToArray();
 
         string? supplierCounty = await dbContext.SupplierProfiles.AsNoTracking()
@@ -137,7 +138,7 @@ public sealed class RfqService(
                 && (nationwide || deliveryCounties.Contains(rfq.County)));
         if (categoryId.HasValue)
         {
-            Guid[] compatibleFilterCategoryIds = ExpandCategoryCompatibility([categoryId.Value], categoryParents).ToArray();
+            Guid[] compatibleFilterCategoryIds = CategoryCompatibilityPolicy.Expand([categoryId.Value], categoryParents).ToArray();
             query = query.Where(rfq => compatibleFilterCategoryIds.Contains(rfq.PrimaryCategoryId)
                 || rfq.Items.Any(item => item.CategoryId.HasValue
                     && compatibleFilterCategoryIds.Contains(item.CategoryId.Value)));
@@ -254,7 +255,7 @@ public sealed class RfqService(
             .Select(item => new { item.SupplierId, item.CategoryId }).ToArrayAsync(cancellationToken);
         Dictionary<Guid, HashSet<Guid>> categoriesBySupplier = selections.GroupBy(item => item.SupplierId)
             .ToDictionary(group => group.Key,
-                group => ExpandCategoryCompatibility(group.Select(item => item.CategoryId), categoryParents));
+                group => CategoryCompatibilityPolicy.Expand(group.Select(item => item.CategoryId), categoryParents));
         var deliverySettings = await dbContext.SupplierDeliverySettings.AsNoTracking()
             .Select(settings => new {
                 settings.SupplierId,
@@ -304,43 +305,4 @@ public sealed class RfqService(
         return visible.ToArray();
     }
 
-    private static HashSet<Guid> ExpandCategoryCompatibility(
-        IEnumerable<Guid> selectedCategoryIds,
-        IReadOnlyDictionary<Guid, Guid?> categoryParents)
-    {
-        HashSet<Guid> selected = selectedCategoryIds.ToHashSet();
-        HashSet<Guid> compatible = [.. selected];
-
-        foreach (Guid categoryId in selected)
-        {
-            Guid current = categoryId;
-            HashSet<Guid> visited = [];
-            while (visited.Add(current)
-                   && categoryParents.TryGetValue(current, out Guid? parentId)
-                   && parentId.HasValue)
-            {
-                compatible.Add(parentId.Value);
-                current = parentId.Value;
-            }
-        }
-
-        foreach (Guid candidateId in categoryParents.Keys)
-        {
-            Guid current = candidateId;
-            HashSet<Guid> visited = [];
-            while (visited.Add(current)
-                   && categoryParents.TryGetValue(current, out Guid? parentId)
-                   && parentId.HasValue)
-            {
-                if (selected.Contains(parentId.Value))
-                {
-                    compatible.Add(candidateId);
-                    break;
-                }
-                current = parentId.Value;
-            }
-        }
-
-        return compatible;
-    }
 }

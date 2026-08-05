@@ -58,7 +58,7 @@ describe('OfferEditorComponent', () => {
     expect(fixture.componentInstance.draft().deliveryIncluded).toBe(true);
     expect((fixture.nativeElement as HTMLElement).textContent).toContain('Preț total, inclusiv livrarea');
     expect((fixture.nativeElement as HTMLElement).textContent).not.toContain('Cost livrare (lei)');
-    fixture.componentInstance.setDeliveryIncluded(false);
+    fixture.componentInstance.setDeliveryTerms('BuyerPickup');
     expect(fixture.componentInstance.draft().deliveryIncluded).toBe(true);
   });
 
@@ -120,6 +120,23 @@ describe('OfferEditorComponent', () => {
     }));
 
     expect(fixture.componentInstance.total()).toBe(230);
+    expect(fixture.componentInstance.coverage()).toBe('Partial');
+  });
+
+  it('shows the payable total when VAT is added', async () => {
+    await TestBed.configureTestingModule({
+      imports: [OfferEditorComponent],
+      providers: [{ provide: OfferService, useValue: { getForRequest: () => of(null) } }]
+    }).compileComponents();
+    const fixture = TestBed.createComponent(OfferEditorComponent);
+    fixture.componentRef.setInput('request', generalRequest);
+    fixture.detectChanges();
+
+    fixture.componentInstance.draft.update(value => ({ ...value, totalPrice: 1_000, taxTreatment: 'VatExcluded', vatRate: 19 }));
+
+    expect(fixture.componentInstance.netTotal()).toBe(1_000);
+    expect(fixture.componentInstance.vatAmount()).toBe(190);
+    expect(fixture.componentInstance.total()).toBe(1_190);
   });
 
   it('does not send the same save operation twice while it is pending', async () => {

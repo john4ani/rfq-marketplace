@@ -1,7 +1,7 @@
 import { CurrencyPipe } from '@angular/common';
 import { ChangeDetectionStrategy, Component, effect, inject, input, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { Offer, OfferDraft, OfferPricingMode, OfferService } from '../../core/offers/offer.service';
+import { Offer, OfferDeliveryTerms, OfferDraft, OfferPricingMode, OfferService, OfferTaxTreatment } from '../../core/offers/offer.service';
 import { OpenRfq } from '../../core/rfqs/open-rfq.service';
 
 @Component({
@@ -25,7 +25,7 @@ import { OpenRfq } from '../../core/rfqs/open-rfq.service';
               <input type="radio" name="pricingMode" value="Total"
                 [ngModel]="draft().pricingMode" (ngModelChange)="setPricingMode($event)">
               <span><strong>Preț total pentru întreaga cerere</strong>
-                <small>Rapid, fără să completezi fiecare poziție. Confirmă în mesaj eventualele excepții sau substituții.</small></span>
+                <small>Rapid, fără să completezi fiecare poziție. Pentru substituții sau lipsuri folosește varianta detaliată.</small></span>
             </label>
             <label [class.selected]="draft().pricingMode === 'Itemized'">
               <input type="radio" name="pricingMode" value="Itemized"
@@ -52,34 +52,50 @@ import { OpenRfq } from '../../core/rfqs/open-rfq.service';
                 <label>Cantitate<input type="number" min=".001" step=".001" [disabled]="!item.available" [(ngModel)]="item.quantity"></label>
                 <label>Preț unitar (lei)<input type="number" min="0" step=".01" [disabled]="!item.available" [(ngModel)]="item.unitPrice"></label>
                 <label class="available"><input type="checkbox" [(ngModel)]="item.available"> Disponibil</label>
-                @if (!item.available) { <small class="excluded">Poziția nu este inclusă în total.</small> }
+                @if (item.available) {
+                  <label class="description">Produs / serviciu oferit
+                    <input [(ngModel)]="item.productDescription" placeholder="Denumire, marcă sau specificație"></label>
+                  @if (request().items[index].alternativesAccepted && request().alternativeProductsAccepted) {
+                    <label class="available alternative"><input type="checkbox" [(ngModel)]="item.isAlternative"> Este o alternativă</label>
+                  }
+                  @if (item.quantity < request().items[index].quantity) { <small class="excluded">Cantitate parțială: lipsesc {{ request().items[index].quantity - item.quantity }} {{ request().items[index].unit }}.</small> }
+                } @else { <small class="excluded">Poziția lipsește din ofertă și nu intră în total.</small> }
               </div>
             } @empty {
               <p class="notice">Cererea este generală. Introdu valoarea totală a ofertei mai jos.</p>
             }
           </div>
+          <div class="coverage" [class.partial]="coverage() === 'Partial'">
+            <strong>{{ coverage() === 'Full' ? 'Ofertă completă' : 'Ofertă parțială' }}</strong>
+            <span>{{ request().isPartialMatch ? 'Acoperă pozițiile potrivite profilului tău; cumpărătorul va vedea ce rămâne neacoperit.' : coveredCount() + ' din ' + request().items.length + ' poziții sunt acoperite integral.' }}</span>
+          </div>
         }
 
-        <fieldset class="pricing-mode delivery-choice">
-          <legend>Transport</legend>
-          <label [class.selected]="draft().deliveryIncluded">
-            <input type="radio" name="deliveryIncluded" [value]="true"
-              [ngModel]="draft().deliveryIncluded" (ngModelChange)="setDeliveryIncluded($event)">
-            <span><strong>Transport inclus</strong><small>Vei putea declara livrarea, iar cumpărătorul va confirma primirea.</small></span>
-          </label>
-          <label [class.selected]="!draft().deliveryIncluded" [class.unavailable]="request().deliveryRequired">
-            <input type="radio" name="deliveryIncluded" [value]="false" [disabled]="request().deliveryRequired"
-              [ngModel]="draft().deliveryIncluded" (ngModelChange)="setDeliveryIncluded($event)">
-            <span><strong>Fără transport</strong><small>{{ request().deliveryRequired ? 'Cumpărătorul solicită transport inclus.' : 'Ridicarea sau transportul se organizează separat.' }}</small></span>
-          </label>
-        </fieldset>
+        <div class="commercial-grid">
+          <label>Transport *<select [ngModel]="draft().deliveryTerms" (ngModelChange)="setDeliveryTerms($event)">
+            <option value="IncludedInPrice">Inclus în preț</option>
+            @if (draft().pricingMode === 'Itemized') { <option value="AddedToTotal">Adăugat separat la total</option> }
+            @if (!request().deliveryRequired && draft().pricingMode === 'Itemized') {
+              <option value="BuyerPickup">Ridicare de către cumpărător</option>
+              <option value="ArrangedSeparately">Se stabilește separat</option>
+            }
+          </select><small>{{ request().deliveryRequired ? 'Cumpărătorul a solicitat transport.' : 'Spune clar cum se organizează transportul.' }}</small></label>
+          <label>TVA *<select [ngModel]="draft().taxTreatment" (ngModelChange)="setTaxTreatment($event)">
+            <option value="VatIncluded">TVA inclus în prețuri</option>
+            <option value="VatExcluded">TVA se adaugă la prețuri</option>
+            <option value="NotApplicable">Neplătitor de TVA</option>
+          </select></label>
+          @if (draft().taxTreatment !== 'NotApplicable') {
+            <label>Cotă TVA (%) *<input type="number" min="0" max="100" step=".01" [(ngModel)]="draft().vatRate"></label>
+          }
+        </div>
 
         <div class="terms">
-          @if (draft().deliveryIncluded) {
-            <label>Livrare (zile)<input type="number" min="0" max="365" [(ngModel)]="draft().deliveryDays"></label>
+          @if (draft().deliveryTerms !== 'ArrangedSeparately') {
+            <label>{{ draft().deliveryTerms === 'BuyerPickup' ? 'Disponibil pentru ridicare în (zile)' : 'Livrare în (zile)' }}<input type="number" min="0" max="365" [(ngModel)]="draft().deliveryDays"></label>
           }
-          @if (draft().pricingMode === 'Itemized' && draft().deliveryIncluded) {
-            <label>{{ request().items.length ? 'Cost livrare (lei)' : 'Valoare totală ofertă (lei)' }}
+          @if (draft().pricingMode === 'Itemized' && draft().deliveryTerms === 'AddedToTotal') {
+            <label>Cost transport (lei)
               <input type="number" min="0" step=".01" [(ngModel)]="draft().deliveryCost">
             </label>
           }
@@ -91,7 +107,8 @@ import { OpenRfq } from '../../core/rfqs/open-rfq.service';
           <textarea rows="3" [(ngModel)]="draft().notes"
             placeholder="Confirmă acoperirea integrală și menționează orice excepție, substituție sau condiție de stoc."></textarea>
         </label>
-        <div class="total"><span>Total ofertă</span><strong>{{ total() | currency:'RON':'symbol-narrow':'1.2-2':'ro' }}</strong></div>
+        <div class="total"><span><small>Net {{ netTotal() | currency:'RON':'symbol-narrow':'1.2-2':'ro' }} · TVA {{ vatAmount() | currency:'RON':'symbol-narrow':'1.2-2':'ro' }}</small>Total de plată</span><strong>{{ total() | currency:'RON':'symbol-narrow':'1.2-2':'ro' }}</strong></div>
+        @if (draft().deliveryTerms === 'ArrangedSeparately') { <p class="notice">Totalul nu include transportul și nu va fi comparat direct cu ofertele care îl includ.</p> }
 
         @if (error()) { <p class="error" role="alert">{{ error() }}</p> }
         @if (message()) { <p class="success" role="status">{{ message() }}</p> }
@@ -112,10 +129,10 @@ import { OpenRfq } from '../../core/rfqs/open-rfq.service';
     .pricing-mode label.selected{border-color:#176b3a;background:#edf7f1}.pricing-mode label.unavailable{cursor:not-allowed;opacity:.62}.pricing-mode input{width:auto;margin-top:.2rem}.pricing-mode span{display:grid;gap:.25rem}.pricing-mode small{color:#56645d}
     .quick-quote{display:grid;grid-template-columns:minmax(0,1fr);gap:1rem;align-items:end;margin:1rem 0;padding:1rem;background:#f3f8f5;border-radius:12px}.quick-quote p{margin:0}
     .lines{display:grid;gap:.75rem;margin:1rem 0}.line{display:grid;grid-template-columns:minmax(0,1fr);gap:.75rem;align-items:end;padding:1rem;background:#f7faf8;border-radius:12px}.line small{display:block}
-    .terms{display:grid;grid-template-columns:minmax(0,1fr);gap:.75rem}label{min-width:0;display:grid;gap:.35rem;font-size:.88rem}input,textarea{box-sizing:border-box;min-width:0;width:100%;padding:.7rem;border:1px solid #bdc9c1;border-radius:8px}
-    .available{display:flex;align-items:center}.available input{width:auto}.excluded{color:#7a4b16}.total{margin:1rem 0;padding-top:1rem;border-top:1px solid #ddd}.actions{justify-content:flex-end;flex-wrap:wrap}
+    .terms,.commercial-grid{display:grid;grid-template-columns:minmax(0,1fr);gap:.75rem;margin:1rem 0}label{min-width:0;display:grid;gap:.35rem;font-size:.88rem}input,select,textarea{box-sizing:border-box;min-width:0;width:100%;padding:.7rem;border:1px solid #bdc9c1;border-radius:8px;background:#fff}
+    .available{display:flex;align-items:center}.available input{width:auto}.description{grid-column:1/-1}.excluded{color:#7a4b16}.coverage{display:flex;justify-content:space-between;gap:.75rem;padding:.8rem 1rem;border-radius:.7rem;color:#185c32;background:#e9f4ec}.coverage.partial{color:#704d0d;background:#fff6dc}.total{margin:1rem 0;padding-top:1rem;border-top:1px solid #ddd}.total span{display:grid}.total small{color:#56645d;font-weight:500}.actions{justify-content:flex-end;flex-wrap:wrap}
     button{border:0;border-radius:9px;padding:.75rem 1rem;background:#176b3a;color:white;font-weight:700}.secondary{background:#eaf1ec;color:#16462b}.danger{background:#a93838}.error{color:#a32626}.success{color:#176b3a}
-    @container (min-width:34rem){.pricing-mode,.quick-quote{grid-template-columns:repeat(2,minmax(0,1fr))}.line{grid-template-columns:repeat(2,minmax(0,1fr))}.line>div{grid-column:1/-1}.terms{grid-template-columns:repeat(3,minmax(0,1fr))}}
+    @container (min-width:34rem){.pricing-mode,.quick-quote{grid-template-columns:repeat(2,minmax(0,1fr))}.line{grid-template-columns:repeat(2,minmax(0,1fr))}.line>div{grid-column:1/-1}.terms,.commercial-grid{grid-template-columns:repeat(3,minmax(0,1fr))}}
     @container (min-width:50rem){.line{grid-template-columns:minmax(180px,1fr) 140px 150px 110px}.line>div{grid-column:auto}}
     @media(max-width:460px){.actions{align-items:stretch;flex-direction:column}.actions button{width:100%}}
   `],
@@ -137,7 +154,11 @@ export class OfferEditorComponent {
     validUntil: this.validity(),
     paymentTerms: null,
     notes: null,
-    items: []
+    items: [],
+    coverage: 'Full',
+    taxTreatment: 'VatIncluded',
+    vatRate: 19,
+    deliveryTerms: 'IncludedInPrice'
   });
   private initialized = false;
 
@@ -150,6 +171,8 @@ export class OfferEditorComponent {
         ...value,
         pricingMode: request.isPartialMatch ? 'Itemized' : 'Total',
         deliveryIncluded: request.deliveryRequired || value.deliveryIncluded,
+        coverage: request.isPartialMatch ? 'Partial' : 'Full',
+        deliveryTerms: request.isPartialMatch ? 'AddedToTotal' : 'IncludedInPrice',
         items: this.requestItems()
       }));
       this.service.getForRequest(request.id).subscribe(value => {
@@ -167,6 +190,10 @@ export class OfferEditorComponent {
           validUntil: value.validUntil,
           paymentTerms: value.paymentTerms,
           notes: value.notes,
+          coverage: value.coverage ?? this.coverage(),
+          taxTreatment: value.taxTreatment === 'NotSpecified' ? 'VatIncluded' : value.taxTreatment,
+          vatRate: value.taxTreatment === 'NotApplicable' ? null : (value.vatRate ?? 19),
+          deliveryTerms: value.deliveryTerms ?? (value.deliveryIncluded ? (value.pricingMode === 'Total' ? 'IncludedInPrice' : 'AddedToTotal') : 'BuyerPickup'),
           items: value.items.length > 0 ? value.items : this.requestItems()
         });
       });
@@ -182,24 +209,51 @@ export class OfferEditorComponent {
       ...value,
       pricingMode: mode,
       totalPrice: mode === 'Total' ? value.totalPrice : null,
+      coverage: mode === 'Total' ? 'Full' : value.coverage,
+      deliveryTerms: mode === 'Total' ? 'IncludedInPrice' : value.deliveryTerms,
+      deliveryIncluded: mode === 'Total' || value.deliveryTerms === 'AddedToTotal',
+      deliveryCost: mode === 'Total' ? 0 : value.deliveryCost,
       items: mode === 'Itemized' && value.items.length === 0 ? this.requestItems() : value.items
     }));
   }
 
-  setDeliveryIncluded(included: boolean): void {
-    if (!included && this.request().deliveryRequired) return;
+  setDeliveryTerms(terms: OfferDeliveryTerms): void {
+    if ((this.request().deliveryRequired || this.draft().pricingMode === 'Total')
+      && (terms === 'BuyerPickup' || terms === 'ArrangedSeparately')) return;
     this.draft.update(value => ({
       ...value,
-      deliveryIncluded: included,
-      deliveryCost: included ? value.deliveryCost : 0,
-      deliveryDays: included ? Math.max(value.deliveryDays, 1) : 0
+      deliveryTerms: terms,
+      deliveryIncluded: terms === 'IncludedInPrice' || terms === 'AddedToTotal',
+      deliveryCost: terms === 'AddedToTotal' ? value.deliveryCost : 0,
+      deliveryDays: terms === 'ArrangedSeparately' ? 0 : Math.max(value.deliveryDays, 1)
     }));
   }
 
+  setTaxTreatment(treatment: OfferTaxTreatment): void {
+    this.draft.update(value => ({ ...value, taxTreatment: treatment, vatRate: treatment === 'NotApplicable' ? null : (value.vatRate ?? 19) }));
+  }
+
+  coveredCount(): number {
+    return this.draft().pricingMode === 'Total' ? this.request().items.length : this.draft().items.filter((item, index) => item.available && item.quantity >= this.request().items[index].quantity).length;
+  }
+
+  coverage(): 'Full' | 'Partial' {
+    if (this.request().isPartialMatch) return 'Partial';
+    return this.draft().pricingMode === 'Total' || this.coveredCount() === this.request().items.length ? 'Full' : 'Partial';
+  }
+
   total(): number {
-    if (this.draft().pricingMode === 'Total') return this.draft().totalPrice ?? 0;
-    return this.draft().items.reduce(
-      (sum, item) => sum + (item.available ? item.quantity * item.unitPrice : 0), 0) + this.draft().deliveryCost;
+    const subtotal = this.quotedSubtotal();
+    return this.draft().taxTreatment === 'VatExcluded' ? subtotal + this.vatAmount() : subtotal;
+  }
+
+  netTotal(): number { return this.draft().taxTreatment === 'VatIncluded' ? this.quotedSubtotal() - this.vatAmount() : this.quotedSubtotal(); }
+
+  vatAmount(): number {
+    const subtotal = this.quotedSubtotal(), rate = this.draft().vatRate ?? 0;
+    if (this.draft().taxTreatment === 'VatExcluded') return this.round(subtotal * rate / 100);
+    if (this.draft().taxTreatment === 'VatIncluded') return this.round(subtotal - subtotal / (1 + rate / 100));
+    return 0;
   }
 
   label(status: string): string {
@@ -221,6 +275,7 @@ export class OfferEditorComponent {
     const value = this.draft();
     const payload = {
       ...value,
+      coverage: this.coverage(),
       items: value.pricingMode === 'Total' ? [] : value.items
     };
     this.service.save(this.request().id, payload).subscribe({
@@ -277,9 +332,18 @@ export class OfferEditorComponent {
       quantity: item.quantity,
       unitPrice: 0,
       productDescription: null,
-      available: true
+      available: true,
+      isAlternative: false
     }));
   }
+
+  private quotedSubtotal(): number {
+    if (this.draft().pricingMode === 'Total') return this.draft().totalPrice ?? 0;
+    const lines = this.draft().items.reduce((sum, item) => sum + (item.available ? item.quantity * item.unitPrice : 0), 0);
+    return lines + (this.draft().deliveryTerms === 'AddedToTotal' ? this.draft().deliveryCost : 0);
+  }
+
+  private round(value: number): number { return Math.round((value + Number.EPSILON) * 100) / 100; }
 
   private validity(): string {
     const date = new Date();

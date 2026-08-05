@@ -43,7 +43,9 @@ The model is an extraction and analysis adapter, not a lifecycle authority. Dire
 
 ## Pasul 4 — Offer completeness and comparison
 
-Add explicit full/partial coverage, missing positions, alternatives, VAT/tax presentation, commercially valid totals, delivery distinctions, and line-by-line comparison. Recommendations must explain trade-offs rather than label lowest price as best.
+**Status:** implemented; final automated, migration, and browser acceptance evidence is recorded in the Step 4 verification report.
+
+Offers now carry explicit full/partial coverage, missing positions, alternatives, VAT treatment, net/VAT/payable totals, and distinct transport terms. Buyer comparison aligns every requested line across Providers and explains concrete trade-offs rather than labelling the lowest price as best. Partial offers remain visible but cannot close the current single-winner request alone; multi-award fulfillment is deliberately not hidden inside the existing `SelectedOfferId` lifecycle. See [ADR-0019](../decisions/ADR-0019-explicit-offer-comparability.md).
 
 ## Pasul 5 — Procurement outcome and feedback
 

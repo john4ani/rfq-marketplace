@@ -122,7 +122,7 @@ flowchart TB
 | HTTP pipeline | Correlation, centralized errors, CORS, authentication rate limiting, JWT authentication, and authorization |
 | REST controllers | Translate HTTP requests and authenticated identity into application-contract calls and HTTP responses |
 | Application contracts | Define the use cases available to the API without coupling controllers to EF Core implementations |
-| Provider coverage policy | Deterministically classify whether an offer covers an entire request or only part of it |
+| Provider coverage policy | Share category-hierarchy compatibility and deterministically validate whether an offer covers an entire request or only part of it |
 | Infrastructure services | Implement identity, profile, discovery, RFQ, offer, messaging, and notification use cases |
 | Domain model | Own entity state and invariants for profiles, matching configuration, RFQs, offers, conversations, and notifications |
 | MarketplaceDbContext | Map domain/identity state, track transactions, and persist changes through Npgsql |

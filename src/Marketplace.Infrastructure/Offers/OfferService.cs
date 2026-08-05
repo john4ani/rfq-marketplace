@@ -1,3 +1,4 @@
+using Marketplace.Application.Categories;
 using Marketplace.Application.Offers;
 using Marketplace.Application.Rfqs;
 using Marketplace.Domain.Offers;
@@ -38,6 +39,8 @@ public sealed class OfferService(
         Guid[] validItemIds = eligible.ItemIds.ToArray();
         if (draft.Items.Any(item => !validItemIds.Contains(item.RfqItemId)))
             throw new OfferRuleException("Oferta conține o poziție care nu aparține acestei cereri.");
+        ValidateCommercialTerms(rfq, draft);
+        ValidateCoverage(rfq, draft);
         Offer? offer = await dbContext.Offers.Include(item => item.Items)
             .SingleOrDefaultAsync(item => item.SupplierId == supplierId && item.RfqId == rfqId, cancellationToken);
         if (offer is null) { offer = Offer.Create(Guid.NewGuid(), rfqId, supplierId, draft, now); dbContext.Offers.Add(offer); }
@@ -83,7 +86,9 @@ public sealed class OfferService(
 
     public async Task<IReadOnlyCollection<BuyerOffer>> GetForBuyerAsync(Guid buyerId, Guid rfqId, CancellationToken cancellationToken)
     {
-        if (!await dbContext.Rfqs.AnyAsync(rfq => rfq.Id == rfqId && rfq.BuyerId == buyerId, cancellationToken))
+        Rfq? rfq = await dbContext.Rfqs.AsNoTracking().Include(item => item.Items)
+            .SingleOrDefaultAsync(item => item.Id == rfqId && item.BuyerId == buyerId, cancellationToken);
+        if (rfq is null)
             return [];
         Offer[] offers = await dbContext.Offers.AsNoTracking().Include(offer => offer.Items)
             .Where(offer => offer.RfqId == rfqId && offer.Status != OfferStatus.Draft && offer.Status != OfferStatus.Withdrawn)
@@ -91,7 +96,14 @@ public sealed class OfferService(
         Guid[] supplierIds = offers.Select(offer => offer.SupplierId).ToArray();
         Dictionary<Guid, string> names = await dbContext.SupplierProfiles.AsNoTracking()
             .Where(profile => supplierIds.Contains(profile.Id)).ToDictionaryAsync(profile => profile.Id, profile => profile.TradingName, cancellationToken);
-        return offers.Select(offer => new BuyerOffer(offer, names.GetValueOrDefault(offer.SupplierId, "Furnizor"))).OrderBy(item => item.Offer.Total).ToArray();
+        return offers.Select(offer => new BuyerOffer(
+                offer,
+                names.GetValueOrDefault(offer.SupplierId, "Furnizor"),
+                CoverageFor(rfq, offer)))
+            .OrderByDescending(item => item.Offer.Coverage == OfferCoverage.Full)
+            .ThenByDescending(item => item.Offer.HasComparableTotal)
+            .ThenBy(item => item.Offer.Total)
+            .ToArray();
     }
 
     public async Task<Offer?> SelectAsync(Guid buyerId, Guid rfqId, Guid offerId, CancellationToken cancellationToken)
@@ -101,6 +113,8 @@ public sealed class OfferService(
         Offer? selected = await dbContext.Offers.Include(offer => offer.Items)
             .SingleOrDefaultAsync(offer => offer.Id == offerId && offer.RfqId == rfqId, cancellationToken);
         if (selected is null || selected.Status is not (OfferStatus.Submitted or OfferStatus.Revised)) return null;
+        if (selected.Coverage == OfferCoverage.Partial)
+            throw new OfferRuleException("Oferta este parțială și nu poate închide singură cererea. Compară pozițiile lipsă înainte de selecție.");
         DateTimeOffset now = timeProvider.GetUtcNow();
         ProcurementNeedStatus previousStatus = rfq.NeedStatus;
         foreach (Offer offer in await dbContext.Offers.Where(offer => offer.RfqId == rfqId).ToListAsync(cancellationToken))
@@ -236,8 +250,12 @@ public sealed class OfferService(
             ?? throw new OfferRuleException("Profilul furnizorului nu este activ.");
         var categoryRows = await dbContext.SupplierCategories.AsNoTracking()
             .Select(item => new { item.SupplierId, item.CategoryId }).ToArrayAsync(cancellationToken);
+        Dictionary<Guid, Guid?> categoryParents = await dbContext.Categories.AsNoTracking()
+            .Where(category => category.IsActive)
+            .ToDictionaryAsync(category => category.Id, category => category.ParentId, cancellationToken);
         Dictionary<Guid, HashSet<Guid>> categoriesBySupplier = categoryRows.GroupBy(item => item.SupplierId)
-            .ToDictionary(group => group.Key, group => group.Select(item => item.CategoryId).ToHashSet());
+            .ToDictionary(group => group.Key,
+                group => CategoryCompatibilityPolicy.Expand(group.Select(item => item.CategoryId), categoryParents));
         if (!categoriesBySupplier.TryGetValue(supplierId, out HashSet<Guid>? currentCategories))
             throw new OfferRuleException("Selectați categoriile furnizate înainte de a oferta.");
 
@@ -297,6 +315,63 @@ public sealed class OfferService(
                 "Cererea a fost modificată între timp. Reîncarcă pagina înainte de a continua.",
                 exception);
         }
+    }
+
+    private static void ValidateCommercialTerms(Rfq rfq, OfferDraft draft)
+    {
+        OfferDeliveryTerms deliveryTerms = draft.DeliveryTerms ?? (draft.DeliveryIncluded
+            ? draft.PricingMode == OfferPricingMode.Total ? OfferDeliveryTerms.IncludedInPrice : OfferDeliveryTerms.AddedToTotal
+            : OfferDeliveryTerms.BuyerPickup);
+        if (rfq.DeliveryRequired && deliveryTerms is OfferDeliveryTerms.BuyerPickup or OfferDeliveryTerms.ArrangedSeparately)
+            throw new OfferRuleException("Cumpărătorul a solicitat transport. Include transportul în preț sau adaugă costul separat.");
+        if (draft.PricingMode == OfferPricingMode.Total && deliveryTerms != OfferDeliveryTerms.IncludedInPrice)
+            throw new OfferRuleException("Oferta cu preț total trebuie să includă transportul în preț.");
+    }
+
+    private static void ValidateCoverage(Rfq rfq, OfferDraft draft)
+    {
+        if (draft.PricingMode == OfferPricingMode.Total)
+        {
+            if (draft.Coverage != OfferCoverage.Full)
+                throw new OfferRuleException("Oferta cu preț total trebuie să acopere întreaga cerere.");
+            return;
+        }
+
+        Dictionary<Guid, OfferItemDraft> quoted = draft.Items.ToDictionary(item => item.RfqItemId);
+        Guid[] missing = rfq.Items
+            .Where(required => !quoted.TryGetValue(required.Id, out OfferItemDraft? item)
+                || !item.Available || item.Quantity < required.Quantity)
+            .Select(required => required.Id)
+            .ToArray();
+        OfferCoverage actualCoverage = missing.Length == 0 ? OfferCoverage.Full : OfferCoverage.Partial;
+        if (draft.Coverage != actualCoverage)
+            throw new OfferRuleException(actualCoverage == OfferCoverage.Partial
+                ? "Oferta nu acoperă toate cantitățile solicitate. Marcheaz-o ca ofertă parțială."
+                : "Toate pozițiile sunt acoperite. Marchează oferta ca ofertă completă.");
+        if (actualCoverage == OfferCoverage.Partial && !rfq.AllowSplit)
+            throw new OfferRuleException("Cumpărătorul solicită o ofertă completă de la un singur furnizor.");
+        if (!draft.Items.Any(item => item.Available))
+            throw new OfferRuleException("O ofertă parțială trebuie să includă cel puțin o poziție disponibilă.");
+
+        foreach (OfferItemDraft item in draft.Items.Where(item => item.IsAlternative))
+        {
+            RfqItem required = rfq.Items.Single(required => required.Id == item.RfqItemId);
+            if (!rfq.AlternativeProductsAccepted || !required.AlternativesAccepted)
+                throw new OfferRuleException($"Alternativele nu sunt acceptate pentru poziția {required.ItemNumber}: {required.ProductName}.");
+        }
+    }
+
+    private static OfferCoverageDetails CoverageFor(Rfq rfq, Offer offer)
+    {
+        if (offer.PricingMode == OfferPricingMode.Total)
+            return new(rfq.Items.Count, rfq.Items.Count, []);
+        Dictionary<Guid, OfferItem> quoted = offer.Items.ToDictionary(item => item.RfqItemId);
+        Guid[] missing = rfq.Items
+            .Where(required => !quoted.TryGetValue(required.Id, out OfferItem? item)
+                || !item.Available || item.Quantity < required.Quantity)
+            .Select(required => required.Id)
+            .ToArray();
+        return new(rfq.Items.Count, rfq.Items.Count - missing.Length, missing);
     }
 
     private sealed record EligibleOfferRequest(

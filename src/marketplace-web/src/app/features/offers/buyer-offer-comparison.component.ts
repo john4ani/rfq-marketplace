@@ -2,7 +2,7 @@ import { CurrencyPipe, DatePipe } from '@angular/common';
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { ActivatedRoute, RouterLink } from '@angular/router';
 import { forkJoin } from 'rxjs';
-import { BuyerOffer, OfferService } from '../../core/offers/offer.service';
+import { BuyerOffer, OfferItem, OfferService, OfferTaxTreatment } from '../../core/offers/offer.service';
 import { ProcurementNeedAuditEvent, Rfq, RfqService } from '../../core/rfqs/rfq.service';
 
 @Component({
@@ -129,10 +129,24 @@ import { ProcurementNeedAuditEvent, Rfq, RfqService } from '../../core/rfqs/rfq.
       }
       @if (offers().length > 0) {
         <section class="summary" aria-label="Rezumat oferte">
-          <div><small>Cel mai mic total</small><strong>{{ lowestTotal() | currency:'RON':'symbol-narrow':'1.2-2':'ro' }}</strong></div>
-          <div><small>Cea mai rapidă livrare</small><strong>{{ fastestDelivery() }} zile</strong></div>
-          <div><small>Oferte primite</small><strong>{{ offers().length }}</strong></div>
+          <div><small>Cel mai mic total comparabil</small><strong>{{ lowestComparableTotal() === null ? '—' : (lowestComparableTotal() | currency:'RON':'symbol-narrow':'1.2-2':'ro') }}</strong></div>
+          <div><small>Cel mai scurt termen declarat</small><strong>{{ fastestDelivery() === null ? '—' : fastestDelivery() + ' zile' }}</strong></div>
+          <div><small>Oferte complete</small><strong>{{ completeOffers() }} din {{ offers().length }}</strong></div>
         </section>
+        @if (request.items.length > 0) {
+          <section class="line-comparison"><div><p class="eyebrow">Comparație poziție cu poziție</p><h2>Ce include fiecare ofertă</h2></div>
+            <div class="table-scroll"><table><thead><tr><th>Poziție cerută</th>@for (entry of offers(); track entry.offer.id) { <th>{{ entry.supplierName }}</th> }</tr></thead>
+              <tbody>@for (item of request.items; track item.id) { <tr><th><strong>{{ item.productName }}</strong><small>{{ item.quantity }} {{ unitLabel(item.unit) }}</small></th>
+                @for (entry of offers(); track entry.offer.id) { @if (offeredLine(entry, item.id!); as line) {
+                  <td [class.missing]="!line.available"><strong>{{ line.available ? (line.lineTotal | currency:'RON':'symbol-narrow':'1.2-2':'ro') : 'Lipsește' }}</strong>
+                    @if (line.available) { <small>{{ line.quantity }} × {{ line.unitPrice | currency:'RON':'symbol-narrow':'1.2-2':'ro' }}</small> }
+                    @if (line.isAlternative) { <span class="alternative-badge">Alternativă</span> }
+                    @if (line.productDescription) { <small>{{ line.productDescription }}</small> }</td>
+                } @else if (entry.offer.pricingMode === 'Total') { <td><strong>Inclus</strong><small>în prețul total</small></td>
+                } @else { <td class="missing"><strong>Lipsește</strong></td> } }
+              </tr> }</tbody></table></div>
+          </section>
+        }
       }
       @if (loading()) { <div class="loading" role="status"><span></span><span></span></div> }
       @if (!loading() && offers().length === 0) {
@@ -144,20 +158,25 @@ import { ProcurementNeedAuditEvent, Rfq, RfqService } from '../../core/rfqs/rfq.
           }</div></div>
       }
       <div class="cards">
-        @for (entry of offers(); track entry.offer.id; let first = $first) {
-          <article [class.best]="first" [class.winner]="entry.offer.status === 'Selected'">
-            <div class="top"><div>@if (first && !request.selectedOfferId) { <span class="recommend">Cel mai mic total</span> }
+        @for (entry of offers(); track entry.offer.id) {
+          <article [class.winner]="entry.offer.status === 'Selected'">
+            <div class="top"><div><span class="recommend" [class.partial]="entry.offer.coverage === 'Partial'">{{ entry.offer.coverage === 'Full' ? 'Acoperire completă' : 'Acoperire parțială' }}</span>
               @if (entry.offer.status === 'Selected') { <span class="recommend">Câștigătoare</span> }<h2>{{ entry.supplierName }}</h2></div>
-              <div class="price"><small>Total</small><strong>{{ entry.offer.total | currency:'RON':'symbol-narrow':'1.2-2':'ro' }}</strong></div></div>
+              <div class="price"><small>{{ entry.offer.hasComparableTotal ? 'Total de plată' : 'Total fără transport' }}</small><strong>{{ entry.offer.total | currency:'RON':'symbol-narrow':'1.2-2':'ro' }}</strong></div></div>
+            <p class="tradeoff">{{ tradeoff(entry) }}</p>
             <dl>
               @if (entry.offer.pricingMode === 'Total' || request.items.length === 0) {
                 <div><dt>Tip ofertă</dt><dd>Preț total · întreaga cerere</dd></div>
               } @else {
                 <div><dt>Produse / servicii</dt><dd>{{ entry.offer.itemsTotal | currency:'RON':'symbol-narrow':'1.2-2':'ro' }}</dd></div>
-                <div><dt>Cost livrare</dt><dd>{{ entry.offer.deliveryCost | currency:'RON':'symbol-narrow':'1.2-2':'ro' }}</dd></div>
+                @if (entry.offer.deliveryTerms === 'AddedToTotal') { <div><dt>Cost transport</dt><dd>{{ entry.offer.deliveryCost | currency:'RON':'symbol-narrow':'1.2-2':'ro' }}</dd></div> }
               }
-              <div><dt>Termen livrare</dt><dd>{{ entry.offer.deliveryDays }} zile</dd></div>
-              <div><dt>Transport</dt><dd>{{ entry.offer.deliveryIncluded ? 'Inclus' : 'Neinclus' }}</dd></div>
+              <div><dt>Acoperire</dt><dd>{{ entry.coverageDetails.coveredPositionCount }}/{{ entry.coverageDetails.requestedPositionCount || request.items.length }} poziții</dd></div>
+              <div><dt>TVA</dt><dd>{{ taxLabel(entry.offer.taxTreatment, entry.offer.vatRate) }}</dd></div>
+              <div><dt>Net</dt><dd>{{ entry.offer.netTotal | currency:'RON':'symbol-narrow':'1.2-2':'ro' }}</dd></div>
+              <div><dt>TVA calculat</dt><dd>{{ entry.offer.vatAmount | currency:'RON':'symbol-narrow':'1.2-2':'ro' }}</dd></div>
+              <div><dt>Termen</dt><dd>{{ entry.offer.deliveryDays }} zile</dd></div>
+              <div><dt>Transport</dt><dd>{{ deliveryLabel(entry.offer.deliveryTerms) }}</dd></div>
               <div><dt>Valabilă până la</dt><dd>{{ entry.offer.validUntil | date:'dd.MM.yyyy' }}</dd></div>
             </dl>
             @if (entry.offer.paymentTerms) { <div class="terms"><small>Condiții de plată</small><p>{{ entry.offer.paymentTerms }}</p></div> }
@@ -179,8 +198,10 @@ import { ProcurementNeedAuditEvent, Rfq, RfqService } from '../../core/rfqs/rfq.
                   </button>
                 </div>
               </div>
-            } @else if (!request.selectedOfferId) {
+            } @else if (!request.selectedOfferId && entry.offer.coverage === 'Full') {
               <button type="button" (click)="requestSelection(entry)" [disabled]="busy()">Selectează această ofertă</button>
+            } @else if (!request.selectedOfferId) {
+              <p class="partial-warning">Oferta nu poate închide singură cererea deoarece lipsesc poziții. Folosește mesajele pentru clarificare.</p>
             }
           </article>
         }
@@ -213,8 +234,15 @@ export class BuyerOfferComparisonComponent {
   readonly newDeadline = signal('');
   readonly managementError = signal('');
   readonly deadlineExpired = computed(() => !!this.originalDeadline() && new Date(this.originalDeadline()).getTime() <= Date.now());
-  readonly lowestTotal = computed(() => Math.min(...this.offers().map(entry => entry.offer.total)));
-  readonly fastestDelivery = computed(() => Math.min(...this.offers().map(entry => entry.offer.deliveryDays)));
+  readonly completeOffers = computed(() => this.offers().filter(entry => entry.offer.coverage === 'Full').length);
+  readonly lowestComparableTotal = computed(() => {
+    const totals = this.offers().filter(entry => entry.offer.coverage === 'Full' && entry.offer.hasComparableTotal).map(entry => entry.offer.total);
+    return totals.length === 0 ? null : Math.min(...totals);
+  });
+  readonly fastestDelivery = computed(() => {
+    const days = this.offers().filter(entry => entry.offer.deliveryTerms !== 'ArrangedSeparately').map(entry => entry.offer.deliveryDays);
+    return days.length === 0 ? null : Math.min(...days);
+  });
 
   constructor() { this.load(); }
 
@@ -265,6 +293,31 @@ export class BuyerOfferComparisonComponent {
       SquareMetre:'m²', CubicMetre:'m³', Litre:'l', Pallet:'paleți', Other:'unități'
     };
     return labels[unit];
+  }
+
+  offeredLine(entry: BuyerOffer, rfqItemId: string): OfferItem | undefined {
+    return entry.offer.items.find(item => item.rfqItemId === rfqItemId);
+  }
+
+  taxLabel(treatment: OfferTaxTreatment, rate: number | null): string {
+    if (treatment === 'VatIncluded') return `Inclus · ${rate ?? 0}%`;
+    if (treatment === 'VatExcluded') return `Adăugat · ${rate ?? 0}%`;
+    if (treatment === 'NotApplicable') return 'Nu se aplică';
+    return 'Nespecificat';
+  }
+
+  deliveryLabel(terms: BuyerOffer['offer']['deliveryTerms']): string {
+    return ({ IncludedInPrice:'Inclus în preț', AddedToTotal:'Adăugat la total', BuyerPickup:'Ridicare de cumpărător', ArrangedSeparately:'Se stabilește separat' })[terms];
+  }
+
+  tradeoff(entry: BuyerOffer): string {
+    const parts: string[] = [];
+    if (entry.offer.coverage === 'Full') parts.push('Acoperă întreaga cerere');
+    else parts.push(`Acoperă ${entry.coverageDetails.coveredPositionCount} din ${entry.coverageDetails.requestedPositionCount} poziții`);
+    parts.push(entry.offer.hasComparableTotal ? 'totalul include toate costurile declarate' : 'transportul nu este inclus în total');
+    if (entry.offer.items.some(item => item.isAlternative)) parts.push('conține alternative marcate explicit');
+    parts.push(`termen ${entry.offer.deliveryDays} zile`);
+    return `${parts.join(' · ')}.`;
   }
 
   startDeadlineExtension(currentDeadline: string): void {

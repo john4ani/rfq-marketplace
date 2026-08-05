@@ -224,6 +224,11 @@ namespace Marketplace.Infrastructure.Persistence.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
+                    b.Property<int>("Coverage")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasDefaultValue(0);
+
                     b.Property<DateTimeOffset>("CreatedAt")
                         .HasColumnType("timestamp with time zone");
 
@@ -243,6 +248,11 @@ namespace Marketplace.Infrastructure.Persistence.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("boolean")
                         .HasDefaultValue(false);
+
+                    b.Property<int>("DeliveryTerms")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasDefaultValue(0);
 
                     b.Property<string>("Notes")
                         .HasMaxLength(2000)
@@ -272,6 +282,11 @@ namespace Marketplace.Infrastructure.Persistence.Migrations
                     b.Property<Guid>("SupplierId")
                         .HasColumnType("uuid");
 
+                    b.Property<int>("TaxTreatment")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasDefaultValue(0);
+
                     b.Property<decimal?>("TotalPrice")
                         .HasPrecision(18, 2)
                         .HasColumnType("numeric(18,2)");
@@ -281,6 +296,10 @@ namespace Marketplace.Infrastructure.Persistence.Migrations
 
                     b.Property<DateOnly>("ValidUntil")
                         .HasColumnType("date");
+
+                    b.Property<decimal?>("VatRate")
+                        .HasPrecision(5, 2)
+                        .HasColumnType("numeric(5,2)");
 
                     b.HasKey("Id");
 
@@ -305,6 +324,11 @@ namespace Marketplace.Infrastructure.Persistence.Migrations
 
                     b.Property<bool>("Available")
                         .HasColumnType("boolean");
+
+                    b.Property<bool>("IsAlternative")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false);
 
                     b.Property<Guid>("OfferId")
                         .HasColumnType("uuid");

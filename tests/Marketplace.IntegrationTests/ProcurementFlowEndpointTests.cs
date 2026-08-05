@@ -44,7 +44,7 @@ public sealed class ProcurementFlowEndpointTests : IClassFixture<WebApplicationF
             supplierSearchRadiusKm = 30, latitude = (decimal?)null, longitude = (decimal?)null,
             preferredDeliveryDate = DateOnly.FromDateTime(DateTime.UtcNow.AddDays(10)),
             quotationDeadline = DateTimeOffset.UtcNow.AddDays(2), alternativeProductsAccepted = true,
-            deliveryRequired = false, estimatedBudget = 2_000m, buyerNotes = (string?)null,
+            allowSplit = true, deliveryRequired = false, estimatedBudget = 2_000m, buyerNotes = (string?)null,
             items = new[]
             {
                 new { productName = "Produs disponibil", manufacturerOrBrand = (string?)null, specification = "Specificație A", quantity = 2m, unit = "Piece", alternativesAccepted = true, buyerNotes = (string?)null },
@@ -82,7 +82,8 @@ public sealed class ProcurementFlowEndpointTests : IClassFixture<WebApplicationF
 
         HttpResponseMessage saved = await _client.PutAsJsonAsync($"/api/v1/open-rfqs/{rfq.Id}/offer", new
         {
-            pricingMode = "Itemized", totalPrice = (decimal?)null, deliveryIncluded = true, deliveryCost = 30m,
+            pricingMode = "Itemized", coverage = "Partial", taxTreatment = "VatIncluded", vatRate = 19m,
+            deliveryTerms = "AddedToTotal", totalPrice = (decimal?)null, deliveryIncluded = true, deliveryCost = 30m,
             deliveryDays = 3, validUntil = DateOnly.FromDateTime(DateTime.UtcNow.AddDays(7)),
             paymentTerms = "La livrare", notes = "O poziție nu este disponibilă",
             items = new[]
@@ -111,7 +112,12 @@ public sealed class ProcurementFlowEndpointTests : IClassFixture<WebApplicationF
             (await _client.GetFromJsonAsync<BuyerOfferResponse[]>($"/api/v1/rfqs/{rfq.Id}/offers"))!);
         Assert.Equal("Provider Flow SRL", comparison.SupplierName);
         Assert.Equal(230m, comparison.Offer.Total);
+        Assert.Equal("Partial", comparison.Offer.Coverage);
+        Assert.Equal(1, comparison.CoverageDetails.CoveredPositionCount);
+        Assert.Single(comparison.CoverageDetails.MissingRfqItemIds);
         Assert.Contains(comparison.Offer.Items, item => !item.Available);
+        Assert.Equal(HttpStatusCode.BadRequest, (await _client.PostAsJsonAsync(
+            $"/api/v1/rfqs/{rfq.Id}/offers/{comparison.Offer.Id}/select", new { })).StatusCode);
 
         await AssertCompetingRequestChangesAreRejected(rfq.Id);
     }
@@ -158,8 +164,9 @@ public sealed class ProcurementFlowEndpointTests : IClassFixture<WebApplicationF
     private sealed record RfqResponse(Guid Id, RfqItemResponse[] Items);
     private sealed record RfqItemResponse(Guid Id);
     private sealed record OpenRfqResponse(Guid Id);
-    private sealed record OfferResponse(Guid Id, string Status, decimal ItemsTotal, decimal Total, OfferItemResponse[] Items);
+    private sealed record OfferResponse(Guid Id, string Status, string Coverage, decimal ItemsTotal, decimal Total, OfferItemResponse[] Items);
     private sealed record OfferItemResponse(bool Available);
-    private sealed record BuyerOfferResponse(string SupplierName, OfferResponse Offer);
+    private sealed record CoverageResponse(int CoveredPositionCount, Guid[] MissingRfqItemIds);
+    private sealed record BuyerOfferResponse(string SupplierName, OfferResponse Offer, CoverageResponse CoverageDetails);
     private sealed record NotificationResponse(string Type, string Link);
 }

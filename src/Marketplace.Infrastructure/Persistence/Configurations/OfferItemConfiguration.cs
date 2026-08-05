@@ -17,6 +17,7 @@ public sealed class OfferItemConfiguration : IEntityTypeConfiguration<OfferItem>
         builder.Property(item => item.Quantity).HasPrecision(18, 3);
         builder.Property(item => item.UnitPrice).HasPrecision(18, 2);
         builder.Property(item => item.ProductDescription).HasMaxLength(500);
+        builder.Property(item => item.IsAlternative).HasDefaultValue(false);
         builder.HasIndex(item => new { item.OfferId, item.RfqItemId }).IsUnique();
         builder.HasOne<RfqItem>().WithMany().HasForeignKey(item => item.RfqItemId).OnDelete(DeleteBehavior.Restrict);
     }
