@@ -1,7 +1,7 @@
 # C4 Level 3 — ASP.NET Core Backend Components
 
 Status: Current implementation
-Last updated: 2026-07-25
+Last updated: 2026-08-04
 
 This view expands the **ASP.NET Core API** container from the C4 container diagram. It describes the implemented modular-monolith structure: controllers depend on application contracts, infrastructure services implement those contracts, and PostgreSQL is accessed through the shared EF Core context.
 
@@ -24,6 +24,7 @@ flowchart TB
             profileApi["Profiles and matching<br/>Profiles, supplier settings"]
             marketApi["Market discovery<br/>Piața Live, open RFQs"]
             tradeApi["Commercial workflow<br/>RFQs and offers"]
+            intakeApi["Assisted intake<br/>Extract, clarify and approve draft"]
             engagementApi["Engagement<br/>Messaging and notifications"]
         end
     end
@@ -35,12 +36,14 @@ flowchart TB
         tradePort["Offer contract"]
         engagementPorts["Messaging and notification contracts"]
         coverage["Provider coverage policy<br/>Whole-request versus partial coverage"]
+        intakePort["Assisted-intake contract"]
     end
 
     subgraph Infrastructure["Marketplace.Infrastructure — adapters and persistence"]
         identityService["Identity service<br/>ASP.NET Core Identity, JWT<br/>and refresh tokens"]
         profileServices["Profile and supplier-setting services"]
         marketServices["Live-market and RFQ services"]
+        intakeService["Assisted-intake service<br/>OpenAI-compatible extraction<br/>and advanced-form fallback"]
         offerService["Offer service"]
         engagementServices["Messaging and notification services"]
         dbContext["MarketplaceDbContext<br/>EF Core unit of work and mappings"]
@@ -50,6 +53,7 @@ flowchart TB
         identityDomain["Identity roles and presence"]
         profileDomain["Buyer and Supplier profiles,<br/>categories and delivery settings"]
         rfqDomain["RFQ and RFQ items"]
+        intakeDomain["Resumable intake session"]
         offerDomain["Offer and offer items"]
         engagementDomain["Conversation, messages<br/>and notifications"]
     end
@@ -60,12 +64,14 @@ flowchart TB
     program -.->|"registers implementations"| identityService
     program -.->|"registers implementations"| profileServices
     program -.->|"registers implementations"| marketServices
+    program -.->|"registers implementations"| intakeService
     program -.->|"registers implementations"| offerService
     program -.->|"registers implementations"| engagementServices
     pipeline --> identityApi
     pipeline --> profileApi
     pipeline --> marketApi
     pipeline --> tradeApi
+    pipeline --> intakeApi
     pipeline --> engagementApi
 
     identityApi --> identityPort
@@ -73,11 +79,13 @@ flowchart TB
     marketApi --> marketPorts
     tradeApi --> marketPorts
     tradeApi --> tradePort
+    intakeApi --> intakePort
     engagementApi --> engagementPorts
 
     identityService -.->|"implements"| identityPort
     profileServices -.->|"implement"| profilePorts
     marketServices -.->|"implement"| marketPorts
+    intakeService -.->|"implements"| intakePort
     offerService -.->|"implements"| tradePort
     engagementServices -.->|"implement"| engagementPorts
 
@@ -89,6 +97,8 @@ flowchart TB
     marketServices --> identityDomain
     marketServices --> profileDomain
     marketServices --> rfqDomain
+    intakeService --> rfqDomain
+    intakeService --> intakeDomain
     offerService --> rfqDomain
     offerService --> offerDomain
     offerService --> engagementDomain
@@ -97,6 +107,7 @@ flowchart TB
     identityService --> dbContext
     profileServices --> dbContext
     marketServices --> dbContext
+    intakeService --> dbContext
     offerService --> dbContext
     engagementServices --> dbContext
     health --> dbContext

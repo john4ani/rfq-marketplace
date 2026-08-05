@@ -45,6 +45,8 @@ flowchart TB
     postgres --> volume
     api --> attachments
     api --> parameters
+    api -.->|"Assisted extraction; store=false"| openai["OpenAI Responses API<br/>GPT-5.6 Luna · global"]
+    api -.->|"Production option after quota approval"| azureOpenAi["Azure OpenAI<br/>EU Data Zone"]
     api --> ses
     volume -.->|"Scheduled encrypted backup"| backups
     cert --> cloudfront
@@ -65,6 +67,9 @@ flowchart TB
 - Terraform provisions infrastructure. Deployment automation delivers application artifacts and runs migrations.
 - Production deployment requires a protected environment/manual approval.
 - GitHub Actions receives temporary AWS credentials through OIDC; there are no long-lived AWS keys in GitHub.
+- Assisted extraction reuses the existing API container and database. `ai-intake-api-key` is stored as an encrypted Parameter Store value; provider, endpoint and model are ordinary runtime parameters. When AI configuration or provider execution is unavailable, request creation transfers to the advanced form.
+- Direct OpenAI is the development/staging default and uses the global Responses endpoint. Azure OpenAI is a configuration-only alternative intended for production after EU Data Zone quota approval. Requests use `store=false`, and the application persists the authoritative transcript and draft in PostgreSQL.
+- AI infrastructure is usage-based rather than always-on. GPT-5.6 Luna standard pricing is `$1.00` per million input tokens and `$6.00` per million output tokens; EU data-residency/Data Zone processing is approximately 10% higher. There is no web-search or gateway charge. Recheck prices and regional availability before production approval.
 
 ## Availability constraint
 

@@ -14,7 +14,10 @@ param(
     [SecureString] $SmtpUsername,
 
     [Parameter(Mandatory)]
-    [SecureString] $SmtpPassword
+    [SecureString] $SmtpPassword,
+
+    [Parameter(Mandatory)]
+    [SecureString] $AiIntakeApiKey
 )
 
 $ErrorActionPreference = 'Stop'
@@ -86,5 +89,6 @@ Set-SecureParameter 'postgres-password' (ConvertTo-PlainText $PostgresPassword)
 Set-SecureParameter 'jwt-signing-key' (ConvertTo-PlainText $JwtSigningKey)
 Set-SecureParameter 'smtp-username' (ConvertTo-PlainText $SmtpUsername)
 Set-SecureParameter 'smtp-password' (ConvertTo-PlainText $SmtpPassword)
+Set-SecureParameter 'ai-intake-api-key' (ConvertTo-PlainText $AiIntakeApiKey)
 
 Write-Host "Deployment secrets are configured under $parameterRoot. No secret values were printed."

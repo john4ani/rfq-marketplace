@@ -10,10 +10,6 @@ export class BackendAvailabilityService {
   readonly status = this.statusState.asReadonly();
   readonly retrying = this.retryingState.asReadonly();
 
-  shouldBlockRequest(url: string): boolean {
-    return url.startsWith('/api/') && this.statusState() === 'unavailable';
-  }
-
   markAvailable(): void {
     this.statusState.set('available');
   }

@@ -18,6 +18,7 @@
     <TargetFramework>net10.0</TargetFramework>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
+    <UserSecretsId>Marketplace.Api-6f820b30-b7a7-46cf-a9ce-0fb87d537435</UserSecretsId>
   </PropertyGroup>
 
 </Project>

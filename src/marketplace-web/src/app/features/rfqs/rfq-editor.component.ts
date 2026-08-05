@@ -5,7 +5,8 @@ import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { switchMap } from 'rxjs';
 import { AuthService } from '../../core/auth/auth.service';
 import { ProfileService } from '../../core/profiles/profile.service';
-import { RequirementKind, Rfq, RfqDraft, RfqService, UnitOfMeasure } from '../../core/rfqs/rfq.service';
+import { AssistedIntakeResult, AssistedIntakeService } from '../../core/rfqs/assisted-intake.service';
+import { ProcurementInputType, ProcurementNeedSource, RequirementKind, Rfq, RfqDraft, RfqService, UnitOfMeasure } from '../../core/rfqs/rfq.service';
 import { CategoryOption, SupplierSettingsService } from '../../core/suppliers/supplier-settings.service';
 import { ROMANIAN_COUNTIES } from '../../shared/romanian-counties';
 
@@ -14,8 +15,9 @@ import { ROMANIAN_COUNTIES } from '../../shared/romanian-counties';
   imports: [ReactiveFormsModule, RouterLink],
   template: `<main class="editor-shell">
     <a class="back" routerLink="/dashboard">← Înapoi la cont</a>
-    <header><p class="eyebrow">Cerere de ofertă</p><h1>{{ rfqId ? 'Editează ciorna' : 'Cerere nouă' }}</h1>
+    <header><p class="eyebrow">Cerere de ofertă</p><h1>{{ rfqId ? 'Editează ciorna' : assistedSessionId ? 'Finalizează draftul asistat' : 'Cerere nouă' }}</h1>
       <p>Salvează acum și publică doar când lista este pregătită.</p></header>
+    @if (message()) { <p #pageMessage class="message" [class.error]="hasError()" role="alert">{{ message() }}</p> }
     @if (loading()) { <p role="status">Se încarcă cererea…</p> }
     <form [formGroup]="form" (ngSubmit)="save(false)">
       <section><h2>1. Despre necesar</h2>
@@ -106,7 +108,6 @@ import { ROMANIAN_COUNTIES } from '../../shared/romanian-counties';
         <div class="validation-summary" role="alert"><strong>Verifică următoarele câmpuri:</strong>
           <ul>@for (error of validationErrors(); track error) { <li>{{ error }}</li> }</ul></div>
       }
-      @if (message()) { <p #pageMessage class="message" [class.error]="hasError()" role="alert">{{ message() }}</p> }
       <footer><button class="secondary" type="submit" [disabled]="saving()">Salvează ciorna</button>
         <button type="button" (click)="save(true)" [disabled]="saving()">{{ saving() ? 'Se salvează…' : 'Salvează și publică' }}</button></footer>
     </form>
@@ -115,9 +116,12 @@ import { ROMANIAN_COUNTIES } from '../../shared/romanian-counties';
   changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class RfqEditorComponent {
+  private source: ProcurementNeedSource = 'Manual';
+  private inputType: ProcurementInputType = 'StructuredForm';
   @ViewChildren('productNameInput') private productNameInputs!: QueryList<ElementRef<HTMLInputElement>>;
   private readonly host = inject(ElementRef<HTMLElement>);
   private readonly service = inject(RfqService);
+  private readonly assistedService = inject(AssistedIntakeService);
   private readonly categoriesService = inject(SupplierSettingsService);
   private readonly profiles = inject(ProfileService);
   private readonly auth = inject(AuthService);
@@ -138,6 +142,7 @@ export class RfqEditorComponent {
   readonly validationErrors = signal<string[]>([]);
   readonly pastedLines = new FormControl('', { nonNullable: true });
   readonly rfqId = this.route.snapshot.paramMap.get('rfqId');
+  readonly assistedSessionId = this.route.snapshot.queryParamMap.get('assistedSession');
   readonly form = new FormGroup({
     title: new FormControl('', {nonNullable:true,validators:[Validators.required,Validators.maxLength(180)]}),
     projectName:new FormControl<string|null>(null),description:new FormControl<string|null>(null),
@@ -166,6 +171,8 @@ export class RfqEditorComponent {
 
   constructor() {
     if (this.auth.session()?.accountType !== 'Buyer') { void this.router.navigateByUrl('/dashboard'); return; }
+    const navigationMessage = history.state?.message;
+    if (typeof navigationMessage === 'string') this.message.set(navigationMessage);
     this.categoriesService.getCategories().subscribe({
       next: values => this.categories.set(values),
       error: () => this.fail('Categoriile nu au putut fi încărcate. Verifică dacă API-ul rulează.')
@@ -175,6 +182,15 @@ export class RfqEditorComponent {
       this.service.get(this.rfqId).subscribe({
         next: value => { this.patch(value); this.loading.set(false); },
         error: error => { this.loading.set(false); this.fail(error.status===404?'Cererea nu există sau nu îți aparține.':'Cererea nu a putut fi încărcată.'); }
+      });
+    } else if (this.assistedSessionId) {
+      this.loading.set(true);
+      this.assistedService.get(this.assistedSessionId).subscribe({
+        next:value=>{
+          if(value.approvedRfqId){void this.router.navigate(['/rfqs',value.approvedRfqId,'edit'],{replaceUrl:true});return;}
+          this.patchAssisted(value);this.loading.set(false);this.clearNavigationMessage();
+        },
+        error:()=>{this.loading.set(false);this.fail('Draftul asistat nu a putut fi încărcat. Revino la cererea asistată și încearcă din nou.');}
       });
     } else {
       const session=this.auth.session();
@@ -259,20 +275,54 @@ export class RfqEditorComponent {
       return;
     }
     this.saving.set(true); const draft=this.toDraft();
-    const saveRequest=this.rfqId?this.service.update(this.rfqId,draft):this.service.create(draft);
+    const saveRequest=this.rfqId?this.service.update(this.rfqId,draft):this.assistedSessionId?this.assistedService.approve(this.assistedSessionId,draft,true):this.service.create(draft);
     saveRequest.pipe(switchMap(saved=>publish?this.service.publish(saved.id):[saved])).subscribe({
       next: saved => {this.saving.set(false);void this.router.navigateByUrl('/dashboard',{state:{message:saved.status==='Published'?'Cererea a fost publicată.':'Ciorna a fost salvată.'}});},
       error: error => {this.saving.set(false);this.fail(this.apiError(error));}
     });
   }
   private patch(rfq:Rfq):void {
+    this.source=rfq.source;this.inputType=rfq.inputType;
     this.form.patchValue({...rfq,quotationDeadline:this.localDateTime(rfq.quotationDeadline)});
     this.items.clear();rfq.items.forEach(item=>this.addItem(item,false));
     this.expandedItemIndex.set(null);
   }
+  private patchAssisted(result:AssistedIntakeResult):void {
+    const draft=result.draft;
+    this.source='Assisted';this.inputType=draft.inputType;
+    this.form.patchValue({
+      title:draft.title,projectName:draft.projectName,description:draft.description,
+      primaryCategoryId:draft.primaryCategoryId??'',deliveryAddress:draft.deliveryAddress,
+      deliveryLocality:draft.deliveryLocality,county:this.canonicalCounty(draft.county),
+      supplierSearchRadiusKm:draft.supplierSearchRadiusKm,preferredDeliveryDate:draft.preferredDeliveryDate,
+      quotationDeadline:this.localDateTime(draft.quotationDeadline),alternativeProductsAccepted:draft.alternativeProductsAccepted,
+      allowSplit:draft.allowSplit,deliveryRequired:draft.deliveryRequired,estimatedBudget:draft.estimatedBudget,
+      buyerNotes:this.assistedNotes(draft.buyerNotes,result)
+    });
+    this.items.clear();
+    draft.lines.forEach(line=>this.addItem({productName:line.name,kind:line.kind,manufacturerOrBrand:null,
+      specification:line.specification,quantity:line.quantity??0,unit:line.unit??'Other',
+      alternativesAccepted:line.alternativesAccepted,buyerNotes:null,categoryId:line.categoryId},false));
+    this.expandedItemIndex.set(null);
+  }
+  private clearNavigationMessage():void {
+    this.message.set('');this.hasError.set(false);
+    const state={...history.state};delete state.message;history.replaceState(state,'');
+  }
+  private assistedNotes(existing:string|null,result:AssistedIntakeResult):string|null {
+    if(!result.answers.length)return existing;
+    const heading='Clarificări din asistent:';
+    if(existing?.includes(heading))return existing;
+    const transcript=result.answers.map(entry=>`Î: ${entry.question}\nR: ${entry.answer}`).join('\n');
+    return [existing?.trim(),heading,transcript].filter(Boolean).join('\n\n').slice(0,2000);
+  }
+  private canonicalCounty(value:string):string {
+    const fold=(text:string)=>text.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLocaleLowerCase('ro-RO');
+    return this.counties.find(county=>fold(county)===fold(value))??value;
+  }
   private toDraft():RfqDraft {
     const value=this.form.getRawValue();
-    return {...value,source:'Manual',inputType:'StructuredForm',latitude:null,longitude:null,quotationDeadline:new Date(value.quotationDeadline).toISOString(),items:value.items} as RfqDraft;
+    return {...value,source:this.source,inputType:this.inputType,latitude:null,longitude:null,quotationDeadline:new Date(value.quotationDeadline).toISOString(),items:value.items} as RfqDraft;
   }
   private parseUnit(value:string):UnitOfMeasure|null {
     const key=value.toLocaleLowerCase('ro-RO').replace(/[ăâ]/g,'a').replace(/ț/g,'t').replace(/ș/g,'s').trim();

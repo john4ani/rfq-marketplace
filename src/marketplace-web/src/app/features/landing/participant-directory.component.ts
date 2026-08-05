@@ -11,7 +11,10 @@ import { LiveMarketService, LiveParticipant, LiveMarketSnapshot } from '../../co
     <header>
       <div><p class="eyebrow">Comunitate</p><h1>Directorul participanților</h1>
         <p>Descoperă cumpărători și furnizori din piață, cu prioritate pentru cei activi și apropiați.</p></div>
-      <div class="pulse"><span aria-hidden="true"></span><strong>{{ onlineCount() }} online acum</strong></div>
+      <div class="pulse"><span aria-hidden="true"></span><div>
+        <strong>{{ participantCount() }} {{ participantCount() === 1 ? 'participant' : 'participanți' }}</strong>
+        <small>{{ onlineCount() }} online acum</small>
+      </div></div>
     </header>
 
     @if (snapshot()?.isLocationFiltered) {
@@ -44,7 +47,7 @@ import { LiveMarketService, LiveParticipant, LiveMarketSnapshot } from '../../co
       </section>
 
       <section class="group">
-        <div class="group-title"><div><p class="eyebrow">Ofertă</p><h2>Furnizori</h2></div><span>{{ suppliers().length }} rezultate</span></div>
+        <div class="group-title"><div><p class="eyebrow">Furnizare</p><h2>Furnizori</h2></div><span>{{ suppliers().length }} rezultate</span></div>
         <div class="participant-grid">
           @for (participant of suppliers().slice(0, 24); track participant.id) {
             <article class="participant"><span class="avatar supplier" aria-hidden="true">{{ initials(participant.name) }}</span>
@@ -76,7 +79,9 @@ export class ParticipantDirectoryComponent implements OnDestroy {
   });
   readonly buyers = computed(() => this.filtered().filter(participant => participant.profileType === 'Buyer'));
   readonly suppliers = computed(() => this.filtered().filter(participant => participant.profileType === 'Supplier'));
-  readonly onlineCount = computed(() => this.snapshot()?.onlineUserCount ?? 0);
+  readonly participantCount = computed(() => new Set(this.filtered().map(participant => participant.id)).size);
+  readonly onlineCount = computed(() => new Set(this.filtered()
+    .filter(participant => participant.isOnline).map(participant => participant.id)).size);
   private readonly refreshTimer: ReturnType<typeof setInterval>;
 
   constructor() {

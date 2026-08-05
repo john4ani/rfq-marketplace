@@ -107,6 +107,11 @@ public sealed class RfqService(
             .Select(selection => selection.CategoryId)
             .ToArrayAsync(cancellationToken);
         if (supplierCategoryIds.Length == 0) return [];
+        Dictionary<Guid, Guid?> categoryParents = await dbContext.Categories.AsNoTracking()
+            .Where(category => category.IsActive)
+            .ToDictionaryAsync(category => category.Id, category => category.ParentId, cancellationToken);
+        HashSet<Guid> compatibleSupplierCategories = ExpandCategoryCompatibility(supplierCategoryIds, categoryParents);
+        Guid[] compatibleSupplierCategoryIds = compatibleSupplierCategories.ToArray();
 
         string? supplierCounty = await dbContext.SupplierProfiles.AsNoTracking()
             .Where(profile => profile.Id == supplierId && profile.IsActive)
@@ -127,12 +132,16 @@ public sealed class RfqService(
         IQueryable<Rfq> query = dbContext.Rfqs.AsNoTracking().Include(rfq => rfq.Items)
             .Where(rfq => (rfq.Status == RfqStatus.Published || rfq.Status == RfqStatus.ReceivingOffers)
                 && rfq.QuotationDeadline > now
-                && (supplierCategoryIds.Contains(rfq.PrimaryCategoryId)
-                    || rfq.Items.Any(item => item.CategoryId.HasValue && supplierCategoryIds.Contains(item.CategoryId.Value)))
+                && (compatibleSupplierCategoryIds.Contains(rfq.PrimaryCategoryId)
+                    || rfq.Items.Any(item => item.CategoryId.HasValue && compatibleSupplierCategoryIds.Contains(item.CategoryId.Value)))
                 && (nationwide || deliveryCounties.Contains(rfq.County)));
         if (categoryId.HasValue)
-            query = query.Where(rfq => rfq.PrimaryCategoryId == categoryId.Value
-                || rfq.Items.Any(item => item.CategoryId == categoryId.Value));
+        {
+            Guid[] compatibleFilterCategoryIds = ExpandCategoryCompatibility([categoryId.Value], categoryParents).ToArray();
+            query = query.Where(rfq => compatibleFilterCategoryIds.Contains(rfq.PrimaryCategoryId)
+                || rfq.Items.Any(item => item.CategoryId.HasValue
+                    && compatibleFilterCategoryIds.Contains(item.CategoryId.Value)));
+        }
 
         Rfq[] rfqs = await query.OrderBy(rfq => rfq.QuotationDeadline).ThenByDescending(rfq => rfq.PublishedAt)
             .ToArrayAsync(cancellationToken);
@@ -149,7 +158,8 @@ public sealed class RfqService(
         rfqs = await ApplyCoveragePriority(
             rfqs,
             supplierId,
-            supplierCategoryIds.ToHashSet(),
+            compatibleSupplierCategories,
+            categoryParents,
             matchingItems,
             cancellationToken);
 
@@ -232,6 +242,7 @@ public sealed class RfqService(
         Rfq[] rfqs,
         Guid currentSupplierId,
         HashSet<Guid> currentCategories,
+        IReadOnlyDictionary<Guid, Guid?> categoryParents,
         Dictionary<Guid, HashSet<Guid>> matchingItems,
         CancellationToken cancellationToken)
     {
@@ -242,7 +253,8 @@ public sealed class RfqService(
         var selections = await dbContext.SupplierCategories.AsNoTracking()
             .Select(item => new { item.SupplierId, item.CategoryId }).ToArrayAsync(cancellationToken);
         Dictionary<Guid, HashSet<Guid>> categoriesBySupplier = selections.GroupBy(item => item.SupplierId)
-            .ToDictionary(group => group.Key, group => group.Select(item => item.CategoryId).ToHashSet());
+            .ToDictionary(group => group.Key,
+                group => ExpandCategoryCompatibility(group.Select(item => item.CategoryId), categoryParents));
         var deliverySettings = await dbContext.SupplierDeliverySettings.AsNoTracking()
             .Select(settings => new {
                 settings.SupplierId,
@@ -290,5 +302,45 @@ public sealed class RfqService(
             visible.Add(rfq);
         }
         return visible.ToArray();
+    }
+
+    private static HashSet<Guid> ExpandCategoryCompatibility(
+        IEnumerable<Guid> selectedCategoryIds,
+        IReadOnlyDictionary<Guid, Guid?> categoryParents)
+    {
+        HashSet<Guid> selected = selectedCategoryIds.ToHashSet();
+        HashSet<Guid> compatible = [.. selected];
+
+        foreach (Guid categoryId in selected)
+        {
+            Guid current = categoryId;
+            HashSet<Guid> visited = [];
+            while (visited.Add(current)
+                   && categoryParents.TryGetValue(current, out Guid? parentId)
+                   && parentId.HasValue)
+            {
+                compatible.Add(parentId.Value);
+                current = parentId.Value;
+            }
+        }
+
+        foreach (Guid candidateId in categoryParents.Keys)
+        {
+            Guid current = candidateId;
+            HashSet<Guid> visited = [];
+            while (visited.Add(current)
+                   && categoryParents.TryGetValue(current, out Guid? parentId)
+                   && parentId.HasValue)
+            {
+                if (selected.Contains(parentId.Value))
+                {
+                    compatible.Add(candidateId);
+                    break;
+                }
+                current = parentId.Value;
+            }
+        }
+
+        return compatible;
     }
 }

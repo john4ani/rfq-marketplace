@@ -14,7 +14,7 @@ describe('backendAvailabilityInterceptor', () => {
     });
   });
 
-  it('opens the circuit after a network failure and suppresses later API calls', () => {
+  it('reports a network failure but lets the next API call recover automatically', () => {
     const backend = TestBed.inject(BackendAvailabilityService);
     const http = TestBed.inject(HttpTestingController);
     const client = TestBed.inject(HttpClient);
@@ -24,8 +24,10 @@ describe('backendAvailabilityInterceptor', () => {
 
     expect(backend.status()).toBe('unavailable');
 
-    client.get('/api/v1/notifications/unread-count').subscribe({ error: () => undefined });
-    http.expectNone('/api/v1/notifications/unread-count');
+    client.get('/api/v1/notifications/unread-count').subscribe();
+    http.expectOne('/api/v1/notifications/unread-count').flush({ count: 0 });
+
+    expect(backend.status()).toBe('available');
     http.verify();
   });
 
@@ -38,6 +40,21 @@ describe('backendAvailabilityInterceptor', () => {
     http.expectOne('/api/v1/auth/refresh').flush('', { status: 500, statusText: 'Internal Server Error' });
 
     expect(backend.status()).toBe('unavailable');
+    http.verify();
+  });
+
+  it('keeps the backend available for a reachable application-level 503', () => {
+    const backend = TestBed.inject(BackendAvailabilityService);
+    const http = TestBed.inject(HttpTestingController);
+    const client = TestBed.inject(HttpClient);
+
+    client.post('/api/v1/assisted-intakes', { input: 'test' }).subscribe({ error: () => undefined });
+    http.expectOne('/api/v1/assisted-intakes').flush(
+      { title: 'Asistent indisponibil', status: 503 },
+      { status: 503, statusText: 'Service Unavailable' }
+    );
+
+    expect(backend.status()).toBe('available');
     http.verify();
   });
 

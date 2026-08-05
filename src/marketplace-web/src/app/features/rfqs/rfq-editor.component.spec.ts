@@ -1,10 +1,11 @@
 import { HttpErrorResponse } from '@angular/common/http';
 import { TestBed } from '@angular/core/testing';
-import { provideRouter, Router } from '@angular/router';
+import { ActivatedRoute, convertToParamMap, provideRouter, Router } from '@angular/router';
 import { Observable, of, throwError } from 'rxjs';
 import { vi } from 'vitest';
 import { AuthService } from '../../core/auth/auth.service';
 import { ProfileService } from '../../core/profiles/profile.service';
+import { AssistedIntakeService } from '../../core/rfqs/assisted-intake.service';
 import { RfqService } from '../../core/rfqs/rfq.service';
 import { SupplierSettingsService } from '../../core/suppliers/supplier-settings.service';
 import { RfqEditorComponent } from './rfq-editor.component';
@@ -21,9 +22,40 @@ describe('RfqEditorComponent material positions', () => {
         { provide: AuthService, useValue: { session: () => ({ userId: 'buyer-id', email: 'buyer@example.com', accountType: 'Buyer' }) } },
         { provide: SupplierSettingsService, useValue: { getCategories: () => of([]) } },
         { provide: ProfileService, useValue: { getBuyer: () => buyerProfileResponse } },
+        { provide: AssistedIntakeService, useValue: {} },
         { provide: RfqService, useValue: {} }
       ]
     }).compileComponents();
+  });
+
+  afterEach(() => history.replaceState({}, ''));
+
+  it('clears a stale AI fallback message after the assisted draft loads', () => {
+    history.replaceState({ message: 'Asistentul AI este temporar indisponibil.' }, '');
+    TestBed.overrideProvider(ActivatedRoute, { useValue: { snapshot: {
+      paramMap: convertToParamMap({}), queryParamMap: convertToParamMap({ assistedSession: 'session-id' })
+    } } });
+    TestBed.overrideProvider(AssistedIntakeService, { useValue: { get: () => of({
+      sessionId: 'session-id', initialInput: 'Test', status: 'InProgress', mode: 'OpenAi',
+      provider: 'OpenAI', model: 'test-model', promptVersion: 'test-v1', approvedRfqId: null,
+      assumptions: [], uncertainties: [], researchSources: [], clarification: null, answers: [],
+      inputTokens: 0, outputTokens: 0,
+      draft: {
+        inputType: 'FreeText', title: 'Draft asistat', projectName: null, description: null,
+        primaryCategoryId: null, deliveryAddress: 'Strada Test 1', deliveryLocality: 'Iași', county: 'Iași',
+        supplierSearchRadiusKm: 30, preferredDeliveryDate: null,
+        quotationDeadline: new Date(Date.now() + 172800000).toISOString(),
+        alternativeProductsAccepted: true, allowSplit: false, deliveryRequired: true,
+        estimatedBudget: null, buyerNotes: null, lines: []
+      }
+    }) } });
+
+    const fixture = TestBed.createComponent(RfqEditorComponent);
+    fixture.detectChanges();
+
+    expect(fixture.componentInstance.message()).toBe('');
+    expect(history.state.message).toBeUndefined();
+    expect(fixture.componentInstance.form.controls.title.value).toBe('Draft asistat');
   });
 
   it('redirects a Buyer without completed Buyer details to the relevant profile form', () => {

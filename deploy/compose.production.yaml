@@ -65,6 +65,11 @@ services:
       Jwt__Issuer: ${JWT_ISSUER}
       Jwt__Audience: ${JWT_AUDIENCE}
       Jwt__SigningKey: ${JWT_SIGNING_KEY}
+      AiIntake__Enabled: "true"
+      AiIntake__Provider: ${AI_INTAKE_PROVIDER:-OpenAi}
+      AiIntake__ApiKey: ${AI_INTAKE_API_KEY:-}
+      AiIntake__Endpoint: ${AI_INTAKE_RESPONSES_ENDPOINT:-https://api.openai.com/v1/responses}
+      AiIntake__Model: ${AI_INTAKE_MODEL:-gpt-5.6-luna}
       PasswordReset__ResetPageUrl: ${FRONTEND_ORIGIN}/reset-password
       PasswordReset__SmtpHost: ${SMTP_HOST}
       PasswordReset__SmtpPort: ${SMTP_PORT}

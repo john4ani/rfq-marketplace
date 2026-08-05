@@ -35,7 +35,11 @@ Current IDs, routes, flat compatibility fields, and existing data remain valid. 
 
 ## Pasul 3 — First assisted-intake slice
 
-Start `/rfqs/new` with “Ce dorești să cumperi sau să construiești?”. Produce a structured draft from natural language, ask one commercially relevant clarification at a time, display assumptions/uncertainties, allow manual edits, and require approval before calling the existing publication flow. Keep the advanced editor as fallback and use a feature flag if rollout risk warrants it.
+**Status:** implemented; final automated and browser acceptance evidence is recorded in the Step 3 verification report.
+
+Start `/rfqs/new` with “Ce dorești să cumperi sau să construiești?”. Use one simple sequence: clarification → model-assisted analysis → editable proposed requirement with assumptions/uncertainties → human confirmation. Never publish automatically. Keep the advanced editor as the direct fallback when AI is unavailable and use a feature flag if rollout risk warrants it.
+
+The model is an extraction and analysis adapter, not a lifecycle authority. Direct OpenAI GPT-5.6 Luna is the development/staging default; Azure OpenAI remains a configuration-only production option for the pending EU Data Zone quota. Live web search is intentionally excluded. Sessions and token counts are persisted, schema/category values are server-validated, provider failure transfers the user to the advanced form, and approval creates the existing editable RFQ draft without publishing it. See [ADR-0018](../decisions/ADR-0018-assisted-procurement-intake.md).
 
 ## Pasul 4 — Offer completeness and comparison
 

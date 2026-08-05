@@ -16,6 +16,8 @@ using Marketplace.Application.Notifications;
 using Marketplace.Infrastructure.Notifications;
 using Marketplace.Application.Messaging;
 using Marketplace.Infrastructure.Messaging;
+using Marketplace.Application.AiIntake;
+using Marketplace.Infrastructure.AiIntake;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
@@ -67,6 +69,14 @@ public static class DependencyInjection
         services.AddScoped<ISupplierSettingsService, SupplierSettingsService>();
         services.AddScoped<ILiveMarketService, LiveMarketService>();
         services.AddScoped<IRfqService, RfqService>();
+        services.Configure<AiIntakeOptions>(configuration.GetSection(AiIntakeOptions.SectionName));
+        services.AddHttpClient<OpenAiNeedExtractionProvider>((provider, client) =>
+        {
+            AiIntakeOptions options = provider.GetRequiredService<Microsoft.Extensions.Options.IOptions<AiIntakeOptions>>().Value;
+            client.Timeout = TimeSpan.FromSeconds(Math.Clamp(options.RequestTimeoutSeconds, 5, 120));
+        });
+        services.AddScoped<INeedExtractionProvider>(provider => provider.GetRequiredService<OpenAiNeedExtractionProvider>());
+        services.AddScoped<IAssistedIntakeService, AssistedIntakeService>();
         services.AddScoped<IProcurementNeedAuditTrail, ProcurementNeedAuditTrail>();
         services.AddScoped<IOfferService, OfferService>();
         services.AddScoped<INotificationService, NotificationService>();

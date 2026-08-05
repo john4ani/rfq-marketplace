@@ -6,6 +6,9 @@ import { BackendAvailabilityService } from './backend-availability.service';
 const unavailableStatuses = new Set([0, 502, 503, 504]);
 
 function isUnavailable(error: HttpErrorResponse): boolean {
+  if (error.status === 503 && isApplicationProblem(error))
+    return false;
+
   if (unavailableStatuses.has(error.status))
     return true;
 
@@ -13,16 +16,18 @@ function isUnavailable(error: HttpErrorResponse): boolean {
   return error.status === 500 && (error.error === null || error.error === '');
 }
 
+function isApplicationProblem(error: HttpErrorResponse): boolean {
+  const contentType = error.headers.get('content-type')?.toLowerCase() ?? '';
+  if (contentType.includes('application/problem+json'))
+    return true;
+
+  return typeof error.error === 'object'
+    && error.error !== null
+    && error.error.status === 503;
+}
+
 export const backendAvailabilityInterceptor: HttpInterceptorFn = (request, next) => {
   const backend = inject(BackendAvailabilityService);
-
-  if (backend.shouldBlockRequest(request.url)) {
-    return throwError(() => new HttpErrorResponse({
-      status: 0,
-      statusText: 'Backend temporarily unavailable',
-      url: request.url
-    }));
-  }
 
   return next(request).pipe(
     tap(event => {

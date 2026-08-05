@@ -20,6 +20,12 @@ get_parameter() {
   aws "${arguments[@]}"
 }
 
+get_optional_parameter() {
+  local name="$1"
+  local decrypt="${2:-false}"
+  get_parameter "${name}" "${decrypt}" 2>/dev/null || true
+}
+
 api_origin_host="$(get_parameter api-origin-host)"
 frontend_origin="$(get_parameter frontend-origin)"
 postgres_database="$(get_parameter postgres-database)"
@@ -28,6 +34,7 @@ postgres_password="$(get_parameter postgres-password true)"
 jwt_signing_key="$(get_parameter jwt-signing-key true)"
 smtp_username="$(get_parameter smtp-username true)"
 smtp_password="$(get_parameter smtp-password true)"
+ai_intake_api_key="$(get_optional_parameter ai-intake-api-key true)"
 
 for value_name in \
   api_origin_host frontend_origin postgres_database postgres_user \
@@ -59,6 +66,10 @@ umask 077
   printf 'SMTP_PASSWORD=%s\n' "${smtp_password}"
   printf 'SMTP_FROM_ADDRESS=%s\n' "$(get_parameter smtp-from-address)"
   printf 'SMTP_FROM_NAME=%s\n' "$(get_parameter smtp-from-name)"
+  printf 'AI_INTAKE_PROVIDER=%s\n' "$(get_optional_parameter ai-intake-provider)"
+  printf 'AI_INTAKE_API_KEY=%s\n' "${ai_intake_api_key}"
+  printf 'AI_INTAKE_RESPONSES_ENDPOINT=%s\n' "$(get_optional_parameter ai-intake-responses-endpoint)"
+  printf 'AI_INTAKE_MODEL=%s\n' "$(get_optional_parameter ai-intake-model)"
 } > "${output_file}"
 
 chmod 600 "${output_file}"

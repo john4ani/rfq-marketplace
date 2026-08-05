@@ -39,13 +39,19 @@ Angular 21 is intentionally pinned because the available Node 24.14 runtime does
    dotnet ef database update --project src/Marketplace.Infrastructure --startup-project src/Marketplace.Api
    ```
 
-5. Start the API:
+5. Store the development OpenAI key outside the repository:
+
+   ```powershell
+   dotnet user-secrets set "AiIntake:ApiKey" "<your-api-key>" --project src/Marketplace.Api
+   ```
+
+6. Start the API:
 
    ```powershell
    dotnet run --project src/Marketplace.Api
    ```
 
-6. Install and start Angular:
+7. Install and start Angular:
 
    ```powershell
    cd src/marketplace-web
@@ -105,6 +111,8 @@ Configuration uses standard ASP.NET Core precedence. Environment variables overr
 ConnectionStrings__MarketplaceDatabase
 Frontend__Origin
 ```
+
+Assisted intake defaults to direct OpenAI with `AiIntake__Provider=OpenAi`, `https://api.openai.com/v1/responses`, and `gpt-5.6-luna`. Azure OpenAI uses the same application adapter: set `AiIntake__Provider=AzureOpenAi`, the Azure Responses endpoint, deployment name, and key. Do not store either provider key in tracked configuration.
 
 Outside Development, the API also requires production `AllowedHosts`, a non-placeholder JWT key, SMTP password-reset configuration, and an explicit trusted Caddy proxy IP. See [Milestone 7](docs/milestones/milestone-7-mvp-acceptance-and-production-hardening.md) and `appsettings.Example.json`.
 

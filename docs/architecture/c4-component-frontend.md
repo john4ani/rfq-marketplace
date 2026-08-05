@@ -1,7 +1,7 @@
 # C4 Level 3 — Angular Frontend Components
 
 Status: Current implementation
-Last updated: 2026-07-25
+Last updated: 2026-08-04
 
 This view expands the **Angular SPA** container from the C4 container diagram. Components are grouped by responsibility rather than by individual source file so that the diagram remains useful as the UI evolves.
 
@@ -22,7 +22,7 @@ flowchart LR
             identity["Identity<br/>Sign in and registration"]
             landing["Piața Live and discovery<br/>Live market, participants,<br/>open request list and detail"]
             account["Account workspace<br/>Dashboard, role switcher,<br/>profiles and supplier settings"]
-            requests["Request workflow<br/>Buyer request list and RFQ editor"]
+            requests["Request workflow<br/>Assisted intake, advanced editor<br/>and Buyer request list"]
             offers["Offer workflow<br/>Provider offer editor/list and<br/>Buyer offer comparison"]
             messaging["Private messaging<br/>Offer conversation"]
         end
@@ -83,7 +83,7 @@ flowchart LR
 | Identity features | Registration and sign-in forms; delegate identity state to `AuthService` |
 | Piața Live and discovery | Public market activity, dual-role presence, participant directory, matched open requests, and request detail |
 | Account workspace | Buyer/Provider role switching, role-specific activity, profile editing, matching preferences, and request creation entry |
-| Request workflow | Create/edit structured RFQs, list Buyer requests, publish, cancel, extend, and reopen |
+| Request workflow | Run clarification → research → editable proposal → human confirmation; transfer directly to the advanced editor when AI is unavailable; list/publish/cancel/extend/reopen Buyer requests |
 | Offer workflow | Create/revise/submit/withdraw Provider offers and compare/select Buyer offers |
 | Private messaging | Poll and send messages within the conversation authorized for one submitted offer |
 | Notification menu | Poll unread count, load notifications, mark items read, and follow notification links |

@@ -17,6 +17,7 @@ Errors: RFC 7807 Problem Details
 | Categories | `GET/POST /categories` | Authenticated read; Provider create during controlled pilot |
 | Piața Live | `GET /piata-live`, presence heartbeat | Public directory; authenticated presence |
 | Buyer procurement needs/RFQs | `/rfqs`, `/rfqs/{id}`, history, publish, cancel, deadline | Owning buyer |
+| Assisted intake | `/assisted-intakes`, resume, clarify, approve | Owning buyer |
 | Supplier discovery | `/supplier/rfqs` | Approved active supplier |
 | Offers | `/rfqs/{id}/offers`, `/offers/{id}`, submit, revise, withdraw | Resource-dependent |
 | Comparison | `/rfqs/{id}/offer-comparison` | Owning buyer only |
@@ -95,6 +96,12 @@ POST   /api/v1/rfqs/{rfqId}/publish
 POST   /api/v1/rfqs/{rfqId}/cancel
 POST   /api/v1/rfqs/{rfqId}/extend-deadline
 
+GET    /api/v1/assisted-intakes/availability
+POST   /api/v1/assisted-intakes
+GET    /api/v1/assisted-intakes/{sessionId}
+POST   /api/v1/assisted-intakes/{sessionId}/clarifications
+POST   /api/v1/assisted-intakes/{sessionId}/approve
+
 GET    /api/v1/supplier/rfqs
 GET    /api/v1/supplier/rfqs/{rfqId}
 POST   /api/v1/rfqs/{rfqId}/offers
@@ -124,6 +131,8 @@ GET    /health/ready
 
 RFQ material paste parsing is deliberately handled in Angular for immediate feedback. The backend still validates every parsed material when the complete draft is saved.
 
+Assisted-intake sessions are persisted, owner-scoped and rate-limited. Each extraction records provider, model, prompt version, token usage and the clarification transcript. Direct OpenAI is the development/staging default; Azure OpenAI is selectable through configuration. The MVP does not call web search or return web citations. Approval is idempotent and creates an ordinary RFQ in `Draft`; publication remains a separate existing command. If the model is missing or unavailable, start/clarify returns `503` and the Angular client opens the established advanced form. No local pseudo-AI response is returned.
+
 ### ProcurementNeed compatibility
 
 The `/rfqs` contract remains backward-compatible and adds `source`, `inputType`, `needStatus`, `projectContext`, `deliveryConstraints`, outcome fields, and a `kind` (`Product` or `Service`) on each requirement line. Older payloads default to manual structured input and product lines. `GET /rfqs/{rfqId}/history` is Buyer-owned and returns the ordered immutable lifecycle audit trail. Supplier open-request responses include the generic context and requirement kind but continue to omit the exact delivery address.
@@ -131,6 +140,8 @@ The `/rfqs` contract remains backward-compatible and adds `source`, `inputType`,
 For authenticated users, Piața Live accepts the active profile type. The first-version locality filter shows the home city first and then other participants in the same county. `approximateRadiusKm` reports the saved Buyer market radius or Supplier delivery radius, but exact kilometre filtering is deferred until reliable coordinates are available. Anonymous visitors continue seeing the full public market.
 
 The snapshot exposes `onlineUserCount`, `onlineBuyerCount`, and `onlineSupplierCount` separately from `participants`. The headline count is the number of distinct recently active Buyer/Supplier identities, including accounts whose public profiles are not complete. A dual-role account counts once in `onlineUserCount` and once in each applicable role count. `participants` remains the privacy-safe directory of completed public profiles and may be location-filtered.
+
+Piața Live may display the global headline counts. The `/participants` directory instead derives its participant and online totals from the returned, location-filtered `participants` collection and deduplicates by account ID; it must not present a global count beside a narrower local result set.
 
 ### Supplier open-request discovery
 

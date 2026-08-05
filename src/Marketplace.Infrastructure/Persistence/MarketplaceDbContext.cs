@@ -3,6 +3,7 @@ using Marketplace.Domain.Profiles;
 using Marketplace.Domain.Suppliers;
 using Marketplace.Domain.LiveMarket;
 using Marketplace.Domain.Rfqs;
+using Marketplace.Domain.AiIntake;
 using Marketplace.Domain.Offers;
 using Marketplace.Domain.Notifications;
 using Marketplace.Domain.Messaging;
@@ -26,6 +27,7 @@ public sealed class MarketplaceDbContext(DbContextOptions<MarketplaceDbContext> 
     public DbSet<Rfq> Rfqs => Set<Rfq>();
     public DbSet<RfqItem> RfqItems => Set<RfqItem>();
     public DbSet<ProcurementNeedAuditEvent> ProcurementNeedAuditEvents => Set<ProcurementNeedAuditEvent>();
+    public DbSet<AiIntakeSession> AiIntakeSessions => Set<AiIntakeSession>();
     public DbSet<Offer> Offers => Set<Offer>();
     public DbSet<OfferItem> OfferItems => Set<OfferItem>();
     public DbSet<Notification> Notifications => Set<Notification>();
