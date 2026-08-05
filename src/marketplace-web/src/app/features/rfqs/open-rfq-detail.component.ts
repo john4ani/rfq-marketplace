@@ -2,6 +2,7 @@ import { DatePipe } from '@angular/common';
 import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/core';
 import { ActivatedRoute, RouterLink } from '@angular/router';
 import { OpenRfq, OpenRfqService } from '../../core/rfqs/open-rfq.service';
+import { unitLabel } from '../../shared/unit-label';
 import { OfferEditorComponent } from '../offers/offer-editor.component';
 
 @Component({
@@ -31,7 +32,7 @@ import { OfferEditorComponent } from '../offers/offer-editor.component';
             @for (item of rfq.items; track item.id) {
               <article class="material"><span class="item-number">{{ $index + 1 }}</span><div><strong>{{ item.productName }}</strong>
                 <small>{{ item.kind === 'Service' ? 'Serviciu' : 'Produs' }} · {{ item.specification || item.manufacturerOrBrand || 'Fără specificație suplimentară' }}</small></div>
-                <span>{{ item.quantity }} · {{ item.unit }}</span></article>
+                <span>{{ item.quantity }} {{ unitLabel(item.unit) }}</span></article>
             }
           </section>
         </div>
@@ -49,6 +50,7 @@ export class OpenRfqDetailComponent {
   readonly request = signal<OpenRfq | null>(null);
   readonly loading = signal(true);
   readonly error = signal('');
+  readonly unitLabel = unitLabel;
 
   constructor() {
     const id = inject(ActivatedRoute).snapshot.paramMap.get('rfqId') ?? '';

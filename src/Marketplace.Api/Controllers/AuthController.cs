@@ -113,7 +113,12 @@ public sealed partial class AuthController(
     [Authorize]
     [DisableRateLimiting]
     [HttpGet("me")]
-    public IActionResult Me() => Ok(new { userId = User.FindFirst("sub")?.Value, email = User.FindFirst("email")?.Value, roles = User.FindAll(System.Security.Claims.ClaimTypes.Role).Select(claim => claim.Value) });
+    public IActionResult Me() => Ok(new
+    {
+        userId = User.FindFirst("sub")?.Value ?? User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value,
+        email = User.FindFirst("email")?.Value ?? User.FindFirst(System.Security.Claims.ClaimTypes.Email)?.Value,
+        roles = User.FindAll(System.Security.Claims.ClaimTypes.Role).Select(claim => claim.Value)
+    });
 
     private async Task<IActionResult> Register(RegisterRequest request, IReadOnlyCollection<string> roles, CancellationToken cancellationToken)
     {

@@ -77,6 +77,40 @@ describe('BuyerOfferComparisonComponent', () => {
       .toContain('Cum s-a încheiat achiziția?');
   });
 
+  it('integrates purchase confirmation into the selected-offer decision', async () => {
+    TestBed.overrideProvider(RfqService, { useValue: {
+      get: () => of({
+        ...request,
+        status: 'OfferSelected',
+        selectedOfferId: 'offer-1',
+        fulfillmentStatus: 'NotApplicable'
+      }),
+      getHistory: () => of([]),
+      recordOutcome: () => of({
+        ...request,
+        status: 'Closed',
+        selectedOfferId: 'offer-1',
+        fulfillmentStatus: 'NotApplicable',
+        outcome: 'PurchasedThroughCompaSpot'
+      })
+    }});
+    const fixture=TestBed.createComponent(BuyerOfferComparisonComponent);
+    fixture.detectChanges();
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    const page=fixture.nativeElement as HTMLElement;
+    expect(page.querySelector('.decision')?.textContent).toContain('Oferta a fost acceptată.');
+    expect(page.querySelector('.decision')?.textContent).toContain('Am cumpărat prin această ofertă');
+    expect(page.querySelector('app-procurement-outcome')).toBeNull();
+    expect(page.textContent).not.toContain('Închide bucla');
+
+    page.querySelector<HTMLButtonElement>('.decision .confirm-selection button')?.click();
+    fixture.detectChanges();
+    expect(page.querySelector('.decision')?.textContent)
+      .toContain('Achiziția prin oferta acceptată a fost înregistrată.');
+  });
+
   it('hides reopening after the provider reports delivery', async () => {
     TestBed.overrideProvider(RfqService, { useValue: {
       get: () => of({

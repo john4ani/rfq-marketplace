@@ -4,13 +4,17 @@ header { display: grid; grid-template-columns: 1fr auto; gap: .6rem 2rem; align-
 header > a { grid-column: 1 / -1; color: #42624d; font-weight: 700; text-decoration: none; }
 h1 { margin: .15rem 0; font-size: clamp(1.6rem, 4vw, 2.4rem); }
 header p { margin: 0; color: #657067; }
+.participants { margin-top: .45rem !important; color: #35483c !important; font-size: .88rem; }
 .eyebrow { color: #8b5d32 !important; font-size: .75rem; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; }
 .privacy { border: 1px solid #d7ded4; border-radius: 999px; padding: .55rem .8rem; color: #526058; font-size: .8rem; }
 .messages { min-height: 360px; max-height: 58vh; overflow-y: auto; background: #fff; border: 1px solid #dde3da; border-radius: 20px 20px 0 0; padding: clamp(1rem, 3vw, 2rem); display: flex; flex-direction: column; gap: .7rem; }
 article { align-self: flex-start; max-width: min(72%, 560px); background: #eef1ec; border-radius: 4px 18px 18px 18px; padding: .75rem 1rem; }
 article.mine { align-self: flex-end; background: #2f6047; color: #fff; border-radius: 18px 4px 18px 18px; }
-article p { margin: 0 0 .35rem; white-space: pre-wrap; overflow-wrap: anywhere; }
-time { display: block; font-size: .7rem; opacity: .72; text-align: right; }
+.message-meta { display: flex; justify-content: space-between; align-items: baseline; gap: 1rem; margin-bottom: .4rem; }
+.message-meta strong { font-size: .72rem; letter-spacing: .025em; }
+article:not(.mine) .message-meta strong { color: #315940; }
+article p { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+time { display: block; flex: none; font-size: .7rem; opacity: .72; text-align: right; }
 .empty { margin: auto; max-width: 420px; text-align: center; color: #667169; }
 .empty span { color: #b4753b; font-size: 2rem; }
 .empty h2 { color: #26352c; margin-bottom: .35rem; }

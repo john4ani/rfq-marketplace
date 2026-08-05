@@ -14,7 +14,8 @@ import { Conversation, ConversationMessage, MessagingService } from '../../core/
         <a [routerLink]="chat.viewerRole === 'Buyer' ? ['/rfqs', chat.rfqId, 'offers'] : ['/open-requests', chat.rfqId]">
           ← Înapoi la ofertă
         </a>
-        <div><p class="eyebrow">Conversație privată</p><h1>{{ chat.otherPartyName }}</h1><p>{{ chat.rfqTitle }}</p></div>
+        <div><p class="eyebrow">Conversație privată</p><h1>{{ chat.otherPartyName }}</h1><p>{{ chat.rfqTitle }}</p>
+          <p class="participants">Tu ești <strong>{{ roleLabel(chat.viewerRole) }}</strong> · {{ chat.otherPartyName }} este <strong>{{ otherRoleLabel(chat.viewerRole) }}</strong></p></div>
         <span class="privacy">Doar participanții ofertei</span>
       </header>
 
@@ -27,9 +28,10 @@ import { Conversation, ConversationMessage, MessagingService } from '../../core/
           </div>
         } @else {
           @for (message of messages(); track message.id) {
-            <article [class.mine]="message.isMine">
+            <article [class.mine]="message.isMine" [attr.aria-label]="senderLabel(message)">
+              <div class="message-meta"><strong>{{ senderLabel(message) }}</strong>
+                <time [attr.datetime]="message.createdAt">{{ message.createdAt | date:'dd.MM.yyyy, HH:mm' }}</time></div>
               <p>{{ message.body }}</p>
-              <time [attr.datetime]="message.createdAt">{{ message.createdAt | date:'dd.MM.yyyy, HH:mm' }}</time>
             </article>
           }
         }
@@ -111,6 +113,22 @@ export class ConversationComponent {
     });
   }
 
+  roleLabel(role: Conversation['viewerRole']): string {
+    return role === 'Buyer' ? 'Cumpărător' : 'Furnizor';
+  }
+
+  otherRoleLabel(role: Conversation['viewerRole']): string {
+    return role === 'Buyer' ? 'Furnizor' : 'Cumpărător';
+  }
+
+  senderLabel(message: ConversationMessage): string {
+    const chat = this.conversation();
+    if (!chat) return message.isMine ? 'Tu' : 'Participant';
+    return message.isMine
+      ? `Tu · ${this.roleLabel(chat.viewerRole)}`
+      : `${chat.otherPartyName} · ${this.otherRoleLabel(chat.viewerRole)}`;
+  }
+
   private loadInitial(): void {
     this.service.get(this.offerId).subscribe({
       next: conversation => {
@@ -140,7 +158,7 @@ export class ConversationComponent {
   }
 
   private scrollToLatest(): void {
-    queueMicrotask(() => this.messageList?.nativeElement.scrollTo({
+    queueMicrotask(() => this.messageList?.nativeElement.scrollTo?.({
       top: this.messageList.nativeElement.scrollHeight,
       behavior: 'smooth'
     }));

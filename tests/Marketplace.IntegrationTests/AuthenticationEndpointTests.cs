@@ -62,6 +62,12 @@ public sealed class AuthenticationEndpointTests : IClassFixture<WebApplicationFa
         Assert.NotNull(buyerToken);
         _client.DefaultRequestHeaders.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", buyerToken.AccessToken);
 
+        CurrentUser? currentUser = await _client.GetFromJsonAsync<CurrentUser>("/api/v1/auth/me");
+        Assert.NotNull(currentUser);
+        Assert.NotEqual(Guid.Empty, currentUser.UserId);
+        Assert.Equal(email, currentUser.Email);
+        Assert.Equal(BuyerAndSupplierRoles, currentUser.Roles.Order().ToArray());
+
         LinkedAccount[]? profiles = await _client.GetFromJsonAsync<LinkedAccount[]>("/api/v1/auth/profiles");
         Assert.Equal(2, profiles?.Length);
 
@@ -163,6 +169,7 @@ public sealed class AuthenticationEndpointTests : IClassFixture<WebApplicationFa
     }
 
     private sealed record TokenResponse(string AccessToken, DateTimeOffset ExpiresAt);
+    private sealed record CurrentUser(Guid UserId, string Email, string[] Roles);
     private sealed record LinkedAccount(Guid UserId, string Email, string AccountType);
     private sealed record DevelopmentTokenResponse(string? Token);
 }

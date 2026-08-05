@@ -1,5 +1,7 @@
 # CompaSpot MVP product master
 
+Business-specific acceptance scenarios are recorded under [`business-scenarios`](business-scenarios/), beginning with the small wood and derivatives supplier and its paper-order replacement gap.
+
 ## Product definition
 
 CompaSpot turns a need expressed by a person or company into a clear, assisted, and completed procurement process.

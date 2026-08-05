@@ -123,6 +123,63 @@ describe('OfferEditorComponent', () => {
     expect(fixture.componentInstance.coverage()).toBe('Partial');
   });
 
+  it('shows localized units and a live subtotal for each quoted position', async () => {
+    await TestBed.configureTestingModule({
+      imports: [OfferEditorComponent],
+      providers: [{ provide: OfferService, useValue: { getForRequest: () => of(null) } }]
+    }).compileComponents();
+    const fixture = TestBed.createComponent(OfferEditorComponent);
+    fixture.componentRef.setInput('request', {
+      ...itemizedRequest,
+      items: [{ ...itemizedRequest.items[0], productName: 'Cherestea', quantity: 2.4, unit: 'CubicMetre' }]
+    });
+    fixture.detectChanges();
+
+    fixture.componentInstance.draft.update(value => ({
+      ...value,
+      items: [{ ...value.items[0], quantity: 2.4, unitPrice: 1_200 }]
+    }));
+    fixture.detectChanges();
+
+    const text = (fixture.nativeElement as HTMLElement).textContent ?? '';
+    expect(text).toContain('Cerut: 2.4 m³');
+    expect(text).toContain('Valoare poziție: 2.880,00');
+    expect(fixture.componentInstance.lineTotal(0)).toBe(2_880);
+  });
+
+  it('keeps saved prices associated by request item id when API line order differs', async () => {
+    await TestBed.configureTestingModule({
+      imports: [OfferEditorComponent],
+      providers: [{
+        provide: OfferService,
+        useValue: {
+          getForRequest: () => of({
+            id: 'offer-reordered', rfqId: itemizedRequest.id, supplierId: 'supplier-1', status: 'Submitted',
+            pricingMode: 'Itemized', coverage: 'Full', taxTreatment: 'VatIncluded', vatRate: 19,
+            deliveryTerms: 'AddedToTotal', currency: 'RON', totalPrice: null, deliveryIncluded: true,
+            deliveryCost: 0, deliveryDays: 2, validUntil: '2026-08-19', paymentTerms: null, notes: null,
+            itemsTotal: 210, netTotal: 176.47, vatAmount: 33.53, total: 210, hasComparableTotal: true,
+            createdAt: '2026-08-01T10:00:00.000Z', updatedAt: '2026-08-01T10:00:00.000Z',
+            submittedAt: '2026-08-01T10:00:00.000Z',
+            items: [
+              { id: 'offer-item-2', rfqItemId: 'item-2', quantity: 1, unitPrice: 10, productDescription: 'Montaj', available: true, isAlternative: false, lineTotal: 10 },
+              { id: 'offer-item-1', rfqItemId: 'item-1', quantity: 2, unitPrice: 100, productDescription: 'Ciment', available: true, isAlternative: false, lineTotal: 200 }
+            ]
+          })
+        }
+      }]
+    }).compileComponents();
+    const fixture = TestBed.createComponent(OfferEditorComponent);
+    fixture.componentRef.setInput('request', itemizedRequest);
+    fixture.detectChanges();
+
+    expect(fixture.componentInstance.requestedItem('item-2')?.productName).toBe('Montaj');
+    expect(fixture.componentInstance.coveredCount()).toBe(2);
+    const text = (fixture.nativeElement as HTMLElement).textContent ?? '';
+    expect(text.indexOf('Ciment')).toBeLessThan(text.indexOf('Montaj'));
+    expect(text).not.toContain('Cantitate parțială');
+  });
+
   it('shows the payable total when VAT is added', async () => {
     await TestBed.configureTestingModule({
       imports: [OfferEditorComponent],

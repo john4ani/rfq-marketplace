@@ -6,6 +6,7 @@ import { AssistedDraft, AssistedIntakeResult, AssistedIntakeService } from '../.
 import { RfqDraft, UnitOfMeasure } from '../../core/rfqs/rfq.service';
 import { CategoryOption, SupplierSettingsService } from '../../core/suppliers/supplier-settings.service';
 import { ROMANIAN_COUNTIES } from '../../shared/romanian-counties';
+import { unitLabel } from '../../shared/unit-label';
 
 @Component({
   selector: 'app-assisted-intake',
@@ -43,7 +44,7 @@ import { ROMANIAN_COUNTIES } from '../../shared/romanian-counties';
           <div class="two"><label>Localitate *<input [(ngModel)]="draft.deliveryLocality"></label><label>Județ *<input [(ngModel)]="draft.county"></label></div>
           <label>Adresă de livrare *<input [(ngModel)]="draft.deliveryAddress"></label>
           <h3>Produse sau servicii</h3>
-          @for(line of draft.lines;track $index){<div class="line"><select [(ngModel)]="line.kind"><option value="Product">Produs</option><option value="Service">Serviciu</option></select><input class="name" [(ngModel)]="line.name" aria-label="Denumire"><input type="number" min="0.01" [(ngModel)]="line.quantity" aria-label="Cantitate"><select [(ngModel)]="line.unit"><option [ngValue]="null">Unitate</option>@for(unit of units;track unit){<option [value]="unit">{{unit}}</option>}</select></div>}
+          @for(line of draft.lines;track $index){<div class="line"><select [(ngModel)]="line.kind"><option value="Product">Produs</option><option value="Service">Serviciu</option></select><input class="name" [(ngModel)]="line.name" aria-label="Denumire"><input type="number" min="0.01" [(ngModel)]="line.quantity" aria-label="Cantitate"><select [(ngModel)]="line.unit"><option [ngValue]="null">Unitate</option>@for(unit of units;track unit){<option [value]="unit">{{unitLabel(unit)}}</option>}</select></div>}
           @if(result()?.assumptions?.length){<details open><summary>Presupuneri</summary><ul>@for(item of result()?.assumptions;track item){<li>{{item}}</li>}</ul></details>}
           @if(result()?.uncertainties?.length){<details open class="uncertain"><summary>De verificat</summary><ul>@for(item of result()?.uncertainties;track item){<li>{{item}}</li>}</ul></details>}
           @if(result()?.researchSources?.length){<details open class="sources"><summary>Surse folosite pentru propunere</summary><ul>@for(source of result()?.researchSources;track source.url){<li><a [href]="source.url" target="_blank" rel="noopener noreferrer">{{source.title}}</a><p>{{source.finding}}</p></li>}</ul></details>}
@@ -67,6 +68,7 @@ export class AssistedIntakeComponent {
   readonly result=signal<AssistedIntakeResult|null>(null); readonly categories=signal<CategoryOption[]>([]); readonly busy=signal(false); readonly message=signal(''); readonly hasError=signal(false); readonly checkingAvailability=signal(true);
   input=''; answer=''; draft:AssistedDraft=this.emptyDraft();
   readonly units:UnitOfMeasure[]=['Piece','Pack','Bag','Kilogram','Tonne','Metre','SquareMetre','CubicMetre','Litre','Pallet','Other'];
+  readonly unitLabel=unitLabel;
   constructor(){const id=this.route.snapshot.queryParamMap.get('session');this.service.availability().subscribe({next:value=>{if(!value.enabled||!value.modelAvailable){this.fallbackToAdvanced(id);return;}this.checkingAvailability.set(false);this.categoriesService.getCategories().subscribe({next:v=>this.categories.set(v)});if(id){this.busy.set(true);this.service.get(id).subscribe({next:v=>this.apply(v),error:e=>this.fail(e)});}},error:()=>this.fallbackToAdvanced(id)});}
   leafCategories(){const all=this.categories(),parents=new Set(all.flatMap(x=>x.parentId?[x.parentId]:[]));return all.filter(x=>!parents.has(x.id));}
   start(){if(this.input.trim().length<10)return;this.busy.set(true);this.clear();this.service.start(this.input.trim()).subscribe({next:v=>{this.apply(v);void this.router.navigate([], {queryParams:{session:v.sessionId},replaceUrl:true});},error:e=>this.fail(e)});}

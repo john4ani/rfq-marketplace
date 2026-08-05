@@ -23,16 +23,12 @@ import { ProcurementOutcome, Rfq, RfqService } from '../../core/rfqs/rfq.service
         <label>Rezultat
           <select [value]="selected()" (change)="selected.set($any($event.target).value)">
             <option value="">Alege rezultatul</option>
-            @if (request().selectedOfferId) {
-              <option value="PurchasedThroughCompaSpot">Am cumpărat prin oferta selectată în CompaSpot</option>
-            } @else {
-              @if (offerCount() > 0) { <option value="PurchasedFromParticipant">Am cumpărat de la un participant, în afara platformei</option> }
-              <option value="PurchasedElsewhere">Am cumpărat din altă parte</option>
-              <option value="Postponed">Am amânat achiziția</option>
-              <option value="NoSuitableOffer">Nu am găsit o ofertă potrivită</option>
-              <option value="InsufficientResponses">Nu am primit suficiente răspunsuri</option>
-              <option value="Other">Alt rezultat</option>
-            }
+            @if (offerCount() > 0) { <option value="PurchasedFromParticipant">Am cumpărat de la un participant, în afara platformei</option> }
+            <option value="PurchasedElsewhere">Am cumpărat din altă parte</option>
+            <option value="Postponed">Am amânat achiziția</option>
+            <option value="NoSuitableOffer">Nu am găsit o ofertă potrivită</option>
+            <option value="InsufficientResponses">Nu am primit suficiente răspunsuri</option>
+            <option value="Other">Alt rezultat</option>
           </select>
         </label>
         <label>Detalii {{ selected() === 'Other' ? '(obligatoriu)' : '(opțional)' }}
@@ -73,14 +69,12 @@ export class ProcurementOutcomeComponent {
 
   canRecord(): boolean {
     const request = this.request();
-    return !request.outcome && (request.status === 'Published' || request.status === 'ReceivingOffers'
-      || (request.status === 'OfferSelected' && request.fulfillmentStatus === 'NotApplicable'));
+    return !request.outcome && (request.status === 'Published' || request.status === 'ReceivingOffers');
   }
   isDue(): boolean {
     const request = this.request();
-    return (request.status === 'OfferSelected' && request.fulfillmentStatus === 'NotApplicable')
-      || ((request.status === 'Published' || request.status === 'ReceivingOffers')
-        && new Date(request.quotationDeadline).getTime() <= this.currentTime());
+    return (request.status === 'Published' || request.status === 'ReceivingOffers')
+      && new Date(request.quotationDeadline).getTime() <= this.currentTime();
   }
   start(): void {
     this.selected.set(''); this.reason.set(''); this.error.set(''); this.expanded.set(true);
@@ -100,7 +94,7 @@ export class ProcurementOutcomeComponent {
   }
   outcomeLabel(outcome: ProcurementOutcome): string {
     return ({
-      PurchasedThroughCompaSpot:'Cumpărat prin CompaSpot', PurchasedFromParticipant:'Cumpărat de la un participant',
+      PurchasedThroughCompaSpot:'Ofertă acceptată pentru această cerere', PurchasedFromParticipant:'Cumpărat de la un participant',
       PurchasedElsewhere:'Cumpărat din altă parte', Postponed:'Achiziție amânată', Cancelled:'Cerere anulată',
       NoSuitableOffer:'Nicio ofertă potrivită', InsufficientResponses:'Răspunsuri insuficiente', Other:'Alt rezultat'
     })[outcome];

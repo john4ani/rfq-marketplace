@@ -96,7 +96,7 @@ export class BuyerRfqListComponent {
   }
   outcomeLabel(outcome: ProcurementOutcome): string {
     return ({
-      PurchasedThroughCompaSpot:'Cumpărat prin CompaSpot', PurchasedFromParticipant:'Cumpărat de la participant',
+      PurchasedThroughCompaSpot:'Ofertă acceptată', PurchasedFromParticipant:'Cumpărat de la participant',
       PurchasedElsewhere:'Cumpărat din altă parte', Postponed:'Achiziție amânată', Cancelled:'Anulată',
       NoSuitableOffer:'Fără ofertă potrivită', InsufficientResponses:'Răspunsuri insuficiente', Other:'Închisă'
     })[outcome];

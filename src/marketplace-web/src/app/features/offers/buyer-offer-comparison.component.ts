@@ -5,6 +5,7 @@ import { forkJoin } from 'rxjs';
 import { BuyerOffer, OfferItem, OfferService, OfferTaxTreatment } from '../../core/offers/offer.service';
 import { ProcurementNeedAuditEvent, Rfq, RfqService } from '../../core/rfqs/rfq.service';
 import { ProcurementOutcomeComponent } from './procurement-outcome.component';
+import { unitLabel } from '../../shared/unit-label';
 
 @Component({
   selector: 'app-buyer-offer-comparison',
@@ -82,11 +83,13 @@ import { ProcurementOutcomeComponent } from './procurement-outcome.component';
           </div>
         }
       </section>
-      <app-procurement-outcome [request]="request" [offerCount]="offers().length" (recorded)="outcomeRecorded($event)" />
+      @if (!request.selectedOfferId) {
+        <app-procurement-outcome [request]="request" [offerCount]="offers().length" (recorded)="outcomeRecorded($event)" />
+      }
       @if (request.selectedOfferId) {
         <section class="decision">
-          <div class="success"><strong>{{ request.fulfillmentStatus === 'Delivered' ? 'Livrarea a fost confirmată.' : 'Oferta câștigătoare a fost selectată.' }}</strong>
-            <span>{{ request.fulfillmentStatus === 'Delivered' ? 'Cererea este finalizată cu statusul Livrată.' : 'Cererea este închisă pentru alte oferte.' }}</span></div>
+          <div class="success"><strong>{{ request.fulfillmentStatus === 'Delivered' ? 'Livrarea a fost confirmată.' : request.outcome === 'PurchasedThroughCompaSpot' ? 'Achiziția prin oferta acceptată a fost înregistrată.' : 'Oferta a fost acceptată.' }}</strong>
+            <span>{{ request.fulfillmentStatus === 'Delivered' ? 'Cererea este finalizată cu statusul Livrată.' : request.outcome === 'PurchasedThroughCompaSpot' ? 'Cererea este finalizată.' : 'Cererea este închisă pentru alte oferte.' }}</span></div>
           @if (request.fulfillmentStatus === 'AwaitingDelivery') {
             <p class="reopen-limit" role="status">Transport inclus · furnizorul urmează să declare livrarea.</p>
           } @else if (request.fulfillmentStatus === 'DeliveryReported') {
@@ -99,6 +102,14 @@ import { ProcurementOutcomeComponent } from './procurement-outcome.component';
                 <div class="confirm-actions"><button class="secondary" type="button" (click)="confirmDeliveryPending.set(false)">Verific mai târziu</button>
                   <button type="button" (click)="confirmDelivery()" [disabled]="busy()">Confirmă primirea și finalizează</button></div>
               }
+            </div>
+          } @else if (request.fulfillmentStatus === 'NotApplicable' && !request.outcome) {
+            <div class="confirm-selection" role="group" aria-label="Confirmă rezultatul achiziției">
+              <div><strong>Cum s-a încheiat achiziția?</strong>
+                <p>Confirmă atunci când achiziția prin oferta acceptată s-a finalizat.</p></div>
+              <button type="button" (click)="confirmSelectedOfferOutcome()" [disabled]="busy()">
+                {{ busy() ? 'Se înregistrează…' : 'Am cumpărat prin această ofertă' }}
+              </button>
             </div>
           }
           @if (request.reopenCount >= 1) {
@@ -293,11 +304,7 @@ export class BuyerOfferComparisonComponent {
 
 
   unitLabel(unit: Rfq['items'][number]['unit']): string {
-    const labels: Record<Rfq['items'][number]['unit'], string> = {
-      Piece:'buc.', Pack:'pachete', Bag:'saci', Kilogram:'kg', Tonne:'tone', Metre:'m',
-      SquareMetre:'m²', CubicMetre:'m³', Litre:'l', Pallet:'paleți', Other:'unități'
-    };
-    return labels[unit];
+    return unitLabel(unit);
   }
 
   offeredLine(entry: BuyerOffer, rfqItemId: string): OfferItem | undefined {
@@ -337,6 +344,22 @@ export class BuyerOfferComparisonComponent {
   outcomeRecorded(request: Rfq): void {
     this.rfq.set(request);
     this.rfqService.getHistory(this.id).subscribe(history => this.history.set(history));
+  }
+
+  confirmSelectedOfferOutcome(): void {
+    if (this.busy()) return;
+    this.busy.set(true);
+    this.error.set('');
+    this.rfqService.recordOutcome(this.id, 'PurchasedThroughCompaSpot', null).subscribe({
+      next: request => {
+        this.outcomeRecorded(request);
+        this.busy.set(false);
+      },
+      error: error => {
+        this.busy.set(false);
+        this.error.set(this.apiError(error, 'Rezultatul achiziției nu a putut fi înregistrat.'));
+      }
+    });
   }
 
   cancelManagement(): void {

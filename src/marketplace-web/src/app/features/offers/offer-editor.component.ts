@@ -3,6 +3,8 @@ import { ChangeDetectionStrategy, Component, effect, inject, input, signal } fro
 import { FormsModule } from '@angular/forms';
 import { Offer, OfferDeliveryTerms, OfferDraft, OfferPricingMode, OfferService, OfferTaxTreatment } from '../../core/offers/offer.service';
 import { OpenRfq } from '../../core/rfqs/open-rfq.service';
+import { RfqItem } from '../../core/rfqs/rfq.service';
+import { unitLabel } from '../../shared/unit-label';
 
 @Component({
   selector: 'app-offer-editor',
@@ -47,18 +49,23 @@ import { OpenRfq } from '../../core/rfqs/open-rfq.service';
           <div class="lines">
             @for (item of draft().items; track item.rfqItemId; let index = $index) {
               <div class="line">
-                <div><strong>{{ request().items[index].productName }}</strong>
-                  <small>Cerut: {{ request().items[index].quantity }} {{ request().items[index].unit }}</small></div>
+                <div><strong>{{ requestedItem(item.rfqItemId)?.productName }}</strong>
+                  @if (requestedItem(item.rfqItemId); as requested) {
+                    <small>Cerut: {{ requested.quantity }} {{ unitLabel(requested.unit) }}</small>
+                  }
+                  <small class="line-total">Valoare poziție: {{ lineTotal(index) | currency:'RON':'symbol-narrow':'1.2-2':'ro' }}</small></div>
                 <label>Cantitate<input type="number" min=".001" step=".001" [disabled]="!item.available" [(ngModel)]="item.quantity"></label>
                 <label>Preț unitar (lei)<input type="number" min="0" step=".01" [disabled]="!item.available" [(ngModel)]="item.unitPrice"></label>
                 <label class="available"><input type="checkbox" [(ngModel)]="item.available"> Disponibil</label>
                 @if (item.available) {
                   <label class="description">Produs / serviciu oferit
                     <input [(ngModel)]="item.productDescription" placeholder="Denumire, marcă sau specificație"></label>
-                  @if (request().items[index].alternativesAccepted && request().alternativeProductsAccepted) {
+                  @if (requestedItem(item.rfqItemId)?.alternativesAccepted && request().alternativeProductsAccepted) {
                     <label class="available alternative"><input type="checkbox" [(ngModel)]="item.isAlternative"> Este o alternativă</label>
                   }
-                  @if (item.quantity < request().items[index].quantity) { <small class="excluded">Cantitate parțială: lipsesc {{ request().items[index].quantity - item.quantity }} {{ request().items[index].unit }}.</small> }
+                  @if (requestedItem(item.rfqItemId); as requested) {
+                    @if (item.quantity < requested.quantity) { <small class="excluded">Cantitate parțială: lipsesc {{ requested.quantity - item.quantity }} {{ unitLabel(requested.unit) }}.</small> }
+                  }
                 } @else { <small class="excluded">Poziția lipsește din ofertă și nu intră în total.</small> }
               </div>
             } @empty {
@@ -128,7 +135,7 @@ import { OpenRfq } from '../../core/rfqs/open-rfq.service';
     .pricing-mode label{display:flex;align-items:flex-start;gap:.65rem;padding:1rem;border:1px solid #d6dfda;border-radius:12px;background:#fff;cursor:pointer}
     .pricing-mode label.selected{border-color:#176b3a;background:#edf7f1}.pricing-mode label.unavailable{cursor:not-allowed;opacity:.62}.pricing-mode input{width:auto;margin-top:.2rem}.pricing-mode span{display:grid;gap:.25rem}.pricing-mode small{color:#56645d}
     .quick-quote{display:grid;grid-template-columns:minmax(0,1fr);gap:1rem;align-items:end;margin:1rem 0;padding:1rem;background:#f3f8f5;border-radius:12px}.quick-quote p{margin:0}
-    .lines{display:grid;gap:.75rem;margin:1rem 0}.line{display:grid;grid-template-columns:minmax(0,1fr);gap:.75rem;align-items:end;padding:1rem;background:#f7faf8;border-radius:12px}.line small{display:block}
+    .lines{display:grid;gap:.75rem;margin:1rem 0}.line{display:grid;grid-template-columns:minmax(0,1fr);gap:.75rem;align-items:end;padding:1rem;background:#f7faf8;border-radius:12px}.line small{display:block}.line-total{margin-top:.35rem;color:#185c32;font-weight:800}
     .terms,.commercial-grid{display:grid;grid-template-columns:minmax(0,1fr);gap:.75rem;margin:1rem 0}label{min-width:0;display:grid;gap:.35rem;font-size:.88rem}input,select,textarea{box-sizing:border-box;min-width:0;width:100%;padding:.7rem;border:1px solid #bdc9c1;border-radius:8px;background:#fff}
     .available{display:flex;align-items:center}.available input{width:auto}.description{grid-column:1/-1}.excluded{color:#7a4b16}.coverage{display:flex;justify-content:space-between;gap:.75rem;padding:.8rem 1rem;border-radius:.7rem;color:#185c32;background:#e9f4ec}.coverage.partial{color:#704d0d;background:#fff6dc}.total{margin:1rem 0;padding-top:1rem;border-top:1px solid #ddd}.total span{display:grid}.total small{color:#56645d;font-weight:500}.actions{justify-content:flex-end;flex-wrap:wrap}
     button{border:0;border-radius:9px;padding:.75rem 1rem;background:#176b3a;color:white;font-weight:700}.secondary{background:#eaf1ec;color:#16462b}.danger{background:#a93838}.error{color:#a32626}.success{color:#176b3a}
@@ -145,6 +152,7 @@ export class OfferEditorComponent {
   readonly busy = signal(false);
   readonly error = signal('');
   readonly message = signal('');
+  readonly unitLabel = unitLabel;
   readonly draft = signal<OfferDraft>({
     pricingMode: 'Total',
     totalPrice: null,
@@ -194,7 +202,7 @@ export class OfferEditorComponent {
           taxTreatment: value.taxTreatment === 'NotSpecified' ? 'VatIncluded' : value.taxTreatment,
           vatRate: value.taxTreatment === 'NotApplicable' ? null : (value.vatRate ?? 19),
           deliveryTerms: value.deliveryTerms ?? (value.deliveryIncluded ? (value.pricingMode === 'Total' ? 'IncludedInPrice' : 'AddedToTotal') : 'BuyerPickup'),
-          items: value.items.length > 0 ? value.items : this.requestItems()
+          items: value.items.length > 0 ? this.orderItems(value.items) : this.requestItems()
         });
       });
     });
@@ -234,7 +242,11 @@ export class OfferEditorComponent {
   }
 
   coveredCount(): number {
-    return this.draft().pricingMode === 'Total' ? this.request().items.length : this.draft().items.filter((item, index) => item.available && item.quantity >= this.request().items[index].quantity).length;
+    if (this.draft().pricingMode === 'Total') return this.request().items.length;
+    return this.draft().items.filter(item => {
+      const requested = this.requestedItem(item.rfqItemId);
+      return requested && item.available && item.quantity >= requested.quantity;
+    }).length;
   }
 
   coverage(): 'Full' | 'Partial' {
@@ -254,6 +266,15 @@ export class OfferEditorComponent {
     if (this.draft().taxTreatment === 'VatExcluded') return this.round(subtotal * rate / 100);
     if (this.draft().taxTreatment === 'VatIncluded') return this.round(subtotal - subtotal / (1 + rate / 100));
     return 0;
+  }
+
+  lineTotal(index: number): number {
+    const item = this.draft().items[index];
+    return item?.available ? this.round(item.quantity * item.unitPrice) : 0;
+  }
+
+  requestedItem(rfqItemId: string): RfqItem | undefined {
+    return this.request().items.find(item => item.id === rfqItemId);
   }
 
   label(status: string): string {
@@ -335,6 +356,14 @@ export class OfferEditorComponent {
       available: true,
       isAlternative: false
     }));
+  }
+
+  private orderItems(items: Offer['items']): Offer['items'] {
+    const byRequestItem = new Map(items.map(item => [item.rfqItemId, item]));
+    return this.request().items.flatMap(item => {
+      const offerItem = item.id ? byRequestItem.get(item.id) : undefined;
+      return offerItem ? [offerItem] : [];
+    });
   }
 
   private quotedSubtotal(): number {

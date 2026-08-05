@@ -15,6 +15,7 @@ The MVP has in-app notification polling and immutable procurement audit events. 
 - A Buyer may close a published or offer-receiving request with one supported real-world outcome. `Other` requires an explanation.
 - `PurchasedThroughCompaSpot` requires a selected offer. `PurchasedFromParticipant` requires at least one offer on the request. Cancellation remains its dedicated command.
 - A selected offer without platform-tracked delivery may be finalized as purchased through CompaSpot. Delivery-tracked offers continue through Provider delivery reporting and Buyer confirmation, which records the outcome automatically.
+- For a selected offer without platform-tracked delivery, purchase confirmation is presented inside the selected-offer decision panel. The generic outcome form is shown only when no platform offer was selected, avoiding two competing completion sections.
 - Recording an outcome is terminal and immutable. Correcting a selected offer still uses the existing one-time reopen workflow before an outcome is recorded.
 - Every explicit result appends `OutcomeRecorded` to the immutable procurement history. Cancellation and delivery confirmation append the same event after their lifecycle event. Existing numeric audit enum values are preserved; the new value is appended.
 - Once an open request's quotation deadline passes, the existing notification reads materialize one `ProcurementOutcomeRequested` notification using a unique per-request deduplication key. Concurrent list/count calls may compete safely on that key.

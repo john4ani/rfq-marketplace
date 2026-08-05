@@ -183,7 +183,7 @@ public sealed class OfferService(
         auditTrail.Record(rfq.Id, buyerId, ProcurementNeedAuditEventType.Completed,
             previousStatus, rfq.NeedStatus, null, now);
         auditTrail.Record(rfq.Id, buyerId, ProcurementNeedAuditEventType.OutcomeRecorded,
-            previousStatus, rfq.NeedStatus, $"Outcome={rfq.Outcome}", now.AddTicks(1));
+            previousStatus, rfq.NeedStatus, $"Outcome={rfq.Outcome}", now.Add(TimeSpan.FromMicroseconds(1)));
         dbContext.Notifications.Add(Notification.Create(
             selected.SupplierId,
             NotificationType.DeliveryConfirmed,
