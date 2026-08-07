@@ -9,7 +9,7 @@ A signed-in Supplier can open **Cereri deschise / Open Requests**, see active pu
 ## Matching rules
 
 - The RFQ must be `Published` and its quotation deadline must be in the future.
-- Its primary category must be selected by the active Supplier.
+- At least one of the RFQ's required central Categories must be selected by the active Supplier; the API also reports full versus partial coverage.
 - Its county must be configured as a delivery county, unless nationwide delivery is enabled.
 - If delivery settings have not yet been saved, the Supplier profile county is used as a conservative fallback.
 - Search matches the title, project name, delivery locality, or material name.

@@ -1,6 +1,6 @@
 # REST API Overview
 
-Status: Implemented through Milestone 7; attachments and administration remain proposed
+Status: Implemented through Pasul 7 Supplier discovery; attachments and broader administration remain proposed
 
 Base path: `/api/v1`  
 Format: JSON  
@@ -14,7 +14,8 @@ Errors: RFC 7807 Problem Details
 | Authentication | `/auth/register/*`, `/auth/login`, `/auth/refresh`, `/auth/logout`, `/auth/profiles/*`, verification/reset | Public or authenticated self |
 | Buyer profile | `GET/PUT /buyers/{buyerId}` | Owning Buyer |
 | Supplier profile | `GET/PUT /suppliers/{supplierId}` | Owning Supplier |
-| Categories | `GET/POST /categories` | Authenticated read; Provider create during controlled pilot |
+| Central category catalog | `GET /categories`, `POST /categories` | Authenticated read; Administrator create with duplicate/similarity confirmation |
+| Project templates | `GET/POST /project-templates` | Authenticated read; Administrator create |
 | Piața Live | `GET /piata-live`, presence heartbeat | Public directory; authenticated presence |
 | Buyer procurement needs/RFQs | `/rfqs`, `/rfqs/{id}`, history, publish, cancel, deadline | Owning buyer |
 | Assisted intake | `/assisted-intakes`, resume, clarify, approve | Owning buyer |
@@ -25,7 +26,9 @@ Errors: RFC 7807 Problem Details
 | Delivery confirmation | Provider report and Buyer confirmation routes | Selected Provider or owning Buyer |
 | Messaging | `/offers/{id}/conversation`, messages and read state | Buyer and that offer's supplier |
 | Attachments | upload request, complete, download URL, delete | Authorized parent participant |
-| Administration | `/admin/users`, suppliers, categories, inspection, reports, metrics | Administrator |
+| Supplier discovery administration | `/admin/supplier-candidates`, `/admin/discovery-opportunities` | Administrator |
+| Supplier invitation and claim | `/supplier-invitations/{token}` | Public view; Supplier claim |
+| Broader administration | `/admin/users`, suppliers, categories, inspection, reports, metrics | Proposed Administrator capability |
 | Health | `/health/live`, `/health/ready` | Operational policy |
 
 ## Authorization matrix
@@ -84,6 +87,8 @@ PUT    /api/v1/suppliers/{supplierId}/delivery-settings
 
 GET    /api/v1/categories
 POST   /api/v1/categories
+GET    /api/v1/project-templates
+POST   /api/v1/project-templates
 GET    /api/v1/piata-live?profileType=Buyer|Supplier
 POST   /api/v1/piata-live/presence
 DELETE /api/v1/piata-live/presence
@@ -124,7 +129,15 @@ POST   /api/v1/attachments/upload-requests
 POST   /api/v1/attachments/{attachmentId}/complete
 GET    /api/v1/attachments/{attachmentId}/download-url
 
-GET    /api/v1/admin/metrics
+GET    /api/v1/admin/supplier-candidates
+POST   /api/v1/admin/supplier-candidates
+PUT    /api/v1/admin/supplier-candidates/{candidateId}/review
+GET    /api/v1/admin/discovery-opportunities
+POST   /api/v1/admin/supplier-candidates/{candidateId}/invitations
+GET    /api/v1/supplier-invitations/{token}
+POST   /api/v1/supplier-invitations/{token}/claim
+
+GET    /api/v1/admin/metrics                         # proposed
 GET    /health/live
 GET    /health/ready
 ```
@@ -153,3 +166,7 @@ GET /api/v1/open-rfqs/{rfqId}
 ```
 
 These Supplier-only endpoints return active published RFQs matched by selected category and delivery county. Exact delivery addresses, coordinates, and private Buyer notes are not exposed.
+
+### Assisted Supplier discovery
+
+Candidate creation and review are restricted to the existing `Administrator` role. Every candidate starts as `Unverified` and records its source; only a human-reviewed `EligibleForInvitation` candidate may be associated with a compatible, open request. Invitation URLs contain a cryptographically random token, while persistence stores only its SHA-256 hash. Public reads expose locality and requirement summary, never the exact delivery address. Claim requires an authenticated Supplier with a completed Supplier profile, is idempotent for that Supplier, and records immutable discovery audit events. The application generates a link for deliberate manual sharing; it sends no email or bulk outreach automatically.

@@ -6,15 +6,18 @@ public enum FulfillmentStatus { NotApplicable, AwaitingDelivery, DeliveryReporte
 public sealed class Rfq
 {
     private readonly List<RfqItem> _items = [];
+    private readonly List<NeedCategory> _needCategories = [];
     private Rfq() { }
     public Guid Id { get; private set; }
     public Guid BuyerId { get; private set; }
     public ProcurementNeedSource Source { get; private set; }
     public ProcurementInputType InputType { get; private set; }
+    public ProcurementNeedType NeedType { get; private set; }
+    public Guid? ProjectTemplateId { get; private set; }
     public string Title { get; private set; } = string.Empty;
     public string? ProjectName { get; private set; }
     public string? Description { get; private set; }
-    public Guid PrimaryCategoryId { get; private set; }
+    public Guid PrimaryCategoryId => _needCategories.OrderBy(category => category.SortOrder).First().CategoryId;
     public string DeliveryAddress { get; private set; } = string.Empty;
     public string DeliveryLocality { get; private set; } = string.Empty;
     public string County { get; private set; } = string.Empty;
@@ -42,6 +45,9 @@ public sealed class Rfq
     public string? OutcomeReason { get; private set; }
     public DateTimeOffset? OutcomeRecordedAt { get; private set; }
     public IReadOnlyCollection<RfqItem> Items => _items;
+    public IReadOnlyCollection<NeedCategory> NeedCategories => _needCategories;
+    public IReadOnlyCollection<Guid> RequiredCategoryIds => _needCategories
+        .OrderBy(category => category.SortOrder).Select(category => category.CategoryId).ToArray();
     public ProcurementNeedStatus NeedStatus => Status switch
     {
         RfqStatus.Draft => ProcurementNeedStatus.Draft,
@@ -236,7 +242,13 @@ public sealed class Rfq
         Title = draft.Title.Trim();
         ProjectName = Clean(draft.ProjectName);
         Description = Clean(draft.Description);
-        PrimaryCategoryId = draft.PrimaryCategoryId;
+        NeedType = draft.NeedType ?? draft.InputType switch
+        {
+            ProcurementInputType.ShoppingList => ProcurementNeedType.ShoppingList,
+            ProcurementInputType.ProjectDescription => ProcurementNeedType.Project,
+            _ => ProcurementNeedType.DirectPurchase
+        };
+        ProjectTemplateId = NeedType == ProcurementNeedType.Project ? draft.ProjectTemplateId : null;
         DeliveryAddress = draft.DeliveryAddress.Trim();
         DeliveryLocality = draft.DeliveryLocality.Trim();
         County = draft.County.Trim();
@@ -250,20 +262,34 @@ public sealed class Rfq
         DeliveryRequired = draft.DeliveryRequired;
         EstimatedBudget = draft.EstimatedBudget;
         BuyerNotes = Clean(draft.BuyerNotes);
+        Guid[] requiredCategoryIds = ResolveCategoryIds(draft);
+        Dictionary<Guid, NeedCategory> existingCategories = _needCategories.ToDictionary(category => category.CategoryId);
+        _needCategories.Clear();
+        for (int index = 0; index < requiredCategoryIds.Length; index++)
+        {
+            Guid categoryId = requiredCategoryIds[index];
+            NeedCategory needCategory = existingCategories.GetValueOrDefault(categoryId)
+                ?? NeedCategory.Create(Id, categoryId, index);
+            needCategory.Reorder(index);
+            _needCategories.Add(needCategory);
+        }
+
         RfqItem[] existingItems = _items.OrderBy(item => item.ItemNumber).ToArray();
         _items.Clear();
         int itemNumber = 1;
         foreach (RfqItemDraft item in draft.Items)
         {
+            Guid itemCategoryId = item.CategoryId ?? requiredCategoryIds[0];
+            NeedCategory itemCategory = _needCategories.Single(category => category.CategoryId == itemCategoryId);
             if (itemNumber <= existingItems.Length)
             {
                 RfqItem existingItem = existingItems[itemNumber - 1];
-                existingItem.Update(itemNumber++, item);
+                existingItem.Update(itemNumber++, item, itemCategory);
                 _items.Add(existingItem);
             }
             else
             {
-                _items.Add(RfqItem.Create(Guid.NewGuid(), Id, itemNumber++, item));
+                _items.Add(RfqItem.Create(Guid.NewGuid(), Id, itemNumber++, item, itemCategory));
             }
         }
         UpdatedAt = now;
@@ -273,14 +299,24 @@ public sealed class Rfq
     {
         if (string.IsNullOrWhiteSpace(draft.Title)) throw new RfqRuleException("Titlul cererii este obligatoriu.");
         if (draft.Title.Trim().Length > 180) throw new RfqRuleException("Titlul poate avea cel mult 180 de caractere.");
-        if (draft.PrimaryCategoryId == Guid.Empty) throw new RfqRuleException("Selectați categoria principală.");
+        if (ResolveCategoryIds(draft).Length == 0) throw new RfqRuleException("Selectați cel puțin o categorie pentru necesar.");
         if (string.IsNullOrWhiteSpace(draft.DeliveryAddress) || string.IsNullOrWhiteSpace(draft.DeliveryLocality) || string.IsNullOrWhiteSpace(draft.County))
             throw new RfqRuleException("Adresa, localitatea și județul de livrare sunt obligatorii.");
         if (draft.SupplierSearchRadiusKm is < 1 or > 1000) throw new RfqRuleException("Raza de căutare a furnizorilor trebuie să fie între 1 și 1.000 km.");
         if (draft.EstimatedBudget < 0) throw new RfqRuleException("Bugetul estimat nu poate fi negativ.");
         if (!Enum.IsDefined(draft.Source)) throw new RfqRuleException("Sursa cererii nu este validă.");
         if (!Enum.IsDefined(draft.InputType)) throw new RfqRuleException("Tipul de intrare al cererii nu este valid.");
+        if (draft.NeedType.HasValue && !Enum.IsDefined(draft.NeedType.Value))
+            throw new RfqRuleException("Tipul necesarului nu este valid.");
     }
+
+    private static Guid[] ResolveCategoryIds(RfqDraft draft) =>
+        (draft.CategoryIds ?? [])
+        .Concat(draft.Items.Where(item => item.CategoryId.HasValue).Select(item => item.CategoryId!.Value))
+        .Prepend(draft.PrimaryCategoryId)
+        .Where(categoryId => categoryId != Guid.Empty)
+        .Distinct()
+        .ToArray();
 
     private static string? Clean(string? value) => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
 }
@@ -291,7 +327,10 @@ public sealed record RfqDraft(
     DateOnly? PreferredDeliveryDate, DateTimeOffset QuotationDeadline, bool AlternativeProductsAccepted,
     decimal? EstimatedBudget, string? BuyerNotes, IReadOnlyCollection<RfqItemDraft> Items, bool AllowSplit = false,
     bool DeliveryRequired = false, ProcurementNeedSource Source = ProcurementNeedSource.Manual,
-    ProcurementInputType InputType = ProcurementInputType.StructuredForm);
+    ProcurementInputType InputType = ProcurementInputType.StructuredForm,
+    IReadOnlyCollection<Guid>? CategoryIds = null,
+    ProcurementNeedType? NeedType = null,
+    Guid? ProjectTemplateId = null);
 
 public sealed class RfqRuleException(string message) : InvalidOperationException(message);
 public sealed class RfqConcurrencyException(string message, Exception innerException) : Exception(message, innerException);

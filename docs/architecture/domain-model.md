@@ -1,6 +1,6 @@
 # Domain Model and Aggregate Boundaries
 
-Status: Implemented through the Conversation aggregate; attachments and later aggregates remain proposed
+Status: Implemented through the central category, procurement need, offer, conversation, and supplier-discovery aggregates; attachments remain proposed
 
 ```mermaid
 classDiagram
@@ -44,8 +44,15 @@ classDiagram
       +bool NationwideDelivery
       +update()
     }
+    class Vertical {
+      +UUID Id
+      +string Name
+      +string Slug
+      +bool IsActive
+    }
     class Category {
       +UUID Id
+      +UUID VerticalId
       +UUID ParentId
       +string Name
       +string Slug
@@ -55,6 +62,8 @@ classDiagram
       +UUID Id
       +UUID BuyerId
       +RfqStatus Status
+      +ProcurementNeedType NeedType
+      +UUID ProjectTemplateId
       +bool DeliveryRequired
       +FulfillmentStatus FulfillmentStatus
       +DateTime QuotationDeadline
@@ -65,8 +74,15 @@ classDiagram
       +reportDelivered()
       +confirmDelivery()
     }
+    class NeedCategory {
+      +UUID Id
+      +UUID ProcurementNeedId
+      +UUID CategoryId
+      +int SortOrder
+    }
     class RfqItem {
       +UUID Id
+      +UUID NeedCategoryId
       +int ItemNumber
       +string ProductName
       +decimal Quantity
@@ -130,17 +146,49 @@ classDiagram
       +UUID ActorUserId
       +DateTime OccurredAt
     }
+    class ProjectTemplate {
+      +UUID Id
+      +UUID VerticalId
+      +string Name
+      +bool IsActive
+    }
+    class SupplierCandidate {
+      +UUID Id
+      +string CompanyName
+      +SupplierCandidateStatus Status
+      +validateRelevance()
+      +reject()
+      +claim()
+    }
+    class SupplierInvitation {
+      +UUID Id
+      +Hash TokenHash
+      +DateTime ExpiresAt
+      +claim()
+      +revoke()
+    }
+    class SupplierDiscoveryAuditEvent {
+      +UUID Id
+      +string EventType
+      +UUID ActorUserId
+      +DateTime OccurredAt
+    }
 
     ApplicationUser "1" *-- "0..*" RefreshToken
     ApplicationUser "1" *-- "0..1" UserPresence
     ApplicationUser "1" --> "0..1" BuyerProfile
     ApplicationUser "1" --> "0..1" SupplierProfile
+    Vertical "1" --> "1..*" Category
     SupplierProfile "0..*" -- "0..*" Category
     SupplierProfile "1" *-- "0..1" SupplierDeliverySettings
     Category "0..1" --> "0..*" Category : parent
     BuyerProfile "1" --> "0..*" Rfq
-    Rfq "1" *-- "1..*" RfqItem
-    Rfq "0..*" --> "1" Category : primary
+    Rfq "1" *-- "1..*" NeedCategory
+    NeedCategory "0..*" --> "1" Category
+    NeedCategory "1" *-- "0..*" RfqItem
+    Vertical "1" --> "0..*" ProjectTemplate
+    ProjectTemplate "0..*" -- "1..*" Category
+    Rfq "0..*" --> "0..1" ProjectTemplate
     Rfq "1" --> "0..*" Offer
     SupplierProfile "1" --> "0..*" Offer
     Offer "1" *-- "1..*" OfferItem
@@ -148,6 +196,10 @@ classDiagram
     Offer "1" *-- "0..*" OfferRevision
     Offer "1" --> "0..1" Conversation
     Conversation "1" *-- "0..*" Message
+    Category "0..*" -- "0..*" SupplierCandidate
+    SupplierCandidate "1" *-- "0..*" SupplierInvitation
+    SupplierInvitation "*" --> "1" Rfq
+    SupplierCandidate "1" --> "0..*" SupplierDiscoveryAuditEvent
 ```
 
 ## Aggregate ownership
@@ -158,14 +210,18 @@ classDiagram
 | `UserPresence` | Last activity heartbeat | One record per user; online status expires after two minutes |
 | `BuyerProfile` | Buyer profile fields and market radius | One profile per user; radius is 1–1,000 km and defaults to 30 km |
 | `SupplierProfile` | Categories, delivery areas, preferences | Approved and active to participate; valid radii |
-| `Category` | Category identity and parent link | Unique slug; no parent cycle |
-| `Rfq` | Optional RFQ items, primary category, and supplier-search radius | Individual material lines are optional; radius is 1–1,000 km; publication requires a future deadline; published RFQs are immutable |
+| `Vertical` | Market boundary and active state | Construction is the only active MVP vertical |
+| `Category` | Central category identity, vertical, and optional parent link | One taxonomy is reused by needs, Providers, templates, and discovery; unique slug; no parent cycle |
+| `Rfq` / `ProcurementNeed` | Need type, one or more `NeedCategory` groups, optional requirement lines, optional project template, and supplier-search radius | Need type never controls category count; every line belongs to a need-category group; publication requires a future deadline; published needs are immutable |
+| `ProjectTemplate` | Editable starting set of central categories for a project | A template is not a category and references at least one category in its vertical |
 | `Offer` | Offer items and revision snapshots | One per supplier/RFQ; server-calculated money and completeness |
 | `Conversation` | Messages and participant read state | Exactly the RFQ buyer and offer supplier may participate |
 | `Attachment` | File metadata and lifecycle | Authorized parent; verified object before availability |
 | `Notification` | Attempts and delivery state | At-least-once, safely retryable delivery |
+| `SupplierCandidate` | Sourced company data, central-category coverage, human review, claim link | Covers one or more central categories; starts unverified; only reviewed candidates may be invited; one claim |
+| `SupplierInvitation` | One candidate/request invitation and hashed token | Future expiry; opaque token; one active claim; concurrency protected |
 
-`AuditEntry` is append-only operational evidence rather than a behavior-rich aggregate.
+`AuditEntry` and `SupplierDiscoveryAuditEvent` are append-only operational evidence rather than behavior-rich aggregates.
 
 ## Cross-aggregate consistency
 

@@ -179,6 +179,39 @@ public sealed class RfqTests
             rfq.RecordOutcome(ProcurementOutcome.PurchasedThroughCompaSpot, null, Now.AddHours(1)));
     }
 
+    [Theory]
+    [InlineData(ProcurementNeedType.DirectPurchase)]
+    [InlineData(ProcurementNeedType.ShoppingList)]
+    [InlineData(ProcurementNeedType.Project)]
+    public void NeedTypeDoesNotDetermineCategoryCardinality(ProcurementNeedType needType)
+    {
+        Guid firstCategory = Guid.NewGuid();
+        Guid secondCategory = Guid.NewGuid();
+        RfqDraft draft = Draft([
+            new("Ciment", null, null, 10, UnitOfMeasure.Bag, true, null, firstCategory),
+            new("Cherestea", null, null, 2, UnitOfMeasure.CubicMetre, true, null, secondCategory)
+        ]) with { PrimaryCategoryId = firstCategory, CategoryIds = [firstCategory, secondCategory], NeedType = needType };
+
+        Rfq rfq = Rfq.Create(Guid.NewGuid(), Guid.NewGuid(), draft, Now);
+
+        Assert.Equal(needType, rfq.NeedType);
+        Assert.Equal([firstCategory, secondCategory], rfq.RequiredCategoryIds);
+        Assert.Equal(firstCategory, rfq.Items.Single(item => item.ProductName == "Ciment").CategoryId);
+        Assert.Equal(secondCategory, rfq.Items.Single(item => item.ProductName == "Cherestea").CategoryId);
+    }
+
+    [Fact]
+    public void RequirementWithoutExplicitCategoryUsesFirstNeedCategory()
+    {
+        Guid category = Guid.NewGuid();
+        Rfq rfq = Rfq.Create(Guid.NewGuid(), Guid.NewGuid(),
+            Draft([new("Transport", null, null, 1, UnitOfMeasure.Other, true, null)]) with
+            { PrimaryCategoryId = category, CategoryIds = [category] }, Now);
+
+        Assert.Equal(category, rfq.Items.Single().CategoryId);
+        Assert.Equal(rfq.NeedCategories.Single().Id, rfq.Items.Single().NeedCategoryId);
+    }
+
     private static RfqDraft Draft(IReadOnlyCollection<RfqItemDraft> items) => new(
         "Materiale renovare", null, null, Guid.NewGuid(), "Strada Test 1", "Iași", "Iași", 30,
         null, null, null, Now.AddDays(2), true, null, null, items);

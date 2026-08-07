@@ -1,4 +1,3 @@
-import { HttpErrorResponse } from '@angular/common/http';
 import { ChangeDetectionStrategy, Component, computed, effect, inject, signal } from '@angular/core';
 import { FormControl, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
 import { AuthService } from '../../core/auth/auth.service';
@@ -21,24 +20,7 @@ import { ROMANIAN_COUNTIES } from '../../shared/romanian-counties';
           </label>
         }
       </div>
-      <div class="custom-category">
-        <label>Categoria nu există?
-          <input [formControl]="customCategoryName" placeholder="Exemplu: Piatră naturală" (input)="clearCategoryConfirmation()">
-          <small>Adaugă o denumire clară; categoria va putea fi folosită și de alți furnizori.</small>
-        </label>
-        <button class="secondary" type="button" (click)="addCategory()" [disabled]="customCategoryName.invalid || addingCategory()">
-          {{ addingCategory() ? 'Se adaugă…' : pendingSimilarCategories().length > 0 ? 'Confirmă crearea' : 'Adaugă categoria' }}
-        </button>
-      </div>
-      @if (pendingSimilarCategories().length > 0) {
-        <div class="category-warning" role="alert">
-          <strong>Am găsit categorii similare:</strong>
-          <ul>
-            @for (category of pendingSimilarCategories(); track category.id) { <li>{{ category.name }}</li> }
-          </ul>
-          <p>Folosește una dintre ele dacă se potrivește. Pentru o categorie separată, apasă încă o dată „Confirmă crearea”.</p>
-        </div>
-      }
+      <p class="field-help">Nu găsești o categorie potrivită? Trimite administratorului denumirea pieței lipsă; catalogul este comun tuturor participanților.</p>
       <div class="form-actions"><button type="button" (click)="saveCategories()" [disabled]="selectedCategoryIds().length === 0 || savingCategories()">
         {{ savingCategories() ? 'Se salvează…' : 'Salvează categoriile' }}
       </button></div>
@@ -58,11 +40,6 @@ import { ROMANIAN_COUNTIES } from '../../shared/romanian-counties';
         <label>Valoare minimă a comenzii (lei)<input type="number" min="0" formControlName="minimumOrderValue">
           <small>Opțional. Lasă câmpul gol dacă nu ai o limită.</small></label>
         <label class="checkbox-label"><input type="checkbox" formControlName="nationwideDelivery">Livrez oriunde în România</label>
-        <label class="capability-choice">
-          <input type="checkbox" formControlName="canFulfillMultiCategoryRequests">
-          <span><strong>Pot prelua cereri cu mai multe categorii</strong>
-            <small>Selectează doar dacă poți coordona și livra întreaga cerere, fără un catalog complet de produse.</small></span>
-        </label>
         @if (!deliveryForm.controls.nationwideDelivery.value) {
           <fieldset><legend>Județe deservite *</legend><p class="field-help">Alege toate județele în care livrezi în mod normal.</p>
             <div class="county-grid">
@@ -93,9 +70,6 @@ export class SupplierSettingsComponent {
   readonly selectedCounties = signal<string[]>([]);
   readonly loadingCategories = signal(true);
   readonly savingCategories = signal(false);
-  readonly addingCategory = signal(false);
-  readonly pendingSimilarCategories = signal<CategoryOption[]>([]);
-  private pendingCategoryName = '';
   readonly savingDelivery = signal(false);
   readonly categoryMessage = signal('');
   readonly deliveryMessage = signal('');
@@ -110,10 +84,8 @@ export class SupplierSettingsComponent {
     normalDeliveryRadiusKm: new FormControl(50, { nonNullable: true, validators: [Validators.required, Validators.min(1), Validators.max(1000)] }),
     maximumDeliveryRadiusKm: new FormControl(100, { nonNullable: true, validators: [Validators.required, Validators.min(1), Validators.max(1000)] }),
     minimumOrderValue: new FormControl<number|null>(null, { validators: Validators.min(0) }),
-    nationwideDelivery: new FormControl(false, { nonNullable: true }),
-    canFulfillMultiCategoryRequests: new FormControl(false, { nonNullable: true })
+    nationwideDelivery: new FormControl(false, { nonNullable: true })
   });
-  readonly customCategoryName = new FormControl('', { nonNullable: true, validators: [Validators.required, Validators.minLength(2), Validators.maxLength(120)] });
 
   constructor() {
     this.settings.getCategories().subscribe({
@@ -134,39 +106,6 @@ export class SupplierSettingsComponent {
   toggleCounty(county: string): void {
     const values = this.selectedCounties();
     this.selectedCounties.set(values.includes(county) ? values.filter(value => value !== county) : [...values, county]);
-  }
-  addCategory(): void {
-    if (this.customCategoryName.invalid) return;
-    const name = this.customCategoryName.value.trim();
-    const confirmSimilar = this.pendingCategoryName === name && this.pendingSimilarCategories().length > 0;
-    this.addingCategory.set(true); this.categoryMessage.set('');
-    this.settings.addCategory(name, confirmSimilar).subscribe({
-      next: category => {
-        if (!this.categories().some(value => value.id === category.id)) this.categories.update(values => [...values, category]);
-        if (!this.selectedCategoryIds().includes(category.id)) this.selectedCategoryIds.update(values => [...values, category.id]);
-        this.clearCategoryConfirmation();
-        this.customCategoryName.reset(); this.addingCategory.set(false); this.categoryError.set(false);
-        this.categoryMessage.set(category.alreadyExisted
-          ? `Categoria „${category.name}” există deja și a fost selectată.`
-          : 'Categoria a fost adăugată și selectată. Salvează categoriile pentru a confirma.');
-      },
-      error: (error: HttpErrorResponse) => {
-        this.addingCategory.set(false);
-        if (error.status === 409 && Array.isArray(error.error?.similarCategories)) {
-          this.pendingCategoryName = name;
-          this.pendingSimilarCategories.set(error.error.similarCategories);
-          this.categoryError.set(false);
-          this.categoryMessage.set('Verifică denumirile similare înainte de a crea o categorie nouă.');
-          return;
-        }
-        this.categoryError.set(true);
-        this.categoryMessage.set(this.addCategoryError(error));
-      }
-    });
-  }
-  clearCategoryConfirmation(): void {
-    this.pendingCategoryName = '';
-    this.pendingSimilarCategories.set([]);
   }
   saveCategories(): void {
     const session = this.auth.session();
@@ -205,16 +144,4 @@ export class SupplierSettingsComponent {
     });
   }
 
-  private addCategoryError(error: HttpErrorResponse): string {
-    if (error.status === 0) return 'API-ul nu poate fi contactat. Verifică dacă Marketplace.Api rulează.';
-    if (error.status === 404 || error.status === 405)
-      return 'API-ul rulează cu o versiune mai veche. Oprește și repornește Marketplace.Api din Visual Studio, apoi încearcă din nou.';
-    const messages = error.error?.errors
-      ? Object.values(error.error.errors as Record<string, string[]>).flat().filter(message => message.trim().length > 0)
-      : [];
-    if (messages.length > 0) return messages.join(' ');
-    if (error.status === 401) return 'Sesiunea a expirat. Autentifică-te din nou.';
-    if (error.status === 429) return 'Au fost prea multe încercări. Așteaptă un minut și încearcă din nou.';
-    return `Categoria nu a putut fi adăugată (HTTP ${error.status}). Verifică răspunsul API.`;
-  }
 }

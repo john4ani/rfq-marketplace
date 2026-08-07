@@ -1,6 +1,7 @@
 using Marketplace.Application.Categories;
 using Marketplace.Application.Rfqs;
 using Marketplace.Domain.Offers;
+using Marketplace.Domain.Notifications;
 using Marketplace.Domain.Rfqs;
 using Marketplace.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
@@ -13,11 +14,13 @@ public sealed class RfqService(
     IProcurementNeedAuditTrail auditTrail) : IRfqService
 {
     public async Task<IReadOnlyCollection<Rfq>> GetMineAsync(Guid buyerId, CancellationToken cancellationToken) =>
-        await dbContext.Rfqs.AsNoTracking().Include(rfq => rfq.Items).Where(rfq => rfq.BuyerId == buyerId)
+        await dbContext.Rfqs.AsNoTracking().Include(rfq => rfq.NeedCategories)
+            .Include(rfq => rfq.Items).ThenInclude(item => item.NeedCategory).Where(rfq => rfq.BuyerId == buyerId)
             .OrderByDescending(rfq => rfq.UpdatedAt).ToListAsync(cancellationToken);
 
     public Task<Rfq?> GetAsync(Guid buyerId, Guid rfqId, CancellationToken cancellationToken) =>
-        dbContext.Rfqs.AsNoTracking().Include(rfq => rfq.Items)
+        dbContext.Rfqs.AsNoTracking().Include(rfq => rfq.NeedCategories)
+            .Include(rfq => rfq.Items).ThenInclude(item => item.NeedCategory)
             .SingleOrDefaultAsync(rfq => rfq.Id == rfqId && rfq.BuyerId == buyerId, cancellationToken);
 
     public async Task<IReadOnlyCollection<ProcurementNeedAuditEvent>?> GetHistoryAsync(
@@ -69,6 +72,7 @@ public sealed class RfqService(
         rfq.Publish(now);
         auditTrail.Record(rfq.Id, buyerId, ProcurementNeedAuditEventType.Published,
             previousStatus, rfq.NeedStatus, null, now);
+        await NotifyMatchingSuppliersAsync(rfq, now, cancellationToken);
         await SaveRfqChangesAsync(cancellationToken);
         return rfq;
     }
@@ -161,18 +165,16 @@ public sealed class RfqService(
             .ToArrayAsync(cancellationToken);
         string[] deliveryCounties = configuredCounties.Length > 0 ? configuredCounties : [supplierCounty];
 
-        IQueryable<Rfq> query = dbContext.Rfqs.AsNoTracking().Include(rfq => rfq.Items)
+        IQueryable<Rfq> query = dbContext.Rfqs.AsNoTracking().Include(rfq => rfq.NeedCategories)
+            .Include(rfq => rfq.Items).ThenInclude(item => item.NeedCategory)
             .Where(rfq => (rfq.Status == RfqStatus.Published || rfq.Status == RfqStatus.ReceivingOffers)
                 && rfq.QuotationDeadline > now
-                && (compatibleSupplierCategoryIds.Contains(rfq.PrimaryCategoryId)
-                    || rfq.Items.Any(item => item.CategoryId.HasValue && compatibleSupplierCategoryIds.Contains(item.CategoryId.Value)))
+                && rfq.NeedCategories.Any(category => compatibleSupplierCategoryIds.Contains(category.CategoryId))
                 && (nationwide || deliveryCounties.Contains(rfq.County)));
         if (categoryId.HasValue)
         {
             Guid[] compatibleFilterCategoryIds = CategoryCompatibilityPolicy.Expand([categoryId.Value], categoryParents).ToArray();
-            query = query.Where(rfq => compatibleFilterCategoryIds.Contains(rfq.PrimaryCategoryId)
-                || rfq.Items.Any(item => item.CategoryId.HasValue
-                    && compatibleFilterCategoryIds.Contains(item.CategoryId.Value)));
+            query = query.Where(rfq => rfq.NeedCategories.Any(category => compatibleFilterCategoryIds.Contains(category.CategoryId)));
         }
 
         Rfq[] rfqs = await query.OrderBy(rfq => rfq.QuotationDeadline).ThenByDescending(rfq => rfq.PublishedAt)
@@ -187,15 +189,9 @@ public sealed class RfqService(
                 .ToArray();
 
         Dictionary<Guid, HashSet<Guid>> matchingItems = [];
-        rfqs = await ApplyCoveragePriority(
-            rfqs,
-            supplierId,
-            compatibleSupplierCategories,
-            categoryParents,
-            matchingItems,
-            cancellationToken);
+        rfqs = ApplyCoverage(rfqs, compatibleSupplierCategories, matchingItems);
 
-        Guid[] categoryIds = rfqs.Select(rfq => rfq.PrimaryCategoryId).Distinct().ToArray();
+        Guid[] categoryIds = rfqs.SelectMany(rfq => rfq.RequiredCategoryIds).Distinct().ToArray();
         Guid[] buyerIds = rfqs.Select(rfq => rfq.BuyerId).Distinct().ToArray();
         Dictionary<Guid, string> categories = await dbContext.Categories.AsNoTracking()
             .Where(category => categoryIds.Contains(category.Id))
@@ -208,7 +204,7 @@ public sealed class RfqService(
                 cancellationToken);
         return rfqs.Select(rfq => new OpenRfq(
             rfq,
-            categories.GetValueOrDefault(rfq.PrimaryCategoryId, "Categorie"),
+            string.Join(", ", rfq.RequiredCategoryIds.Select(id => categories.GetValueOrDefault(id, "Categorie"))),
             buyers.GetValueOrDefault(rfq.BuyerId, "Cumpărător verificat"),
             matchingItems.TryGetValue(rfq.Id, out HashSet<Guid>? ids) && ids.Count < rfq.Items.Count,
             matchingItems.GetValueOrDefault(rfq.Id))).ToArray();
@@ -226,23 +222,25 @@ public sealed class RfqService(
                 .AnyAsync(offer => offer.RfqId == rfqId && offer.SupplierId == supplierId, cancellationToken))
             return null;
 
-        Rfq? rfq = await dbContext.Rfqs.AsNoTracking().Include(item => item.Items)
+        Rfq? rfq = await dbContext.Rfqs.AsNoTracking().Include(item => item.NeedCategories)
+            .Include(item => item.Items).ThenInclude(item => item.NeedCategory)
             .SingleOrDefaultAsync(item => item.Id == rfqId, cancellationToken);
         if (rfq is null) return null;
 
-        string categoryName = await dbContext.Categories.AsNoTracking()
-            .Where(category => category.Id == rfq.PrimaryCategoryId)
+        string[] categoryNames = await dbContext.Categories.AsNoTracking()
+            .Where(category => rfq.RequiredCategoryIds.Contains(category.Id))
             .Select(category => category.Name)
-            .SingleOrDefaultAsync(cancellationToken) ?? "Categorie";
+            .ToArrayAsync(cancellationToken);
         string buyerName = await dbContext.BuyerProfiles.AsNoTracking()
             .Where(profile => profile.Id == rfq.BuyerId)
             .Select(profile => profile.CompanyName ?? profile.DisplayName)
             .SingleOrDefaultAsync(cancellationToken) ?? "Cumpărător verificat";
-        return new OpenRfq(rfq, categoryName, buyerName);
+        return new OpenRfq(rfq, string.Join(", ", categoryNames), buyerName);
     }
 
     private Task<Rfq?> Find(Guid buyerId, Guid rfqId, CancellationToken cancellationToken) =>
-        dbContext.Rfqs.Include(rfq => rfq.Items).SingleOrDefaultAsync(rfq => rfq.Id == rfqId && rfq.BuyerId == buyerId, cancellationToken);
+        dbContext.Rfqs.Include(rfq => rfq.NeedCategories).Include(rfq => rfq.Items).ThenInclude(item => item.NeedCategory)
+            .SingleOrDefaultAsync(rfq => rfq.Id == rfqId && rfq.BuyerId == buyerId, cancellationToken);
 
     private async Task RejectOpenOffers(Guid rfqId, DateTimeOffset now, CancellationToken cancellationToken)
     {
@@ -268,73 +266,90 @@ public sealed class RfqService(
     {
         if (!await dbContext.BuyerProfiles.AnyAsync(profile => profile.Id == buyerId, cancellationToken))
             throw new RfqRuleException("Completați și salvați mai întâi profilul de cumpărător.");
-        Guid[] categoryIds = draft.Items.Where(item => item.CategoryId.HasValue).Select(item => item.CategoryId!.Value)
-            .Append(draft.PrimaryCategoryId).Distinct().ToArray();
+        Guid[] categoryIds = (draft.CategoryIds ?? []).Concat(
+                draft.Items.Where(item => item.CategoryId.HasValue).Select(item => item.CategoryId!.Value))
+            .Append(draft.PrimaryCategoryId).Where(id => id != Guid.Empty).Distinct().ToArray();
         int validCategories = await dbContext.Categories.CountAsync(
             category => categoryIds.Contains(category.Id) && category.IsActive, cancellationToken);
         if (validCategories != categoryIds.Length)
             throw new RfqRuleException("Una dintre categoriile selectate nu este disponibilă.");
+        if (draft.ProjectTemplateId.HasValue)
+        {
+            bool validTemplate = await dbContext.ProjectTemplates.AnyAsync(template =>
+                template.Id == draft.ProjectTemplateId.Value && template.IsActive, cancellationToken);
+            if (!validTemplate)
+                throw new RfqRuleException("Șablonul de proiect selectat nu este disponibil.");
+        }
     }
 
-    private async Task<Rfq[]> ApplyCoveragePriority(
-        Rfq[] rfqs,
-        Guid currentSupplierId,
-        HashSet<Guid> currentCategories,
-        IReadOnlyDictionary<Guid, Guid?> categoryParents,
-        Dictionary<Guid, HashSet<Guid>> matchingItems,
-        CancellationToken cancellationToken)
+    private async Task NotifyMatchingSuppliersAsync(Rfq rfq, DateTimeOffset now, CancellationToken cancellationToken)
     {
-        if (rfqs.Length == 0) return rfqs;
+        var suppliers = await dbContext.SupplierProfiles.AsNoTracking()
+            .Where(profile => profile.IsActive && profile.Id != rfq.BuyerId)
+            .Select(profile => new { profile.Id, profile.County })
+            .ToArrayAsync(cancellationToken);
+        if (suppliers.Length == 0) return;
 
-        var profiles = await dbContext.SupplierProfiles.AsNoTracking().Where(profile => profile.IsActive)
-            .Select(profile => new { profile.Id, profile.County }).ToArrayAsync(cancellationToken);
-        var selections = await dbContext.SupplierCategories.AsNoTracking()
-            .Select(item => new { item.SupplierId, item.CategoryId }).ToArrayAsync(cancellationToken);
-        Dictionary<Guid, HashSet<Guid>> categoriesBySupplier = selections.GroupBy(item => item.SupplierId)
-            .ToDictionary(group => group.Key,
-                group => CategoryCompatibilityPolicy.Expand(group.Select(item => item.CategoryId), categoryParents));
-        var deliverySettings = await dbContext.SupplierDeliverySettings.AsNoTracking()
-            .Select(settings => new {
-                settings.SupplierId,
-                settings.NationwideDelivery,
-                settings.CanFulfillMultiCategoryRequests
-            }).ToArrayAsync(cancellationToken);
-        HashSet<Guid> nationwideSuppliers = deliverySettings.Where(settings => settings.NationwideDelivery)
-            .Select(settings => settings.SupplierId).ToHashSet();
-        HashSet<Guid> multiCategorySuppliers = deliverySettings.Where(settings => settings.CanFulfillMultiCategoryRequests)
-            .Select(settings => settings.SupplierId).ToHashSet();
-        var deliveryAreas = await dbContext.SupplierDeliveryAreas.AsNoTracking()
-            .Select(area => new { area.SupplierId, area.County }).ToArrayAsync(cancellationToken);
-        Dictionary<Guid, HashSet<string>> areasBySupplier = deliveryAreas.GroupBy(area => area.SupplierId)
-            .ToDictionary(group => group.Key, group => group.Select(area => area.County).ToHashSet(StringComparer.OrdinalIgnoreCase));
+        Guid[] supplierIds = suppliers.Select(supplier => supplier.Id).ToArray();
+        var categoryRows = await dbContext.SupplierCategories.AsNoTracking()
+            .Where(category => supplierIds.Contains(category.SupplierId))
+            .Select(category => new { category.SupplierId, category.CategoryId })
+            .ToArrayAsync(cancellationToken);
+        Dictionary<Guid, Guid?> categoryParents = await dbContext.Categories.AsNoTracking()
+            .Where(category => category.IsActive)
+            .ToDictionaryAsync(category => category.Id, category => category.ParentId, cancellationToken);
+        HashSet<Guid> nationwideSupplierIds = (await dbContext.SupplierDeliverySettings.AsNoTracking()
+            .Where(settings => supplierIds.Contains(settings.SupplierId) && settings.NationwideDelivery)
+            .Select(settings => settings.SupplierId)
+            .ToArrayAsync(cancellationToken)).ToHashSet();
+        Dictionary<Guid, string[]> deliveryAreas = (await dbContext.SupplierDeliveryAreas.AsNoTracking()
+            .Where(area => supplierIds.Contains(area.SupplierId))
+            .Select(area => new { area.SupplierId, area.County })
+            .ToArrayAsync(cancellationToken))
+            .GroupBy(area => area.SupplierId)
+            .ToDictionary(group => group.Key, group => group.Select(area => area.County).ToArray());
+        Dictionary<Guid, Guid[]> categoriesBySupplier = categoryRows.GroupBy(category => category.SupplierId)
+            .ToDictionary(group => group.Key, group => group.Select(category => category.CategoryId).ToArray());
+        HashSet<Guid> requiredCategories = rfq.RequiredCategoryIds.ToHashSet();
 
+        foreach (var supplier in suppliers)
+        {
+            if (!nationwideSupplierIds.Contains(supplier.Id)
+                && !(deliveryAreas.GetValueOrDefault(supplier.Id) ?? [supplier.County]).Contains(rfq.County))
+                continue;
+            if (!categoriesBySupplier.TryGetValue(supplier.Id, out Guid[]? selectedCategories)) continue;
+
+            HashSet<Guid> compatibleCategories = CategoryCompatibilityPolicy.Expand(selectedCategories, categoryParents);
+            if (ProviderCoveragePolicy.Decide(rfq.AllowSplit, requiredCategories, compatibleCategories) == ProviderCoverageMatch.None)
+                continue;
+
+            dbContext.Notifications.Add(Notification.Create(
+                supplier.Id,
+                NotificationType.RequestPublished,
+                "Cerere nouă relevantă",
+                $"O cerere nouă, „{rfq.Title}”, se potrivește categoriilor și zonei tale.",
+                $"/open-requests/{rfq.Id}",
+                $"rfq:{rfq.Id}:published:{supplier.Id}",
+                now));
+        }
+    }
+
+    private static Rfq[] ApplyCoverage(
+        Rfq[] rfqs,
+        HashSet<Guid> providerCategories,
+        Dictionary<Guid, HashSet<Guid>> matchingItems)
+    {
         List<Rfq> visible = [];
         foreach (Rfq rfq in rfqs)
         {
-            HashSet<Guid> requiredCategories = rfq.Items.Count > 0
-                ? rfq.Items.Select(item => item.CategoryId ?? rfq.PrimaryCategoryId).ToHashSet()
-                : [rfq.PrimaryCategoryId];
-            Guid[] eligibleSupplierIds = profiles.Where(profile =>
-                    nationwideSuppliers.Contains(profile.Id)
-                    || (areasBySupplier.TryGetValue(profile.Id, out HashSet<string>? areas)
-                        ? areas.Contains(rfq.County)
-                        : string.Equals(profile.County, rfq.County, StringComparison.OrdinalIgnoreCase)))
-                .Select(profile => profile.Id).ToArray();
-            bool fullCoverageExists = eligibleSupplierIds.Any(id =>
-                categoriesBySupplier.TryGetValue(id, out HashSet<Guid>? categories)
-                && requiredCategories.IsSubsetOf(categories)
-                && (requiredCategories.Count == 1 || multiCategorySuppliers.Contains(id)));
+            HashSet<Guid> requiredCategories = rfq.RequiredCategoryIds.ToHashSet();
             ProviderCoverageMatch coverage = ProviderCoveragePolicy.Decide(
-                rfq.AllowSplit,
-                requiredCategories,
-                currentCategories,
-                multiCategorySuppliers.Contains(currentSupplierId),
-                fullCoverageExists);
+                rfq.AllowSplit, requiredCategories, providerCategories);
             if (coverage == ProviderCoverageMatch.None) continue;
 
             HashSet<Guid> itemIds = coverage == ProviderCoverageMatch.Full
                 ? rfq.Items.Select(item => item.Id).ToHashSet()
-                : rfq.Items.Where(item => currentCategories.Contains(item.CategoryId ?? rfq.PrimaryCategoryId))
+                : rfq.Items.Where(item => providerCategories.Contains(item.CategoryId))
                     .Select(item => item.Id).ToHashSet();
             matchingItems[rfq.Id] = itemIds;
             visible.Add(rfq);

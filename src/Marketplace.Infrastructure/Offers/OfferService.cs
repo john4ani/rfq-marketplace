@@ -86,7 +86,8 @@ public sealed class OfferService(
 
     public async Task<IReadOnlyCollection<BuyerOffer>> GetForBuyerAsync(Guid buyerId, Guid rfqId, CancellationToken cancellationToken)
     {
-        Rfq? rfq = await dbContext.Rfqs.AsNoTracking().Include(item => item.Items)
+        Rfq? rfq = await dbContext.Rfqs.AsNoTracking().Include(item => item.NeedCategories)
+            .Include(item => item.Items).ThenInclude(item => item.NeedCategory)
             .SingleOrDefaultAsync(item => item.Id == rfqId && item.BuyerId == buyerId, cancellationToken);
         if (rfq is null)
             return [];
@@ -131,7 +132,7 @@ public sealed class OfferService(
         Guid rfqId,
         CancellationToken cancellationToken)
     {
-        Rfq? rfq = await dbContext.Rfqs.SingleOrDefaultAsync(item => item.Id == rfqId, cancellationToken);
+        Rfq? rfq = await FindRfq(item => item.Id == rfqId, cancellationToken);
         if (rfq is null) return null;
         Offer? selected = rfq.SelectedOfferId.HasValue
             ? await dbContext.Offers.SingleOrDefaultAsync(
@@ -166,9 +167,7 @@ public sealed class OfferService(
         Guid rfqId,
         CancellationToken cancellationToken)
     {
-        Rfq? rfq = await dbContext.Rfqs.SingleOrDefaultAsync(
-            item => item.Id == rfqId && item.BuyerId == buyerId,
-            cancellationToken);
+        Rfq? rfq = await FindRfq(item => item.Id == rfqId && item.BuyerId == buyerId, cancellationToken);
         if (rfq is null) return null;
         Offer? selected = rfq.SelectedOfferId.HasValue
             ? await dbContext.Offers.SingleOrDefaultAsync(
@@ -203,8 +202,7 @@ public sealed class OfferService(
         DateTimeOffset? newQuotationDeadline,
         CancellationToken cancellationToken)
     {
-        Rfq? rfq = await dbContext.Rfqs.SingleOrDefaultAsync(
-            item => item.Id == rfqId && item.BuyerId == buyerId, cancellationToken);
+        Rfq? rfq = await FindRfq(item => item.Id == rfqId && item.BuyerId == buyerId, cancellationToken);
         if (rfq is null) return null;
 
         DateTimeOffset now = timeProvider.GetUtcNow();
@@ -238,14 +236,13 @@ public sealed class OfferService(
         DateTimeOffset now,
         CancellationToken cancellationToken)
     {
-        Rfq? rfq = await dbContext.Rfqs.Include(item => item.Items).SingleOrDefaultAsync(item =>
+        Rfq? rfq = await dbContext.Rfqs.Include(item => item.NeedCategories)
+            .Include(item => item.Items).ThenInclude(item => item.NeedCategory).SingleOrDefaultAsync(item =>
             item.Id == rfqId && (item.Status == RfqStatus.Published || item.Status == RfqStatus.ReceivingOffers)
             && item.QuotationDeadline > now, cancellationToken);
         if (rfq is null) throw new OfferRuleException("Cererea nu mai primește oferte.");
 
-        HashSet<Guid> requiredCategories = rfq.Items.Count > 0
-            ? rfq.Items.Select(item => item.CategoryId ?? rfq.PrimaryCategoryId).ToHashSet()
-            : [rfq.PrimaryCategoryId];
+        HashSet<Guid> requiredCategories = rfq.RequiredCategoryIds.ToHashSet();
         var profiles = await dbContext.SupplierProfiles.AsNoTracking().Where(profile => profile.IsActive)
             .Select(profile => new { profile.Id, profile.County }).ToArrayAsync(cancellationToken);
         var currentProfile = profiles.SingleOrDefault(profile => profile.Id == supplierId)
@@ -264,12 +261,9 @@ public sealed class OfferService(
         var settingsRows = await dbContext.SupplierDeliverySettings.AsNoTracking()
             .Select(settings => new {
                 settings.SupplierId,
-                settings.NationwideDelivery,
-                settings.CanFulfillMultiCategoryRequests
+                settings.NationwideDelivery
             }).ToArrayAsync(cancellationToken);
         HashSet<Guid> nationwideSuppliers = settingsRows.Where(settings => settings.NationwideDelivery)
-            .Select(settings => settings.SupplierId).ToHashSet();
-        HashSet<Guid> multiCategorySuppliers = settingsRows.Where(settings => settings.CanFulfillMultiCategoryRequests)
             .Select(settings => settings.SupplierId).ToHashSet();
         var areaRows = await dbContext.SupplierDeliveryAreas.AsNoTracking()
             .Select(area => new { area.SupplierId, area.County }).ToArrayAsync(cancellationToken);
@@ -285,25 +279,26 @@ public sealed class OfferService(
         if (!DeliversToRequest(supplierId, currentProfile.County))
             throw new OfferRuleException("Cererea nu este disponibilă în zona de livrare configurată.");
 
-        bool fullCoverageExists = profiles.Where(profile => DeliversToRequest(profile.Id, profile.County)).Any(profile =>
-            categoriesBySupplier.TryGetValue(profile.Id, out HashSet<Guid>? categories)
-            && requiredCategories.IsSubsetOf(categories)
-            && (requiredCategories.Count == 1 || multiCategorySuppliers.Contains(profile.Id)));
         ProviderCoverageMatch coverage = ProviderCoveragePolicy.Decide(
             rfq.AllowSplit,
             requiredCategories,
-            currentCategories,
-            multiCategorySuppliers.Contains(supplierId),
-            fullCoverageExists);
+            currentCategories);
         if (coverage == ProviderCoverageMatch.None)
             throw new OfferRuleException("Cererea nu este disponibilă pentru profilul și zona configurate.");
 
         HashSet<Guid> itemIds = coverage == ProviderCoverageMatch.Full
             ? rfq.Items.Select(item => item.Id).ToHashSet()
-            : rfq.Items.Where(item => currentCategories.Contains(item.CategoryId ?? rfq.PrimaryCategoryId))
+            : rfq.Items.Where(item => currentCategories.Contains(item.CategoryId))
                 .Select(item => item.Id).ToHashSet();
         return new(rfq, coverage, itemIds);
     }
+
+    private Task<Rfq?> FindRfq(
+        System.Linq.Expressions.Expression<Func<Rfq, bool>> predicate,
+        CancellationToken cancellationToken) =>
+        dbContext.Rfqs.Include(rfq => rfq.NeedCategories)
+            .Include(rfq => rfq.Items).ThenInclude(item => item.NeedCategory)
+            .SingleOrDefaultAsync(predicate, cancellationToken);
 
     private async Task SaveRfqChangesAsync(CancellationToken cancellationToken)
     {

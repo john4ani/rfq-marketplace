@@ -19,12 +19,10 @@ public sealed record SupplierDeliverySelection(
     int MaximumDeliveryRadiusKm,
     decimal? MinimumOrderValue,
     bool NationwideDelivery,
-    bool CanFulfillMultiCategoryRequests,
     IReadOnlyCollection<string> Counties);
 public sealed record SupplierDeliveryInput(
     int NormalDeliveryRadiusKm,
     int MaximumDeliveryRadiusKm,
     decimal? MinimumOrderValue,
     bool NationwideDelivery,
-    bool CanFulfillMultiCategoryRequests,
     IReadOnlyCollection<string> Counties);

@@ -68,6 +68,16 @@ public sealed class OpenRfqEndpointTests : IClassFixture<WebApplicationFactory<P
 
         OpenRfqResponse[] allMatches = (await _client.GetFromJsonAsync<OpenRfqResponse[]>("/api/v1/open-rfqs"))!;
         Assert.Contains(allMatches, item => item.Id == broadRfq.Id);
+
+        Authorize(buyer.AccessToken);
+        RfqResponse notifiedRfq = (await (await _client.PostAsJsonAsync("/api/v1/rfqs", Request(categoryId, "Cerere pentru notificare furnizor")))
+            .Content.ReadFromJsonAsync<RfqResponse>())!;
+        Assert.Equal(HttpStatusCode.OK, (await _client.PostAsJsonAsync($"/api/v1/rfqs/{notifiedRfq.Id}/publish", new { })).StatusCode);
+
+        Authorize(supplier.AccessToken);
+        NotificationResponse[] notifications = (await _client.GetFromJsonAsync<NotificationResponse[]>("/api/v1/notifications"))!;
+        Assert.Contains(notifications, notification => notification.Type == "RequestPublished"
+            && notification.Link == $"/open-requests/{notifiedRfq.Id}");
     }
 
     private async Task<TokenResponse> RegisterAndLogin(string role, string email, string password)
@@ -82,8 +92,8 @@ public sealed class OpenRfqEndpointTests : IClassFixture<WebApplicationFactory<P
     private void Authorize(string token) =>
         _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
 
-    private static object Request(Guid categoryId) => new {
-        title = "Ciment pentru fundație", projectName = "Casă Iași", description = "Necesar pentru fundație",
+    private static object Request(Guid categoryId, string title = "Ciment pentru fundație") => new {
+        title, projectName = "Casă Iași", description = "Necesar pentru fundație",
         primaryCategoryId = categoryId, deliveryAddress = "Adresă privată 10", deliveryLocality = "Iași", county = "Iași",
         supplierSearchRadiusKm = 30, latitude = (decimal?)null, longitude = (decimal?)null,
         preferredDeliveryDate = DateOnly.FromDateTime(DateTime.UtcNow.AddDays(10)),
@@ -116,4 +126,5 @@ public sealed class OpenRfqEndpointTests : IClassFixture<WebApplicationFactory<P
     private sealed record CategoryResponse(Guid Id, Guid? ParentId, string Name, string Slug);
     private sealed record RfqResponse(Guid Id);
     private sealed record OpenRfqResponse(Guid Id, string County, string BuyerDisplayName);
+    private sealed record NotificationResponse(string Type, string Link);
 }

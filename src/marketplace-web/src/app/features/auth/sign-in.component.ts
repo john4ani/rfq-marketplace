@@ -1,6 +1,6 @@
 import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/core';
 import { FormControl, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
-import { Router, RouterLink } from '@angular/router';
+import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { AuthService } from '../../core/auth/auth.service';
 
 @Component({
@@ -16,14 +16,15 @@ import { AuthService } from '../../core/auth/auth.service';
   changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class SignInComponent {
-  private readonly auth = inject(AuthService); private readonly router = inject(Router);
+  private readonly auth = inject(AuthService); private readonly router = inject(Router); private readonly route=inject(ActivatedRoute);
+  private readonly returnUrl=this.safeReturnUrl(this.route.snapshot.queryParamMap.get('returnUrl'));
   readonly submitting = signal(false); readonly error = signal(''); readonly showPassword = signal(false);
   readonly form = new FormGroup({ email: new FormControl('', { nonNullable: true, validators: [Validators.required, Validators.email] }), password: new FormControl('', { nonNullable: true, validators: Validators.required }) });
   submit(): void {
     if (this.form.invalid) { this.error.set('Introduceți un e-mail valid și parola.'); return; }
     this.submitting.set(true); this.error.set('');
     this.auth.login(this.form.controls.email.value, this.form.controls.password.value).subscribe({
-      next: () => void this.router.navigateByUrl('/dashboard'),
+      next: () => void this.router.navigateByUrl(this.returnUrl??'/dashboard'),
       error: (response) => {
         this.error.set(response.status === 0
           ? 'API-ul nu poate fi contactat. Verificați dacă Marketplace.Api rulează.'
@@ -32,4 +33,5 @@ export class SignInComponent {
       }
     });
   }
+  private safeReturnUrl(value:string|null):string|null{return value?.startsWith('/')&&!value.startsWith('//')?value:null;}
 }

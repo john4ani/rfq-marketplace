@@ -5,6 +5,7 @@ export type RfqStatus = 'Draft' | 'Published' | 'ReceivingOffers' | 'OfferSelect
 export type ProcurementNeedSource = 'Manual' | 'Assisted' | 'Imported' | 'Administrator';
 export type ProcurementInputType = 'StructuredForm' | 'FreeText' | 'ShoppingList' | 'ProjectDescription';
 export type ProcurementNeedStatus = 'Draft' | 'Published' | 'ReceivingResponses' | 'Awarded' | 'Completed' | 'Cancelled';
+export type ProcurementNeedType = 'DirectPurchase' | 'ShoppingList' | 'Project';
 export type RequirementKind = 'Product' | 'Service';
 export type ProcurementOutcome = 'PurchasedThroughCompaSpot' | 'PurchasedFromParticipant' | 'PurchasedElsewhere' | 'Postponed' | 'Cancelled' | 'NoSuitableOffer' | 'InsufficientResponses' | 'Other';
 export type ProcurementNeedAuditEventType = 'Created' | 'Updated' | 'Published' | 'OfferReceived' | 'DeadlineExtended' | 'OfferSelected' | 'Reopened' | 'DeliveryReported' | 'Completed' | 'Cancelled' | 'OutcomeRecorded' | 'Migrated';
@@ -19,6 +20,7 @@ export interface RfqItem {
 export interface RfqDraft {
   source: ProcurementNeedSource; inputType: ProcurementInputType;
   title: string; projectName: string | null; description: string | null; primaryCategoryId: string;
+  categoryIds: string[]; needType: ProcurementNeedType; projectTemplateId: string | null;
   deliveryAddress: string; deliveryLocality: string; county: string; supplierSearchRadiusKm: number; latitude: number | null; longitude: number | null;
   preferredDeliveryDate: string | null; quotationDeadline: string; alternativeProductsAccepted: boolean;
   estimatedBudget: number | null; buyerNotes: string | null; items: RfqItem[]; allowSplit: boolean; deliveryRequired: boolean;

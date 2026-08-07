@@ -59,7 +59,11 @@ Add secure opportunity invitations, personal invitation links, registration sour
 
 ## Pasul 7 — Assisted Supplier discovery
 
-Add unverified Supplier candidates, human validation, request-linked invitations, and company claim flow. Never present discovered data as verified and never send mass outreach automatically.
+**Status:** implemented; automated verification is recorded in the Step 7 verification report.
+
+Administrators can record unverified Supplier candidates with an explicit evidence source, validate or reject them manually, and create a secure invitation for one relevant open request. The public invitation labels the company as discovered and unverified, exposes only safe request context, and lets an authenticated Supplier with a completed profile claim the company and opportunity. Tokens are opaque, stored only as hashes, expire with the request, and claims are concurrency-protected and audited.
+
+This slice deliberately implements only the request-linked invitation needed for discovery. Pasul 6's general personal referrals, inviter attribution, controlled sharing, and referral analytics remain separate. No candidate is contacted automatically and no discovery result becomes a verified trust claim. See [ADR-0021](../decisions/ADR-0021-assisted-supplier-discovery.md).
 
 ## Pasul 8 — Trust foundation
 

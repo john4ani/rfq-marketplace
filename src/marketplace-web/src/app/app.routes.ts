@@ -1,5 +1,5 @@
 import { Routes } from '@angular/router';
-import { authGuard, guestOnlyGuard } from './core/auth/auth.guard';
+import { administratorGuard, authGuard, guestOnlyGuard } from './core/auth/auth.guard';
 
 export const routes: Routes = [
   { path: '', loadComponent: () => import('./features/landing/live-market.component').then(m => m.LiveMarketComponent) },
@@ -8,6 +8,9 @@ export const routes: Routes = [
   { path: 'register', canActivate: [guestOnlyGuard], loadComponent: () => import('./features/auth/register.component').then(m => m.RegisterComponent) },
   { path: 'forgot-password', loadComponent: () => import('./features/auth/forgot-password.component').then(m => m.ForgotPasswordComponent) },
   { path: 'reset-password', loadComponent: () => import('./features/auth/reset-password.component').then(m => m.ResetPasswordComponent) },
+  { path: 'supplier-invitations/:token', loadComponent: () => import('./features/supplier-discovery/supplier-invitation.component').then(m => m.SupplierInvitationComponent) },
+  { path: 'admin/supplier-discovery', canActivate: [administratorGuard], loadComponent: () => import('./features/supplier-discovery/supplier-discovery-admin.component').then(m => m.SupplierDiscoveryAdminComponent) },
+  { path: 'admin/catalog', canActivate: [administratorGuard], loadComponent: () => import('./features/admin/category-catalog.component').then(m => m.CategoryCatalogComponent) },
   { path: 'dashboard', canActivate: [authGuard], loadComponent: () => import('./features/dashboard/dashboard.component').then(m => m.DashboardComponent) },
   { path: 'open-requests', canActivate: [authGuard], loadComponent: () => import('./features/rfqs/open-rfq-list.component').then(m => m.OpenRfqListComponent) },
   { path: 'open-requests/:rfqId', canActivate: [authGuard], loadComponent: () => import('./features/rfqs/open-rfq-detail.component').then(m => m.OpenRfqDetailComponent) },

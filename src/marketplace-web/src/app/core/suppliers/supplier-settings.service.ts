@@ -1,7 +1,7 @@
 import { HttpClient } from '@angular/common/http';
 import { inject, Injectable } from '@angular/core';
 
-export interface CategoryOption { id: string; parentId: string | null; name: string; slug: string; }
+export interface CategoryOption { id: string; verticalId: string; parentId: string | null; name: string; slug: string; }
 export interface CategoryCreationResult extends CategoryOption { alreadyExisted: boolean; }
 export interface SupplierCategorySelection { categoryIds: string[]; }
 export interface SupplierDeliverySettings {
@@ -9,8 +9,10 @@ export interface SupplierDeliverySettings {
   maximumDeliveryRadiusKm: number;
   minimumOrderValue: number | null;
   nationwideDelivery: boolean;
-  canFulfillMultiCategoryRequests: boolean;
   counties: string[];
+}
+export interface ProjectTemplateOption {
+  id: string; verticalId: string; name: string; slug: string; description: string | null; categoryIds: string[];
 }
 
 @Injectable({ providedIn: 'root' })
@@ -19,6 +21,10 @@ export class SupplierSettingsService {
   getCategories() { return this.http.get<CategoryOption[]>('/api/v1/categories'); }
   addCategory(name: string, confirmSimilar = false) {
     return this.http.post<CategoryCreationResult>('/api/v1/categories', { name, confirmSimilar });
+  }
+  getProjectTemplates() { return this.http.get<ProjectTemplateOption[]>('/api/v1/project-templates'); }
+  addProjectTemplate(name: string, description: string | null, categoryIds: string[]) {
+    return this.http.post<ProjectTemplateOption>('/api/v1/project-templates', { name, description, categoryIds });
   }
   getSupplierCategories(id: string) { return this.http.get<SupplierCategorySelection>(`/api/v1/suppliers/${id}/categories`); }
   saveSupplierCategories(id: string, categoryIds: string[]) {

@@ -13,9 +13,7 @@ public sealed class ProviderCoveragePolicyTests
         ProviderCoverageMatch result = ProviderCoveragePolicy.Decide(
             allowSplit: false,
             new HashSet<Guid> { CategoryA, CategoryB },
-            new HashSet<Guid> { CategoryA, CategoryB },
-            canFulfillMultiCategoryRequests: true,
-            fullCoverageProviderExists: true);
+            new HashSet<Guid> { CategoryA, CategoryB });
 
         Assert.Equal(ProviderCoverageMatch.Full, result);
     }
@@ -26,35 +24,28 @@ public sealed class ProviderCoveragePolicyTests
         ProviderCoverageMatch result = ProviderCoveragePolicy.Decide(
             allowSplit: false,
             new HashSet<Guid> { CategoryA, CategoryB },
-            new HashSet<Guid> { CategoryA },
-            canFulfillMultiCategoryRequests: false,
-            fullCoverageProviderExists: false);
+            new HashSet<Guid> { CategoryA });
 
         Assert.Equal(ProviderCoverageMatch.None, result);
     }
 
     [Fact]
-    public void SpecialistReceivesPartialRequestOnlyWhenSplitAllowedAndNoFullProviderExists()
+    public void SpecialistReceivesPartialRequestWhenSplitIsAllowed()
     {
         HashSet<Guid> required = [CategoryA, CategoryB];
         HashSet<Guid> specialist = [CategoryA];
 
-        Assert.Equal(ProviderCoverageMatch.None,
-            ProviderCoveragePolicy.Decide(true, required, specialist, false, fullCoverageProviderExists: true));
         Assert.Equal(ProviderCoverageMatch.Partial,
-            ProviderCoveragePolicy.Decide(true, required, specialist, false, fullCoverageProviderExists: false));
+            ProviderCoveragePolicy.Decide(true, required, specialist));
     }
 
     [Fact]
-    public void SelectingSeveralCategoriesDoesNotImplyWholeRequestCapability()
+    public void ProviderCoveringEveryRequiredCategoryIsAFullMatch()
     {
         HashSet<Guid> required = [CategoryA, CategoryB];
 
         Assert.Equal(
-            ProviderCoverageMatch.None,
-            ProviderCoveragePolicy.Decide(false, required, required, false, fullCoverageProviderExists: false));
-        Assert.Equal(
             ProviderCoverageMatch.Full,
-            ProviderCoveragePolicy.Decide(false, required, required, true, fullCoverageProviderExists: true));
+            ProviderCoveragePolicy.Decide(false, required, required));
     }
 }

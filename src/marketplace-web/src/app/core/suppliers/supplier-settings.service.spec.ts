@@ -32,7 +32,6 @@ describe('SupplierSettingsService', () => {
       maximumDeliveryRadiusKm: 100,
       minimumOrderValue: null,
       nationwideDelivery: false,
-      canFulfillMultiCategoryRequests: true,
       counties: ['Iași']
     };
     service.saveDeliverySettings(id, settings).subscribe();

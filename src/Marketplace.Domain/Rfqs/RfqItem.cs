@@ -8,7 +8,9 @@ public sealed class RfqItem
     public Guid Id { get; private set; }
     public Guid RfqId { get; private set; }
     public int ItemNumber { get; private set; }
-    public Guid? CategoryId { get; private set; }
+    public Guid NeedCategoryId { get; private set; }
+    public NeedCategory NeedCategory { get; private set; } = null!;
+    public Guid CategoryId => NeedCategory.CategoryId;
     public RequirementKind Kind { get; private set; }
     public string ProductName { get; private set; } = string.Empty;
     public string? ManufacturerOrBrand { get; private set; }
@@ -18,20 +20,21 @@ public sealed class RfqItem
     public bool AlternativesAccepted { get; private set; }
     public string? BuyerNotes { get; private set; }
 
-    public static RfqItem Create(Guid id, Guid rfqId, int itemNumber, RfqItemDraft draft)
+    public static RfqItem Create(Guid id, Guid rfqId, int itemNumber, RfqItemDraft draft, NeedCategory needCategory)
     {
         var item = new RfqItem { Id = id, RfqId = rfqId };
-        item.Update(itemNumber, draft);
+        item.Update(itemNumber, draft, needCategory);
         return item;
     }
 
-    internal void Update(int itemNumber, RfqItemDraft draft)
+    internal void Update(int itemNumber, RfqItemDraft draft, NeedCategory needCategory)
     {
         if (string.IsNullOrWhiteSpace(draft.ProductName)) throw new RfqRuleException($"Denumirea produsului sau serviciului de la poziția {itemNumber} este obligatorie.");
         if (draft.Quantity <= 0) throw new RfqRuleException($"Cantitatea de la poziția {itemNumber} trebuie să fie mai mare decât zero.");
         if (!Enum.IsDefined(draft.Kind)) throw new RfqRuleException($"Tipul poziției {itemNumber} nu este valid.");
         ItemNumber = itemNumber;
-        CategoryId = draft.CategoryId;
+        NeedCategoryId = needCategory.Id;
+        NeedCategory = needCategory;
         Kind = draft.Kind;
         ProductName = draft.ProductName.Trim();
         ManufacturerOrBrand = Clean(draft.ManufacturerOrBrand);

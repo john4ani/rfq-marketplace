@@ -55,8 +55,7 @@ public sealed class SmallWoodSupplierBusinessScenarioTests : IClassFixture<WebAp
                 maximumDeliveryRadiusKm = 80,
                 minimumOrderValue = 0m,
                 nationwideDelivery = false,
-                counties = SuceavaCounty,
-                canFulfillMultiCategoryRequests = false
+                counties = SuceavaCounty
             })).StatusCode);
 
         TokenResponse buyer = await RegisterAndLogin("buyer", buyerEmail, password);

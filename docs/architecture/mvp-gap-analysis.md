@@ -15,11 +15,11 @@ The repository is healthy enough for incremental evolution. It already implement
 | Provider offer response | Partial | Itemized/total, transport, timing, validity, terms; alternatives, VAT, explicit missing-line semantics, and coverage summary incomplete |
 | Buyer comparison | Partial | Totals and terms are visible; unavailable lines currently inflate totals and coverage/missing lines are not clearly compared |
 | Selection and fulfilment | Partial | Award, one reopen, delivery report/confirm exist; no general procurement outcome taxonomy |
-| External Provider discovery | Missing | No candidate, validation, claim, or opportunity invitation model |
+| External Provider discovery | Implemented first slice | Sourced unverified candidates, human validation, request-linked invitations, secure claim, and audit; automated discovery/outreach excluded |
 | Referrals | Missing | No invitation token, attribution, sharing events, or conversion state |
 | Trust foundation | Partial | Supplier approval field exists but no verification workflow; email/phone/company verification and action audit absent |
 | Notifications | Partial | In-app offer/message/reopen/delivery events; no email opportunity delivery or deadline/outcome reminders |
-| Concierge administration | Missing | No Admin operational UI or correction workflow |
+| Concierge administration | Partial | Supplier discovery workspace is implemented; correction, matching override, invitation retry, normalization support, and AI review remain Pasul 9 |
 | Analytics | Missing | No extensible funnel event store |
 | AI intake | Missing intentionally | Must follow Pasul 1 and request-model evolution |
 

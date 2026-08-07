@@ -6,8 +6,8 @@ import { switchMap } from 'rxjs';
 import { AuthService } from '../../core/auth/auth.service';
 import { ProfileService } from '../../core/profiles/profile.service';
 import { AssistedIntakeResult, AssistedIntakeService } from '../../core/rfqs/assisted-intake.service';
-import { ProcurementInputType, ProcurementNeedSource, RequirementKind, Rfq, RfqDraft, RfqService, UnitOfMeasure } from '../../core/rfqs/rfq.service';
-import { CategoryOption, SupplierSettingsService } from '../../core/suppliers/supplier-settings.service';
+import { ProcurementInputType, ProcurementNeedSource, ProcurementNeedType, RequirementKind, Rfq, RfqDraft, RfqService, UnitOfMeasure } from '../../core/rfqs/rfq.service';
+import { CategoryOption, ProjectTemplateOption, SupplierSettingsService } from '../../core/suppliers/supplier-settings.service';
 import { ROMANIAN_COUNTIES } from '../../shared/romanian-counties';
 
 @Component({
@@ -24,10 +24,16 @@ import { ROMANIAN_COUNTIES } from '../../shared/romanian-counties';
         <label>Titlu clar *<input formControlName="title" maxlength="180" placeholder="Exemplu: Materiale pentru renovare apartament">
           <small>Spune pe scurt furnizorilor ce dorești să cumperi.</small>
           @if (form.controls.title.touched && form.controls.title.invalid) { <small class="field-error">Completează titlul cererii.</small> }</label>
-        <div class="two"><label>Proiect<input formControlName="projectName" placeholder="Opțional"></label>
-          <label>Categorie principală *<select formControlName="primaryCategoryId"><option value="">Alege categoria</option>
-            @for (category of selectableCategories(); track category.id) { <option [value]="category.id">{{ category.name }}</option> }</select>
-            @if (form.controls.primaryCategoryId.touched && form.controls.primaryCategoryId.invalid) { <small class="field-error">Selectează categoria principală.</small> }</label></div>
+        <fieldset class="split-choice"><legend>Tipul necesarului</legend>
+          <label [class.selected]="form.controls.needType.value==='DirectPurchase'"><input type="radio" formControlName="needType" value="DirectPurchase"><span><strong>Cumpărare directă</strong><small>Un necesar punctual.</small></span></label>
+          <label [class.selected]="form.controls.needType.value==='ShoppingList'"><input type="radio" formControlName="needType" value="ShoppingList"><span><strong>Listă de cumpărături</strong><small>Mai multe poziții planificate.</small></span></label>
+          <label [class.selected]="form.controls.needType.value==='Project'"><input type="radio" formControlName="needType" value="Project"><span><strong>Proiect</strong><small>Un context mai amplu, fără a limita numărul de categorii.</small></span></label>
+        </fieldset>
+        <div class="two"><label>Nume proiect<input formControlName="projectName" placeholder="Opțional"></label>
+          @if(form.controls.needType.value==='Project'){<label>Pornește de la un șablon<select formControlName="projectTemplateId" (change)="applyProjectTemplate()"><option value="">Fără șablon</option>@for(template of projectTemplates();track template.id){<option [value]="template.id">{{template.name}}</option>}</select><small>Șablonul doar propune categorii; selecția rămâne editabilă.</small></label>}</div>
+        <fieldset><legend>Categoriile necesarului *</legend><p class="help">Alege una sau mai multe categorii, indiferent de tipul necesarului.</p><div class="category-choice-grid">
+          @for(category of selectableCategories();track category.id){<label [class.selected]="selectedCategoryIds().includes(category.id)"><input type="checkbox" [checked]="selectedCategoryIds().includes(category.id)" (change)="toggleNeedCategory(category.id)">{{category.name}}</label>}
+        </div>@if(!selectedCategoryIds().length){<small class="field-error">Selectează cel puțin o categorie.</small>}</fieldset>
         <label>Descriere<textarea formControlName="description" rows="3" placeholder="Contextul proiectului sau cerințe generale"></textarea></label>
       </section>
 
@@ -41,7 +47,7 @@ import { ROMANIAN_COUNTIES } from '../../shared/romanian-counties';
         </fieldset>
         @if (items.length === 0) {
           <div class="optional-placeholder"><strong>Poți continua cu o cerere generală.</strong>
-            <span>Descrierea și categoria principală sunt suficiente dacă nu ai încă o listă detaliată.</span></div>
+            <span>Descrierea și categoriile necesarului sunt suficiente dacă nu ai încă o listă detaliată.</span></div>
         } @else {
           <details><summary>Lipește mai multe materiale</summary>
             <p class="help">Câte un material pe rând: denumire, cantitate și unitate, separate prin Tab sau „;”. Exemplu: <code>Ciment;20;Sac</code></p>
@@ -62,9 +68,9 @@ import { ROMANIAN_COUNTIES } from '../../shared/romanian-counties';
                   <div class="two"><label>Tip poziție *<select formControlName="kind"><option value="Product">Produs</option><option value="Service">Serviciu</option></select></label>
                     <label>Denumire produs / serviciu *<input #productNameInput formControlName="productName" placeholder="Exemplu: Ciment 40 kg sau montaj">
                     @if (item.controls['productName'].touched && item.controls['productName'].invalid) { <small class="field-error">Completează denumirea poziției {{ index + 1 }}.</small> }</label>
-                    <label>Categorie furnizor<select formControlName="categoryId"><option value="">Categoria principală</option>
-                      @for (category of selectableCategories(); track category.id) { <option [value]="category.id">{{ category.name }}</option> }</select>
-                      <small>Poziția va fi vizibilă furnizorilor din această categorie.</small></label></div>
+                    <label>Categoria poziției *<select formControlName="categoryId"><option value="">Alege categoria</option>
+                      @for (category of selectedCategories(); track category.id) { <option [value]="category.id">{{ category.name }}</option> }</select>
+                      <small>Poziția rămâne grupată în categoria relevantă a necesarului.</small></label></div>
                   <div class="three"><label>Cantitate *<input type="number" min="0.01" step="0.01" formControlName="quantity">
                     @if (item.controls['quantity'].touched && item.controls['quantity'].invalid) { <small class="field-error">Introdu o cantitate mai mare decât 0.</small> }</label>
                     <label>Unitate *<select formControlName="unit">@for (unit of units; track unit.value) { <option [value]="unit.value">{{ unit.label }}</option> }</select></label>
@@ -134,6 +140,8 @@ export class RfqEditorComponent {
     {value:'SquareMetre',label:'Metru pătrat'},{value:'CubicMetre',label:'Metru cub'},
     {value:'Litre',label:'Litru'},{value:'Pallet',label:'Palet'},{value:'Other',label:'Altă unitate'}];
   readonly categories = signal<CategoryOption[]>([]);
+  readonly projectTemplates = signal<ProjectTemplateOption[]>([]);
+  readonly selectedCategoryIds = signal<string[]>([]);
   readonly loading = signal(false); readonly saving = signal(false);
   readonly message = signal(''); readonly hasError = signal(false);
   readonly importMessage = signal(''); readonly importError = signal(false);
@@ -147,6 +155,8 @@ export class RfqEditorComponent {
     title: new FormControl('', {nonNullable:true,validators:[Validators.required,Validators.maxLength(180)]}),
     projectName:new FormControl<string|null>(null),description:new FormControl<string|null>(null),
     primaryCategoryId:new FormControl('',{nonNullable:true,validators:Validators.required}),
+    needType:new FormControl<ProcurementNeedType>('DirectPurchase',{nonNullable:true}),
+    projectTemplateId:new FormControl<string|null>(null),
     deliveryAddress:new FormControl('',{nonNullable:true,validators:Validators.required}),
     deliveryLocality:new FormControl('',{nonNullable:true,validators:Validators.required}),
     county:new FormControl('',{nonNullable:true,validators:Validators.required}),
@@ -209,6 +219,35 @@ export class RfqEditorComponent {
     }
   }
 
+  selectedCategories():CategoryOption[]{
+    const ids=new Set(this.selectedCategoryIds());
+    return this.selectableCategories().filter(category=>ids.has(category.id));
+  }
+  toggleNeedCategory(id:string):void{
+    const current=this.selectedCategoryIds();
+    if(current.includes(id)){
+      if(this.items.controls.some(item=>item.controls['categoryId'].value===id)){
+        this.fail('Categoria este folosită de o poziție. Mută poziția într-o altă categorie înainte să o elimini.');
+        return;
+      }
+      const next=current.filter(value=>value!==id);
+      this.selectedCategoryIds.set(next);this.form.controls.primaryCategoryId.setValue(next[0]??'');
+    }else{
+      const next=[...current,id];
+      this.selectedCategoryIds.set(next);this.form.controls.primaryCategoryId.setValue(next[0]);
+    }
+  }
+  applyProjectTemplate():void{
+    const template=this.projectTemplates().find(value=>value.id===this.form.controls.projectTemplateId.value);
+    if(!template)return;
+    const categoriesAlreadyUsedByLines=this.items.controls
+      .map(item=>item.controls['categoryId'].value)
+      .filter((id):id is string=>!!id);
+    const proposedCategoryIds=Array.from(new Set([...template.categoryIds,...categoriesAlreadyUsedByLines]));
+    this.selectedCategoryIds.set(proposedCategoryIds);
+    this.form.controls.primaryCategoryId.setValue(proposedCategoryIds[0]??'');
+  }
+
   addItem(value?: Partial<Rfq['items'][number]>, activate = true): void {
     const current = this.items.at(this.items.length - 1);
     if (!value && current?.invalid) {
@@ -228,7 +267,7 @@ export class RfqEditorComponent {
       unit:new FormControl<UnitOfMeasure>(value?.unit??'Piece',{nonNullable:true}),
       alternativesAccepted:new FormControl(value?.alternativesAccepted??true,{nonNullable:true}),
       buyerNotes:new FormControl(value?.buyerNotes??null),
-      categoryId:new FormControl<string|null>((value?.categoryId??this.form.controls.primaryCategoryId.value)||null)
+      categoryId:new FormControl<string|null>((value?.categoryId??this.selectedCategoryIds()[0])||null,{validators:Validators.required})
     }));
     this.itemMessage.set('');
     if (activate) {
@@ -284,6 +323,7 @@ export class RfqEditorComponent {
   private patch(rfq:Rfq):void {
     this.source=rfq.source;this.inputType=rfq.inputType;
     this.form.patchValue({...rfq,quotationDeadline:this.localDateTime(rfq.quotationDeadline)});
+    this.selectedCategoryIds.set(rfq.categoryIds?.length?rfq.categoryIds:[rfq.primaryCategoryId]);
     this.items.clear();rfq.items.forEach(item=>this.addItem(item,false));
     this.expandedItemIndex.set(null);
   }
@@ -298,6 +338,12 @@ export class RfqEditorComponent {
       quotationDeadline:this.localDateTime(draft.quotationDeadline),alternativeProductsAccepted:draft.alternativeProductsAccepted,
       allowSplit:draft.allowSplit,deliveryRequired:draft.deliveryRequired,estimatedBudget:draft.estimatedBudget,
       buyerNotes:this.assistedNotes(draft.buyerNotes,result)
+    });
+    const assistedCategoryIds=Array.from(new Set([draft.primaryCategoryId,...draft.lines.map(line=>line.categoryId)].filter((id):id is string=>!!id)));
+    this.selectedCategoryIds.set(assistedCategoryIds);
+    this.categoriesService.getProjectTemplates().subscribe({
+      next: values => this.projectTemplates.set(values),
+      error: () => this.projectTemplates.set([])
     });
     this.items.clear();
     draft.lines.forEach(line=>this.addItem({productName:line.name,kind:line.kind,manufacturerOrBrand:null,
@@ -322,7 +368,8 @@ export class RfqEditorComponent {
   }
   private toDraft():RfqDraft {
     const value=this.form.getRawValue();
-    return {...value,source:this.source,inputType:this.inputType,latitude:null,longitude:null,quotationDeadline:new Date(value.quotationDeadline).toISOString(),items:value.items} as RfqDraft;
+    return {...value,categoryIds:this.selectedCategoryIds(),projectTemplateId:value.needType==='Project'?value.projectTemplateId:null,
+      source:this.source,inputType:this.inputType,latitude:null,longitude:null,quotationDeadline:new Date(value.quotationDeadline).toISOString(),items:value.items} as RfqDraft;
   }
   private parseUnit(value:string):UnitOfMeasure|null {
     const key=value.toLocaleLowerCase('ro-RO').replace(/[ăâ]/g,'a').replace(/ț/g,'t').replace(/ș/g,'s').trim();
@@ -332,7 +379,7 @@ export class RfqEditorComponent {
   unitLabel(value: unknown): string { return this.units.find(unit => unit.value === value)?.label ?? 'unități'; }
   kindLabel(value: unknown): string { return value === 'Service' ? 'Serviciu' : 'Produs'; }
   categoryName(value: unknown): string {
-    if (!value) return this.categories().find(category => category.id === this.form.controls.primaryCategoryId.value)?.name ?? 'Categoria principală';
+    if (!value) return 'Categorie nespecificată';
     return this.categories().find(category => category.id === value)?.name ?? 'Categorie';
   }
   private apiError(error:HttpErrorResponse):string {
@@ -347,10 +394,11 @@ export class RfqEditorComponent {
   private collectValidationErrors():string[] {
     const errors:string[]=[];
     if(this.form.controls.title.invalid) errors.push('Completează titlul cererii.');
-    if(this.form.controls.primaryCategoryId.invalid) errors.push('Selectează categoria principală.');
+    if(this.form.controls.primaryCategoryId.invalid||!this.selectedCategoryIds().length) errors.push('Selectează cel puțin o categorie pentru necesar.');
     this.items.controls.forEach((item,index)=>{
       if(item.controls['productName'].invalid) errors.push(`Poziția ${index+1}: completează denumirea.`);
       if(item.controls['quantity'].invalid) errors.push(`Poziția ${index+1}: cantitatea trebuie să fie mai mare decât 0.`);
+      if(item.controls['categoryId'].invalid) errors.push(`Poziția ${index+1}: selectează categoria relevantă.`);
     });
     if(this.form.controls.deliveryAddress.invalid) errors.push('Completează adresa de livrare.');
     if(this.form.controls.deliveryLocality.invalid) errors.push('Completează localitatea.');

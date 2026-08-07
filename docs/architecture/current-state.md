@@ -10,7 +10,7 @@ Angular SPA → ASP.NET Core controllers → application contracts
                      domain aggregates ← infrastructure services
 ```
 
-- `Marketplace.Domain` owns RFQ, offer, profile, notification, messaging, supplier-setting, and presence rules.
+- `Marketplace.Domain` owns RFQ, offer, profile, notification, messaging, supplier-setting, presence, and Supplier-discovery rules.
 - `Marketplace.Application` defines use-case contracts and the pure Provider coverage policy.
 - `Marketplace.Infrastructure` implements Identity, EF Core persistence, matching, offers, notifications, messaging, profiles, and email delivery.
 - `Marketplace.Api` is the HTTP composition root with JWT authorization, rate limiting, CORS, health checks, problem details, and correlation IDs.
@@ -36,23 +36,23 @@ The current model does not yet separate organizations and memberships. `BuyerPro
 | RFQ / Request | `Rfq` aggregate and Buyer endpoints | Complete existing workflow |
 | Publication | `Rfq.Publish` status transition | Implemented without recipient records |
 | Matching | `RfqService.GetOpenAsync` + `ProviderCoveragePolicy` | Implemented, reasons not returned |
-| Capabilities | Supplier categories, delivery settings, multi-category flag | Implemented at category level |
+| Capabilities | Multiple central categories and delivery settings | Implemented at category level; full coverage is derived from selected categories |
 | Offer / OfferLine | `Offer`, `OfferItem`, explicit coverage, tax, alternatives and delivery terms | Implemented for MVP |
 | Offer comparison | Position matrix, comparable totals and explained trade-offs | Implemented for MVP |
 | Notifications | In-app records, polling and deduplicated outcome follow-up | Implemented for current workflows |
 | Outcome | Eight terminal real-world outcomes plus automatic cancellation/delivery results | Implemented for MVP |
 | Trust / verification | pending Supplier approval field, profile completeness | Partial and not operationalized |
-| Invitation / referral / discovery | none | Missing |
+| Invitation / referral / discovery | Human-reviewed candidates and request-linked claim invitations | Supplier discovery implemented; general Pasul 6 referrals remain deferred |
 | Audit / analytics | Immutable procurement history with minimal outcome funnel events | Partial; general event platform remains Pasul 9 |
 | AI intake | Resumable clarification, model extraction and human-approved draft | Implemented first slice |
-| Administration | none | Missing |
+| Administration | Supplier candidate review and request-linked invitation workspace | First bounded capability implemented; broader concierge administration remains Pasul 9 |
 
 ## Existing request-to-offer flow
 
 1. A Buyer completes a Buyer profile.
 2. The Buyer creates a draft `Rfq` at `/rfqs/new`, with optional lines, delivery data, deadline, category, split preference, and transport requirement.
 3. The Buyer explicitly publishes the draft.
-4. A registered Provider appears eligible when the request is open, categories overlap according to coverage rules, and county/nationwide delivery matches.
+4. A registered Provider appears eligible when the request is open, its central categories provide full coverage or allowed partial coverage, and county/nationwide delivery matches.
 5. A full-coverage Provider may send a whole-request total or itemized offer. A specialist receives only matching lines when splitting is allowed and no full-coverage Provider exists.
 6. Offer submission changes the request to `ReceivingOffers` and creates an in-app Buyer notification.
 7. The Buyer compares submitted/revised offers and selects one. Competing submitted offers become not selected.
@@ -61,7 +61,7 @@ The current model does not yet separate organizations and memberships. `BuyerPro
 
 ## Persistence and migrations
 
-EF Core owns 18 ordered migrations from the initial foundation through ProcurementNeed evolution, assisted intake, and explicit offer comparison. Important constraints include unique normalized email, one offer per Provider/request, unique line numbers, unique offer lines, positive quantities, non-negative prices, and unique notification deduplication keys.
+EF Core owns the ordered additive migrations from the initial foundation through Supplier discovery. Important constraints include unique normalized email, one offer per Provider/request, unique line numbers, unique offer lines, positive quantities, non-negative prices, unique notification deduplication keys, unique candidate company/county pairs, and unique invitation-token hashes.
 
 PostgreSQL `xmin` optimistic concurrency protects RFQ decision transitions and returns a reload-oriented conflict response.
 
@@ -72,6 +72,8 @@ PostgreSQL `xmin` optimistic concurrency protects RFQ decision transitions and r
 - `/open-requests` and `/open-requests/:id` are Provider discovery and response pages.
 - `/rfqs/:id/offers` is Buyer request management and offer comparison.
 - `/dashboard` contains Buyer requests, Provider offers, and profile/settings entry points.
+- `/admin/supplier-discovery` is the Administrator workspace for candidate sourcing, human review, and one-request invitation creation.
+- `/supplier-invitations/:token` is the public, privacy-limited invitation and Supplier claim journey.
 - Loading, empty, common validation, unavailable-backend, and many permission states exist.
 - Request lines collapse to summaries and invalid submissions focus/scroll to useful errors.
 

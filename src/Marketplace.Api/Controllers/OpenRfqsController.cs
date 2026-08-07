@@ -48,6 +48,7 @@ public sealed record OpenRfqResponse(
     string? ProjectName,
     string? Description,
     Guid PrimaryCategoryId,
+    IReadOnlyCollection<Guid> CategoryIds,
     string CategoryName,
     string BuyerDisplayName,
     string DeliveryLocality,
@@ -61,6 +62,8 @@ public sealed record OpenRfqResponse(
     bool IsPartialMatch,
     ProcurementNeedSource Source,
     ProcurementInputType InputType,
+    ProcurementNeedType NeedType,
+    Guid? ProjectTemplateId,
     ProcurementNeedStatus NeedStatus,
     ProjectContextResponse? ProjectContext,
     IReadOnlyCollection<RfqItemResponse> Items)
@@ -74,6 +77,7 @@ public sealed record OpenRfqResponse(
             rfq.ProjectName,
             rfq.Description,
             rfq.PrimaryCategoryId,
+            rfq.RequiredCategoryIds,
             result.CategoryName,
             result.BuyerDisplayName,
             rfq.DeliveryLocality,
@@ -87,6 +91,8 @@ public sealed record OpenRfqResponse(
             result.IsPartialMatch,
             rfq.Source,
             rfq.InputType,
+            rfq.NeedType,
+            rfq.ProjectTemplateId,
             rfq.NeedStatus,
             ProjectContextResponse.From(rfq.ProjectContext),
             rfq.Items.Where(item => result.MatchingItemIds is null || result.MatchingItemIds.Contains(item.Id))

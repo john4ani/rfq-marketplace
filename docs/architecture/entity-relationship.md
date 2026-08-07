@@ -1,6 +1,6 @@
 # Entity–Relationship Diagram
 
-Status: Implemented through RFQ and RFQ items; later entities remain proposed
+Status: Implemented through central category grouping, project templates, offers, messaging, and supplier discovery; later attachment/reporting entities remain proposed
 
 ```mermaid
 erDiagram
@@ -11,6 +11,7 @@ erDiagram
     USERS ||--o{ USER_ROLES : assigned
     ROLES ||--o{ USER_ROLES : contains
 
+    VERTICALS ||--|{ CATEGORIES : contains
     SUPPLIER_PROFILES ||--o{ SUPPLIER_CATEGORIES : subscribes
     CATEGORIES ||--o{ SUPPLIER_CATEGORIES : selected
     SUPPLIER_PROFILES ||--o{ SUPPLIER_DELIVERY_AREAS : serves
@@ -18,8 +19,13 @@ erDiagram
     CATEGORIES ||--o{ CATEGORIES : parent_of
 
     BUYER_PROFILES ||--o{ RFQS : creates
-    CATEGORIES ||--o{ RFQS : primary_category
-    RFQS ||--|{ RFQ_ITEMS : contains
+    RFQS ||--|{ PROCUREMENT_NEED_CATEGORIES : requires
+    CATEGORIES ||--o{ PROCUREMENT_NEED_CATEGORIES : groups
+    PROCUREMENT_NEED_CATEGORIES ||--o{ RFQ_ITEMS : contains
+    VERTICALS ||--o{ PROJECT_TEMPLATES : offers
+    PROJECT_TEMPLATES ||--|{ PROJECT_TEMPLATE_CATEGORIES : proposes
+    CATEGORIES ||--o{ PROJECT_TEMPLATE_CATEGORIES : referenced_by
+    PROJECT_TEMPLATES ||--o{ RFQS : optionally_starts
 
     RFQS ||--o{ OFFERS : receives
     SUPPLIER_PROFILES ||--o{ OFFERS : submits
@@ -74,6 +80,7 @@ erDiagram
     }
     CATEGORIES {
       uuid id PK
+      uuid vertical_id FK
       uuid parent_id FK
       string name
       string slug UK
@@ -98,7 +105,8 @@ erDiagram
     RFQS {
       uuid id PK
       uuid buyer_id FK
-      uuid primary_category_id FK
+      string need_type
+      uuid project_template_id FK
       string status
       string delivery_address
       string delivery_locality
@@ -111,10 +119,34 @@ erDiagram
     RFQ_ITEMS {
       uuid id PK
       uuid rfq_id FK
+      uuid need_category_id FK
       int item_number
       string product_name
       numeric quantity
       string unit
+    }
+    PROCUREMENT_NEED_CATEGORIES {
+      uuid id PK
+      uuid procurement_need_id FK
+      uuid category_id FK
+      int sort_order
+    }
+    VERTICALS {
+      uuid id PK
+      string name
+      string slug UK
+      boolean is_active
+    }
+    PROJECT_TEMPLATES {
+      uuid id PK
+      uuid vertical_id FK
+      string name
+      string slug
+      boolean is_active
+    }
+    PROJECT_TEMPLATE_CATEGORIES {
+      uuid project_template_id FK
+      uuid category_id FK
     }
     OFFERS {
       uuid id PK
@@ -146,6 +178,43 @@ erDiagram
       int revision_number
       jsonb commercial_snapshot
       timestamptz created_at
+    }
+    CATEGORIES ||--o{ SUPPLIER_CANDIDATE_CATEGORIES : classifies
+    SUPPLIER_CANDIDATES ||--|{ SUPPLIER_CANDIDATE_CATEGORIES : covers
+    USERS ||--o{ SUPPLIER_CANDIDATES : creates
+    SUPPLIER_CANDIDATES ||--o{ SUPPLIER_INVITATIONS : receives
+    RFQS ||--o{ SUPPLIER_INVITATIONS : references
+    SUPPLIER_PROFILES ||--o{ SUPPLIER_INVITATIONS : claims
+    SUPPLIER_CANDIDATES ||--o{ SUPPLIER_DISCOVERY_AUDIT_EVENTS : records
+    SUPPLIER_CANDIDATES {
+      uuid id PK
+      string normalized_company_name
+      string county
+      string source
+      string status
+      uuid claimed_by_supplier_id FK
+      uint version
+    }
+    SUPPLIER_CANDIDATE_CATEGORIES {
+      uuid candidate_id FK
+      uuid category_id FK
+    }
+    SUPPLIER_INVITATIONS {
+      uuid id PK
+      uuid candidate_id FK
+      uuid rfq_id FK
+      string token_hash UK
+      timestamptz expires_at
+      uuid claimed_by_supplier_id FK
+      uint version
+    }
+    SUPPLIER_DISCOVERY_AUDIT_EVENTS {
+      uuid id PK
+      uuid candidate_id FK
+      uuid invitation_id FK
+      uuid actor_user_id
+      string event_type
+      timestamptz occurred_at
     }
     CONVERSATIONS {
       uuid id PK
@@ -204,17 +273,18 @@ erDiagram
 
 ## Required constraints and indexes
 
-- Unique `(supplier_id, category_id)` and `(supplier_id, county_code)`.
-- Unique `(rfq_id, item_number)`, `(rfq_id, supplier_id)`, `(offer_id, rfq_item_id)`.
+- Unique `(supplier_id, category_id)`, `(supplier_id, county_code)`, and `(candidate_id, category_id)`.
+- Unique `(procurement_need_id, category_id)`, `(procurement_need_id, sort_order)`, `(rfq_id, item_number)`, `(rfq_id, supplier_id)`, and `(offer_id, rfq_item_id)`.
 - Unique `(offer_id, revision_number)` and one conversation per offer.
 - Positive RFQ quantities; non-negative prices, transport, VAT, and discounts.
 - Latitude in `[-90, 90]`; longitude in `[-180, 180]`.
 - Completeness in `[0, 100]`; delivery radii are non-negative and maximum is not below normal.
 - Money columns use `numeric(19,4)`. Display rounding is currency-specific and occurs at defined calculation boundaries.
-- Index RFQ discovery on status, deadline, category, and county.
+- Index need discovery on status/deadline/county and category membership through `PROCUREMENT_NEED_CATEGORIES`.
 - Index offer comparison on `(rfq_id, status)`.
 - Index notification claiming on `(status, next_attempt_at)`.
 - Index messages on `(conversation_id, created_at, id)`.
 - Index audit records on `(entity_type, entity_id, occurred_at)`.
+- Unique Supplier candidate `(normalized_company_name, county)`, unique invitation `token_hash`, and indexes on candidate status/category and invitation candidate/RFQ/expiry.
 
 Attachments use a pragmatic polymorphic parent reference. The API centralizes parent authorization, and integration tests cover it because the database cannot provide a conventional foreign key to multiple parent tables.

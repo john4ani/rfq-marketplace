@@ -1,8 +1,10 @@
 # ADR-0011: Provider coverage without a product catalogue
 
-Status: Accepted
+Status: Partially superseded by ADR-0022
 
 Date: 2026-07-24
+
+ADR-0022 supersedes the explicit multi-category capability flag and the rule that specialists are hidden whenever a full provider exists. Full coverage is now derived from the Provider covering every central category required by the need; partial coverage remains subject to the Buyer's split preference. The total-offer decisions below remain accepted.
 
 ## Context
 

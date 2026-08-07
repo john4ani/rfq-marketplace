@@ -25,6 +25,7 @@ flowchart LR
             requests["Request workflow<br/>Assisted intake, advanced editor<br/>and Buyer request list"]
             offers["Offer workflow<br/>Provider offer editor/list,<br/>comparison and outcome feedback"]
             messaging["Private messaging<br/>Offer conversation"]
+            supplierDiscovery["Supplier discovery<br/>Admin review and invitation<br/>Public claim journey"]
         end
 
         notifications["Notification menu<br/>Unread count and notification actions"]
@@ -49,6 +50,7 @@ flowchart LR
     router --> requests
     router --> offers
     router --> messaging
+    router --> supplierDiscovery
     router --> authPipeline
 
     shell --> auth
@@ -58,6 +60,7 @@ flowchart LR
     requests --> auth
     offers --> auth
     messaging --> auth
+    supplierDiscovery --> auth
     authPipeline --> auth
 
     landing --> clients
@@ -65,6 +68,7 @@ flowchart LR
     requests --> clients
     offers --> clients
     messaging --> clients
+    supplierDiscovery --> clients
     notifications --> clients
 
     clients --> availability
@@ -86,6 +90,7 @@ flowchart LR
 | Request workflow | Run clarification → research → editable proposal → human confirmation; transfer directly to the advanced editor when AI is unavailable; list/publish/cancel/extend/reopen Buyer requests |
 | Offer workflow | Create/revise/submit/withdraw Provider offers with explicit coverage, tax, alternatives and delivery terms; compare every requested line, select a complete offer, and record the terminal procurement outcome in a focused child component |
 | Private messaging | Poll and send messages within the conversation authorized for one submitted offer |
+| Supplier discovery | Let Administrators source and review unverified candidates, generate a request-linked link for manual sharing, and let a Supplier complete the public claim journey |
 | Notification menu | Poll unread count, load notifications, mark items read, and follow notification links |
 | Auth service and state | Access token, linked profiles, active role, refresh, logout, and online-presence heartbeat |
 | Typed API clients | Feature-focused HTTP contracts; keep transport calls out of presentation components |
@@ -117,4 +122,5 @@ src/marketplace-web/src/app/
   features/offers/              Offer workflows
   features/messaging/           Private conversations
   features/notifications/       Notification menu
+  features/supplier-discovery/  Admin review and public claim pages
 ```

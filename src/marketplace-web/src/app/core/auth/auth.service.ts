@@ -4,7 +4,7 @@ import { catchError, finalize, Observable, of, switchMap, tap } from 'rxjs';
 
 export interface TokenResponse { accessToken: string; expiresAt: string; }
 export interface PasswordResetRequestResponse { token: string | null; }
-export interface AccountSession { userId: string; email: string; accountType: 'Buyer' | 'Supplier'; }
+export interface AccountSession { userId: string; email: string; accountType: 'Buyer' | 'Supplier'; roles: string[]; }
 export interface LinkedProfile { userId: string; email: string; accountType: 'Buyer' | 'Supplier'; }
 
 @Injectable({ providedIn: 'root' })
@@ -16,6 +16,7 @@ export class AuthService {
   private readonly activeProfileState = signal<'Buyer' | 'Supplier' | null>(null);
   private presenceTimer: ReturnType<typeof setInterval> | null = null;
   readonly isAuthenticated = computed(() => this.accessTokenState() !== null);
+  readonly isAdministrator = computed(() => this.decodeIdentity(this.accessTokenState())?.roles.includes('Administrator') ?? false);
   readonly accessToken = this.accessTokenState.asReadonly();
   readonly session = computed(() => {
     const identity = this.decodeIdentity(this.accessTokenState());
@@ -111,7 +112,9 @@ export class AuthService {
     try {
       const payload = JSON.parse(atob(token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/'))) as Record<string, string | string[]>;
       const email = String(payload['email'] ?? payload['http://schemas.xmlsoap.org/ws/2005/05/identity/claims/emailaddress'] ?? '');
-      return payload['sub'] ? { userId: String(payload['sub']), email } : null;
+      const rawRoles=payload['role']??payload['http://schemas.microsoft.com/ws/2008/06/identity/claims/role'];
+      const roles=Array.isArray(rawRoles)?rawRoles:rawRoles?[String(rawRoles)]:[];
+      return payload['sub'] ? { userId: String(payload['sub']), email, roles } : null;
     } catch {
       return null;
     }

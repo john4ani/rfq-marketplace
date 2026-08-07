@@ -23,6 +23,7 @@ flowchart TB
             identityApi["Identity<br/>Auth"]
             profileApi["Profiles and matching<br/>Profiles, supplier settings"]
             marketApi["Market discovery<br/>Piața Live, open RFQs"]
+            discoveryApi["Supplier discovery<br/>Admin candidates, invitations<br/>and public claim"]
             tradeApi["Commercial workflow<br/>RFQs and offers"]
             intakeApi["Assisted intake<br/>Extract, clarify and approve draft"]
             engagementApi["Engagement<br/>Messaging and notifications"]
@@ -37,6 +38,7 @@ flowchart TB
         engagementPorts["Messaging and notification contracts"]
         coverage["Provider coverage policy<br/>Whole-request versus partial coverage"]
         intakePort["Assisted-intake contract"]
+        discoveryPort["Supplier-discovery contract"]
     end
 
     subgraph Infrastructure["Marketplace.Infrastructure — adapters and persistence"]
@@ -46,6 +48,7 @@ flowchart TB
         intakeService["Assisted-intake service<br/>OpenAI-compatible extraction<br/>and advanced-form fallback"]
         offerService["Offer service"]
         engagementServices["Messaging, notification and<br/>outcome-reminder services"]
+        discoveryService["Supplier-discovery service<br/>Human review, secure invitation<br/>and company claim"]
         dbContext["MarketplaceDbContext<br/>EF Core unit of work and mappings"]
     end
 
@@ -56,6 +59,7 @@ flowchart TB
         intakeDomain["Resumable intake session"]
         offerDomain["Offer and offer items"]
         engagementDomain["Conversation, messages<br/>and notifications"]
+        discoveryDomain["Supplier candidate, invitation<br/>and discovery audit"]
     end
 
     spa -->|"HTTPS JSON"| pipeline
@@ -67,12 +71,14 @@ flowchart TB
     program -.->|"registers implementations"| intakeService
     program -.->|"registers implementations"| offerService
     program -.->|"registers implementations"| engagementServices
+    program -.->|"registers implementation"| discoveryService
     pipeline --> identityApi
     pipeline --> profileApi
     pipeline --> marketApi
     pipeline --> tradeApi
     pipeline --> intakeApi
     pipeline --> engagementApi
+    pipeline --> discoveryApi
 
     identityApi --> identityPort
     profileApi --> profilePorts
@@ -81,6 +87,7 @@ flowchart TB
     tradeApi --> tradePort
     intakeApi --> intakePort
     engagementApi --> engagementPorts
+    discoveryApi --> discoveryPort
 
     identityService -.->|"implements"| identityPort
     profileServices -.->|"implement"| profilePorts
@@ -88,6 +95,7 @@ flowchart TB
     intakeService -.->|"implements"| intakePort
     offerService -.->|"implements"| tradePort
     engagementServices -.->|"implement"| engagementPorts
+    discoveryService -.->|"implements"| discoveryPort
 
     marketServices --> coverage
     offerService --> coverage
@@ -103,6 +111,9 @@ flowchart TB
     offerService --> offerDomain
     offerService --> engagementDomain
     engagementServices --> engagementDomain
+    discoveryService --> discoveryDomain
+    discoveryService --> rfqDomain
+    discoveryService --> profileDomain
 
     identityService --> dbContext
     profileServices --> dbContext
@@ -110,6 +121,7 @@ flowchart TB
     intakeService --> dbContext
     offerService --> dbContext
     engagementServices --> dbContext
+    discoveryService --> dbContext
     health --> dbContext
     dbContext --> postgres
 ```
@@ -123,8 +135,8 @@ flowchart TB
 | REST controllers | Translate HTTP requests and authenticated identity into application-contract calls and HTTP responses |
 | Application contracts | Define the use cases available to the API without coupling controllers to EF Core implementations |
 | Provider coverage policy | Share category-hierarchy compatibility and deterministically validate whether an offer covers an entire request or only part of it |
-| Infrastructure services | Implement identity, profile, discovery, RFQ, offer, messaging, notification, and just-in-time outcome-reminder use cases |
-| Domain model | Own entity state and invariants for profiles, matching configuration, RFQs, offers, conversations, and notifications |
+| Infrastructure services | Implement identity, profile, market, RFQ, offer, Supplier-discovery, messaging, notification, and just-in-time outcome-reminder use cases |
+| Domain model | Own entity state and invariants for profiles, matching configuration, RFQs, offers, Supplier candidates/invitations, conversations, and notifications |
 | MarketplaceDbContext | Map domain/identity state, track transactions, and persist changes through Npgsql |
 | Health endpoints | Distinguish process liveness from database-backed readiness |
 
@@ -157,6 +169,7 @@ src/
     Offers/
     Messaging/
     Notifications/
+    SupplierDiscovery/
   Marketplace.Domain/
     Identity/
     Profiles/

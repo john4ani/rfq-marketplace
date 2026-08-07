@@ -103,4 +103,25 @@ describe('AuthService', () => {
     expect(service.isAuthenticated()).toBe(false);
     http.verify();
   });
+
+  it('recognizes the Administrator role from the access token', () => {
+    TestBed.configureTestingModule({ providers: [provideHttpClient(), provideHttpClientTesting()] });
+    const service = TestBed.inject(AuthService);
+    const http = TestBed.inject(HttpTestingController);
+    const accessToken = token({
+      sub: '11111111-1111-1111-1111-111111111111',
+      email: 'admin@example.test',
+      role: ['Buyer', 'Administrator']
+    });
+
+    service.login('admin@example.test', 'password').subscribe();
+    http.expectOne('/api/v1/auth/login').flush({ accessToken, expiresAt: new Date().toISOString() });
+    http.expectOne('/api/v1/piata-live/presence').flush(null);
+    http.expectOne('/api/v1/auth/profiles').flush([
+      { userId: '11111111-1111-1111-1111-111111111111', email: 'admin@example.test', accountType: 'Buyer' }
+    ]);
+
+    expect(service.isAdministrator()).toBe(true);
+    http.verify();
+  });
 });

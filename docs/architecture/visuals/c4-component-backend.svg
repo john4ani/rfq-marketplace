@@ -46,7 +46,7 @@
 
   <rect class="api" x="680" y="432" width="215" height="65" rx="11"/>
   <text class="label" x="787" y="460" text-anchor="middle">Market discovery</text>
-  <text class="small" x="787" y="481" text-anchor="middle">Piața Live · open RFQs</text>
+  <text class="small" x="787" y="481" text-anchor="middle">Piața Live · RFQs · Supplier discovery</text>
 
   <rect class="api" x="930" y="432" width="215" height="65" rx="11"/>
   <text class="label" x="1037" y="460" text-anchor="middle">Commercial workflow</text>
@@ -59,7 +59,7 @@
   <rect class="group" x="145" y="560" width="1310" height="115" rx="16"/>
   <text class="groupLabel" x="175" y="590">APPLICATION CONTRACTS &amp; POLICIES</text>
   <rect class="application" x="180" y="610" width="1010" height="42" rx="10"/>
-  <text class="label" x="685" y="637" text-anchor="middle">Identity · profiles · supplier settings · live market · RFQs · offers · messaging · notifications</text>
+  <text class="label" x="685" y="637" text-anchor="middle">Identity · profiles · Supplier discovery · market · RFQs · offers · messaging · notifications</text>
   <rect class="application" x="1220" y="600" width="200" height="62" rx="10"/>
   <text class="label" x="1320" y="625" text-anchor="middle">Coverage policy</text>
   <text class="small" x="1320" y="646" text-anchor="middle">whole or partial offer</text>
@@ -71,7 +71,7 @@
   <rect class="infrastructure" x="440" y="760" width="230" height="50" rx="10"/>
   <text class="label" x="555" y="790" text-anchor="middle">Profiles &amp; settings</text>
   <rect class="infrastructure" x="700" y="760" width="230" height="50" rx="10"/>
-  <text class="label" x="815" y="790" text-anchor="middle">Market &amp; RFQs</text>
+  <text class="label" x="815" y="790" text-anchor="middle">Market · RFQs · discovery</text>
   <rect class="infrastructure" x="960" y="760" width="200" height="50" rx="10"/>
   <text class="label" x="1060" y="790" text-anchor="middle">Offers</text>
   <rect class="infrastructure" x="1190" y="760" width="230" height="50" rx="10"/>
@@ -79,7 +79,7 @@
 
   <rect class="group" x="145" y="870" width="980" height="90" rx="16"/>
   <text class="groupLabel" x="175" y="900">DOMAIN MODEL</text>
-  <text class="label" x="635" y="932" text-anchor="middle">Roles &amp; presence · profiles &amp; categories · RFQs · offers · conversations · notifications</text>
+  <text class="label" x="635" y="932" text-anchor="middle">Roles · profiles · RFQs · offers · Supplier candidates &amp; invitations · conversations</text>
 
   <rect class="infrastructure" x="1160" y="870" width="260" height="90" rx="16"/>
   <text class="label" x="1290" y="907" text-anchor="middle">MarketplaceDbContext</text>

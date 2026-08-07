@@ -4,6 +4,7 @@ public enum NotificationType
 {
     OfferReceived,
     OfferRevised,
+    RequestPublished,
     RequestReopened,
     MessageReceived,
     DeliveryReported,

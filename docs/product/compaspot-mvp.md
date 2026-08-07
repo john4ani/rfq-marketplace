@@ -70,3 +70,5 @@ The MVP does not include payments, accounting, full ERP or inventory, structural
 The implementation follows the audited vertical slices in [implementation-plan.md](../architecture/implementation-plan.md). AI intake begins only after the existing two-party request-to-offer circuit is stable and demonstrably covered.
 
 Pasul 5 closes the first measurable circuit: the Buyer records the actual procurement result, expired requests prompt once on return, and cancellation or confirmed delivery enter the same outcome funnel. These events measure the marketplace without introducing ratings, automatic publication, or a general analytics platform.
+
+Pasul 7 adds the first concierge Supplier-discovery circuit. An Administrator records a sourced but explicitly unverified company, performs a human relevance review, and may create a secure invitation for one matching open request. The invited Supplier must register or sign in, complete its Supplier profile, and explicitly claim the company and opportunity. Discovery is not verification, and CompaSpot does not send bulk or automatic outreach.

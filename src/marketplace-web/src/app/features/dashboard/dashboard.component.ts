@@ -81,11 +81,13 @@ export class DashboardComponent {
 
   resumeAfterProfileSave(accountType: 'Buyer' | 'Supplier'): void {
     const destination = this.returnUrl();
-    if (accountType === 'Buyer' && destination) void this.router.navigateByUrl(destination);
+    if (destination && (accountType === 'Buyer' && destination === '/rfqs/new'
+      || accountType === 'Supplier' && destination.startsWith('/supplier-invitations/')))
+      void this.router.navigateByUrl(destination);
   }
 
   private safeReturnUrl(value: string | null): string | null {
-    return value === '/rfqs/new' ? value : null;
+    return value === '/rfqs/new' || value?.startsWith('/supplier-invitations/') ? value : null;
   }
 
   signOut(): void {

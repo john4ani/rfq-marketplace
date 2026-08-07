@@ -130,14 +130,17 @@ public sealed record RfqRequest(
     DateOnly? PreferredDeliveryDate, DateTimeOffset QuotationDeadline, bool AlternativeProductsAccepted,
     decimal? EstimatedBudget, string? BuyerNotes, IReadOnlyCollection<RfqItemRequest>? Items, bool AllowSplit = false,
     bool DeliveryRequired = false, ProcurementNeedSource Source = ProcurementNeedSource.Manual,
-    ProcurementInputType InputType = ProcurementInputType.StructuredForm)
+    ProcurementInputType InputType = ProcurementInputType.StructuredForm,
+    IReadOnlyCollection<Guid>? CategoryIds = null,
+    ProcurementNeedType? NeedType = null,
+    Guid? ProjectTemplateId = null)
 {
     public RfqDraft ToDraft() => new(
         Title ?? string.Empty, ProjectName, Description, PrimaryCategoryId,
         DeliveryAddress ?? string.Empty, DeliveryLocality ?? string.Empty, County ?? string.Empty, SupplierSearchRadiusKm ?? 30,
         Latitude, Longitude, PreferredDeliveryDate, QuotationDeadline, AlternativeProductsAccepted,
         EstimatedBudget, BuyerNotes, Items?.Select(item => item.ToDraft()).ToArray() ?? [], AllowSplit, DeliveryRequired,
-        Source, InputType);
+        Source, InputType, CategoryIds, NeedType, ProjectTemplateId);
 }
 
 public sealed record RfqItemRequest(
@@ -153,6 +156,7 @@ public sealed record RecordProcurementOutcomeRequest(ProcurementOutcome Outcome,
 
 public sealed record RfqResponse(
     Guid Id, Guid BuyerId, string Title, string? ProjectName, string? Description, Guid PrimaryCategoryId,
+    IReadOnlyCollection<Guid> CategoryIds, ProcurementNeedType NeedType, Guid? ProjectTemplateId,
     string DeliveryAddress, string DeliveryLocality, string County, int SupplierSearchRadiusKm, decimal? Latitude, decimal? Longitude,
     DateOnly? PreferredDeliveryDate, DateTimeOffset QuotationDeadline, bool AlternativeProductsAccepted,
     decimal? EstimatedBudget, string? BuyerNotes, bool AllowSplit, RfqStatus Status, DateTimeOffset CreatedAt,
@@ -166,6 +170,7 @@ public sealed record RfqResponse(
 {
     public static RfqResponse From(Rfq rfq) => new(
         rfq.Id, rfq.BuyerId, rfq.Title, rfq.ProjectName, rfq.Description, rfq.PrimaryCategoryId,
+        rfq.RequiredCategoryIds, rfq.NeedType, rfq.ProjectTemplateId,
         rfq.DeliveryAddress, rfq.DeliveryLocality, rfq.County, rfq.SupplierSearchRadiusKm, rfq.Latitude, rfq.Longitude,
         rfq.PreferredDeliveryDate, rfq.QuotationDeadline, rfq.AlternativeProductsAccepted,
         rfq.EstimatedBudget, rfq.BuyerNotes, rfq.AllowSplit, rfq.Status, rfq.CreatedAt, rfq.UpdatedAt,

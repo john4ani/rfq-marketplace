@@ -1,0 +1,30 @@
+<section class="invitation-page">
+  @if(loading()){<div class="loading" role="status">Se încarcă oportunitatea…</div>}
+  @if(error()){<p class="error" role="alert">{{error()}}</p>}
+  @if(invitation();as item){
+    <header><p class="eyebrow">Invitație comercială CompaSpot</p><h1>Ați primit o cerere relevantă pentru produsele dumneavoastră.</h1>
+      <p>Invitația este adresată companiei <strong>{{item.companyName}}</strong>.</p></header>
+
+    <aside class="unverified" role="note"><strong>Profil descoperit extern</strong><span>{{item.candidateLabel}}. Revendicarea confirmă legătura contului cu firma; verificările de companie vor fi tratate separat.</span></aside>
+
+    <article class="opportunity"><div><span class="status" [class.inactive]="item.status!=='Active'">{{statusMessage(item)}}</span><h2>{{item.rfqTitle}}</h2>
+      @if(item.rfqDescription){<p>{{item.rfqDescription}}</p>}</div>
+      <dl><div><dt>Livrare</dt><dd>{{item.deliveryLocality}}, {{item.county}}</dd></div><div><dt>Termen ofertă</dt><dd>{{item.quotationDeadline|date:'dd.MM.yyyy, HH:mm'}}</dd></div><div><dt>Poziții</dt><dd>{{item.requirementCount}}</dd></div><div><dt>Link valabil până la</dt><dd>{{item.expiresAt|date:'dd.MM.yyyy, HH:mm'}}</dd></div></dl>
+    </article>
+
+    @if(item.status==='Active'){
+      <section class="next-step"><div><p class="eyebrow">Pasul următor</p><h2>Revendică firma înainte de a răspunde</h2>
+        <p>Nu publicăm profilul ca verificat și nu preluăm automat datele drept capabilități confirmate.</p></div>
+        @if(!auth.isAuthenticated()){
+          <div class="actions"><a class="primary-link" [routerLink]="['/register']" [queryParams]="{supplierInvite:currentPath}">Creează cont de furnizor</a><a [routerLink]="['/sign-in']" [queryParams]="{returnUrl:currentPath}">Am deja cont</a></div>
+        }@else if(!hasSupplierRole()){
+          <button type="button" (click)="addSupplierProfile()" [disabled]="claiming()">{{claiming()?'Se adaugă…':'Adaugă profilul de furnizor'}}</button>
+        }@else{
+          <button type="button" (click)="claim()" [disabled]="claiming()">{{claiming()?'Se revendică…':'Revendică firma'}}</button>
+        }
+      </section>
+    }@else if(item.claimed){
+      <section class="claimed" role="status"><strong>Firma este asociată contului de furnizor.</strong><span>Completează categoriile și zona de livrare pentru a putea răspunde cererilor potrivite.</span><a routerLink="/dashboard" [queryParams]="{section:'settings'}">Completează profilul de furnizor →</a></section>
+    }
+  }
+</section>

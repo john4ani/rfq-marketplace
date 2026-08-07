@@ -20,7 +20,7 @@ describe('RfqEditorComponent material positions', () => {
       providers: [
         provideRouter([]),
         { provide: AuthService, useValue: { session: () => ({ userId: 'buyer-id', email: 'buyer@example.com', accountType: 'Buyer' }) } },
-        { provide: SupplierSettingsService, useValue: { getCategories: () => of([]) } },
+        { provide: SupplierSettingsService, useValue: { getCategories: () => of([]), getProjectTemplates: () => of([]) } },
         { provide: ProfileService, useValue: { getBuyer: () => buyerProfileResponse } },
         { provide: AssistedIntakeService, useValue: {} },
         { provide: RfqService, useValue: {} }
@@ -75,6 +75,8 @@ describe('RfqEditorComponent material positions', () => {
     const fixture = TestBed.createComponent(RfqEditorComponent);
     fixture.detectChanges();
     const component = fixture.componentInstance;
+    component.categories.set([{id:'category-id',verticalId:'vertical-id',parentId:'root-id',name:'Ciment și mortare',slug:'ciment'}]);
+    component.toggleNeedCategory('category-id');
 
     (fixture.nativeElement as HTMLElement).querySelector<HTMLButtonElement>('.add-item')?.click();
     fixture.detectChanges();
@@ -129,7 +131,7 @@ describe('RfqEditorComponent material positions', () => {
     await new Promise(resolve => setTimeout(resolve));
 
     expect(component.validationErrors()).toContain('Completează titlul cererii.');
-    expect(component.validationErrors()).toContain('Selectează categoria principală.');
+    expect(component.validationErrors()).toContain('Selectează cel puțin o categorie pentru necesar.');
     const title = (fixture.nativeElement as HTMLElement).querySelector<HTMLInputElement>('input[formControlName="title"]');
     expect(title?.classList.contains('ng-invalid')).toBe(true);
     expect(title?.classList.contains('ng-touched')).toBe(true);
@@ -149,6 +151,7 @@ describe('RfqEditorComponent material positions', () => {
       deliveryLocality: 'Iași',
       county: 'Iași'
     });
+    component.selectedCategoryIds.set(['category-id']);
     component.addItem();
     component.expandedItemIndex.set(null);
     component.save(false);

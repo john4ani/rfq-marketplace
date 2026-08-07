@@ -20,10 +20,10 @@ public sealed partial class SupplierSettingsController(
     public async Task<IActionResult> Categories(CancellationToken cancellationToken)
     {
         IReadOnlyCollection<Category> categories = await settingsService.GetCategoriesAsync(cancellationToken);
-        return Ok(categories.Select(category => new CategoryResponse(category.Id, category.ParentId, category.Name, category.Slug)));
+        return Ok(categories.Select(category => new CategoryResponse(category.Id, category.VerticalId, category.ParentId, category.Name, category.Slug)));
     }
 
-    [Authorize(Roles = MarketplaceRoles.Supplier)]
+    [Authorize(Roles = MarketplaceRoles.Administrator)]
     [EnableRateLimiting("category-creation")]
     [HttpPost("categories")]
     public async Task<IActionResult> AddCategory(AddCategoryRequest request, CancellationToken cancellationToken)
@@ -37,7 +37,7 @@ public sealed partial class SupplierSettingsController(
         if (result.Category is null)
             return Conflict(new SimilarCategoryResponse(
                 "Există categorii cu denumiri similare. Verificați-le și confirmați din nou dacă doriți o categorie separată.",
-                result.SimilarCategories.Select(category => new CategoryResponse(category.Id, category.ParentId, category.Name, category.Slug))));
+                result.SimilarCategories.Select(category => new CategoryResponse(category.Id, category.VerticalId, category.ParentId, category.Name, category.Slug))));
         Category category = result.Category;
         if (category.ParentId is null)
             return ValidationProblem(ProblemErrors("name", "Aceasta este deja o categorie principală. Alegeți o categorie de produse."));
@@ -51,7 +51,7 @@ public sealed partial class SupplierSettingsController(
                 category.Id,
                 category.Name);
         }
-        return Ok(new CategoryCreationResponse(category.Id, category.ParentId, category.Name, category.Slug, result.AlreadyExisted));
+        return Ok(new CategoryCreationResponse(category.Id, category.VerticalId, category.ParentId, category.Name, category.Slug, result.AlreadyExisted));
     }
 
     [Authorize(Roles = MarketplaceRoles.Supplier)]
@@ -113,7 +113,6 @@ public sealed partial class SupplierSettingsController(
                 request.MaximumDeliveryRadiusKm,
                 request.MinimumOrderValue,
                 request.NationwideDelivery,
-                request.CanFulfillMultiCategoryRequests,
                 counties),
             cancellationToken);
         return selection is null ? MissingProfile() : Ok(selection);
@@ -139,8 +138,8 @@ public sealed partial class SupplierSettingsController(
         string categoryName);
 }
 
-public sealed record CategoryResponse(Guid Id, Guid? ParentId, string Name, string Slug);
-public sealed record CategoryCreationResponse(Guid Id, Guid? ParentId, string Name, string Slug, bool AlreadyExisted);
+public sealed record CategoryResponse(Guid Id, Guid VerticalId, Guid? ParentId, string Name, string Slug);
+public sealed record CategoryCreationResponse(Guid Id, Guid VerticalId, Guid? ParentId, string Name, string Slug, bool AlreadyExisted);
 public sealed record SimilarCategoryResponse(string Message, IEnumerable<CategoryResponse> SimilarCategories);
 public sealed record AddCategoryRequest(string? Name, bool ConfirmSimilar = false);
 public sealed record SupplierCategoriesRequest(IReadOnlyCollection<Guid>? CategoryIds);
@@ -149,5 +148,4 @@ public sealed record SupplierDeliveryRequest(
     int MaximumDeliveryRadiusKm,
     decimal? MinimumOrderValue,
     bool NationwideDelivery,
-    bool CanFulfillMultiCategoryRequests,
     IReadOnlyCollection<string>? Counties);

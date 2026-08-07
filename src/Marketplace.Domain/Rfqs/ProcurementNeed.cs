@@ -2,6 +2,7 @@ namespace Marketplace.Domain.Rfqs;
 
 public enum ProcurementNeedSource { Manual, Assisted, Imported, Administrator }
 public enum ProcurementInputType { StructuredForm, FreeText, ShoppingList, ProjectDescription }
+public enum ProcurementNeedType { DirectPurchase, ShoppingList, Project }
 public enum ProcurementNeedStatus { Draft, Published, ReceivingResponses, Awarded, Completed, Cancelled }
 public enum RequirementKind { Product, Service }
 public enum ProcurementOutcome

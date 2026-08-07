@@ -8,7 +8,6 @@ public sealed class SupplierDeliverySettings
     public int MaximumDeliveryRadiusKm { get; private set; }
     public decimal? MinimumOrderValue { get; private set; }
     public bool NationwideDelivery { get; private set; }
-    public bool CanFulfillMultiCategoryRequests { get; private set; }
     public DateTimeOffset UpdatedAt { get; private set; }
 
     public static SupplierDeliverySettings Create(
@@ -17,7 +16,6 @@ public sealed class SupplierDeliverySettings
         int maximumRadius,
         decimal? minimumOrderValue,
         bool nationwide,
-        bool canFulfillMultiCategoryRequests,
         DateTimeOffset now)
     {
         Validate(normalRadius, maximumRadius, minimumOrderValue);
@@ -28,7 +26,6 @@ public sealed class SupplierDeliverySettings
             MaximumDeliveryRadiusKm = maximumRadius,
             MinimumOrderValue = minimumOrderValue,
             NationwideDelivery = nationwide,
-            CanFulfillMultiCategoryRequests = canFulfillMultiCategoryRequests,
             UpdatedAt = now
         };
     }
@@ -38,7 +35,6 @@ public sealed class SupplierDeliverySettings
         int maximumRadius,
         decimal? minimumOrderValue,
         bool nationwide,
-        bool canFulfillMultiCategoryRequests,
         DateTimeOffset now)
     {
         Validate(normalRadius, maximumRadius, minimumOrderValue);
@@ -46,7 +42,6 @@ public sealed class SupplierDeliverySettings
         MaximumDeliveryRadiusKm = maximumRadius;
         MinimumOrderValue = minimumOrderValue;
         NationwideDelivery = nationwide;
-        CanFulfillMultiCategoryRequests = canFulfillMultiCategoryRequests;
         UpdatedAt = now;
     }
 

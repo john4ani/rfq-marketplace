@@ -44,7 +44,7 @@
 
   <rect class="feature" x="645" y="375" width="285" height="78" rx="12"/>
   <text class="label" x="787" y="405" text-anchor="middle">Piața Live &amp; discovery</text>
-  <text class="small" x="787" y="430" text-anchor="middle">Market · participants · open RFQs</text>
+  <text class="small" x="787" y="430" text-anchor="middle">Market · open RFQs · Supplier discovery</text>
 
   <rect class="feature" x="980" y="375" width="285" height="78" rx="12"/>
   <text class="label" x="1122" y="405" text-anchor="middle">Account workspace</text>
@@ -72,7 +72,7 @@
 
   <rect class="core" x="555" y="687" width="250" height="95" rx="12"/>
   <text class="label" x="680" y="718" text-anchor="middle">Typed API clients</text>
-  <text class="small" x="680" y="742" text-anchor="middle">Profiles · RFQs · offers</text>
+  <text class="small" x="680" y="742" text-anchor="middle">Profiles · RFQs · offers · discovery</text>
   <text class="small" x="680" y="763" text-anchor="middle">market · messages · notifications</text>
 
   <rect class="cross" x="840" y="687" width="205" height="95" rx="12"/>

@@ -26,6 +26,7 @@ public sealed class RfqConfiguration : IEntityTypeConfiguration<Rfq>
         builder.Property(rfq => rfq.SupplierSearchRadiusKm).HasDefaultValue(30);
         builder.Property(rfq => rfq.Source).HasDefaultValue(ProcurementNeedSource.Manual);
         builder.Property(rfq => rfq.InputType).HasDefaultValue(ProcurementInputType.StructuredForm);
+        builder.Property(rfq => rfq.NeedType).HasDefaultValue(ProcurementNeedType.DirectPurchase);
         builder.Property(rfq => rfq.AllowSplit).HasDefaultValue(false);
         builder.Property(rfq => rfq.DeliveryRequired).HasDefaultValue(false);
         builder.Property(rfq => rfq.ReopenCount).HasDefaultValue(0);
@@ -38,10 +39,14 @@ public sealed class RfqConfiguration : IEntityTypeConfiguration<Rfq>
         builder.Ignore(rfq => rfq.NeedStatus);
         builder.Ignore(rfq => rfq.ProjectContext);
         builder.Ignore(rfq => rfq.DeliveryConstraints);
+        builder.Ignore(rfq => rfq.PrimaryCategoryId);
+        builder.Ignore(rfq => rfq.RequiredCategoryIds);
         builder.HasIndex(rfq => new { rfq.BuyerId, rfq.Status });
         builder.HasIndex(rfq => new { rfq.Status, rfq.QuotationDeadline });
         builder.HasOne<BuyerProfile>().WithMany().HasForeignKey(rfq => rfq.BuyerId).OnDelete(DeleteBehavior.Restrict);
-        builder.HasOne<Category>().WithMany().HasForeignKey(rfq => rfq.PrimaryCategoryId).OnDelete(DeleteBehavior.Restrict);
+        builder.HasOne<ProjectTemplate>().WithMany().HasForeignKey(rfq => rfq.ProjectTemplateId).OnDelete(DeleteBehavior.SetNull);
+        builder.HasMany(rfq => rfq.NeedCategories).WithOne().HasForeignKey(category => category.ProcurementNeedId).OnDelete(DeleteBehavior.Cascade);
+        builder.Navigation(rfq => rfq.NeedCategories).UsePropertyAccessMode(PropertyAccessMode.Field);
         builder.HasMany(rfq => rfq.Items).WithOne().HasForeignKey(item => item.RfqId).OnDelete(DeleteBehavior.Cascade);
         builder.Navigation(rfq => rfq.Items).UsePropertyAccessMode(PropertyAccessMode.Field);
     }

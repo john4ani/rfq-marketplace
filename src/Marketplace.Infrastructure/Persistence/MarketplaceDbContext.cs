@@ -7,6 +7,7 @@ using Marketplace.Domain.AiIntake;
 using Marketplace.Domain.Offers;
 using Marketplace.Domain.Notifications;
 using Marketplace.Domain.Messaging;
+using Marketplace.Domain.SupplierDiscovery;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
@@ -20,12 +21,16 @@ public sealed class MarketplaceDbContext(DbContextOptions<MarketplaceDbContext> 
     public DbSet<BuyerProfile> BuyerProfiles => Set<BuyerProfile>();
     public DbSet<SupplierProfile> SupplierProfiles => Set<SupplierProfile>();
     public DbSet<Category> Categories => Set<Category>();
+    public DbSet<Vertical> Verticals => Set<Vertical>();
     public DbSet<SupplierCategory> SupplierCategories => Set<SupplierCategory>();
     public DbSet<SupplierDeliverySettings> SupplierDeliverySettings => Set<SupplierDeliverySettings>();
     public DbSet<SupplierDeliveryArea> SupplierDeliveryAreas => Set<SupplierDeliveryArea>();
     public DbSet<UserPresence> UserPresences => Set<UserPresence>();
     public DbSet<Rfq> Rfqs => Set<Rfq>();
     public DbSet<RfqItem> RfqItems => Set<RfqItem>();
+    public DbSet<NeedCategory> ProcurementNeedCategories => Set<NeedCategory>();
+    public DbSet<ProjectTemplate> ProjectTemplates => Set<ProjectTemplate>();
+    public DbSet<ProjectTemplateCategory> ProjectTemplateCategories => Set<ProjectTemplateCategory>();
     public DbSet<ProcurementNeedAuditEvent> ProcurementNeedAuditEvents => Set<ProcurementNeedAuditEvent>();
     public DbSet<AiIntakeSession> AiIntakeSessions => Set<AiIntakeSession>();
     public DbSet<Offer> Offers => Set<Offer>();
@@ -33,6 +38,10 @@ public sealed class MarketplaceDbContext(DbContextOptions<MarketplaceDbContext> 
     public DbSet<Notification> Notifications => Set<Notification>();
     public DbSet<Conversation> Conversations => Set<Conversation>();
     public DbSet<Message> Messages => Set<Message>();
+    public DbSet<SupplierCandidate> SupplierCandidates => Set<SupplierCandidate>();
+    public DbSet<SupplierCandidateCategory> SupplierCandidateCategories => Set<SupplierCandidateCategory>();
+    public DbSet<SupplierInvitation> SupplierInvitations => Set<SupplierInvitation>();
+    public DbSet<SupplierDiscoveryAuditEvent> SupplierDiscoveryAuditEvents => Set<SupplierDiscoveryAuditEvent>();
 
     protected override void OnModelCreating(ModelBuilder builder)
     {

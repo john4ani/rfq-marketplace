@@ -500,6 +500,34 @@ namespace Marketplace.Infrastructure.Persistence.Migrations
                     b.ToTable("SupplierProfiles", (string)null);
                 });
 
+            modelBuilder.Entity("Marketplace.Domain.Rfqs.NeedCategory", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("CategoryId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("ProcurementNeedId")
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("SortOrder")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CategoryId");
+
+                    b.HasIndex("ProcurementNeedId", "CategoryId")
+                        .IsUnique();
+
+                    b.HasIndex("ProcurementNeedId", "SortOrder")
+                        .IsUnique();
+
+                    b.ToTable("ProcurementNeedCategories", (string)null);
+                });
+
             modelBuilder.Entity("Marketplace.Domain.Rfqs.ProcurementNeedAuditEvent", b =>
                 {
                     b.Property<Guid>("Id")
@@ -535,6 +563,58 @@ namespace Marketplace.Infrastructure.Persistence.Migrations
                     b.HasIndex("ProcurementNeedId", "OccurredAt");
 
                     b.ToTable("ProcurementNeedAuditEvents", (string)null);
+                });
+
+            modelBuilder.Entity("Marketplace.Domain.Rfqs.ProjectTemplate", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Description")
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(180)
+                        .HasColumnType("character varying(180)");
+
+                    b.Property<string>("Slug")
+                        .IsRequired()
+                        .HasMaxLength(180)
+                        .HasColumnType("character varying(180)");
+
+                    b.Property<Guid>("VerticalId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("VerticalId", "Slug")
+                        .IsUnique();
+
+                    b.ToTable("ProjectTemplates", (string)null);
+                });
+
+            modelBuilder.Entity("Marketplace.Domain.Rfqs.ProjectTemplateCategory", b =>
+                {
+                    b.Property<Guid>("ProjectTemplateId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("CategoryId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("ProjectTemplateId", "CategoryId");
+
+                    b.HasIndex("CategoryId");
+
+                    b.ToTable("ProjectTemplateCategories", (string)null);
                 });
 
             modelBuilder.Entity("Marketplace.Domain.Rfqs.Rfq", b =>
@@ -616,6 +696,11 @@ namespace Marketplace.Infrastructure.Persistence.Migrations
                         .HasPrecision(9, 6)
                         .HasColumnType("numeric(9,6)");
 
+                    b.Property<int>("NeedType")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasDefaultValue(0);
+
                     b.Property<int?>("Outcome")
                         .HasColumnType("integer");
 
@@ -629,12 +714,12 @@ namespace Marketplace.Infrastructure.Persistence.Migrations
                     b.Property<DateOnly?>("PreferredDeliveryDate")
                         .HasColumnType("date");
 
-                    b.Property<Guid>("PrimaryCategoryId")
-                        .HasColumnType("uuid");
-
                     b.Property<string>("ProjectName")
                         .HasMaxLength(200)
                         .HasColumnType("character varying(200)");
+
+                    b.Property<Guid?>("ProjectTemplateId")
+                        .HasColumnType("uuid");
 
                     b.Property<DateTimeOffset?>("PublishedAt")
                         .HasColumnType("timestamp with time zone");
@@ -679,7 +764,7 @@ namespace Marketplace.Infrastructure.Persistence.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("PrimaryCategoryId");
+                    b.HasIndex("ProjectTemplateId");
 
                     b.HasIndex("BuyerId", "Status");
 
@@ -706,9 +791,6 @@ namespace Marketplace.Infrastructure.Persistence.Migrations
                         .HasMaxLength(1000)
                         .HasColumnType("character varying(1000)");
 
-                    b.Property<Guid?>("CategoryId")
-                        .HasColumnType("uuid");
-
                     b.Property<int>("ItemNumber")
                         .HasColumnType("integer");
 
@@ -720,6 +802,9 @@ namespace Marketplace.Infrastructure.Persistence.Migrations
                     b.Property<string>("ManufacturerOrBrand")
                         .HasMaxLength(160)
                         .HasColumnType("character varying(160)");
+
+                    b.Property<Guid>("NeedCategoryId")
+                        .HasColumnType("uuid");
 
                     b.Property<string>("ProductName")
                         .IsRequired()
@@ -742,7 +827,7 @@ namespace Marketplace.Infrastructure.Persistence.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("CategoryId");
+                    b.HasIndex("NeedCategoryId");
 
                     b.HasIndex("RfqId", "ItemNumber")
                         .IsUnique();
@@ -751,6 +836,213 @@ namespace Marketplace.Infrastructure.Persistence.Migrations
                         {
                             t.HasCheckConstraint("CK_RfqItems_Quantity", "\"Quantity\" > 0");
                         });
+                });
+
+            modelBuilder.Entity("Marketplace.Domain.SupplierDiscovery.SupplierCandidate", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("City")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("character varying(120)");
+
+                    b.Property<DateTimeOffset?>("ClaimedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("ClaimedBySupplierId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("CompanyName")
+                        .IsRequired()
+                        .HasMaxLength(180)
+                        .HasColumnType("character varying(180)");
+
+                    b.Property<string>("ContactEmail")
+                        .HasMaxLength(254)
+                        .HasColumnType("character varying(254)");
+
+                    b.Property<string>("County")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("character varying(120)");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("CreatedBy")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("NormalizedCompanyName")
+                        .IsRequired()
+                        .HasMaxLength(180)
+                        .HasColumnType("character varying(180)");
+
+                    b.Property<string>("Notes")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
+                    b.Property<string>("PhoneNumber")
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)");
+
+                    b.Property<string>("ReviewNotes")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
+                    b.Property<DateTimeOffset?>("ReviewedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("ReviewedBy")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Source")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("integer");
+
+                    b.Property<uint>("Version")
+                        .IsConcurrencyToken()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("xid")
+                        .HasColumnName("xmin");
+
+                    b.Property<string>("Website")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ClaimedBySupplierId");
+
+                    b.HasIndex("CreatedBy");
+
+                    b.HasIndex("ReviewedBy");
+
+                    b.HasIndex("NormalizedCompanyName", "County")
+                        .IsUnique();
+
+                    b.HasIndex("Status", "County");
+
+                    b.ToTable("SupplierCandidates", (string)null);
+                });
+
+            modelBuilder.Entity("Marketplace.Domain.SupplierDiscovery.SupplierCandidateCategory", b =>
+                {
+                    b.Property<Guid>("CandidateId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("CategoryId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("CandidateId", "CategoryId");
+
+                    b.HasIndex("CategoryId");
+
+                    b.ToTable("SupplierCandidateCategories", (string)null);
+                });
+
+            modelBuilder.Entity("Marketplace.Domain.SupplierDiscovery.SupplierDiscoveryAuditEvent", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("ActorId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("CandidateId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Details")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
+                    b.Property<Guid?>("InvitationId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("OccurredAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("RfqId")
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("Type")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ActorId");
+
+                    b.HasIndex("InvitationId");
+
+                    b.HasIndex("RfqId");
+
+                    b.HasIndex("CandidateId", "OccurredAt");
+
+                    b.ToTable("SupplierDiscoveryAuditEvents", (string)null);
+                });
+
+            modelBuilder.Entity("Marketplace.Domain.SupplierDiscovery.SupplierInvitation", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("CandidateId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset?>("ClaimedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("ClaimedBySupplierId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("CreatedBy")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("ExpiresAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTimeOffset?>("RevokedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("RfqId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("TokenHash")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<uint>("Version")
+                        .IsConcurrencyToken()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("xid")
+                        .HasColumnName("xmin");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ClaimedBySupplierId");
+
+                    b.HasIndex("CreatedBy");
+
+                    b.HasIndex("RfqId");
+
+                    b.HasIndex("TokenHash")
+                        .IsUnique();
+
+                    b.HasIndex("CandidateId", "RfqId");
+
+                    b.ToTable("SupplierInvitations", (string)null);
                 });
 
             modelBuilder.Entity("Marketplace.Domain.Suppliers.Category", b =>
@@ -778,12 +1070,17 @@ namespace Marketplace.Infrastructure.Persistence.Migrations
                     b.Property<int>("SortOrder")
                         .HasColumnType("integer");
 
+                    b.Property<Guid>("VerticalId")
+                        .HasColumnType("uuid");
+
                     b.HasKey("Id");
 
                     b.HasIndex("ParentId");
 
                     b.HasIndex("Slug")
                         .IsUnique();
+
+                    b.HasIndex("VerticalId");
 
                     b.ToTable("Categories", (string)null);
 
@@ -792,9 +1089,10 @@ namespace Marketplace.Infrastructure.Persistence.Migrations
                         {
                             Id = new Guid("10000000-0000-0000-0000-000000000001"),
                             IsActive = true,
-                            Name = "Materiale de construcții",
-                            Slug = "materiale-constructii",
-                            SortOrder = 0
+                            Name = "Construcții",
+                            Slug = "constructii",
+                            SortOrder = 0,
+                            VerticalId = new Guid("20000000-0000-0000-0000-000000000001")
                         },
                         new
                         {
@@ -803,7 +1101,8 @@ namespace Marketplace.Infrastructure.Persistence.Migrations
                             Name = "Izolații",
                             ParentId = new Guid("10000000-0000-0000-0000-000000000001"),
                             Slug = "izolatii",
-                            SortOrder = 10
+                            SortOrder = 10,
+                            VerticalId = new Guid("20000000-0000-0000-0000-000000000001")
                         },
                         new
                         {
@@ -812,7 +1111,8 @@ namespace Marketplace.Infrastructure.Persistence.Migrations
                             Name = "Ciment și mortare",
                             ParentId = new Guid("10000000-0000-0000-0000-000000000001"),
                             Slug = "ciment-mortare",
-                            SortOrder = 20
+                            SortOrder = 20,
+                            VerticalId = new Guid("20000000-0000-0000-0000-000000000001")
                         },
                         new
                         {
@@ -821,7 +1121,8 @@ namespace Marketplace.Infrastructure.Persistence.Migrations
                             Name = "Zidărie",
                             ParentId = new Guid("10000000-0000-0000-0000-000000000001"),
                             Slug = "zidarie",
-                            SortOrder = 30
+                            SortOrder = 30,
+                            VerticalId = new Guid("20000000-0000-0000-0000-000000000001")
                         },
                         new
                         {
@@ -830,7 +1131,8 @@ namespace Marketplace.Infrastructure.Persistence.Migrations
                             Name = "Acoperișuri",
                             ParentId = new Guid("10000000-0000-0000-0000-000000000001"),
                             Slug = "acoperisuri",
-                            SortOrder = 40
+                            SortOrder = 40,
+                            VerticalId = new Guid("20000000-0000-0000-0000-000000000001")
                         },
                         new
                         {
@@ -839,7 +1141,8 @@ namespace Marketplace.Infrastructure.Persistence.Migrations
                             Name = "Lemn și plăci",
                             ParentId = new Guid("10000000-0000-0000-0000-000000000001"),
                             Slug = "lemn-placi",
-                            SortOrder = 50
+                            SortOrder = 50,
+                            VerticalId = new Guid("20000000-0000-0000-0000-000000000001")
                         },
                         new
                         {
@@ -848,7 +1151,8 @@ namespace Marketplace.Infrastructure.Persistence.Migrations
                             Name = "Gips-carton",
                             ParentId = new Guid("10000000-0000-0000-0000-000000000001"),
                             Slug = "gips-carton",
-                            SortOrder = 60
+                            SortOrder = 60,
+                            VerticalId = new Guid("20000000-0000-0000-0000-000000000001")
                         },
                         new
                         {
@@ -857,7 +1161,8 @@ namespace Marketplace.Infrastructure.Persistence.Migrations
                             Name = "Finisaje",
                             ParentId = new Guid("10000000-0000-0000-0000-000000000001"),
                             Slug = "finisaje",
-                            SortOrder = 70
+                            SortOrder = 70,
+                            VerticalId = new Guid("20000000-0000-0000-0000-000000000001")
                         },
                         new
                         {
@@ -866,7 +1171,8 @@ namespace Marketplace.Infrastructure.Persistence.Migrations
                             Name = "Instalații sanitare",
                             ParentId = new Guid("10000000-0000-0000-0000-000000000001"),
                             Slug = "instalatii-sanitare",
-                            SortOrder = 80
+                            SortOrder = 80,
+                            VerticalId = new Guid("20000000-0000-0000-0000-000000000001")
                         },
                         new
                         {
@@ -875,7 +1181,8 @@ namespace Marketplace.Infrastructure.Persistence.Migrations
                             Name = "Instalații electrice",
                             ParentId = new Guid("10000000-0000-0000-0000-000000000001"),
                             Slug = "instalatii-electrice",
-                            SortOrder = 90
+                            SortOrder = 90,
+                            VerticalId = new Guid("20000000-0000-0000-0000-000000000001")
                         });
                 });
 
@@ -913,11 +1220,6 @@ namespace Marketplace.Infrastructure.Persistence.Migrations
                     b.Property<Guid>("SupplierId")
                         .HasColumnType("uuid");
 
-                    b.Property<bool>("CanFulfillMultiCategoryRequests")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("boolean")
-                        .HasDefaultValue(false);
-
                     b.Property<int>("MaximumDeliveryRadiusKm")
                         .HasColumnType("integer");
 
@@ -943,6 +1245,42 @@ namespace Marketplace.Infrastructure.Persistence.Migrations
                             t.HasCheckConstraint("CK_SupplierDeliverySettings_MinimumOrder", "\"MinimumOrderValue\" IS NULL OR \"MinimumOrderValue\" >= 0");
 
                             t.HasCheckConstraint("CK_SupplierDeliverySettings_NormalRadius", "\"NormalDeliveryRadiusKm\" BETWEEN 1 AND 1000");
+                        });
+                });
+
+            modelBuilder.Entity("Marketplace.Domain.Suppliers.Vertical", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("character varying(120)");
+
+                    b.Property<string>("Slug")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("character varying(120)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Slug")
+                        .IsUnique();
+
+                    b.ToTable("Verticals", (string)null);
+
+                    b.HasData(
+                        new
+                        {
+                            Id = new Guid("20000000-0000-0000-0000-000000000001"),
+                            IsActive = true,
+                            Name = "Construcții",
+                            Slug = "constructii"
                         });
                 });
 
@@ -1284,11 +1622,50 @@ namespace Marketplace.Infrastructure.Persistence.Migrations
                         .IsRequired();
                 });
 
+            modelBuilder.Entity("Marketplace.Domain.Rfqs.NeedCategory", b =>
+                {
+                    b.HasOne("Marketplace.Domain.Suppliers.Category", null)
+                        .WithMany()
+                        .HasForeignKey("CategoryId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Marketplace.Domain.Rfqs.Rfq", null)
+                        .WithMany("NeedCategories")
+                        .HasForeignKey("ProcurementNeedId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("Marketplace.Domain.Rfqs.ProcurementNeedAuditEvent", b =>
                 {
                     b.HasOne("Marketplace.Domain.Rfqs.Rfq", null)
                         .WithMany()
                         .HasForeignKey("ProcurementNeedId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Marketplace.Domain.Rfqs.ProjectTemplate", b =>
+                {
+                    b.HasOne("Marketplace.Domain.Suppliers.Vertical", null)
+                        .WithMany()
+                        .HasForeignKey("VerticalId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Marketplace.Domain.Rfqs.ProjectTemplateCategory", b =>
+                {
+                    b.HasOne("Marketplace.Domain.Suppliers.Category", null)
+                        .WithMany()
+                        .HasForeignKey("CategoryId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Marketplace.Domain.Rfqs.ProjectTemplate", null)
+                        .WithMany("Categories")
+                        .HasForeignKey("ProjectTemplateId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
                 });
@@ -1301,24 +1678,111 @@ namespace Marketplace.Infrastructure.Persistence.Migrations
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
-                    b.HasOne("Marketplace.Domain.Suppliers.Category", null)
+                    b.HasOne("Marketplace.Domain.Rfqs.ProjectTemplate", null)
                         .WithMany()
-                        .HasForeignKey("PrimaryCategoryId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
+                        .HasForeignKey("ProjectTemplateId")
+                        .OnDelete(DeleteBehavior.SetNull);
                 });
 
             modelBuilder.Entity("Marketplace.Domain.Rfqs.RfqItem", b =>
                 {
-                    b.HasOne("Marketplace.Domain.Suppliers.Category", null)
+                    b.HasOne("Marketplace.Domain.Rfqs.NeedCategory", "NeedCategory")
                         .WithMany()
-                        .HasForeignKey("CategoryId")
-                        .OnDelete(DeleteBehavior.Restrict);
+                        .HasForeignKey("NeedCategoryId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
 
                     b.HasOne("Marketplace.Domain.Rfqs.Rfq", null)
                         .WithMany("Items")
                         .HasForeignKey("RfqId")
                         .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("NeedCategory");
+                });
+
+            modelBuilder.Entity("Marketplace.Domain.SupplierDiscovery.SupplierCandidate", b =>
+                {
+                    b.HasOne("Marketplace.Infrastructure.Identity.ApplicationUser", null)
+                        .WithMany()
+                        .HasForeignKey("ClaimedBySupplierId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("Marketplace.Infrastructure.Identity.ApplicationUser", null)
+                        .WithMany()
+                        .HasForeignKey("CreatedBy")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Marketplace.Infrastructure.Identity.ApplicationUser", null)
+                        .WithMany()
+                        .HasForeignKey("ReviewedBy")
+                        .OnDelete(DeleteBehavior.Restrict);
+                });
+
+            modelBuilder.Entity("Marketplace.Domain.SupplierDiscovery.SupplierCandidateCategory", b =>
+                {
+                    b.HasOne("Marketplace.Domain.SupplierDiscovery.SupplierCandidate", null)
+                        .WithMany("Categories")
+                        .HasForeignKey("CandidateId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Marketplace.Domain.Suppliers.Category", null)
+                        .WithMany()
+                        .HasForeignKey("CategoryId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Marketplace.Domain.SupplierDiscovery.SupplierDiscoveryAuditEvent", b =>
+                {
+                    b.HasOne("Marketplace.Infrastructure.Identity.ApplicationUser", null)
+                        .WithMany()
+                        .HasForeignKey("ActorId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Marketplace.Domain.SupplierDiscovery.SupplierCandidate", null)
+                        .WithMany()
+                        .HasForeignKey("CandidateId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Marketplace.Domain.SupplierDiscovery.SupplierInvitation", null)
+                        .WithMany()
+                        .HasForeignKey("InvitationId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.HasOne("Marketplace.Domain.Rfqs.Rfq", null)
+                        .WithMany()
+                        .HasForeignKey("RfqId")
+                        .OnDelete(DeleteBehavior.SetNull);
+                });
+
+            modelBuilder.Entity("Marketplace.Domain.SupplierDiscovery.SupplierInvitation", b =>
+                {
+                    b.HasOne("Marketplace.Domain.SupplierDiscovery.SupplierCandidate", null)
+                        .WithMany()
+                        .HasForeignKey("CandidateId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Marketplace.Infrastructure.Identity.ApplicationUser", null)
+                        .WithMany()
+                        .HasForeignKey("ClaimedBySupplierId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("Marketplace.Infrastructure.Identity.ApplicationUser", null)
+                        .WithMany()
+                        .HasForeignKey("CreatedBy")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Marketplace.Domain.Rfqs.Rfq", null)
+                        .WithMany()
+                        .HasForeignKey("RfqId")
+                        .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
                 });
 
@@ -1328,6 +1792,12 @@ namespace Marketplace.Infrastructure.Persistence.Migrations
                         .WithMany()
                         .HasForeignKey("ParentId")
                         .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("Marketplace.Domain.Suppliers.Vertical", null)
+                        .WithMany()
+                        .HasForeignKey("VerticalId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
                 });
 
             modelBuilder.Entity("Marketplace.Domain.Suppliers.SupplierCategory", b =>
@@ -1430,9 +1900,21 @@ namespace Marketplace.Infrastructure.Persistence.Migrations
                     b.Navigation("Items");
                 });
 
+            modelBuilder.Entity("Marketplace.Domain.Rfqs.ProjectTemplate", b =>
+                {
+                    b.Navigation("Categories");
+                });
+
             modelBuilder.Entity("Marketplace.Domain.Rfqs.Rfq", b =>
                 {
                     b.Navigation("Items");
+
+                    b.Navigation("NeedCategories");
+                });
+
+            modelBuilder.Entity("Marketplace.Domain.SupplierDiscovery.SupplierCandidate", b =>
+                {
+                    b.Navigation("Categories");
                 });
 #pragma warning restore 612, 618
         }

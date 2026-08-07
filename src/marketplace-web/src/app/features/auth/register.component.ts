@@ -1,6 +1,6 @@
 import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/core';
 import { FormControl, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
-import { RouterLink } from '@angular/router';
+import { ActivatedRoute, RouterLink } from '@angular/router';
 import { AuthService } from '../../core/auth/auth.service';
 import { HttpErrorResponse } from '@angular/common/http';
 
@@ -16,7 +16,7 @@ import { HttpErrorResponse } from '@angular/common/http';
     <label class="checkbox-label"><input type="checkbox" [disabled]="submitting() || registrationSucceeded()" [checked]="showPassword()" (change)="showPassword.set(!showPassword())">Arată parola</label>
     @if (message()) { <p [class.error]="hasError()" [class.success]="registrationSucceeded()" role="alert">{{ message() }}</p> }
     @if (registrationSucceeded()) {
-      <a class="button-link" routerLink="/sign-in">Autentifică-te</a>
+      <a class="button-link" routerLink="/sign-in" [queryParams]="returnUrl?{returnUrl}:null">Autentifică-te</a>
     } @else {
       <button type="submit" [disabled]="form.invalid || selectedRoles().length === 0 || submitting()">{{ submitting() ? 'Se creează contul…' : 'Înregistrare' }}</button>
     }
@@ -25,8 +25,10 @@ import { HttpErrorResponse } from '@angular/common/http';
 })
 export class RegisterComponent {
   private readonly auth = inject(AuthService); readonly message = signal(''); readonly hasError = signal(false); readonly showPassword = signal(false);
+  private readonly route=inject(ActivatedRoute);
+  readonly returnUrl=this.safeReturnUrl(this.route.snapshot.queryParamMap.get('supplierInvite'));
   readonly submitting = signal(false); readonly registrationSucceeded = signal(false);
-  readonly selectedRoles = signal<('Buyer'|'Supplier')[]>(['Buyer']);
+  readonly selectedRoles = signal<('Buyer'|'Supplier')[]>(this.returnUrl?['Supplier']:['Buyer']);
   readonly form = new FormGroup({ email: new FormControl('', { nonNullable: true, validators: [Validators.required, Validators.email] }), password: new FormControl('', { nonNullable: true, validators: [Validators.required, Validators.minLength(8)] }) });
   toggleRole(role: 'Buyer'|'Supplier'): void {
     const roles = this.selectedRoles();
@@ -91,6 +93,7 @@ export class RegisterComponent {
     }
     return value && typeof value === 'object' ? value as ProblemDetails : null;
   }
+  private safeReturnUrl(value:string|null):string|null{return value?.startsWith('/supplier-invitations/')?value:null;}
 }
 
 interface ProblemDetails {

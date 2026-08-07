@@ -8,17 +8,16 @@ public sealed class SupplierSettingsTests
     public void MaximumRadiusCannotBeSmallerThanNormalRadius()
     {
         Assert.Throws<ArgumentOutOfRangeException>(() =>
-            SupplierDeliverySettings.Create(Guid.NewGuid(), 100, 50, null, false, false, DateTimeOffset.UtcNow));
+            SupplierDeliverySettings.Create(Guid.NewGuid(), 100, 50, null, false, DateTimeOffset.UtcNow));
     }
 
     [Fact]
     public void ValidSettingsCanBeUpdated()
     {
-        SupplierDeliverySettings settings = SupplierDeliverySettings.Create(Guid.NewGuid(), 50, 100, 500, false, false, DateTimeOffset.UtcNow);
-        settings.Update(75, 150, null, true, true, DateTimeOffset.UtcNow.AddMinutes(1));
+        SupplierDeliverySettings settings = SupplierDeliverySettings.Create(Guid.NewGuid(), 50, 100, 500, false, DateTimeOffset.UtcNow);
+        settings.Update(75, 150, null, true, DateTimeOffset.UtcNow.AddMinutes(1));
         Assert.Equal(75, settings.NormalDeliveryRadiusKm);
         Assert.Equal(150, settings.MaximumDeliveryRadiusKm);
         Assert.True(settings.NationwideDelivery);
-        Assert.True(settings.CanFulfillMultiCategoryRequests);
     }
 }
