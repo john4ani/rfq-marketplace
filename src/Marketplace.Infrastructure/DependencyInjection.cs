@@ -20,6 +20,8 @@ using Marketplace.Application.AiIntake;
 using Marketplace.Infrastructure.AiIntake;
 using Marketplace.Application.SupplierDiscovery;
 using Marketplace.Infrastructure.SupplierDiscovery;
+using Marketplace.Application.Trust;
+using Marketplace.Infrastructure.Trust;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
@@ -56,6 +58,7 @@ public static class DependencyInjection
             options.TokenLifespan = TimeSpan.FromMinutes(30));
         services.Configure<JwtOptions>(configuration.GetRequiredSection(JwtOptions.SectionName));
         services.Configure<PasswordResetEmailOptions>(configuration.GetSection(PasswordResetEmailOptions.SectionName));
+        services.Configure<EmailVerificationOptions>(configuration.GetSection(EmailVerificationOptions.SectionName));
         JwtOptions jwt = configuration.GetRequiredSection(JwtOptions.SectionName).Get<JwtOptions>()
             ?? throw new InvalidOperationException("JWT configuration is required.");
         if (Encoding.UTF8.GetByteCount(jwt.SigningKey) < 32) throw new InvalidOperationException("JWT signing key must contain at least 32 bytes.");
@@ -67,6 +70,7 @@ public static class DependencyInjection
         services.AddSingleton(TimeProvider.System);
         services.AddScoped<IIdentityService, IdentityService>();
         services.AddScoped<IPasswordResetDelivery, SmtpPasswordResetDelivery>();
+        services.AddScoped<IEmailVerificationDelivery, SmtpEmailVerificationDelivery>();
         services.AddScoped<IProfileService, ProfileService>();
         services.AddScoped<ISupplierSettingsService, SupplierSettingsService>();
         services.AddScoped<ILiveMarketService, LiveMarketService>();
@@ -86,6 +90,7 @@ public static class DependencyInjection
         services.AddScoped<INotificationService, NotificationService>();
         services.AddScoped<IMessagingService, MessagingService>();
         services.AddScoped<ISupplierDiscoveryService, SupplierDiscoveryService>();
+        services.AddScoped<ITrustService, TrustService>();
         return services;
     }
 }

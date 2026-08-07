@@ -17,7 +17,7 @@ The repository is healthy enough for incremental evolution. It already implement
 | Selection and fulfilment | Partial | Award, one reopen, delivery report/confirm exist; no general procurement outcome taxonomy |
 | External Provider discovery | Implemented first slice | Sourced unverified candidates, human validation, request-linked invitations, secure claim, and audit; automated discovery/outreach excluded |
 | Referrals | Missing | No invitation token, attribution, sharing events, or conversion state |
-| Trust foundation | Partial | Supplier approval field exists but no verification workflow; email/phone/company verification and action audit absent |
+| Trust foundation | Implemented first slice | Factual verification state, profile completeness, participation facts, Administrator review and account audit; ratings and public reputation remain deferred |
 | Notifications | Partial | In-app offer/message/reopen/delivery events; no email opportunity delivery or deadline/outcome reminders |
 | Concierge administration | Partial | Supplier discovery workspace is implemented; correction, matching override, invitation retry, normalization support, and AI review remain Pasul 9 |
 | Analytics | Missing | No extensible funnel event store |

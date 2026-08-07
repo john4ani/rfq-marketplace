@@ -1,6 +1,7 @@
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using Marketplace.Application.Rfqs;
+using Marketplace.Application.Trust;
 using Marketplace.Domain.Identity;
 using Marketplace.Domain.Rfqs;
 using Microsoft.AspNetCore.Authorization;
@@ -11,7 +12,7 @@ namespace Marketplace.Api.Controllers;
 [ApiController]
 [Route("api/v1/open-rfqs")]
 [Authorize(Roles = MarketplaceRoles.Supplier)]
-public sealed class OpenRfqsController(IRfqService rfqService) : ControllerBase
+public sealed class OpenRfqsController(IRfqService rfqService, ITrustService trustService) : ControllerBase
 {
     [HttpGet]
     public async Task<IActionResult> List(
@@ -24,14 +25,16 @@ public sealed class OpenRfqsController(IRfqService rfqService) : ControllerBase
                 new Dictionary<string, string[]> { ["search"] = ["Căutarea poate avea cel mult 120 de caractere."] }));
         IReadOnlyCollection<OpenRfq> results =
             await rfqService.GetOpenAsync(SupplierId(), search, categoryId, cancellationToken);
-        return Ok(results.Select(OpenRfqResponse.From));
+        var response = new List<OpenRfqResponse>();
+        foreach (OpenRfq item in results) response.Add(OpenRfqResponse.From(item, await trustService.GetFactsAsync(item.Rfq.BuyerId, cancellationToken)));
+        return Ok(response);
     }
 
     [HttpGet("{rfqId:guid}")]
     public async Task<IActionResult> Get(Guid rfqId, CancellationToken cancellationToken)
     {
         OpenRfq? result = await rfqService.GetOpenAsync(SupplierId(), rfqId, cancellationToken);
-        return result is null ? NotFound() : Ok(OpenRfqResponse.From(result));
+        return result is null ? NotFound() : Ok(OpenRfqResponse.From(result, await trustService.GetFactsAsync(result.Rfq.BuyerId, cancellationToken)));
     }
 
     private Guid SupplierId()
@@ -66,9 +69,10 @@ public sealed record OpenRfqResponse(
     Guid? ProjectTemplateId,
     ProcurementNeedStatus NeedStatus,
     ProjectContextResponse? ProjectContext,
-    IReadOnlyCollection<RfqItemResponse> Items)
+    IReadOnlyCollection<RfqItemResponse> Items,
+    TrustFacts? BuyerTrustFacts)
 {
-    public static OpenRfqResponse From(OpenRfq result)
+    public static OpenRfqResponse From(OpenRfq result, TrustFacts? buyerTrustFacts)
     {
         Rfq rfq = result.Rfq;
         return new(
@@ -96,6 +100,6 @@ public sealed record OpenRfqResponse(
             rfq.NeedStatus,
             ProjectContextResponse.From(rfq.ProjectContext),
             rfq.Items.Where(item => result.MatchingItemIds is null || result.MatchingItemIds.Contains(item.Id))
-                .OrderBy(item => item.ItemNumber).Select(RfqItemResponse.From).ToArray());
+                .OrderBy(item => item.ItemNumber).Select(RfqItemResponse.From).ToArray(), buyerTrustFacts);
     }
 }

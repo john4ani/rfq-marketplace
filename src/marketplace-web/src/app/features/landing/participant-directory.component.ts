@@ -40,7 +40,7 @@ import { LiveMarketService, LiveParticipant, LiveMarketSnapshot } from '../../co
           @for (participant of buyers().slice(0, 24); track participant.id) {
             <article class="participant"><span class="avatar" aria-hidden="true">{{ initials(participant.name) }}</span>
               <div><strong>{{ participant.name }}</strong><small>{{ participant.city }}, {{ participant.county }}</small></div>
-              <span class="status" [class.online]="participant.isOnline">{{ participant.isOnline ? 'Online' : 'Offline' }}</span>
+               <span class="status" [class.online]="participant.isOnline">{{ participant.isOnline ? 'Online' : 'Offline' }}</span>
             </article>
           } @empty { <p class="state">Nu am găsit cumpărători pentru filtrele selectate.</p> }
         </div>
@@ -52,6 +52,7 @@ import { LiveMarketService, LiveParticipant, LiveMarketSnapshot } from '../../co
           @for (participant of suppliers().slice(0, 24); track participant.id) {
             <article class="participant"><span class="avatar supplier" aria-hidden="true">{{ initials(participant.name) }}</span>
               <div><strong>{{ participant.name }}</strong><small>{{ participant.city }}, {{ participant.county }}</small></div>
+              @if(participant.companyVerified){<small>✓ Companie verificată</small>}
               <span class="status" [class.online]="participant.isOnline">{{ participant.isOnline ? 'Online' : 'Offline' }}</span>
             </article>
           } @empty { <p class="state">Nu am găsit furnizori pentru filtrele selectate.</p> }

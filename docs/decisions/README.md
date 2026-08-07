@@ -26,6 +26,7 @@ Records retain their individual lifecycle status. Implemented decisions are Acce
 | [ADR-0020](ADR-0020-procurement-outcome-feedback-loop.md) | Terminal procurement outcomes and just-in-time follow-up |
 | [ADR-0021](ADR-0021-assisted-supplier-discovery.md) | Human-controlled Supplier discovery and request-linked claim |
 | [ADR-0022](ADR-0022-central-category-and-need-grouping.md) | Central categories, need-category groups, and separate project templates |
+| [ADR-0023](ADR-0023-factual-trust-foundation.md) | Factual trust foundation |
 
 ## ADR lifecycle
 

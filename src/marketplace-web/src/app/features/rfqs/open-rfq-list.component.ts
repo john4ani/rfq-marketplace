@@ -4,10 +4,11 @@ import { RouterLink } from '@angular/router';
 import { AuthService } from '../../core/auth/auth.service';
 import { OpenRfq, OpenRfqService } from '../../core/rfqs/open-rfq.service';
 import { CategoryOption, SupplierSettingsService } from '../../core/suppliers/supplier-settings.service';
+import { TrustFactsComponent } from '../profiles/trust-facts.component';
 
 @Component({
   selector: 'app-open-rfq-list',
-  imports: [RouterLink, DatePipe],
+  imports: [RouterLink, DatePipe, TrustFactsComponent],
   template: `<section class="requests-shell">
     <a class="back" routerLink="/">← Înapoi la Piața Live</a>
     <header>
@@ -56,7 +57,7 @@ import { CategoryOption, SupplierSettingsService } from '../../core/suppliers/su
               <div><dt>Poziții</dt><dd>{{ request.items.length || 'Cerere generală' }}</dd></div>
               <div><dt>Termen</dt><dd>{{ request.quotationDeadline | date:'dd.MM, HH:mm' }}</dd></div>
               @if (request.estimatedBudget !== null) { <div><dt>Buget estimat</dt><dd>{{ request.estimatedBudget }} lei</dd></div> }
-            </dl>
+            </dl><app-trust-facts [facts]="request.buyerTrustFacts" role="Buyer" />
             <a class="primary-link" [routerLink]="['/open-requests', request.id]">Vezi detalii și oferă →</a>
           </article>
         }

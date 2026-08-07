@@ -1,6 +1,7 @@
 using Marketplace.Application.Profiles;
 using Marketplace.Domain.Profiles;
 using Marketplace.Infrastructure.Persistence;
+using Marketplace.Domain.Trust;
 using Microsoft.EntityFrameworkCore;
 
 namespace Marketplace.Infrastructure.Profiles;
@@ -20,6 +21,7 @@ public sealed class ProfileService(MarketplaceDbContext dbContext, TimeProvider 
             dbContext.BuyerProfiles.Add(profile);
         }
         else profile.Update(input.DisplayName, input.BuyerType, input.CompanyName, input.TaxIdentifier, input.PhoneNumber, input.DefaultCity, input.DefaultCounty, input.MarketRadiusKm, now);
+        dbContext.AccountAuditEvents.Add(AccountAuditEvent.Create(id, id, AccountAuditEventType.ProfileSaved, "Profil de cumpărător salvat.", now));
         await dbContext.SaveChangesAsync(cancellationToken);
         return profile;
     }
@@ -37,6 +39,7 @@ public sealed class ProfileService(MarketplaceDbContext dbContext, TimeProvider 
             dbContext.SupplierProfiles.Add(profile);
         }
         else profile.Update(input.TradingName, input.CompanyRegistrationNumber, input.TaxIdentifier, input.ContactPerson, input.ContactEmail, input.PhoneNumber, input.Website, input.Address, input.City, input.County, input.Latitude, input.Longitude, input.Description, now);
+        dbContext.AccountAuditEvents.Add(AccountAuditEvent.Create(id, id, AccountAuditEventType.ProfileSaved, "Profil de furnizor salvat.", now));
         await dbContext.SaveChangesAsync(cancellationToken);
         return profile;
     }

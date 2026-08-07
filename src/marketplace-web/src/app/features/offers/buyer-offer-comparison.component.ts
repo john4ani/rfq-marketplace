@@ -6,10 +6,11 @@ import { BuyerOffer, OfferItem, OfferService, OfferTaxTreatment } from '../../co
 import { ProcurementNeedAuditEvent, Rfq, RfqService } from '../../core/rfqs/rfq.service';
 import { ProcurementOutcomeComponent } from './procurement-outcome.component';
 import { unitLabel } from '../../shared/unit-label';
+import { TrustFactsComponent } from '../profiles/trust-facts.component';
 
 @Component({
   selector: 'app-buyer-offer-comparison',
-  imports: [RouterLink, CurrencyPipe, DatePipe, ProcurementOutcomeComponent],
+  imports: [RouterLink, CurrencyPipe, DatePipe, ProcurementOutcomeComponent, TrustFactsComponent],
   template: `<section class="compare">
     <a class="back" routerLink="/dashboard">← Cererile mele</a>
     @if (rfq(); as request) {
@@ -174,7 +175,7 @@ import { unitLabel } from '../../shared/unit-label';
         @for (entry of offers(); track entry.offer.id) {
           <article [class.winner]="entry.offer.status === 'Selected'">
             <div class="top"><div><span class="recommend" [class.partial]="entry.offer.coverage === 'Partial'">{{ entry.offer.coverage === 'Full' ? 'Acoperire completă' : 'Acoperire parțială' }}</span>
-              @if (entry.offer.status === 'Selected') { <span class="recommend">Câștigătoare</span> }<h2>{{ entry.supplierName }}</h2></div>
+              @if (entry.offer.status === 'Selected') { <span class="recommend">Câștigătoare</span> }<h2>{{ entry.supplierName }}</h2><app-trust-facts [facts]="entry.trustFacts" role="Supplier" /></div>
               <div class="price"><small>{{ entry.offer.hasComparableTotal ? 'Total de plată' : 'Total fără transport' }}</small><strong>{{ entry.offer.total | currency:'RON':'symbol-narrow':'1.2-2':'ro' }}</strong></div></div>
             <p class="tradeoff">{{ tradeoff(entry) }}</p>
             <dl>

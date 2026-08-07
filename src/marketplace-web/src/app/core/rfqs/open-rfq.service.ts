@@ -1,6 +1,7 @@
 import { HttpClient, HttpParams } from '@angular/common/http';
 import { inject, Injectable } from '@angular/core';
 import { ProcurementInputType, ProcurementNeedSource, ProcurementNeedStatus, RfqItem } from './rfq.service';
+import { TrustFacts } from '../profiles/profile.service';
 
 export interface OpenRfq {
   id: string;
@@ -24,6 +25,7 @@ export interface OpenRfq {
   publishedAt: string | null;
   isPartialMatch: boolean;
   items: RfqItem[];
+  buyerTrustFacts: TrustFacts | null;
 }
 
 @Injectable({ providedIn: 'root' })

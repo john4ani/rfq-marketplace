@@ -6,10 +6,11 @@ import { ProfileEditorComponent } from '../profiles/profile-editor.component';
 import { SupplierSettingsComponent } from '../profiles/supplier-settings.component';
 import { BuyerRfqListComponent } from '../rfqs/buyer-rfq-list.component';
 import { SupplierOfferListComponent } from '../offers/supplier-offer-list.component';
+import { TrustSummaryComponent } from '../profiles/trust-summary.component';
 
 @Component({
   selector: 'app-dashboard',
-  imports: [RouterLink, AccountSwitcherComponent, ProfileEditorComponent, SupplierSettingsComponent, BuyerRfqListComponent, SupplierOfferListComponent],
+  imports: [RouterLink, AccountSwitcherComponent, ProfileEditorComponent, SupplierSettingsComponent, BuyerRfqListComponent, SupplierOfferListComponent, TrustSummaryComponent],
   template: `<section class="dashboard-intro">
     <div><p class="eyebrow">Spațiul tău de lucru</p><h1>Bine ai venit</h1>
       <p>Gestionează cererile, ofertele și preferințele contului dintr-un singur loc.</p></div>
@@ -57,6 +58,7 @@ import { SupplierOfferListComponent } from '../offers/supplier-offer-list.compon
       }
       <app-profile-editor (profileSaved)="resumeAfterProfileSave($event)" />
       <app-supplier-settings />
+      <app-trust-summary [refreshVersion]="trustVersion()" />
     }
     @if (error()) { <p class="error" role="alert">{{ error() }}</p> }
   </section>`,
@@ -72,6 +74,7 @@ export class DashboardComponent {
   readonly section = signal<'overview' | 'settings'>(this.route.snapshot.queryParamMap.get('section') === 'settings' ? 'settings' : 'overview');
   readonly returnUrl = signal(this.safeReturnUrl(this.route.snapshot.queryParamMap.get('returnUrl')));
   readonly hasBuyerProfile = computed(() => this.auth.profiles().some(profile => profile.accountType === 'Buyer'));
+  readonly trustVersion = signal(0);
 
   openNewProfile(accountType: 'Buyer' | 'Supplier'): void {
     this.auth.switchProfile(accountType);
@@ -80,6 +83,7 @@ export class DashboardComponent {
   }
 
   resumeAfterProfileSave(accountType: 'Buyer' | 'Supplier'): void {
+    this.trustVersion.update(value => value + 1);
     const destination = this.returnUrl();
     if (destination && (accountType === 'Buyer' && destination === '/rfqs/new'
       || accountType === 'Supplier' && destination.startsWith('/supplier-invitations/')))

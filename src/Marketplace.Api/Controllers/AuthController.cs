@@ -13,6 +13,7 @@ namespace Marketplace.Api.Controllers;
 public sealed partial class AuthController(
     IIdentityService identityService,
     IPasswordResetDelivery passwordResetDelivery,
+    IEmailVerificationDelivery emailVerificationDelivery,
     IWebHostEnvironment environment,
     ILogger<AuthController> logger) : ControllerBase
 {
@@ -48,6 +49,25 @@ public sealed partial class AuthController(
         SetRefreshCookie(result.RefreshToken, result.AccessTokenExpiresAt.AddDays(14));
         return Ok(new TokenResponse(result.AccessToken, result.AccessTokenExpiresAt));
     }
+
+    [Authorize]
+    [HttpPost("request-email-confirmation")]
+    public async Task<IActionResult> RequestEmailConfirmation(CancellationToken cancellationToken)
+    {
+        if (!CurrentUserId(out Guid userId)) return Unauthorized();
+        string? email = User.FindFirst("email")?.Value;
+        string? token = await identityService.CreateEmailConfirmationTokenAsync(userId, cancellationToken);
+        if (token is not null && email is not null && !environment.IsDevelopment())
+        {
+            try { await emailVerificationDelivery.SendAsync(email, token, cancellationToken); }
+            catch (EmailVerificationDeliveryException exception) { LogEmailVerificationDeliveryFailure(logger, exception); return Problem(statusCode: StatusCodes.Status503ServiceUnavailable, title: "E-mailul de confirmare nu a putut fi trimis. Încearcă mai târziu."); }
+        }
+        return Accepted(environment.IsDevelopment() ? new DevelopmentTokenResponse(token) : null);
+    }
+
+    [HttpPost("confirm-email")]
+    public async Task<IActionResult> ConfirmEmail(TokenRequest request, CancellationToken cancellationToken) =>
+        await identityService.ConfirmEmailAsync(request.Email, request.Token, cancellationToken) ? NoContent() : BadRequest(Problem(title: "Linkul de confirmare este invalid sau a expirat."));
 
     [Authorize]
     [DisableRateLimiting]
@@ -144,6 +164,9 @@ public sealed partial class AuthController(
         Level = LogLevel.Error,
         Message = "Password-reset email delivery failed; the enumeration-safe response was preserved")]
     private static partial void LogPasswordResetDeliveryFailure(ILogger logger, Exception exception);
+
+    [LoggerMessage(Level = LogLevel.Error, Message = "Email-verification delivery failed")]
+    private static partial void LogEmailVerificationDeliveryFailure(ILogger logger, Exception exception);
 }
 
 public sealed record RegisterRequest([Required, EmailAddress] string Email, [Required, MinLength(8)] string Password);

@@ -24,4 +24,5 @@ public sealed record LiveMarketParticipant(
     bool IsOnline,
     string City,
     string County,
-    bool IsSameCity);
+    bool IsSameCity,
+    bool CompanyVerified);

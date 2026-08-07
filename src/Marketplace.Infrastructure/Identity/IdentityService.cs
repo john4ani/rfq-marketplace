@@ -138,6 +138,16 @@ public sealed class IdentityService(
         ApplicationUser? user = await userManager.FindByEmailAsync(email.Trim());
         return user is not null && (await userManager.ResetPasswordAsync(user, token, newPassword)).Succeeded;
     }
+    public async Task<string?> CreateEmailConfirmationTokenAsync(Guid userId, CancellationToken cancellationToken)
+    {
+        ApplicationUser? user = await userManager.FindByIdAsync(userId.ToString());
+        return user is null || user.EmailConfirmed ? null : await userManager.GenerateEmailConfirmationTokenAsync(user);
+    }
+    public async Task<bool> ConfirmEmailAsync(string email, string token, CancellationToken cancellationToken)
+    {
+        ApplicationUser? user = await userManager.FindByEmailAsync(email.Trim());
+        return user is not null && (await userManager.ConfirmEmailAsync(user, token)).Succeeded;
+    }
 
     private async Task<AuthenticationResult> IssueAsync(ApplicationUser user, Guid familyId, CancellationToken cancellationToken, string? refreshToken = null)
     {

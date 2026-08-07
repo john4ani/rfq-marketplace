@@ -69,6 +69,14 @@ This slice deliberately implements only the request-linked invitation needed for
 
 Add email, phone, and company verification state; profile completeness; participation history; and audit of important actions. Keep ratings, public scores, tiers, and gamification deferred.
 
+## Pasul 9A — UX and adoption critical-path pass
+
+Before expanding analytics or concierge administration, conduct a focused UX/adoption pass across the procurement critical path: **start → describe need → AI clarification → preview → matching → publish → offers → compare → outcome**.
+
+The objective is a calm, familiar, trustworthy, guided, and forgiving experience for people who may prefer phone or WhatsApp and have little patience for complex software. Prioritise immediate evidence that the system understood the need; one relevant AI question at a time; adaptive depth; progressive disclosure; visible/editable defaults; drafts and resume; plain human language; WhatsApp-friendly sharing/import; clear completion; and explainable, dismissible assistance.
+
+Do not redesign administration screens wholesale in this pass. Do not introduce dark patterns, notification spam, false urgency, hidden opt-ins, or engagement-first metrics. The detailed acceptance baseline is [UX & Adoption Principles](../product/ux-adoption-principles.md). After this step, those principles govern every user-facing change.
+
 ## Pasul 9 — Analytics and concierge administration
 
 Add an extensible event format and an Admin workspace for request correction, matching overrides, candidate validation, invitation retry, offer normalization support, closure/outcome recording, and AI failure review.

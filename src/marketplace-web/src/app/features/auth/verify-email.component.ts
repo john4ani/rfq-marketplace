@@ -1,0 +1,6 @@
+import { HttpClient } from '@angular/common/http';
+import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/core';
+import { ActivatedRoute, RouterLink } from '@angular/router';
+
+@Component({selector:'app-verify-email',imports:[RouterLink],changeDetection:ChangeDetectionStrategy.OnPush,template:`<section class="auth-shell"><h1>Confirmare e-mail</h1>@if(loading()){<p role="status">Confirmăm adresa de e-mail…</p>}@else{<p [class.error]="error()">{{message()}}</p><a routerLink="/dashboard">Mergi la contul meu</a>}</section>`})
+export class VerifyEmailComponent { private readonly http=inject(HttpClient); readonly loading=signal(true);readonly error=signal(false);readonly message=signal(''); constructor(){const query=inject(ActivatedRoute).snapshot.queryParamMap;const email=query.get('email'),token=query.get('token');if(!email||!token){this.finish(true,'Linkul de confirmare este incomplet.');return;}this.http.post('/api/v1/auth/confirm-email',{email,token}).subscribe({next:()=>this.finish(false,'E-mail confirmat. Mulțumim!'),error:()=>this.finish(true,'Linkul de confirmare este invalid sau a expirat.')});}private finish(error:boolean,message:string){this.error.set(error);this.message.set(message);this.loading.set(false);}}

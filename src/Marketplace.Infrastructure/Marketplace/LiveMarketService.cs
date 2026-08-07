@@ -28,13 +28,15 @@ public sealed class LiveMarketService(MarketplaceDbContext dbContext, TimeProvid
             from profile in dbContext.BuyerProfiles.AsNoTracking()
             join presence in dbContext.UserPresences.AsNoTracking() on profile.Id equals presence.UserId into presences
             from presence in presences.DefaultIfEmpty()
-            select new LiveMarketParticipant(profile.Id, profile.DisplayName, "Buyer", presence != null && presence.LastSeenAt >= onlineSince, profile.DefaultCity, profile.DefaultCounty, false))
+            select new LiveMarketParticipant(profile.Id, profile.DisplayName, "Buyer", presence != null && presence.LastSeenAt >= onlineSince, profile.DefaultCity, profile.DefaultCounty, false, false))
             .ToArrayAsync(cancellationToken);
         LiveMarketParticipant[] suppliers = await (
             from profile in dbContext.SupplierProfiles.AsNoTracking().Where(profile => profile.IsActive)
             join presence in dbContext.UserPresences.AsNoTracking() on profile.Id equals presence.UserId into presences
             from presence in presences.DefaultIfEmpty()
-            select new LiveMarketParticipant(profile.Id, profile.TradingName, "Supplier", presence != null && presence.LastSeenAt >= onlineSince, profile.City, profile.County, false))
+            join trust in dbContext.AccountTrustRecords.AsNoTracking() on profile.Id equals trust.AccountId into trusts
+            from trust in trusts.DefaultIfEmpty()
+            select new LiveMarketParticipant(profile.Id, profile.TradingName, "Supplier", presence != null && presence.LastSeenAt >= onlineSince, profile.City, profile.County, false, trust != null && trust.CompanyVerifiedAt != null))
             .ToArrayAsync(cancellationToken);
         MarketOrigin? origin = await GetOriginAsync(viewerId, activeProfileType, cancellationToken);
         IEnumerable<LiveMarketParticipant> visible = buyers.Concat(suppliers);

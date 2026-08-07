@@ -9,6 +9,7 @@ export interface LiveParticipant {
   city: string;
   county: string;
   isSameCity: boolean;
+  companyVerified: boolean;
 }
 export interface LiveMarketSnapshot {
   generatedAt: string;

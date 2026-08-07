@@ -1,5 +1,6 @@
 import { HttpClient } from '@angular/common/http';
 import { inject, Injectable } from '@angular/core';
+import { TrustFacts } from '../profiles/profile.service';
 export type OfferStatus = 'Draft'|'Submitted'|'Revised'|'Withdrawn'|'Selected'|'NotSelected';
 export type OfferPricingMode = 'Itemized'|'Total';
 export type OfferCoverage = 'Full'|'Partial';
@@ -11,7 +12,7 @@ export interface Offer extends OfferDraft { id:string;rfqId:string;supplierId:st
 export type FulfillmentStatus = 'NotApplicable'|'AwaitingDelivery'|'DeliveryReported'|'Delivered';
 export interface OfferSummary { id:string;rfqId:string;rfqTitle:string;quotationDeadline:string;status:OfferStatus;coverage:OfferCoverage;taxTreatment:OfferTaxTreatment;fulfillmentStatus:FulfillmentStatus;deliveryIncluded:boolean;total:number;hasComparableTotal:boolean;updatedAt:string; }
 export interface OfferCoverageDetails { requestedPositionCount:number;coveredPositionCount:number;missingRfqItemIds:string[]; }
-export interface BuyerOffer { supplierName:string;offer:Offer;coverageDetails:OfferCoverageDetails; }
+export interface BuyerOffer { supplierName:string;offer:Offer;coverageDetails:OfferCoverageDetails;trustFacts:TrustFacts|null; }
 @Injectable({providedIn:'root'})
 export class OfferService {
  private readonly http=inject(HttpClient);

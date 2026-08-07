@@ -4,10 +4,11 @@ import { ActivatedRoute, RouterLink } from '@angular/router';
 import { OpenRfq, OpenRfqService } from '../../core/rfqs/open-rfq.service';
 import { unitLabel } from '../../shared/unit-label';
 import { OfferEditorComponent } from '../offers/offer-editor.component';
+import { TrustFactsComponent } from '../profiles/trust-facts.component';
 
 @Component({
   selector: 'app-open-rfq-detail',
-  imports: [RouterLink, DatePipe, OfferEditorComponent],
+  imports: [RouterLink, DatePipe, OfferEditorComponent, TrustFactsComponent],
   template: `<section class="detail-shell">
     <a class="back" routerLink="/open-requests">← Cereri deschise</a>
     @if (loading()) { <div class="loading" role="status"><span></span><span></span><span></span></div> }
@@ -22,7 +23,7 @@ import { OfferEditorComponent } from '../offers/offer-editor.component';
         @if (rfq.preferredDeliveryDate) { <div><small>Data preferată</small><strong>{{ rfq.preferredDeliveryDate | date:'dd.MM.yyyy' }}</strong></div> }
         @if (rfq.estimatedBudget !== null) { <div><small>Buget estimat</small><strong>{{ rfq.estimatedBudget }} lei</strong></div> }
       </section>
-
+      <section class="panel"><p class="panel-label">Încredere</p><h2>Semnale despre cumpărător</h2><app-trust-facts [facts]="rfq.buyerTrustFacts" role="Buyer" /></section>
       <div class="detail-layout">
         <div class="request-column">
           @if (rfq.description) { <section class="panel"><p class="panel-label">Context</p><h2>Descrierea cererii</h2><p>{{ rfq.description }}</p></section> }

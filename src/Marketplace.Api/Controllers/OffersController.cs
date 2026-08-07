@@ -4,6 +4,7 @@ using Marketplace.Application.Offers;
 using Marketplace.Domain.Identity;
 using Marketplace.Domain.Offers;
 using Marketplace.Domain.Rfqs;
+using Marketplace.Application.Trust;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -12,7 +13,7 @@ namespace Marketplace.Api.Controllers;
 [ApiController]
 [Route("api/v1")]
 [Authorize]
-public sealed class OffersController(IOfferService offerService) : ControllerBase
+public sealed class OffersController(IOfferService offerService, ITrustService trustService) : ControllerBase
 {
     [HttpGet("open-rfqs/{rfqId:guid}/offer")]
     [Authorize(Roles = MarketplaceRoles.Supplier)]
@@ -59,8 +60,13 @@ public sealed class OffersController(IOfferService offerService) : ControllerBas
 
     [HttpGet("rfqs/{rfqId:guid}/offers")]
     [Authorize(Roles = MarketplaceRoles.Buyer)]
-    public async Task<IActionResult> ForBuyer(Guid rfqId, CancellationToken cancellationToken) =>
-        Ok((await offerService.GetForBuyerAsync(UserId(), rfqId, cancellationToken)).Select(BuyerOfferResponse.From));
+    public async Task<IActionResult> ForBuyer(Guid rfqId, CancellationToken cancellationToken)
+    {
+        IReadOnlyCollection<BuyerOffer> offers = await offerService.GetForBuyerAsync(UserId(), rfqId, cancellationToken);
+        var response = new List<BuyerOfferResponse>();
+        foreach (BuyerOffer offer in offers) response.Add(BuyerOfferResponse.From(offer, await trustService.GetFactsAsync(offer.Offer.SupplierId, cancellationToken)));
+        return Ok(response);
+    }
 
     [HttpPost("rfqs/{rfqId:guid}/offers/{offerId:guid}/select")]
     [Authorize(Roles = MarketplaceRoles.Buyer)]
@@ -220,7 +226,7 @@ public sealed record OfferSummaryResponse(
         value.Offer.HasComparableTotal,
         value.Offer.UpdatedAt);
 }
-public sealed record BuyerOfferResponse(string SupplierName, OfferResponse Offer, OfferCoverageDetails CoverageDetails)
+public sealed record BuyerOfferResponse(string SupplierName, OfferResponse Offer, OfferCoverageDetails CoverageDetails, TrustFacts? TrustFacts)
 {
-    public static BuyerOfferResponse From(BuyerOffer value) => new(value.SupplierName, OfferResponse.From(value.Offer), value.CoverageDetails);
+    public static BuyerOfferResponse From(BuyerOffer value, TrustFacts? trustFacts) => new(value.SupplierName, OfferResponse.From(value.Offer), value.CoverageDetails, trustFacts);
 }

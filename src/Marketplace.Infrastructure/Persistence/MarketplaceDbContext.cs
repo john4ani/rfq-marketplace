@@ -8,6 +8,7 @@ using Marketplace.Domain.Offers;
 using Marketplace.Domain.Notifications;
 using Marketplace.Domain.Messaging;
 using Marketplace.Domain.SupplierDiscovery;
+using Marketplace.Domain.Trust;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
@@ -42,6 +43,8 @@ public sealed class MarketplaceDbContext(DbContextOptions<MarketplaceDbContext> 
     public DbSet<SupplierCandidateCategory> SupplierCandidateCategories => Set<SupplierCandidateCategory>();
     public DbSet<SupplierInvitation> SupplierInvitations => Set<SupplierInvitation>();
     public DbSet<SupplierDiscoveryAuditEvent> SupplierDiscoveryAuditEvents => Set<SupplierDiscoveryAuditEvent>();
+    public DbSet<AccountTrustRecord> AccountTrustRecords => Set<AccountTrustRecord>();
+    public DbSet<AccountAuditEvent> AccountAuditEvents => Set<AccountAuditEvent>();
 
     protected override void OnModelCreating(ModelBuilder builder)
     {

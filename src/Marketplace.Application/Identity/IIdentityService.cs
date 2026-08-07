@@ -10,6 +10,8 @@ public interface IIdentityService
     Task RevokeAsync(string refreshToken, CancellationToken cancellationToken);
     Task<string?> CreatePasswordResetTokenAsync(string email, CancellationToken cancellationToken);
     Task<bool> ResetPasswordAsync(string email, string token, string newPassword, CancellationToken cancellationToken);
+    Task<string?> CreateEmailConfirmationTokenAsync(Guid userId, CancellationToken cancellationToken);
+    Task<bool> ConfirmEmailAsync(string email, string token, CancellationToken cancellationToken);
 }
 
 public sealed record AuthenticationResult(string AccessToken, string RefreshToken, DateTimeOffset AccessTokenExpiresAt);
