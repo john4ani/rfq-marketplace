@@ -22,6 +22,8 @@ using Marketplace.Application.SupplierDiscovery;
 using Marketplace.Infrastructure.SupplierDiscovery;
 using Marketplace.Application.Trust;
 using Marketplace.Infrastructure.Trust;
+using Marketplace.Application.Operations;
+using Marketplace.Infrastructure.Operations;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
@@ -91,6 +93,8 @@ public static class DependencyInjection
         services.AddScoped<IMessagingService, MessagingService>();
         services.AddScoped<ISupplierDiscoveryService, SupplierDiscoveryService>();
         services.AddScoped<ITrustService, TrustService>();
+        services.AddScoped<IProductEventService, ProductEventService>();
+        services.AddScoped<IConciergeService, ConciergeService>();
         return services;
     }
 }

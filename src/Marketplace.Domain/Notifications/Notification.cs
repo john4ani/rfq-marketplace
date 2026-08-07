@@ -9,7 +9,10 @@ public enum NotificationType
     MessageReceived,
     DeliveryReported,
     DeliveryConfirmed,
-    ProcurementOutcomeRequested
+    ProcurementOutcomeRequested,
+    ConciergeCorrectionRequested,
+    ConciergeOfferNormalizationRequested,
+    ConciergeManualMatch
 }
 
 public sealed class Notification

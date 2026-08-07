@@ -1,5 +1,6 @@
 using Marketplace.Application.Categories;
 using Marketplace.Application.Rfqs;
+using Marketplace.Application.Operations;
 using Marketplace.Domain.Offers;
 using Marketplace.Domain.Notifications;
 using Marketplace.Domain.Rfqs;
@@ -11,7 +12,8 @@ namespace Marketplace.Infrastructure.Rfqs;
 public sealed class RfqService(
     MarketplaceDbContext dbContext,
     TimeProvider timeProvider,
-    IProcurementNeedAuditTrail auditTrail) : IRfqService
+    IProcurementNeedAuditTrail auditTrail,
+    IProductEventService productEvents) : IRfqService
 {
     public async Task<IReadOnlyCollection<Rfq>> GetMineAsync(Guid buyerId, CancellationToken cancellationToken) =>
         await dbContext.Rfqs.AsNoTracking().Include(rfq => rfq.NeedCategories)
@@ -45,6 +47,7 @@ public sealed class RfqService(
         dbContext.Rfqs.Add(rfq);
         auditTrail.Record(rfq.Id, buyerId, ProcurementNeedAuditEventType.Created,
             ProcurementNeedStatus.Draft, rfq.NeedStatus, null, now);
+        productEvents.Record("ProcurementNeedCreated", "ProcurementNeed", rfq.Id, buyerId, null, now);
         await dbContext.SaveChangesAsync(cancellationToken);
         return rfq;
     }
@@ -72,6 +75,7 @@ public sealed class RfqService(
         rfq.Publish(now);
         auditTrail.Record(rfq.Id, buyerId, ProcurementNeedAuditEventType.Published,
             previousStatus, rfq.NeedStatus, null, now);
+        productEvents.Record("ProcurementNeedPublished", "ProcurementNeed", rfq.Id, buyerId, null, now);
         await NotifyMatchingSuppliersAsync(rfq, now, cancellationToken);
         await SaveRfqChangesAsync(cancellationToken);
         return rfq;
@@ -116,6 +120,7 @@ public sealed class RfqService(
             : $"Outcome={rfq.Outcome}; Reason={rfq.OutcomeReason}";
         auditTrail.Record(rfq.Id, buyerId, ProcurementNeedAuditEventType.OutcomeRecorded,
             previousStatus, rfq.NeedStatus, details, now);
+        productEvents.Record("ProcurementOutcomeRecorded", "ProcurementNeed", rfq.Id, buyerId, $"Outcome={rfq.Outcome}", now);
         await SaveRfqChangesAsync(cancellationToken);
         return rfq;
     }
@@ -138,11 +143,13 @@ public sealed class RfqService(
         Guid supplierId, string? search, Guid? categoryId, CancellationToken cancellationToken)
     {
         DateTimeOffset now = timeProvider.GetUtcNow();
+        Guid[] manuallyMatchedRequestIds = await dbContext.ConciergeMatchOverrides.AsNoTracking()
+            .Where(item => item.SupplierId == supplierId).Select(item => item.RfqId).ToArrayAsync(cancellationToken);
         Guid[] supplierCategoryIds = await dbContext.SupplierCategories.AsNoTracking()
             .Where(selection => selection.SupplierId == supplierId)
             .Select(selection => selection.CategoryId)
             .ToArrayAsync(cancellationToken);
-        if (supplierCategoryIds.Length == 0) return [];
+        if (supplierCategoryIds.Length == 0 && manuallyMatchedRequestIds.Length == 0) return [];
         Dictionary<Guid, Guid?> categoryParents = await dbContext.Categories.AsNoTracking()
             .Where(category => category.IsActive)
             .ToDictionaryAsync(category => category.Id, category => category.ParentId, cancellationToken);
@@ -169,8 +176,9 @@ public sealed class RfqService(
             .Include(rfq => rfq.Items).ThenInclude(item => item.NeedCategory)
             .Where(rfq => (rfq.Status == RfqStatus.Published || rfq.Status == RfqStatus.ReceivingOffers)
                 && rfq.QuotationDeadline > now
-                && rfq.NeedCategories.Any(category => compatibleSupplierCategoryIds.Contains(category.CategoryId))
-                && (nationwide || deliveryCounties.Contains(rfq.County)));
+                && (manuallyMatchedRequestIds.Contains(rfq.Id)
+                    || (rfq.NeedCategories.Any(category => compatibleSupplierCategoryIds.Contains(category.CategoryId))
+                        && (nationwide || deliveryCounties.Contains(rfq.County)))));
         if (categoryId.HasValue)
         {
             Guid[] compatibleFilterCategoryIds = CategoryCompatibilityPolicy.Expand([categoryId.Value], categoryParents).ToArray();
@@ -189,7 +197,7 @@ public sealed class RfqService(
                 .ToArray();
 
         Dictionary<Guid, HashSet<Guid>> matchingItems = [];
-        rfqs = ApplyCoverage(rfqs, compatibleSupplierCategories, matchingItems);
+        rfqs = ApplyCoverage(rfqs, compatibleSupplierCategories, manuallyMatchedRequestIds.ToHashSet(), matchingItems);
 
         Guid[] categoryIds = rfqs.SelectMany(rfq => rfq.RequiredCategoryIds).Distinct().ToArray();
         Guid[] buyerIds = rfqs.Select(rfq => rfq.BuyerId).Distinct().ToArray();
@@ -337,14 +345,16 @@ public sealed class RfqService(
     private static Rfq[] ApplyCoverage(
         Rfq[] rfqs,
         HashSet<Guid> providerCategories,
+        HashSet<Guid> manuallyMatchedRequestIds,
         Dictionary<Guid, HashSet<Guid>> matchingItems)
     {
         List<Rfq> visible = [];
         foreach (Rfq rfq in rfqs)
         {
             HashSet<Guid> requiredCategories = rfq.RequiredCategoryIds.ToHashSet();
-            ProviderCoverageMatch coverage = ProviderCoveragePolicy.Decide(
-                rfq.AllowSplit, requiredCategories, providerCategories);
+            ProviderCoverageMatch coverage = manuallyMatchedRequestIds.Contains(rfq.Id)
+                ? ProviderCoverageMatch.Full
+                : ProviderCoveragePolicy.Decide(rfq.AllowSplit, requiredCategories, providerCategories);
             if (coverage == ProviderCoverageMatch.None) continue;
 
             HashSet<Guid> itemIds = coverage == ProviderCoverageMatch.Full

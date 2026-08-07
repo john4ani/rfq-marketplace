@@ -1,6 +1,7 @@
 using Marketplace.Application.Categories;
 using Marketplace.Application.Offers;
 using Marketplace.Application.Rfqs;
+using Marketplace.Application.Operations;
 using Marketplace.Domain.Offers;
 using Marketplace.Domain.Rfqs;
 using Marketplace.Domain.Notifications;
@@ -12,7 +13,8 @@ namespace Marketplace.Infrastructure.Offers;
 public sealed class OfferService(
     MarketplaceDbContext dbContext,
     TimeProvider timeProvider,
-    IProcurementNeedAuditTrail auditTrail) : IOfferService
+    IProcurementNeedAuditTrail auditTrail,
+    IProductEventService productEvents) : IOfferService
 {
     public Task<Offer?> GetMineForRfqAsync(Guid supplierId, Guid rfqId, CancellationToken cancellationToken) =>
         dbContext.Offers.AsNoTracking().Include(offer => offer.Items)
@@ -60,6 +62,8 @@ public sealed class OfferService(
         offer.Submit(now); rfq.MarkOfferReceived(now);
         auditTrail.Record(rfq.Id, supplierId, ProcurementNeedAuditEventType.OfferReceived,
             previousStatus, rfq.NeedStatus, null, now);
+        productEvents.Record("OfferSubmitted", "Offer", offer.Id, supplierId,
+            $"ProcurementNeedId={rfq.Id}; Revision={offer.RevisionNumber}", now);
         string supplierName = await dbContext.SupplierProfiles.Where(profile => profile.Id == supplierId)
             .Select(profile => profile.TradingName).SingleAsync(cancellationToken);
         NotificationType notificationType = offer.RevisionNumber == 1 ? NotificationType.OfferReceived : NotificationType.OfferRevised;
@@ -242,6 +246,8 @@ public sealed class OfferService(
             && item.QuotationDeadline > now, cancellationToken);
         if (rfq is null) throw new OfferRuleException("Cererea nu mai primește oferte.");
 
+        bool manuallyMatched = await dbContext.ConciergeMatchOverrides.AsNoTracking()
+            .AnyAsync(item => item.RfqId == rfqId && item.SupplierId == supplierId, cancellationToken);
         HashSet<Guid> requiredCategories = rfq.RequiredCategoryIds.ToHashSet();
         var profiles = await dbContext.SupplierProfiles.AsNoTracking().Where(profile => profile.IsActive)
             .Select(profile => new { profile.Id, profile.County }).ToArrayAsync(cancellationToken);

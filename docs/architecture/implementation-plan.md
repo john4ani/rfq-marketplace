@@ -79,7 +79,9 @@ Do not redesign administration screens wholesale in this pass. Do not introduce 
 
 ## Pasul 9 — Analytics and concierge administration
 
-Add an extensible event format and an Admin workspace for request correction, matching overrides, candidate validation, invitation retry, offer normalization support, closure/outcome recording, and AI failure review.
+**Status:** implemented; verification is recorded in the Pasul 9 delivery report.
+
+An append-only operational event foundation and focused Administrator workspace now support explicit Buyer correction requests, reasoned manual matching, candidate validation and secure invitation retry through the existing discovery flow, offer-normalization requests, confirmed outcome recording, and AI failure review. The workspace does not silently edit participant-owned commercial data. See [ADR-0024](../decisions/ADR-0024-concierge-operations-and-event-foundation.md).
 
 ## Deferred platform evolution
 

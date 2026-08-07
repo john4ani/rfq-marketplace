@@ -1,6 +1,6 @@
 # REST API Overview
 
-Status: Implemented through Pasul 7 Supplier discovery; attachments and broader administration remain proposed
+Status: Implemented through Pasul 9 concierge administration; attachments remain proposed
 
 Base path: `/api/v1`  
 Format: JSON  
@@ -28,7 +28,8 @@ Errors: RFC 7807 Problem Details
 | Attachments | upload request, complete, download URL, delete | Authorized parent participant |
 | Supplier discovery administration | `/admin/supplier-candidates`, `/admin/discovery-opportunities` | Administrator |
 | Supplier invitation and claim | `/supplier-invitations/{token}` | Public view; Supplier claim |
-| Broader administration | `/admin/users`, suppliers, categories, inspection, reports, metrics | Proposed Administrator capability |
+| Concierge administration | `/admin/concierge`, supplier search, manual match, correction, normalization and outcome actions | Administrator |
+| Broader administration | `/admin/users`, suppliers, categories, inspection, reports, metrics | Partially implemented; dedicated operations workspace is available |
 | Health | `/health/live`, `/health/ready` | Operational policy |
 
 ## Authorization matrix

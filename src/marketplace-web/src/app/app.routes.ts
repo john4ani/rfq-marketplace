@@ -13,6 +13,7 @@ export const routes: Routes = [
   { path: 'admin/supplier-discovery', canActivate: [administratorGuard], loadComponent: () => import('./features/supplier-discovery/supplier-discovery-admin.component').then(m => m.SupplierDiscoveryAdminComponent) },
   { path: 'admin/catalog', canActivate: [administratorGuard], loadComponent: () => import('./features/admin/category-catalog.component').then(m => m.CategoryCatalogComponent) },
   { path: 'admin/trust', canActivate: [administratorGuard], loadComponent: () => import('./features/admin/trust-admin.component').then(m => m.TrustAdminComponent) },
+  { path: 'admin/concierge', canActivate: [administratorGuard], loadComponent: () => import('./features/admin/concierge-admin.component').then(m => m.ConciergeAdminComponent) },
   { path: 'dashboard', canActivate: [authGuard], loadComponent: () => import('./features/dashboard/dashboard.component').then(m => m.DashboardComponent) },
   { path: 'open-requests', canActivate: [authGuard], loadComponent: () => import('./features/rfqs/open-rfq-list.component').then(m => m.OpenRfqListComponent) },
   { path: 'open-requests/:rfqId', canActivate: [authGuard], loadComponent: () => import('./features/rfqs/open-rfq-detail.component').then(m => m.OpenRfqDetailComponent) },

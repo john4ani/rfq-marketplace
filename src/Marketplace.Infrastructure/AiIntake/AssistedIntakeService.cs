@@ -2,6 +2,7 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using Marketplace.Application.AiIntake;
 using Marketplace.Application.Rfqs;
+using Marketplace.Application.Operations;
 using Marketplace.Domain.AiIntake;
 using Marketplace.Domain.Rfqs;
 using Marketplace.Infrastructure.Persistence;
@@ -17,7 +18,8 @@ internal sealed partial class AssistedIntakeService(
     IRfqService rfqService,
     TimeProvider timeProvider,
     IOptions<AiIntakeOptions> options,
-    ILogger<AssistedIntakeService> logger) : IAssistedIntakeService
+    ILogger<AssistedIntakeService> logger,
+    IProductEventService productEvents) : IAssistedIntakeService
 {
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web)
     {
@@ -34,8 +36,15 @@ internal sealed partial class AssistedIntakeService(
         DateTimeOffset now = timeProvider.GetUtcNow();
         AiIntakeSession session = AiIntakeSession.Create(Guid.NewGuid(), buyerId, input, now);
         dbContext.AiIntakeSessions.Add(session);
-        NeedExtractionOutcome outcome = await ExtractAsync(
-            await BuildContextAsync(session, [], null, now, cancellationToken), cancellationToken);
+        await dbContext.SaveChangesAsync(cancellationToken);
+        NeedExtractionOutcome outcome;
+        try { outcome = await ExtractAsync(await BuildContextAsync(session, [], null, now, cancellationToken), cancellationToken); }
+        catch (AiIntakeUnavailableException)
+        {
+            productEvents.Record("AiIntakeFailed", "AiIntakeSession", session.Id, buyerId, null, timeProvider.GetUtcNow());
+            await dbContext.SaveChangesAsync(cancellationToken);
+            throw;
+        }
         Apply(session, [], outcome, now);
         await dbContext.SaveChangesAsync(cancellationToken);
         return ToResult(session, outcome);
@@ -68,8 +77,14 @@ internal sealed partial class AssistedIntakeService(
         List<ClarificationTurn> turns = DeserializeTurns(session.TranscriptJson);
         turns.Add(new(previous.Clarification.Field, previous.Clarification.Question, cleanAnswer));
         DateTimeOffset now = timeProvider.GetUtcNow();
-        NeedExtractionOutcome outcome = await ExtractAsync(
-            await BuildContextAsync(session, turns, previous.Draft, now, cancellationToken), cancellationToken);
+        NeedExtractionOutcome outcome;
+        try { outcome = await ExtractAsync(await BuildContextAsync(session, turns, previous.Draft, now, cancellationToken), cancellationToken); }
+        catch (AiIntakeUnavailableException)
+        {
+            productEvents.Record("AiIntakeFailed", "AiIntakeSession", session.Id, buyerId, null, timeProvider.GetUtcNow());
+            await dbContext.SaveChangesAsync(cancellationToken);
+            throw;
+        }
         Apply(session, turns, outcome, now);
         try { await dbContext.SaveChangesAsync(cancellationToken); }
         catch (DbUpdateConcurrencyException exception)
