@@ -36,6 +36,8 @@ public sealed class OpenAiNeedExtractionProviderTests
         Assert.Equal("none", request.RootElement.GetProperty("reasoning").GetProperty("effort").GetString());
         Assert.Equal("low", request.RootElement.GetProperty("text").GetProperty("verbosity").GetString());
         Assert.False(request.RootElement.TryGetProperty("tools", out _));
+        Assert.Equal(HttpVersion.Version20, handler.RequestVersion);
+        Assert.DoesNotContain("researchSources", handler.RequestBody, StringComparison.Ordinal);
         Assert.Contains("\"Kilogram\"", handler.RequestBody, StringComparison.Ordinal);
         Assert.Contains("Nu ai acces la web search", handler.RequestBody, StringComparison.Ordinal);
         LoggedEntry timing = Assert.Single(logger.Entries);
@@ -97,7 +99,6 @@ public sealed class OpenAiNeedExtractionProviderTests
             lines = new[] { new { kind = "Product", name = "Usa din lemn", specification = "Dimensiuni de confirmat",
                 quantity = 3, unit = "Piece", alternativesAccepted = true, categorySlug = "materiale" } },
             assumptions = Array.Empty<string>(), uncertainties = new List<string> { "Feroneria se confirma cu furnizorul." },
-            researchSources = Array.Empty<object>(),
             clarification = (object?)null
         });
         return JsonSerializer.Serialize(new
@@ -117,11 +118,13 @@ public sealed class OpenAiNeedExtractionProviderTests
         public string? AuthorizationScheme { get; private set; }
         public string? AuthorizationParameter { get; private set; }
         public IReadOnlyCollection<string> ApiKeyValues { get; private set; } = [];
+        public Version? RequestVersion { get; private set; }
 
         protected override async Task<HttpResponseMessage> SendAsync(
             HttpRequestMessage request, CancellationToken cancellationToken)
         {
             RequestBody = await request.Content!.ReadAsStringAsync(cancellationToken);
+            RequestVersion = request.Version;
             AuthorizationScheme = request.Headers.Authorization?.Scheme;
             AuthorizationParameter = request.Headers.Authorization?.Parameter;
             ApiKeyValues = request.Headers.TryGetValues("api-key", out IEnumerable<string>? values)

@@ -8,6 +8,31 @@ describe('AuthService', () => {
     return `header.${btoa(JSON.stringify(payload)).replace(/=/g, '').replace(/\+/g, '-').replace(/\//g, '_')}.signature`;
   }
 
+  it('reuses one bounded session-recovery request across route guards', async () => {
+    TestBed.configureTestingModule({ providers: [provideHttpClient(), provideHttpClientTesting()] });
+    const service = TestBed.inject(AuthService);
+    const http = TestBed.inject(HttpTestingController);
+    const accessToken = token({
+      sub: '11111111-1111-1111-1111-111111111111',
+      email: 'buyer@example.test',
+      role: 'Buyer'
+    });
+
+    const first = service.initialize();
+    const second = service.initialize();
+    expect(second).toBe(first);
+
+    http.expectOne('/api/v1/auth/refresh').flush({ accessToken, expiresAt: new Date().toISOString() });
+    http.expectOne('/api/v1/piata-live/presence').flush(null);
+    http.expectOne('/api/v1/auth/profiles').flush([
+      { userId: '11111111-1111-1111-1111-111111111111', email: 'buyer@example.test', accountType: 'Buyer' }
+    ]);
+    await Promise.all([first, second]);
+
+    expect(service.isAuthenticated()).toBe(true);
+    http.verify();
+  });
+
   it('clears the access token when signing out', () => {
     TestBed.configureTestingModule({ providers: [provideHttpClient(), provideHttpClientTesting()] });
     const service = TestBed.inject(AuthService);

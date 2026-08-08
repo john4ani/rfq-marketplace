@@ -1,6 +1,6 @@
 import { HttpClient } from '@angular/common/http';
 import { computed, DestroyRef, inject, Injectable, signal } from '@angular/core';
-import { catchError, finalize, Observable, of, switchMap, tap } from 'rxjs';
+import { catchError, finalize, firstValueFrom, Observable, of, switchMap, tap, timeout } from 'rxjs';
 
 export interface TokenResponse { accessToken: string; expiresAt: string; }
 export interface PasswordResetRequestResponse { token: string | null; }
@@ -14,6 +14,7 @@ export class AuthService {
   private readonly accessTokenState = signal<string | null>(null);
   private readonly profilesState = signal<LinkedProfile[]>([]);
   private readonly activeProfileState = signal<'Buyer' | 'Supplier' | null>(null);
+  private initialization: Promise<void> | null = null;
   private presenceTimer: ReturnType<typeof setInterval> | null = null;
   readonly isAuthenticated = computed(() => this.accessTokenState() !== null);
   readonly isAdministrator = computed(() => this.decodeIdentity(this.accessTokenState())?.roles.includes('Administrator') ?? false);
@@ -28,6 +29,14 @@ export class AuthService {
     : this.session() ? [this.session()!] : []);
 
   constructor() { this.destroyRef.onDestroy(() => this.stopPresence()); }
+
+  initialize(): Promise<void> {
+    this.initialization ??= firstValueFrom(this.refresh().pipe(
+      timeout(2000),
+      catchError(() => of(null))
+    )).then(() => undefined);
+    return this.initialization;
+  }
 
   registerBuyer(email: string, password: string): Observable<void> {
     return this.http.post<void>('/api/v1/auth/register/buyer', { email, password });

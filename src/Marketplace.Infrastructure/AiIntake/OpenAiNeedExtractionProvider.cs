@@ -1,3 +1,4 @@
+using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Diagnostics;
@@ -29,6 +30,8 @@ internal sealed partial class OpenAiNeedExtractionProvider(
         Stopwatch stopwatch = Stopwatch.StartNew();
         int? statusCode = null;
         using var request = new HttpRequestMessage(HttpMethod.Post, settings.Endpoint);
+        request.Version = HttpVersion.Version20;
+        request.VersionPolicy = HttpVersionPolicy.RequestVersionOrHigher;
         if (settings.Provider == AiIntakeProvider.AzureOpenAi)
             request.Headers.Add("api-key", settings.ApiKey);
         else
@@ -36,7 +39,8 @@ internal sealed partial class OpenAiNeedExtractionProvider(
         request.Content = JsonContent.Create(BuildRequest(context));
         try
         {
-            using HttpResponseMessage response = await httpClient.SendAsync(request, cancellationToken);
+            using HttpResponseMessage response = await httpClient.SendAsync(
+                request, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
             statusCode = (int)response.StatusCode;
             string responseBody = await response.Content.ReadAsStringAsync(cancellationToken);
             if (!response.IsSuccessStatusCode)
@@ -105,7 +109,7 @@ internal sealed partial class OpenAiNeedExtractionProvider(
             surse, URL-uri, cantități, mărci sau standarde; orice detaliu incert trebuie marcat pentru verificare.
             3. Propunere: creează o listă editabilă de produse și/sau servicii. Pentru o lucrare completă păstrează
             serviciul ca opțiune și propune materiale separate doar dacă utilizatorul le-a cerut. Marchează explicit
-            presupunerile și aspectele de verificat. researchSources trebuie să fie o listă goală.
+            presupunerile și aspectele de verificat.
             4. Confirmare: când propunerea poate fi verificată de utilizator, setează clarification la null. Niciodată
             nu considera cererea publicată sau aprobată.
 
@@ -224,7 +228,7 @@ internal sealed partial class OpenAiNeedExtractionProvider(
     private static readonly JsonNode Schema = JsonNode.Parse("""
     {
       "type":"object","additionalProperties":false,
-      "required":["inputType","title","projectName","description","primaryCategorySlug","deliveryAddress","deliveryLocality","county","preferredDeliveryDate","quotationDeadline","alternativeProductsAccepted","allowSplit","deliveryRequired","estimatedBudget","buyerNotes","lines","assumptions","uncertainties","researchSources","clarification"],
+      "required":["inputType","title","projectName","description","primaryCategorySlug","deliveryAddress","deliveryLocality","county","preferredDeliveryDate","quotationDeadline","alternativeProductsAccepted","allowSplit","deliveryRequired","estimatedBudget","buyerNotes","lines","assumptions","uncertainties","clarification"],
       "properties":{
         "inputType":{"type":"string","enum":["FreeText","ShoppingList","ProjectDescription"]},
         "title":{"type":"string"},"projectName":{"type":["string","null"]},"description":{"type":["string","null"]},
@@ -234,7 +238,6 @@ internal sealed partial class OpenAiNeedExtractionProvider(
         "estimatedBudget":{"type":["number","null"]},"buyerNotes":{"type":["string","null"]},
         "lines":{"type":"array","items":{"type":"object","additionalProperties":false,"required":["kind","name","specification","quantity","unit","alternativesAccepted","categorySlug"],"properties":{"kind":{"type":"string","enum":["Product","Service"]},"name":{"type":"string"},"specification":{"type":["string","null"]},"quantity":{"type":["number","null"]},"unit":{"anyOf":[{"type":"null"},{"type":"string","enum":["Piece","Pack","Bag","Kilogram","Tonne","Metre","SquareMetre","CubicMetre","Litre","Pallet","Other"]}]},"alternativesAccepted":{"type":"boolean"},"categorySlug":{"type":["string","null"]}}}},
         "assumptions":{"type":"array","items":{"type":"string"}},"uncertainties":{"type":"array","items":{"type":"string"}},
-        "researchSources":{"type":"array","items":{"type":"object","additionalProperties":false,"required":["title","url","finding"],"properties":{"title":{"type":"string"},"url":{"type":"string"},"finding":{"type":"string"}}}},
         "clarification":{"anyOf":[{"type":"null"},{"type":"object","additionalProperties":false,"required":["field","question","choices"],"properties":{"field":{"type":"string","enum":["Category","Quantity","Specification","ProjectScope","DeliveryAddress","DeliveryDate"]},"question":{"type":"string"},"choices":{"type":"array","items":{"type":"string"}}}}]}
       }
     }
@@ -245,10 +248,9 @@ internal sealed partial class OpenAiNeedExtractionProvider(
         string? PreferredDeliveryDate, string? QuotationDeadline, bool AlternativeProductsAccepted,
         bool AllowSplit, bool DeliveryRequired, decimal? EstimatedBudget, string? BuyerNotes,
         IReadOnlyCollection<AiLine> Lines, IReadOnlyCollection<string> Assumptions,
-        IReadOnlyCollection<string> Uncertainties, IReadOnlyCollection<AiResearchSource> ResearchSources,
+        IReadOnlyCollection<string> Uncertainties,
         AiClarification? Clarification);
     private sealed record AiLine(string Kind, string Name, string? Specification, decimal? Quantity,
         string? Unit, bool AlternativesAccepted, string? CategorySlug);
     private sealed record AiClarification(string Field, string Question, IReadOnlyCollection<string> Choices);
-    private sealed record AiResearchSource(string Title, string Url, string Finding);
 }

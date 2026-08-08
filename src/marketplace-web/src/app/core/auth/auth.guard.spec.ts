@@ -4,27 +4,27 @@ import { AuthService } from './auth.service';
 import { authGuard, guestOnlyGuard } from './auth.guard';
 
 describe('authGuard', () => {
-  it('redirects an anonymous user to sign in', () => {
+  it('redirects an anonymous user to sign in after session recovery', async () => {
     TestBed.configureTestingModule({
       providers: [
         provideRouter([]),
-        { provide: AuthService, useValue: { isAuthenticated: () => false } }
+        { provide: AuthService, useValue: { initialize: () => Promise.resolve(), isAuthenticated: () => false } }
       ]
     });
-    const result = TestBed.runInInjectionContext(() => authGuard({} as never, {} as never));
+    const result = await TestBed.runInInjectionContext(() => authGuard({} as never, {} as never));
     expect((result as ReturnType<Router['createUrlTree']>).toString()).toBe('/sign-in');
   });
 });
 
 describe('guestOnlyGuard', () => {
-  it('redirects an authenticated user to the dashboard', () => {
+  it('redirects an authenticated user to the dashboard after session recovery', async () => {
     TestBed.configureTestingModule({
       providers: [
         provideRouter([]),
-        { provide: AuthService, useValue: { isAuthenticated: () => true } }
+        { provide: AuthService, useValue: { initialize: () => Promise.resolve(), isAuthenticated: () => true } }
       ]
     });
-    const result = TestBed.runInInjectionContext(() => guestOnlyGuard({} as never, {} as never));
+    const result = await TestBed.runInInjectionContext(() => guestOnlyGuard({} as never, {} as never));
     expect((result as ReturnType<Router['createUrlTree']>).toString()).toBe('/dashboard');
   });
 });
