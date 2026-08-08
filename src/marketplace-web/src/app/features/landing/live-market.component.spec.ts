@@ -47,4 +47,10 @@ describe('LiveMarketComponent', () => {
     expect(text).toContain('1 cumpărători online');
     expect(text).toContain('1 furnizori online');
   });
+
+  it('starts a new request from the Buyer hero action', () => {
+    const action = (fixture.nativeElement as HTMLElement).querySelector<HTMLAnchorElement>('.secondary-action');
+    expect(action?.textContent?.trim()).toBe('Cerere nouă');
+    expect(action?.getAttribute('href')).toBe('/rfqs/new');
+  });
 });

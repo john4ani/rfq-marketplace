@@ -88,3 +88,5 @@ An append-only operational event foundation and focused Administrator workspace 
 ## Deferred platform evolution
 
 Organization/membership separation, company workspaces, inventory/catalog integrations, richer fulfilment, vertical knowledge policies, and procurement intelligence follow demonstrated pilot use. Microservices and a universal plug-in framework are not planned for the MVP.
+
+Post-MVP performance TODO: add deliberately invalidated application caching for stable reference data such as central Categories and Project Templates. Prefer an in-session Angular cache first, then consider backend `ETag`/short-lived output caching only if measurements justify it. Invalidate immediately after Administrator mutations. Do not cache authentication, notifications, presence, Piața Live, requests, offers, profiles, trust facts, or user-specific AI responses.

@@ -14,7 +14,7 @@ import { OpenRfq, OpenRfqService } from '../../core/rfqs/open-rfq.service';
       <div class="hero-actions">
         @if(auth.isAuthenticated()){
           @if(hasSupplierProfile()){<a class="primary-action" routerLink="/open-requests">Explorează cererile</a>}
-          @if(hasBuyerProfile()){<a class="secondary-action" routerLink="/dashboard">Cererile mele</a>}
+          @if(hasBuyerProfile()){<a class="secondary-action" routerLink="/rfqs/new">Cerere nouă</a>}
         }@else{<a class="primary-action" routerLink="/register">Începe acum</a><a class="secondary-action" routerLink="/sign-in">Autentificare</a>}
       </div>
     </div>
