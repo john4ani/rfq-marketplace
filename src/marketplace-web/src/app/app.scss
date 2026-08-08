@@ -1,18 +1,34 @@
-:host { display: block; min-height: 100vh; color: #172033; background: #f6f7f9; }
-.shell-header { position: sticky; top: 0; z-index: 10; display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding: .75rem clamp(1rem, 5vw, 4rem); border-bottom: 1px solid #dfe3e8; background: rgb(255 255 255 / 96%); backdrop-filter: blur(12px); }
+:host { display: block; min-height: 100vh; color: var(--ink); background: var(--warm-white); }
+.app-frame { --masthead-height: 8rem; grid-template-rows: auto minmax(0, 1fr); }
+.app-masthead { position: sticky; top: 0; z-index: 20; display: flex; min-height: var(--masthead-height); grid-column: 1 / -1; box-sizing: border-box; align-items: center; padding: 1rem 2.2rem; border-bottom: 1px solid var(--border); background: rgb(250 247 242 / 97%); box-shadow: 0 5px 20px rgb(30 61 47 / 6%); backdrop-filter: blur(14px); }
+.app-masthead .brand { width: fit-content; color: var(--forest); }
+.app-masthead .brand-logo { width: 5rem; height: 5rem; }
+.app-masthead .brand strong { font-size: 2.25rem; letter-spacing: -.04em; }
+.app-masthead .brand small { color: var(--ink); font-size: .92rem; font-weight: 550; }
+.shell-header { position: sticky; top: 0; z-index: 10; display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding: .75rem clamp(1rem, 5vw, 4rem); border-bottom: 1px solid var(--border); background: rgb(255 253 250 / 94%); backdrop-filter: blur(12px); }
 .brand { display: inline-flex; align-items: center; gap: .65rem; color: inherit; font-weight: 800; text-decoration: none; white-space: nowrap; }
-.brand-mark { display: grid; width: 2.25rem; height: 2.25rem; place-items: center; border-radius: .65rem; color: #fff; background: #176b52; font-size: .75rem; letter-spacing: .04em; }
+.brand-mark { display: grid; width: 2.25rem; height: 2.25rem; place-items: center; border-radius: .65rem; color: #fff; background: var(--forest); font-size: .75rem; letter-spacing: .04em; }
 .shell-header nav { display: flex; align-items: center; gap: .4rem; }
-.nav-link { display: inline-flex; align-items: center; min-height: 2.5rem; padding: 0 .8rem; border-radius: .5rem; color: #43504a; font-weight: 700; text-decoration: none; }
-.nav-link:hover, .nav-link:focus-visible, .nav-link.active { color: #176b52; background: #edf7f3; }
-.account-link { color: #fff; background: #176b52; }
-.account-link:hover, .account-link:focus-visible, .account-link.active { color: #fff; background: #0f5942; }
+.nav-link { display: inline-flex; align-items: center; min-height: 2.5rem; padding: 0 .8rem; border-radius: .5rem; color: var(--ink); font-weight: 700; text-decoration: none; }
+.nav-link:hover, .nav-link:focus-visible, .nav-link.active { color: var(--forest); background: color-mix(in srgb, var(--sand) 65%, white); }
+.side-nav .nav-link,
+.side-nav .profile-link { color: rgb(255 255 255 / 88%); }
+.side-nav .nav-link:hover,
+.side-nav .nav-link:focus-visible,
+.side-nav .nav-link.active { color: #fff; background: rgb(255 255 255 / 14%); }
+.notification-slot { margin-top: .22rem; }
+.side-sign-out { display: inline-flex; align-items: center; gap: .7rem; width: 100%; min-height: 2.5rem; padding: 0 .65rem; border: 0; border-radius: .7rem; color: rgb(255 255 255 / 78%); background: transparent; font: inherit; font-size: .8rem; font-weight: 650; cursor: pointer; }
+.side-sign-out:hover, .side-sign-out:focus-visible { color: #fff; background: rgb(255 255 255 / 12%); }
+.side-sign-out:disabled { opacity: .6; cursor: wait; }
+.account-link { color: #fff; background: var(--forest); }
+.account-link:hover, .account-link:focus-visible, .account-link.active { color: #fff; background: var(--forest-light); }
 .service-status { display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding: .85rem clamp(1rem, 5vw, 4rem); border-bottom: 1px solid #e7c881; color: #4f3b0e; background: #fff4d6; }
 .service-status div { display: grid; gap: .15rem; }
 .service-status span { font-size: .9rem; }
 .service-status button { flex: 0 0 auto; padding: .55rem .85rem; border: 1px solid #80651e; border-radius: .5rem; color: #4f3b0e; background: transparent; }
-.shell-content { display: block; max-width: 72rem; min-height: calc(100vh - 58px); margin: 0 auto; padding: clamp(1.5rem, 5vw, 4rem) clamp(1rem, 4vw, 3rem); }
-:host ::ng-deep .auth-card { width: min(100%, 28rem); padding: 2rem; border: 1px solid #dfe3e8; border-radius: .75rem; background: #fff; box-shadow: 0 8px 24px rgb(23 32 51 / 8%); }
+.shell-content { display: block; max-width: 78rem; min-height: 100vh; margin: 0 auto; padding: clamp(1.5rem, 4vw, 3rem) clamp(1rem, 4vw, 3rem); }
+.workspace-frame .shell-content { max-width: 88rem; margin: 0; }
+:host ::ng-deep .auth-card { width: min(100%, 28rem); padding: 2rem; border: 1px solid var(--border); border-radius: var(--radius-card); background: var(--surface); box-shadow: var(--shadow-soft); }
 :host ::ng-deep form { display: grid; gap: 1rem; margin: 1.5rem 0; }
 :host ::ng-deep label { display: grid; gap: .35rem; font-weight: 600; }
 :host ::ng-deep .checkbox-label { display: flex; align-items: center; gap: .5rem; font-weight: 400; }
@@ -20,13 +36,14 @@
 :host ::ng-deep fieldset { display: grid; gap: 1rem; margin: 0; padding: 0; border: 0; }
 :host ::ng-deep fieldset + fieldset { margin-top: 1.5rem; padding-top: 1.5rem; border-top: 1px solid #e6e9ee; }
 :host ::ng-deep legend { margin-bottom: 1rem; font-size: 1rem; font-weight: 750; }
-:host ::ng-deep input, :host ::ng-deep select { padding: .7rem; border: 1px solid #aeb6c2; border-radius: .35rem; font: inherit; }
-:host ::ng-deep button { padding: .75rem 1rem; border: 0; border-radius: .5rem; color: #fff; background: #176b52; font: inherit; font-weight: 700; cursor: pointer; }
+:host ::ng-deep input, :host ::ng-deep select { padding: .75rem; border: 1px solid var(--border); border-radius: .55rem; background: var(--surface); font: inherit; }
+:host ::ng-deep input:focus, :host ::ng-deep select:focus, :host ::ng-deep textarea:focus { border-color: var(--forest-light); box-shadow: 0 0 0 3px rgb(47 107 79 / 15%); outline: 0; }
+:host ::ng-deep button { padding: .75rem 1rem; border: 0; border-radius: .55rem; color: #fff; background: var(--forest); font: inherit; font-weight: 700; cursor: pointer; }
 :host ::ng-deep button:disabled { opacity: .55; cursor: not-allowed; }
-:host ::ng-deep .button-link { display: inline-flex; justify-content: center; padding: .75rem 1rem; border-radius: .5rem; color: #fff; background: #176b52; font-weight: 700; text-decoration: none; }
-:host ::ng-deep .button-link:hover, :host ::ng-deep .button-link:focus-visible { background: #0f5942; }
-:host ::ng-deep .error { color: #a10f21; }
-:host ::ng-deep .success { padding: .75rem; border-radius: .5rem; color: #126744; background: #e4f5ec; }
+:host ::ng-deep .button-link { display: inline-flex; justify-content: center; padding: .75rem 1rem; border-radius: .55rem; color: #fff; background: var(--forest); font-weight: 700; text-decoration: none; }
+:host ::ng-deep .button-link:hover, :host ::ng-deep .button-link:focus-visible { background: var(--forest-light); }
+:host ::ng-deep .error { color: var(--danger); }
+:host ::ng-deep .success { padding: .75rem; border-radius: .55rem; color: var(--success); background: #eaf4ec; }
 :host ::ng-deep .development-note { padding: .75rem; border-radius: .5rem; color: #5e470f; background: #fff4d6; }
 :host ::ng-deep .development-note a { display: block; margin-top: .35rem; font-weight: 700; }
 :host ::ng-deep .dashboard-intro { display: flex; max-width: none; align-items: center; justify-content: space-between; gap: 1rem; }
@@ -53,11 +70,17 @@
 :host ::ng-deep .role-options button.active { color: #fff; background: #176b52; outline: 3px solid #a7d8c6; }
 
 @media (max-width: 40rem) {
+  .app-frame { --masthead-height: 5.25rem; }
+  .app-masthead { padding: .6rem 1rem; }
+  .app-masthead .brand-logo { width: 3.35rem; height: 3.35rem; }
+  .app-masthead .brand strong { font-size: 1.5rem; }
+  .app-masthead .brand small { display: block; font-size: .66rem; }
   .shell-header { align-items: center; padding-inline: .75rem; }
   .service-status { align-items: stretch; flex-direction: column; }
   .service-status button { width: 100%; }
   .shell-header nav { min-width: 0; justify-content: flex-end; overflow-x: auto; }
   .brand > span:last-child { display: none; }
+  .notification-slot { margin: 0 0 0 auto; }
   .home-nav { display: none; }
   .nav-link { min-height: 2.25rem; padding-inline: .5rem; font-size: .85rem; white-space: nowrap; }
   :host ::ng-deep .dashboard-intro, :host ::ng-deep .section-heading { align-items: stretch; flex-direction: column; gap: .5rem; }

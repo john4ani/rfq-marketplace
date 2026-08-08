@@ -12,16 +12,17 @@ import { unitLabel } from '../../shared/unit-label';
   selector: 'app-assisted-intake',
   imports: [FormsModule, RouterLink],
   template: `<main class="intake-shell">
-    <a class="back" routerLink="/dashboard">← Înapoi la cereri</a>
-    <header><p class="eyebrow">Cerere nouă</p><h1>Ce dorești să cumperi sau să construiești?</h1>
-      <p>Descrie liber nevoia. Îți pregătim un draft pe care îl verifici înainte de salvare.</p></header>
+    <a class="back" routerLink="/dashboard">← Înapoi acasă</a>
+    <header><p class="eyebrow">Cerere nouă</p><h1>Spune-ne ce ai nevoie</h1>
+      <p>Scrie natural, ca într-un mesaj. Asistentul îți pune doar întrebările care mai contează.</p></header>
     @if (checkingAvailability()) {
       <section class="start-card" aria-live="polite">Se pregătește asistentul…</section>
     } @else if (!result()) {
-      <section class="start-card"><label for="need">Descrierea nevoii</label>
+      <section class="start-card"><label for="need">Ce dorești să cumperi sau să construiești?</label>
         <textarea id="need" [(ngModel)]="input" rows="7" maxlength="4000" placeholder="Exemplu: Am nevoie de 2 tone de peleți, livrare în Brașov, la sac..."></textarea>
-        <div class="actions"><a routerLink="/rfqs/new/advanced">Folosește formularul avansat</a>
-          <button type="button" (click)="start()" [disabled]="busy() || input.trim().length < 10">{{ busy() ? 'Analizăm…' : 'Continuă' }}</button></div>
+        <div class="starter-note"><span aria-hidden="true">✦</span> Te ajutăm să structurăm cererea. Nu trimitem nimic fără acordul tău.</div>
+        <div class="actions"><a routerLink="/rfqs/new/advanced">Am deja lista — deschide formularul</a>
+          <button type="button" (click)="start()" [disabled]="busy() || input.trim().length < 10">{{ busy() ? 'Analizăm ce ai nevoie…' : 'Continuă cu AI →' }}</button></div>
       </section>
     } @else {
       <div class="workspace">
@@ -57,7 +58,9 @@ import { unitLabel } from '../../shared/unit-label';
         </aside>
       </div>
     }
-    @if(message()){<p class="message" [class.error]="hasError()" role="alert">{{message()}}</p>}
+    @if(message()){<p class="message" [class.error]="hasError()" role="alert">{{message()}}
+      @if(needsBuyerProfile()){<a class="message-action" routerLink="/dashboard" [queryParams]="{section:'settings'}">Completează profilul</a>}
+    </p>}
   </main>`,
   styleUrl: './assisted-intake.component.scss',
   changeDetection: ChangeDetectionStrategy.OnPush
@@ -65,11 +68,22 @@ import { unitLabel } from '../../shared/unit-label';
 export class AssistedIntakeComponent {
   private readonly service=inject(AssistedIntakeService); private readonly categoriesService=inject(SupplierSettingsService);
   private readonly route=inject(ActivatedRoute); private readonly router=inject(Router); private readonly host=inject(ElementRef<HTMLElement>);
-  readonly result=signal<AssistedIntakeResult|null>(null); readonly categories=signal<CategoryOption[]>([]); readonly busy=signal(false); readonly message=signal(''); readonly hasError=signal(false); readonly checkingAvailability=signal(true);
+  readonly result=signal<AssistedIntakeResult|null>(null); readonly categories=signal<CategoryOption[]>([]); readonly busy=signal(false); readonly message=signal(''); readonly hasError=signal(false); readonly needsBuyerProfile=signal(false); readonly checkingAvailability=signal(true);
   input=''; answer=''; draft:AssistedDraft=this.emptyDraft();
   readonly units:UnitOfMeasure[]=['Piece','Pack','Bag','Kilogram','Tonne','Metre','SquareMetre','CubicMetre','Litre','Pallet','Other'];
   readonly unitLabel=unitLabel;
-  constructor(){const id=this.route.snapshot.queryParamMap.get('session');this.service.availability().subscribe({next:value=>{if(!value.enabled||!value.modelAvailable){this.fallbackToAdvanced(id);return;}this.checkingAvailability.set(false);this.categoriesService.getCategories().subscribe({next:v=>this.categories.set(v)});if(id){this.busy.set(true);this.service.get(id).subscribe({next:v=>this.apply(v),error:e=>this.fail(e)});}},error:()=>this.fallbackToAdvanced(id)});}
+  constructor(){
+    const id=this.route.snapshot.queryParamMap.get('session');
+    const dashboardDescription=this.route.snapshot.queryParamMap.get('description')?.trim()??'';
+    this.input=dashboardDescription;
+    this.service.availability().subscribe({next:value=>{
+      if(!value.enabled||!value.modelAvailable){this.fallbackToAdvanced(id);return;}
+      this.checkingAvailability.set(false);
+      this.categoriesService.getCategories().subscribe({next:v=>this.categories.set(v)});
+      if(id){this.busy.set(true);this.service.get(id).subscribe({next:v=>this.apply(v),error:e=>this.fail(e)});return;}
+      if(dashboardDescription.length>=10)this.start();
+    },error:()=>this.fallbackToAdvanced(id)});
+  }
   leafCategories(){const all=this.categories(),parents=new Set(all.flatMap(x=>x.parentId?[x.parentId]:[]));return all.filter(x=>!parents.has(x.id));}
   start(){if(this.input.trim().length<10)return;this.busy.set(true);this.clear();this.service.start(this.input.trim()).subscribe({next:v=>{this.apply(v);void this.router.navigate([], {queryParams:{session:v.sessionId},replaceUrl:true});},error:e=>this.fail(e)});}
   clarify(){if(!this.answer.trim()||!this.result())return;this.busy.set(true);this.clear();this.service.clarify(this.result()!.sessionId,this.answer.trim()).subscribe({next:v=>{this.answer='';this.apply(v);},error:e=>this.fail(e)});}
@@ -77,9 +91,9 @@ export class AssistedIntakeComponent {
   private apply(value:AssistedIntakeResult){this.result.set(value);this.input=value.initialInput;this.draft=structuredClone(value.draft);this.draft.county=this.canonicalCounty(this.draft.county);this.busy.set(false);}
   private validate(){if(!this.draft.title.trim())return'Titlul este obligatoriu.';if(!this.draft.primaryCategoryId)return'Selectează cel puțin o categorie.';if(!this.draft.deliveryAddress.trim())return'Completează adresa de livrare.';if(!this.draft.deliveryLocality.trim()||!this.draft.county.trim())return'Completează localitatea și județul.';if(this.draft.lines.some(x=>!x.name.trim()||!x.quantity||x.quantity<=0||!x.unit))return'Verifică denumirea, cantitatea și unitatea fiecărei poziții.';return'';}
   private toRfqDraft():RfqDraft{const categoryIds=Array.from(new Set([this.draft.primaryCategoryId,...this.draft.lines.map(line=>line.categoryId)].filter((id):id is string=>!!id)));const needType=this.draft.inputType==='ProjectDescription'?'Project':this.draft.inputType==='ShoppingList'?'ShoppingList':'DirectPurchase';return{source:'Assisted',inputType:this.draft.inputType,needType,projectTemplateId:null,categoryIds,title:this.draft.title,projectName:this.draft.projectName,description:this.draft.description,primaryCategoryId:this.draft.primaryCategoryId!,deliveryAddress:this.draft.deliveryAddress,deliveryLocality:this.draft.deliveryLocality,county:this.draft.county,supplierSearchRadiusKm:this.draft.supplierSearchRadiusKm,latitude:null,longitude:null,preferredDeliveryDate:this.draft.preferredDeliveryDate,quotationDeadline:this.draft.quotationDeadline,alternativeProductsAccepted:this.draft.alternativeProductsAccepted,estimatedBudget:this.draft.estimatedBudget,buyerNotes:this.draft.buyerNotes,allowSplit:this.draft.allowSplit,deliveryRequired:this.draft.deliveryRequired,items:this.draft.lines.map(x=>({productName:x.name,manufacturerOrBrand:null,specification:x.specification,quantity:x.quantity!,unit:x.unit!,alternativesAccepted:x.alternativesAccepted,buyerNotes:null,categoryId:x.categoryId,kind:x.kind}))};}
-  private fail(error:HttpErrorResponse){if(error.status===503){this.fallbackToAdvanced(this.result()?.sessionId??null);return;}this.busy.set(false);this.message.set(error.error?.errors?.intake?.[0]??error.error?.detail??'Nu am putut procesa cererea. Încearcă din nou.');this.hasError.set(true);this.scrollError();}
+  private fail(error:HttpErrorResponse){if(error.status===503){this.fallbackToAdvanced(this.result()?.sessionId??null);return;}this.busy.set(false);const detail=error.error?.errors?.intake?.[0]??error.error?.detail??'Nu am putut procesa cererea. Încearcă din nou.';this.message.set(detail);this.needsBuyerProfile.set(detail.includes('Completează profilul de cumpărător'));this.hasError.set(true);this.scrollError();}
   private fallbackToAdvanced(sessionId:string|null){void this.router.navigate(['/rfqs/new/advanced'],{replaceUrl:true,queryParams:sessionId?{assistedSession:sessionId}:undefined,state:{message:'Asistentul AI este temporar indisponibil. Poți continua cu formularul complet.'}});}
-  private clear(){this.message.set('');this.hasError.set(false);}
+  private clear(){this.message.set('');this.hasError.set(false);this.needsBuyerProfile.set(false);}
   private scrollError(){setTimeout(()=>this.host.nativeElement.querySelector('[role="alert"]')?.scrollIntoView({behavior:'smooth',block:'center'}));}
   private canonicalCounty(value:string){const key=this.fold(value);return ROMANIAN_COUNTIES.find(county=>this.fold(county)===key)??value;}
   private fold(value:string){return value.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLocaleLowerCase('ro-RO');}

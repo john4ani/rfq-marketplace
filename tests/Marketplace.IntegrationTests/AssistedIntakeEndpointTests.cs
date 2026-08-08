@@ -76,6 +76,26 @@ public sealed class AssistedIntakeEndpointTests : IClassFixture<WebApplicationFa
     }
 
     [Fact]
+    public async Task IncompleteBuyerProfileReturnsActionableValidationInsteadOfDatabaseFailure()
+    {
+        using WebApplicationFactory<Program> aiFactory = AiFactory();
+        using HttpClient client = aiFactory.CreateClient(new() { BaseAddress = new Uri("https://localhost") });
+        string email = $"assisted-incomplete-{Guid.NewGuid():N}@example.test";
+        const string password = "password";
+        Assert.Equal(HttpStatusCode.Created,
+            (await client.PostAsJsonAsync("/api/v1/auth/register/buyer", new { email, password })).StatusCode);
+        TokenResponse login = (await (await client.PostAsJsonAsync("/api/v1/auth/login", new { email, password }))
+            .Content.ReadFromJsonAsync<TokenResponse>())!;
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", login.AccessToken);
+
+        HttpResponseMessage response = await client.PostAsJsonAsync("/api/v1/assisted-intakes",
+            new { input = "Am nevoie de o cerere suficient de detaliată." });
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        Assert.Contains("Completează profilul de cumpărător", await response.Content.ReadAsStringAsync());
+    }
+
+    [Fact]
     public async Task AdvancedFormCanCompleteAnInProgressAiSession()
     {
         using WebApplicationFactory<Program> aiFactory = AiFactory();

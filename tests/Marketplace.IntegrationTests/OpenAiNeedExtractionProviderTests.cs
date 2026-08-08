@@ -2,6 +2,8 @@ using System.Net;
 using System.Text;
 using System.Text.Json;
 using Marketplace.Infrastructure.AiIntake;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 
 namespace Marketplace.IntegrationTests;
@@ -13,13 +15,14 @@ public sealed class OpenAiNeedExtractionProviderTests
     {
         var handler = new RecordingHandler(ResponseBody());
         using var client = new HttpClient(handler);
+        var logger = new RecordingLogger();
         var settings = Options.Create(new AiIntakeOptions
         {
             Provider = AiIntakeProvider.OpenAi,
             ApiKey = "openai-test-key",
             Model = "gpt-5.6-luna"
         });
-        var provider = new OpenAiNeedExtractionProvider(client, settings);
+        var provider = new OpenAiNeedExtractionProvider(client, settings, logger);
 
         NeedExtractionOutcome outcome = await provider.ExtractAsync(Context(), CancellationToken.None);
 
@@ -30,8 +33,18 @@ public sealed class OpenAiNeedExtractionProviderTests
         Assert.Equal("openai-test-key", handler.AuthorizationParameter);
         using JsonDocument request = JsonDocument.Parse(handler.RequestBody!);
         Assert.Equal("gpt-5.6-luna", request.RootElement.GetProperty("model").GetString());
+        Assert.Equal("none", request.RootElement.GetProperty("reasoning").GetProperty("effort").GetString());
+        Assert.Equal("low", request.RootElement.GetProperty("text").GetProperty("verbosity").GetString());
         Assert.False(request.RootElement.TryGetProperty("tools", out _));
+        Assert.Contains("\"Kilogram\"", handler.RequestBody, StringComparison.Ordinal);
         Assert.Contains("Nu ai acces la web search", handler.RequestBody, StringComparison.Ordinal);
+        LoggedEntry timing = Assert.Single(logger.Entries);
+        Assert.Equal(4201, timing.EventId.Id);
+        Assert.Equal(LogLevel.Information, timing.Level);
+        Assert.Contains("gpt-5.6-luna", timing.Message, StringComparison.Ordinal);
+        Assert.Contains("api.openai.com", timing.Message, StringComparison.Ordinal);
+        Assert.Contains("input tokens: 120", timing.Message, StringComparison.Ordinal);
+        Assert.DoesNotContain(Context().InitialInput, timing.Message, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -45,7 +58,7 @@ public sealed class OpenAiNeedExtractionProviderTests
             ApiKey = "azure-test-key",
             Endpoint = "https://example.openai.azure.com/openai/v1/responses",
             Model = "gpt-5.6-luna"
-        }));
+        }), NullLogger<OpenAiNeedExtractionProvider>.Instance);
 
         NeedExtractionOutcome outcome = await provider.ExtractAsync(Context(), CancellationToken.None);
 
@@ -60,7 +73,8 @@ public sealed class OpenAiNeedExtractionProviderTests
     public void IsUnavailableWithoutCompleteConfiguration(string apiKey, string endpoint)
     {
         var provider = new OpenAiNeedExtractionProvider(new HttpClient(new RecordingHandler("{}")),
-            Options.Create(new AiIntakeOptions { ApiKey = apiKey, Endpoint = endpoint }));
+            Options.Create(new AiIntakeOptions { ApiKey = apiKey, Endpoint = endpoint }),
+            NullLogger<OpenAiNeedExtractionProvider>.Instance);
 
         Assert.False(provider.IsAvailable);
     }
@@ -118,5 +132,24 @@ public sealed class OpenAiNeedExtractionProviderTests
                 Content = new StringContent(responseBody, Encoding.UTF8, "application/json")
             };
         }
+    }
+
+    private sealed class RecordingLogger : ILogger<OpenAiNeedExtractionProvider>
+    {
+        public List<LoggedEntry> Entries { get; } = [];
+
+        public IDisposable BeginScope<TState>(TState state) where TState : notnull => NoopScope.Instance;
+        public bool IsEnabled(LogLevel logLevel) => true;
+        public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception,
+            Func<TState, Exception?, string> formatter)
+            => Entries.Add(new(logLevel, eventId, formatter(state, exception)));
+    }
+
+    private sealed record LoggedEntry(LogLevel Level, EventId EventId, string Message);
+
+    private sealed class NoopScope : IDisposable
+    {
+        public static readonly NoopScope Instance = new();
+        public void Dispose() { }
     }
 }

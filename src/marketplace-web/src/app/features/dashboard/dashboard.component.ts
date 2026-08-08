@@ -1,5 +1,6 @@
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
+import { FormsModule } from '@angular/forms';
 import { AuthService } from '../../core/auth/auth.service';
 import { AccountSwitcherComponent } from '../profiles/account-switcher.component';
 import { ProfileEditorComponent } from '../profiles/profile-editor.component';
@@ -10,37 +11,38 @@ import { TrustSummaryComponent } from '../profiles/trust-summary.component';
 
 @Component({
   selector: 'app-dashboard',
-  imports: [RouterLink, AccountSwitcherComponent, ProfileEditorComponent, SupplierSettingsComponent, BuyerRfqListComponent, SupplierOfferListComponent, TrustSummaryComponent],
-  template: `<section class="dashboard-intro">
-    <div><p class="eyebrow">Spațiul tău de lucru</p><h1>Bine ai venit</h1>
-      <p>Gestionează cererile, ofertele și preferințele contului dintr-un singur loc.</p></div>
-    <button class="secondary" type="button" (click)="signOut()" [disabled]="signingOut()">
-      {{ signingOut() ? 'Deconectare…' : 'Deconectare' }}
-    </button>
+  imports: [RouterLink, FormsModule, AccountSwitcherComponent, ProfileEditorComponent, SupplierSettingsComponent, BuyerRfqListComponent, SupplierOfferListComponent, TrustSummaryComponent],
+  template: `@if(section()==='overview'){
+  <section class="dashboard-intro">
+    <div><p class="eyebrow">Acasă</p><h1>Bună! Cu ce te putem ajuta?</h1>
+      <p>Spune-ne ce ai nevoie. Te ghidăm pas cu pas, iar tu alegi când trimiți cererea.</p></div>
   </section>
 
+  <section class="need-starter" aria-labelledby="need-starter-title">
+    <div><p class="eyebrow">Începe simplu</p><h2 id="need-starter-title">Ce dorești să cumperi sau să construiești?</h2>
+      <p>Poți scrie exact cum ai spune unui furnizor.</p></div>
+    <div class="need-entry"><label class="sr-only" for="dashboard-need">Descrie pe scurt ce ai nevoie</label><input id="dashboard-need" [(ngModel)]="needText" (keyup.enter)="startNeed()" placeholder="De exemplu: Am nevoie de cherestea pentru un acoperiș de 10 × 8 m"><button type="button" (click)="startNeed()">Continuă cu AI <span aria-hidden="true">→</span></button></div>
+    <div class="starter-reassurance"><span aria-hidden="true">✦</span> AI-ul te ajută să clarifici. Nimic nu este trimis fără confirmarea ta.</div>
+  </section>
+  }
+
   <section class="workspace-bar">
-    <div><span>Profil activ</span><app-account-switcher (profileAdded)="openNewProfile($event)" /></div>
-    <nav aria-label="Secțiuni cont">
-      <button type="button" [class.active]="section()==='overview'" (click)="section.set('overview')">Activitate</button>
-      <button type="button" [class.active]="section()==='settings'" (click)="section.set('settings')">Profil și preferințe</button>
-    </nav>
+    <div><span>Lucrezi ca</span><app-account-switcher (profileAdded)="openNewProfile($event)" /></div>
+    <nav aria-label="Secțiuni cont"><button type="button" [class.active]="section()==='overview'" (click)="showOverview()">Activitate</button><button type="button" [class.active]="section()==='settings'" (click)="showSettings()">Profil și preferințe</button></nav>
   </section>
 
   <section class="dashboard-content">
     @if(section()==='overview'){
       <div class="quick-actions">
-        @if(hasBuyerProfile()){
-          <a class="action-card primary" routerLink="/rfqs/new"><span>+</span><div><strong>Creează o cerere</strong><small>Descrie nevoia și public-o în piață</small></div></a>
-        }
         @if(auth.session()?.accountType==='Buyer'){
-          <a class="action-card" routerLink="/"><span>PL</span><div><strong>Vezi Piața Live</strong><small>Urmărește activitatea comunității</small></div></a>
+          <a class="action-card" routerLink="/"><span>◉</span><div><strong>Vezi Piața Live</strong><small>Urmărește activitatea și furnizorii disponibili.</small></div><b aria-hidden="true">›</b></a>
+          <a class="action-card" routerLink="/participants"><span>♧</span><div><strong>Descoperă furnizori</strong><small>Vezi firmele care îți pot răspunde.</small></div><b aria-hidden="true">›</b></a>
         }@else{
-          <a class="action-card primary" routerLink="/open-requests"><span>↗</span><div><strong>Găsește oportunități</strong><small>Vezi cererile potrivite profilului tău</small></div></a>
-          <button class="action-card" type="button" (click)="section.set('settings')"><span>✓</span><div><strong>Verifică preferințele</strong><small>Categoriile și zonele influențează potrivirile</small></div></button>
+          <a class="action-card primary" routerLink="/open-requests"><span>↗</span><div><strong>Vezi cererile potrivite</strong><small>Răspunde rapid oportunităților relevante.</small></div><b aria-hidden="true">›</b></a>
+          <button class="action-card" type="button" (click)="showSettings()"><span>✓</span><div><strong>Verifică preferințele</strong><small>Categoriile și zonele influențează potrivirile.</small></div><b aria-hidden="true">›</b></button>
         }
       </div>
-      <app-buyer-rfq-list />
+      <div id="requests"><app-buyer-rfq-list /></div>
       @if(auth.session()?.accountType==='Supplier'){
         <app-supplier-offer-list />
         <section class="activity-card"><p class="eyebrow">Furnizor</p><h2>Cererile potrivite sunt în Piața Live</h2>
@@ -60,7 +62,6 @@ import { TrustSummaryComponent } from '../profiles/trust-summary.component';
       <app-supplier-settings />
       <app-trust-summary [refreshVersion]="trustVersion()" />
     }
-    @if (error()) { <p class="error" role="alert">{{ error() }}</p> }
   </section>`,
   styleUrl: './dashboard.component.scss',
   changeDetection: ChangeDetectionStrategy.OnPush
@@ -69,17 +70,34 @@ export class DashboardComponent {
   readonly auth = inject(AuthService);
   private readonly router = inject(Router);
   private readonly route = inject(ActivatedRoute);
-  readonly signingOut = signal(false);
-  readonly error = signal('');
-  readonly section = signal<'overview' | 'settings'>(this.route.snapshot.queryParamMap.get('section') === 'settings' ? 'settings' : 'overview');
+  readonly section = signal<'overview' | 'settings'>(
+    this.route.snapshot.routeConfig?.path === 'account' || this.route.snapshot.queryParamMap.get('section') === 'settings'
+      ? 'settings'
+      : 'overview');
   readonly returnUrl = signal(this.safeReturnUrl(this.route.snapshot.queryParamMap.get('returnUrl')));
   readonly hasBuyerProfile = computed(() => this.auth.profiles().some(profile => profile.accountType === 'Buyer'));
   readonly trustVersion = signal(0);
+  needText = '';
+
+  startNeed(): void {
+    const description = this.needText.trim();
+    void this.router.navigate(['/rfqs/new'], { queryParams: description ? { description } : undefined });
+  }
+
+  showOverview(): void {
+    this.section.set('overview');
+    void this.router.navigateByUrl('/dashboard');
+  }
+
+  showSettings(): void {
+    this.section.set('settings');
+    void this.router.navigateByUrl('/account');
+  }
 
   openNewProfile(accountType: 'Buyer' | 'Supplier'): void {
     this.auth.switchProfile(accountType);
     this.returnUrl.set(null);
-    this.section.set('settings');
+    this.showSettings();
   }
 
   resumeAfterProfileSave(accountType: 'Buyer' | 'Supplier'): void {
@@ -92,17 +110,5 @@ export class DashboardComponent {
 
   private safeReturnUrl(value: string | null): string | null {
     return value === '/rfqs/new' || value?.startsWith('/supplier-invitations/') ? value : null;
-  }
-
-  signOut(): void {
-    this.signingOut.set(true);
-    this.error.set('');
-    this.auth.logout().subscribe({
-      next: () => void this.router.navigateByUrl('/sign-in'),
-      error: () => {
-        this.signingOut.set(false);
-        this.error.set('Sesiunea locală a fost închisă, dar API-ul nu a putut revoca sesiunea de pe server. Porniți API-ul și încearcă din nou.');
-      }
-    });
   }
 }

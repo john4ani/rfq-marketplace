@@ -35,10 +35,11 @@ internal sealed partial class AssistedIntakeService(
         EnsureAiAvailable();
         DateTimeOffset now = timeProvider.GetUtcNow();
         AiIntakeSession session = AiIntakeSession.Create(Guid.NewGuid(), buyerId, input, now);
+        NeedExtractionContext context = await BuildContextAsync(session, [], null, now, cancellationToken);
         dbContext.AiIntakeSessions.Add(session);
         await dbContext.SaveChangesAsync(cancellationToken);
         NeedExtractionOutcome outcome;
-        try { outcome = await ExtractAsync(await BuildContextAsync(session, [], null, now, cancellationToken), cancellationToken); }
+        try { outcome = await ExtractAsync(context, cancellationToken); }
         catch (AiIntakeUnavailableException)
         {
             productEvents.Record("AiIntakeFailed", "AiIntakeSession", session.Id, buyerId, null, timeProvider.GetUtcNow());

@@ -1,34 +1,48 @@
-<header class="shell-header">
-  <a class="brand" routerLink="/" aria-label="Pagina principală Piața Live">
-    <span class="brand-mark" aria-hidden="true">PL</span><span>Piața Live</span>
-  </a>
-  <nav aria-label="Navigare principală">
-    <a class="nav-link home-nav" routerLink="/" routerLinkActive="active" [routerLinkActiveOptions]="{ exact: true }" ariaCurrentWhenActive="page">Acasă</a>
-    @if (hasSupplierProfile()) {
-      <a class="nav-link" routerLink="/open-requests" routerLinkActive="active" ariaCurrentWhenActive="page">Cereri deschise</a>
-    }
-    @if (auth.isAuthenticated()) {
-      @if (auth.isAdministrator()) {
-        <a class="nav-link" routerLink="/admin/catalog" routerLinkActive="active" ariaCurrentWhenActive="page">Catalog</a>
-        <a class="nav-link" routerLink="/admin/supplier-discovery" routerLinkActive="active" ariaCurrentWhenActive="page">Discovery</a>
-        <a class="nav-link" routerLink="/admin/concierge" routerLinkActive="active" ariaCurrentWhenActive="page">Asistență</a>
-      }
-      <app-notification-menu />
-      <a class="nav-link account-link" routerLink="/dashboard" routerLinkActive="active" ariaCurrentWhenActive="page">Contul meu</a>
-    } @else {
-      <a class="nav-link account-link" routerLink="/sign-in" routerLinkActive="active" ariaCurrentWhenActive="page">Autentificare</a>
-    }
-  </nav>
-</header>
-@if (backend.status() === 'unavailable') {
-  <aside class="service-status" role="alert">
-    <div>
-      <strong>Serviciul este temporar indisponibil</strong>
-      <span>Poți folosi navigarea, iar datele vor fi încărcate după reconectare.</span>
+@if (auth.isAuthenticated()) {
+  <div class="app-frame">
+    <header class="app-masthead">
+      <a class="brand" routerLink="/dashboard" aria-label="CompaSpot — Acasă">
+        <svg class="brand-logo" aria-hidden="true" viewBox="0 0 64 64">
+          <circle class="brand-person" cx="16" cy="14" r="7" />
+          <circle class="brand-person" cx="48" cy="14" r="7" />
+          <path class="brand-body" d="M4 37c1-10 5-15 12-15 5 0 9 3 11 9M60 37c-1-10-5-15-12-15-5 0-9 3-11 9" />
+          <path class="brand-arm" d="m12 30 14 11 7-5 6 4 13-10" />
+          <path class="brand-handshake" d="m24 39 7 7c2 2 4 2 6 0l5-5-7-6-5 4-4-1-2 1Z" />
+          <path class="brand-cuff" d="m8 28 6-3 5 8-6 4m43-9-6-3-5 8 6 4" />
+        </svg>
+        <span><strong>CompaSpot</strong><small>Nevoi. Oameni. Valoare.</small></span>
+      </a>
+    </header>
+    <aside class="side-rail" aria-label="Navigare principală">
+      <div class="side-nav" [class.has-admin-navigation]="auth.isAdministrator()">
+      <nav aria-label="Meniu principal">
+        <a class="nav-link" routerLink="/dashboard" routerLinkActive="active" [routerLinkActiveOptions]="{ exact: true }" ariaCurrentWhenActive="page"><span aria-hidden="true">⌂</span> Acasă</a>
+        <a class="nav-link" routerLink="/" routerLinkActive="active" [routerLinkActiveOptions]="{ exact: true }" ariaCurrentWhenActive="page"><span aria-hidden="true">◉</span> Piața Live</a>
+        @if (hasSupplierProfile()) { <a class="nav-link" routerLink="/open-requests" routerLinkActive="active" ariaCurrentWhenActive="page"><span aria-hidden="true">⌕</span> Cereri deschise</a> }
+        <a class="nav-link" routerLink="/participants" routerLinkActive="active" ariaCurrentWhenActive="page"><span aria-hidden="true">♧</span> Furnizori</a>
+        @if (auth.isAdministrator()) {
+          <span class="nav-section-label">Administrare</span>
+          <a class="nav-link admin-link" routerLink="/admin/invitations-referrals" routerLinkActive="active" ariaCurrentWhenActive="page"><span aria-hidden="true">✉</span> Invitații și recomandări</a>
+          <a class="nav-link admin-link" routerLink="/admin/supplier-discovery" routerLinkActive="active" ariaCurrentWhenActive="page"><span aria-hidden="true">⌕</span> Supplier discovery asistat</a>
+          <a class="nav-link admin-link" routerLink="/admin/catalog" routerLinkActive="active" ariaCurrentWhenActive="page"><span aria-hidden="true">▦</span> Catalog categorii</a>
+          <a class="nav-link admin-link" routerLink="/admin/trust" routerLinkActive="active" ariaCurrentWhenActive="page"><span aria-hidden="true">✓</span> Verificări cont</a>
+          <a class="nav-link admin-link" routerLink="/admin/concierge" routerLinkActive="active" ariaCurrentWhenActive="page"><span aria-hidden="true">⌁</span> Analytics și operațiuni</a>
+        }
+      </nav>
+      <div class="notification-slot"><app-notification-menu /></div>
+      <div class="side-nav-footer">
+        <a class="profile-link" routerLink="/account" routerLinkActive="active" ariaCurrentWhenActive="page"><span class="profile-avatar" aria-hidden="true">{{ profileInitial() }}</span><span><strong>Contul meu</strong><small>Profil, încredere și preferințe</small></span><span aria-hidden="true">›</span></a>
+        <button class="side-sign-out" type="button" (click)="signOut()" [disabled]="signingOut()"><span aria-hidden="true">↪</span>{{ signingOut() ? 'Se închide sesiunea…' : 'Deconectare' }}</button>
+      </div>
+      </div>
+    </aside>
+    <div class="workspace-frame">
+      @if (backend.status() === 'unavailable') { <aside class="service-status" role="alert"><div><strong>Serviciul este temporar indisponibil</strong><span>Poți naviga în continuare. Datele se încarcă după reconectare.</span></div><button type="button" [disabled]="backend.retrying()" (click)="backend.retry()">{{ backend.retrying() ? 'Se verifică…' : 'Reîncearcă' }}</button></aside> }
+      <main class="shell-content"><router-outlet /></main>
     </div>
-    <button type="button" [disabled]="backend.retrying()" (click)="backend.retry()">
-      {{ backend.retrying() ? 'Se verifică…' : 'Reîncearcă' }}
-    </button>
-  </aside>
+  </div>
+} @else {
+  <header class="public-header"><a class="brand" routerLink="/" aria-label="Pagina principală CompaSpot"><svg class="brand-logo" aria-hidden="true" viewBox="0 0 64 64"><circle class="brand-person" cx="16" cy="14" r="7"/><circle class="brand-person" cx="48" cy="14" r="7"/><path class="brand-body" d="M4 37c1-10 5-15 12-15 5 0 9 3 11 9M60 37c-1-10-5-15-12-15-5 0-9 3-11 9"/><path class="brand-arm" d="m12 30 14 11 7-5 6 4 13-10"/><path class="brand-handshake" d="m24 39 7 7c2 2 4 2 6 0l5-5-7-6-5 4-4-1-2 1Z"/><path class="brand-cuff" d="m8 28 6-3 5 8-6 4m43-9-6-3-5 8 6 4"/></svg><span><strong>CompaSpot</strong><small>Nevoi. Oameni. Valoare.</small></span></a><nav><a routerLink="/" routerLinkActive="active" [routerLinkActiveOptions]="{exact:true}">Piața Live</a><a class="account-link" routerLink="/sign-in">Autentificare</a></nav></header>
+  @if (backend.status() === 'unavailable') { <aside class="service-status" role="alert"><div><strong>Serviciul este temporar indisponibil</strong><span>Poți naviga în continuare. Datele se încarcă după reconectare.</span></div><button type="button" [disabled]="backend.retrying()" (click)="backend.retry()">{{ backend.retrying() ? 'Se verifică…' : 'Reîncearcă' }}</button></aside> }
+  <main class="shell-content public-content"><router-outlet /></main>
 }
-<main class="shell-content"><router-outlet /></main>

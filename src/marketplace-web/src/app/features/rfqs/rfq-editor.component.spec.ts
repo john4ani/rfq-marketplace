@@ -139,6 +139,26 @@ describe('RfqEditorComponent material positions', () => {
     expect((fixture.nativeElement as HTMLElement).querySelector('.field-error')?.textContent).toContain('Completează titlul cererii.');
   });
 
+  it('requires a valid request before showing the explicit publish review', () => {
+    const fixture = TestBed.createComponent(RfqEditorComponent);
+    fixture.detectChanges();
+    const component = fixture.componentInstance;
+
+    component.openPreview();
+    expect(component.previewing()).toBe(false);
+
+    component.form.patchValue({
+      title: 'Peleți pentru iarnă', primaryCategoryId: 'category-id', deliveryAddress: 'Strada Test 1',
+      deliveryLocality: 'Iași', county: 'Iași'
+    });
+    component.selectedCategoryIds.set(['category-id']);
+    component.openPreview();
+    fixture.detectChanges();
+
+    expect(component.previewing()).toBe(true);
+    expect((fixture.nativeElement as HTMLElement).querySelector('.request-preview')?.textContent).toContain('Trimite cererea');
+  });
+
   it('opens a collapsed invalid position before focusing its field', async () => {
     const fixture = TestBed.createComponent(RfqEditorComponent);
     fixture.detectChanges();

@@ -121,11 +121,12 @@ import { unitLabel } from '../../shared/unit-label';
         @if (message()) { <p class="success" role="status">{{ message() }}</p> }
         <div class="actions">
           <button class="secondary" (click)="save()" [disabled]="busy()">Salvează ciorna</button>
-          <button (click)="submit()" [disabled]="busy()">Salvează și trimite</button>
+          <button (click)="confirmingSubmission.set(true)" [disabled]="busy()">Verifică înainte de trimitere</button>
           @if (offer()?.status === 'Submitted' || offer()?.status === 'Revised') {
             <button class="danger" (click)="withdraw()" [disabled]="busy()">Retrage</button>
           }
         </div>
+        @if (confirmingSubmission()) { <section class="submit-confirmation" role="group" aria-label="Confirmă trimiterea ofertei"><strong>Trimiți această ofertă cumpărătorului?</strong><span>Oferta poate fi actualizată cât timp cererea este deschisă.</span><div><button type="button" class="secondary" (click)="confirmingSubmission.set(false)">Mai verific</button><button type="button" (click)="submit()" [disabled]="busy()">{{ busy() ? 'Se trimite…' : 'Trimite oferta' }}</button></div></section> }
       }
     </section>`,
   styles: [`
@@ -138,7 +139,7 @@ import { unitLabel } from '../../shared/unit-label';
     .lines{display:grid;gap:.75rem;margin:1rem 0}.line{display:grid;grid-template-columns:minmax(0,1fr);gap:.75rem;align-items:end;padding:1rem;background:#f7faf8;border-radius:12px}.line small{display:block}.line-total{margin-top:.35rem;color:#185c32;font-weight:800}
     .terms,.commercial-grid{display:grid;grid-template-columns:minmax(0,1fr);gap:.75rem;margin:1rem 0}label{min-width:0;display:grid;gap:.35rem;font-size:.88rem}input,select,textarea{box-sizing:border-box;min-width:0;width:100%;padding:.7rem;border:1px solid #bdc9c1;border-radius:8px;background:#fff}
     .available{display:flex;align-items:center}.available input{width:auto}.description{grid-column:1/-1}.excluded{color:#7a4b16}.coverage{display:flex;justify-content:space-between;gap:.75rem;padding:.8rem 1rem;border-radius:.7rem;color:#185c32;background:#e9f4ec}.coverage.partial{color:#704d0d;background:#fff6dc}.total{margin:1rem 0;padding-top:1rem;border-top:1px solid #ddd}.total span{display:grid}.total small{color:#56645d;font-weight:500}.actions{justify-content:flex-end;flex-wrap:wrap}
-    button{border:0;border-radius:9px;padding:.75rem 1rem;background:#176b3a;color:white;font-weight:700}.secondary{background:#eaf1ec;color:#16462b}.danger{background:#a93838}.error{color:#a32626}.success{color:#176b3a}
+    button{border:0;border-radius:9px;padding:.75rem 1rem;background:#176b3a;color:white;font-weight:700}.secondary{background:#eaf1ec;color:#16462b}.danger{background:#a93838}.error{color:#a32626}.success{color:#176b3a}.submit-confirmation{display:grid;gap:.5rem;margin-top:1rem;padding:1rem;border:1px solid #d6a84c;border-radius:.75rem;background:#fff9e9}.submit-confirmation span{color:#655b42;font-size:.88rem}.submit-confirmation div{display:flex;justify-content:flex-end;gap:.5rem}
     @container (min-width:34rem){.pricing-mode,.quick-quote{grid-template-columns:repeat(2,minmax(0,1fr))}.line{grid-template-columns:repeat(2,minmax(0,1fr))}.line>div{grid-column:1/-1}.terms,.commercial-grid{grid-template-columns:repeat(3,minmax(0,1fr))}}
     @container (min-width:50rem){.line{grid-template-columns:minmax(180px,1fr) 140px 150px 110px}.line>div{grid-column:auto}}
     @media(max-width:460px){.actions{align-items:stretch;flex-direction:column}.actions button{width:100%}}
@@ -152,6 +153,7 @@ export class OfferEditorComponent {
   readonly busy = signal(false);
   readonly error = signal('');
   readonly message = signal('');
+  readonly confirmingSubmission = signal(false);
   readonly unitLabel = unitLabel;
   readonly draft = signal<OfferDraft>({
     pricingMode: 'Total',
@@ -320,6 +322,7 @@ export class OfferEditorComponent {
       this.service.submit(this.request().id).subscribe({
         next: offer => {
           this.offer.set(offer);
+          this.confirmingSubmission.set(false);
           this.busy.set(false);
           this.message.set('Oferta a fost trimisă cumpărătorului.');
         },

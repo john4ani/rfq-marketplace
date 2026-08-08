@@ -12,9 +12,9 @@ describe('App', () => {
     const fixture = TestBed.createComponent(App);
     fixture.detectChanges();
     expect(fixture.componentInstance).toBeTruthy();
-    expect((fixture.nativeElement as HTMLElement).querySelector('.brand')?.textContent).toContain('Piața Live');
-    const homeLink = (fixture.nativeElement as HTMLElement).querySelector<HTMLAnchorElement>('.nav-link[href="/"]');
-    expect(homeLink?.textContent).toContain('Acasă');
+    expect((fixture.nativeElement as HTMLElement).querySelector('.brand')?.textContent).toContain('CompaSpot');
+    const homeLink = (fixture.nativeElement as HTMLElement).querySelector<HTMLAnchorElement>('.public-header nav a[href="/"]');
+    expect(homeLink?.textContent).toContain('Piața Live');
     expect(homeLink?.getAttribute('href')).toBe('/');
   });
 

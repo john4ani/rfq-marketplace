@@ -1,8 +1,8 @@
 :host {
   display: block;
-  background: #f4f1ea;
+  background: var(--warm-white);
   min-height: 100vh;
-  color: #17211b;
+  color: var(--ink);
 }
 .intake-shell {
   max-width: 1180px;
@@ -11,7 +11,7 @@
 }
 .back,
 .advanced {
-  color: #315c48;
+  color: var(--forest-light);
   font-weight: 700;
 }
 header {
@@ -19,7 +19,7 @@ header {
   margin: 24px 0 28px;
 }
 .eyebrow {
-  color: #9b5b2c;
+  color: var(--forest-light);
   font-weight: 800;
   text-transform: uppercase;
   letter-spacing: 0.08em;
@@ -31,16 +31,16 @@ h1 {
 }
 header p {
   font-size: 1.08rem;
-  color: #536158;
+  color: var(--muted);
 }
 .start-card,
 .conversation,
 .understanding {
-  background: #fff;
-  border: 1px solid #ded9cf;
+  background: var(--surface);
+  border: 1px solid var(--border);
   border-radius: 18px;
   padding: 24px;
-  box-shadow: 0 8px 28px #14241b0d;
+  box-shadow: var(--shadow-soft);
 }
 label {
   display: grid;
@@ -53,7 +53,7 @@ textarea,
 select {
   font: inherit;
   padding: 12px;
-  border: 1px solid #bbb8ae;
+  border: 1px solid var(--border);
   border-radius: 9px;
   background: #fff;
   width: 100%;
@@ -75,7 +75,7 @@ textarea {
   border: 0;
   border-radius: 999px;
   padding: 12px 20px;
-  background: #1f684a;
+  background: var(--forest);
   color: white;
   font-weight: 800;
   cursor: pointer;
@@ -97,7 +97,7 @@ textarea {
 .fallback {
   padding: 17px;
   border-radius: 13px;
-  background: #f4f1ea;
+  background: var(--sand);
   margin-bottom: 14px;
 }
 .user-message span,
@@ -119,7 +119,7 @@ textarea {
   font-weight: 700;
 }
 .question {
-  background: #e7f1eb;
+  background: color-mix(in srgb, var(--sand) 70%, white);
 }
 .question h2 {
   font-size: 1.25rem;
@@ -131,8 +131,8 @@ textarea {
 }
 .choices button {
   background: white;
-  color: #1f684a;
-  border: 1px solid #1f684a;
+  color: var(--forest);
+  border: 1px solid var(--forest-light);
 }
 .fallback {
   font-size: 0.9rem;
@@ -173,13 +173,13 @@ summary {
   border-left: 4px solid #bd6d2d;
 }
 .sources {
-  border-left: 4px solid #315c48;
+  border-left: 4px solid var(--forest-light);
 }
 .sources li {
   margin-bottom: 10px;
 }
 .sources a {
-  color: #24563f;
+  color: var(--forest);
   font-weight: 800;
 }
 .sources p {
@@ -206,6 +206,12 @@ summary {
   margin: 18px auto;
   padding: 14px;
   border-radius: 10px;
+}
+.message-action {
+  display: inline-flex;
+  margin-left: .7rem;
+  color: inherit;
+  font-weight: 800;
 }
 .error {
   background: #fee7e5;

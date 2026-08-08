@@ -15,8 +15,8 @@ import { ROMANIAN_COUNTIES } from '../../shared/romanian-counties';
   imports: [ReactiveFormsModule, RouterLink],
   template: `<main class="editor-shell">
     <a class="back" routerLink="/dashboard">← Înapoi la cont</a>
-    <header><p class="eyebrow">Cerere de ofertă</p><h1>{{ rfqId ? 'Editează ciorna' : assistedSessionId ? 'Finalizează draftul asistat' : 'Cerere nouă' }}</h1>
-      <p>Salvează acum și publică doar când lista este pregătită.</p></header>
+    <header><p class="eyebrow">Cerere nouă</p><h1>{{ rfqId ? 'Continuă cererea' : assistedSessionId ? 'Verifică cererea pregătită de AI' : 'Spune-ne mai multe detalii' }}</h1>
+      <p>Completează doar ce contează pentru furnizor. Vei verifica totul înainte să trimiți.</p></header>
     @if (message()) { <p #pageMessage class="message" [class.error]="hasError()" role="alert">{{ message() }}</p> }
     @if (loading()) { <p role="status">Se încarcă cererea…</p> }
     <form [formGroup]="form" (ngSubmit)="save(false)">
@@ -115,7 +115,15 @@ import { ROMANIAN_COUNTIES } from '../../shared/romanian-counties';
           <ul>@for (error of validationErrors(); track error) { <li>{{ error }}</li> }</ul></div>
       }
       <footer><button class="secondary" type="submit" [disabled]="saving()">Salvează ciorna</button>
-        <button type="button" (click)="save(true)" [disabled]="saving()">{{ saving() ? 'Se salvează…' : 'Salvează și publică' }}</button></footer>
+        <button type="button" (click)="openPreview()" [disabled]="saving()">Verifică înainte de trimitere →</button></footer>
+      @if (previewing()) {
+        <section class="request-preview" role="dialog" aria-modal="true" aria-labelledby="preview-title">
+          <div><p class="eyebrow">Verificare finală</p><h2 id="preview-title">Cererea ta</h2><p>Totul este corect? Nimic nu este trimis furnizorilor până nu confirmi.</p></div>
+          <dl><div><dt>Ce cauți</dt><dd>{{ form.controls.title.value }}</dd></div><div><dt>Livrare</dt><dd>{{ form.controls.deliveryLocality.value }}, {{ form.controls.county.value }}</dd></div><div><dt>Poziții</dt><dd>{{ items.length ? items.length + ' poziții' : 'Cerere generală' }}</dd></div><div><dt>Oferte până la</dt><dd>{{ form.controls.quotationDeadline.value }}</dd></div></dl>
+          <ul>@for (item of items.controls; track $index) { <li>{{ item.controls['productName'].value }} — {{ item.controls['quantity'].value }} {{ unitLabel(item.controls['unit'].value) }}</li> }</ul>
+          <div class="preview-actions"><button type="button" class="secondary" (click)="previewing.set(false)">Modifică</button><button type="button" (click)="save(true)" [disabled]="saving()">{{ saving() ? 'Se trimite…' : 'Trimite cererea' }}</button></div>
+        </section>
+      }
     </form>
   </main>`,
   styleUrl: './rfq-editor.component.scss',
@@ -148,6 +156,7 @@ export class RfqEditorComponent {
   readonly itemMessage = signal('');
   readonly expandedItemIndex = signal<number | null>(null);
   readonly validationErrors = signal<string[]>([]);
+  readonly previewing = signal(false);
   readonly pastedLines = new FormControl('', { nonNullable: true });
   readonly rfqId = this.route.snapshot.paramMap.get('rfqId');
   readonly assistedSessionId = this.route.snapshot.queryParamMap.get('assistedSession');
@@ -302,6 +311,23 @@ export class RfqEditorComponent {
     this.importMessage.set(invalid.length?`Au fost adăugate ${added} rânduri. Verifică rândurile ${invalid.join(', ')}: cantitatea sau unitatea nu este validă.`:`Au fost adăugate ${added} materiale.`);
     if(added) this.pastedLines.reset();
   }
+  openPreview(): void {
+    this.message.set(''); this.hasError.set(false); this.validationErrors.set([]);
+    if (this.form.invalid) {
+      this.form.markAllAsTouched();
+      this.validationErrors.set(this.collectValidationErrors());
+      this.hasError.set(true);
+      const invalidItemIndex=this.items.controls.findIndex(item=>item.invalid);
+      if(invalidItemIndex>=0) this.expandedItemIndex.set(invalidItemIndex);
+      this.scrollToFirstInvalidField();
+      return;
+    }
+    this.previewing.set(true);
+    setTimeout(()=>{
+      const preview=this.host.nativeElement.querySelector('.request-preview') as HTMLElement | null;
+      if (typeof preview?.scrollIntoView === 'function') preview.scrollIntoView({behavior:'smooth',block:'center'});
+    });
+  }
   save(publish:boolean):void {
     this.message.set(''); this.hasError.set(false); this.validationErrors.set([]);
     if(this.form.invalid){
@@ -313,7 +339,7 @@ export class RfqEditorComponent {
       this.scrollToFirstInvalidField();
       return;
     }
-    this.saving.set(true); const draft=this.toDraft();
+    this.previewing.set(false); this.saving.set(true); const draft=this.toDraft();
     const saveRequest=this.rfqId?this.service.update(this.rfqId,draft):this.assistedSessionId?this.assistedService.approve(this.assistedSessionId,draft,true):this.service.create(draft);
     saveRequest.pipe(switchMap(saved=>publish?this.service.publish(saved.id):[saved])).subscribe({
       next: saved => {this.saving.set(false);void this.router.navigateByUrl('/dashboard',{state:{message:saved.status==='Published'?'Cererea a fost publicată.':'Ciorna a fost salvată.'}});},

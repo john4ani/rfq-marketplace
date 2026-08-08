@@ -21,6 +21,7 @@ describe('OfferEditorComponent', () => {
     primaryCategoryId: 'category-1',
     categoryName: 'Categorie',
     buyerDisplayName: 'Cumpărător',
+    buyerTrustFacts: null,
     deliveryLocality: 'Iași',
     county: 'Iași',
     preferredDeliveryDate: null,

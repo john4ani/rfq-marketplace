@@ -1,5 +1,6 @@
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
+using System.Diagnostics;
 using System.Globalization;
 using System.Security.Cryptography;
 using System.Text;
@@ -7,13 +8,15 @@ using System.Text.Json;
 using System.Text.Json.Nodes;
 using Marketplace.Application.AiIntake;
 using Marketplace.Domain.Rfqs;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
 namespace Marketplace.Infrastructure.AiIntake;
 
-internal sealed class OpenAiNeedExtractionProvider(
+internal sealed partial class OpenAiNeedExtractionProvider(
     HttpClient httpClient,
-    IOptions<AiIntakeOptions> options) : INeedExtractionProvider
+    IOptions<AiIntakeOptions> options,
+    ILogger<OpenAiNeedExtractionProvider> logger) : INeedExtractionProvider
 {
     private readonly AiIntakeOptions settings = options.Value;
     public bool IsAvailable => settings.Enabled
@@ -23,26 +26,65 @@ internal sealed class OpenAiNeedExtractionProvider(
 
     public async Task<NeedExtractionOutcome> ExtractAsync(NeedExtractionContext context, CancellationToken cancellationToken)
     {
+        Stopwatch stopwatch = Stopwatch.StartNew();
+        int? statusCode = null;
         using var request = new HttpRequestMessage(HttpMethod.Post, settings.Endpoint);
         if (settings.Provider == AiIntakeProvider.AzureOpenAi)
             request.Headers.Add("api-key", settings.ApiKey);
         else
             request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", settings.ApiKey);
         request.Content = JsonContent.Create(BuildRequest(context));
-        using HttpResponseMessage response = await httpClient.SendAsync(request, cancellationToken);
-        string responseBody = await response.Content.ReadAsStringAsync(cancellationToken);
-        if (!response.IsSuccessStatusCode)
-            throw new HttpRequestException($"AI intake provider returned {(int)response.StatusCode}.");
+        try
+        {
+            using HttpResponseMessage response = await httpClient.SendAsync(request, cancellationToken);
+            statusCode = (int)response.StatusCode;
+            string responseBody = await response.Content.ReadAsStringAsync(cancellationToken);
+            if (!response.IsSuccessStatusCode)
+                throw new HttpRequestException($"AI intake provider returned {statusCode}.");
 
-        using JsonDocument document = JsonDocument.Parse(responseBody);
-        string outputText = document.RootElement.GetProperty("output").EnumerateArray()
-            .SelectMany(item => item.TryGetProperty("content", out JsonElement content) ? content.EnumerateArray() : [])
-            .Where(item => item.TryGetProperty("type", out JsonElement type) && type.GetString() == "output_text")
-            .Select(item => item.GetProperty("text").GetString()).FirstOrDefault()
-            ?? throw new InvalidOperationException("AI intake provider did not return structured output.");
-        AiExtraction extraction = JsonSerializer.Deserialize<AiExtraction>(outputText, JsonOptions)
-            ?? throw new InvalidOperationException("AI intake structured output is empty.");
-        return Map(context, extraction, document.RootElement);
+            using JsonDocument document = JsonDocument.Parse(responseBody);
+            string outputText = document.RootElement.GetProperty("output").EnumerateArray()
+                .SelectMany(item => item.TryGetProperty("content", out JsonElement content) ? content.EnumerateArray() : [])
+                .Where(item => item.TryGetProperty("type", out JsonElement type) && type.GetString() == "output_text")
+                .Select(item => item.GetProperty("text").GetString()).FirstOrDefault()
+                ?? throw new InvalidOperationException("AI intake provider did not return structured output.");
+            AiExtraction extraction = JsonSerializer.Deserialize<AiExtraction>(outputText, JsonOptions)
+                ?? throw new InvalidOperationException("AI intake structured output is empty.");
+            NeedExtractionOutcome outcome = Map(context, extraction, document.RootElement);
+            if (logger.IsEnabled(LogLevel.Information))
+            {
+                string providerName = ProviderName();
+                string endpointHost = EndpointHost();
+                long durationMs = stopwatch.ElapsedMilliseconds;
+                LogProviderCompleted(logger, providerName, settings.Model, endpointHost, statusCode.Value,
+                    durationMs, outcome.InputTokens, outcome.OutputTokens);
+            }
+            return outcome;
+        }
+        catch (OperationCanceledException exception) when (cancellationToken.IsCancellationRequested)
+        {
+            if (logger.IsEnabled(LogLevel.Warning))
+            {
+                string providerName = ProviderName();
+                string endpointHost = EndpointHost();
+                long durationMs = stopwatch.ElapsedMilliseconds;
+                LogProviderCancelled(logger, providerName, settings.Model, endpointHost, statusCode,
+                    durationMs, exception);
+            }
+            throw;
+        }
+        catch (Exception exception)
+        {
+            if (logger.IsEnabled(LogLevel.Warning))
+            {
+                string providerName = ProviderName();
+                string endpointHost = EndpointHost();
+                long durationMs = stopwatch.ElapsedMilliseconds;
+                LogProviderFailed(logger, providerName, settings.Model, endpointHost, statusCode,
+                    durationMs, exception);
+            }
+            throw;
+        }
     }
 
     private object BuildRequest(NeedExtractionContext context)
@@ -68,6 +110,8 @@ internal sealed class OpenAiNeedExtractionProvider(
             nu considera cererea publicată sau aprobată.
 
             categorySlug trebuie să fie null sau unul dintre slug-urile furnizate. Scrie toate textele în română.
+            Pentru fiecare poziție cu cantitate, unit trebuie să fie una dintre valorile permise de schemă; nu lăsa unit null.
+            Pentru servicii discrete fără altă unitate potrivită, folosește Piece.
             """;
         string input = $"""
             Descriere inițială:
@@ -85,10 +129,10 @@ internal sealed class OpenAiNeedExtractionProvider(
         {
             model = settings.Model,
             store = false,
-            reasoning = new { effort = "low" },
+            reasoning = new { effort = settings.ReasoningEffort },
             safety_identifier = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(context.BuyerId.ToString()))).ToLowerInvariant(),
             input = new[] { new { role = "system", content = instructions }, new { role = "user", content = input } },
-            text = new { format = new { type = "json_schema", name = "procurement_need", strict = true, schema = Schema } },
+            text = new { verbosity = settings.TextVerbosity, format = new { type = "json_schema", name = "procurement_need", strict = true, schema = Schema } },
             max_output_tokens = 2500
         };
     }
@@ -132,6 +176,25 @@ internal sealed class OpenAiNeedExtractionProvider(
         ? "Azure OpenAI"
         : "OpenAI";
 
+    private string EndpointHost() => Uri.TryCreate(settings.Endpoint, UriKind.Absolute, out Uri? endpoint)
+        ? endpoint.Host
+        : "invalid-endpoint";
+
+    [LoggerMessage(EventId = 4201, Level = LogLevel.Information,
+        Message = "AI intake provider call completed. Provider: {Provider}; model: {Model}; endpoint host: {EndpointHost}; status: {StatusCode}; duration: {DurationMs}ms; input tokens: {InputTokens}; output tokens: {OutputTokens}.")]
+    private static partial void LogProviderCompleted(ILogger logger, string provider, string model, string endpointHost,
+        int statusCode, long durationMs, int inputTokens, int outputTokens);
+
+    [LoggerMessage(EventId = 4202, Level = LogLevel.Warning,
+        Message = "AI intake provider call was cancelled. Provider: {Provider}; model: {Model}; endpoint host: {EndpointHost}; status: {StatusCode}; duration: {DurationMs}ms.")]
+    private static partial void LogProviderCancelled(ILogger logger, string provider, string model, string endpointHost,
+        int? statusCode, long durationMs, Exception exception);
+
+    [LoggerMessage(EventId = 4203, Level = LogLevel.Warning,
+        Message = "AI intake provider call failed. Provider: {Provider}; model: {Model}; endpoint host: {EndpointHost}; status: {StatusCode}; duration: {DurationMs}ms.")]
+    private static partial void LogProviderFailed(ILogger logger, string provider, string model, string endpointHost,
+        int? statusCode, long durationMs, Exception exception);
+
     private static int ReadUsage(JsonElement root, string property) =>
         root.TryGetProperty("usage", out JsonElement usage) && usage.TryGetProperty(property, out JsonElement value)
             ? value.GetInt32() : 0;
@@ -169,7 +232,7 @@ internal sealed class OpenAiNeedExtractionProvider(
         "preferredDeliveryDate":{"type":["string","null"]},"quotationDeadline":{"type":"string"},
         "alternativeProductsAccepted":{"type":"boolean"},"allowSplit":{"type":"boolean"},"deliveryRequired":{"type":"boolean"},
         "estimatedBudget":{"type":["number","null"]},"buyerNotes":{"type":["string","null"]},
-        "lines":{"type":"array","items":{"type":"object","additionalProperties":false,"required":["kind","name","specification","quantity","unit","alternativesAccepted","categorySlug"],"properties":{"kind":{"type":"string","enum":["Product","Service"]},"name":{"type":"string"},"specification":{"type":["string","null"]},"quantity":{"type":["number","null"]},"unit":{"type":["string","null"]},"alternativesAccepted":{"type":"boolean"},"categorySlug":{"type":["string","null"]}}}},
+        "lines":{"type":"array","items":{"type":"object","additionalProperties":false,"required":["kind","name","specification","quantity","unit","alternativesAccepted","categorySlug"],"properties":{"kind":{"type":"string","enum":["Product","Service"]},"name":{"type":"string"},"specification":{"type":["string","null"]},"quantity":{"type":["number","null"]},"unit":{"anyOf":[{"type":"null"},{"type":"string","enum":["Piece","Pack","Bag","Kilogram","Tonne","Metre","SquareMetre","CubicMetre","Litre","Pallet","Other"]}]},"alternativesAccepted":{"type":"boolean"},"categorySlug":{"type":["string","null"]}}}},
         "assumptions":{"type":"array","items":{"type":"string"}},"uncertainties":{"type":"array","items":{"type":"string"}},
         "researchSources":{"type":"array","items":{"type":"object","additionalProperties":false,"required":["title","url","finding"],"properties":{"title":{"type":"string"},"url":{"type":"string"},"finding":{"type":"string"}}}},
         "clarification":{"anyOf":[{"type":"null"},{"type":"object","additionalProperties":false,"required":["field","question","choices"],"properties":{"field":{"type":"string","enum":["Category","Quantity","Specification","ProjectScope","DeliveryAddress","DeliveryDate"]},"question":{"type":"string"},"choices":{"type":"array","items":{"type":"string"}}}}]}

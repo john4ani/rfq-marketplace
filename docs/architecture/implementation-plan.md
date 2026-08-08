@@ -71,6 +71,8 @@ Add email, phone, and company verification state; profile completeness; particip
 
 ## Pasul 9A — UX and adoption critical-path pass
 
+**Status:** implemented — the expanded UX hardening scope, audit, and verification record are in `docs/product/step-9a-ux-audit.md` and `docs/architecture/step-9a-ux-verification.md`.
+
 Before expanding analytics or concierge administration, conduct a focused UX/adoption pass across the procurement critical path: **start → describe need → AI clarification → preview → matching → publish → offers → compare → outcome**.
 
 The objective is a calm, familiar, trustworthy, guided, and forgiving experience for people who may prefer phone or WhatsApp and have little patience for complex software. Prioritise immediate evidence that the system understood the need; one relevant AI question at a time; adaptive depth; progressive disclosure; visible/editable defaults; drafts and resume; plain human language; WhatsApp-friendly sharing/import; clear completion; and explainable, dismissible assistance.
