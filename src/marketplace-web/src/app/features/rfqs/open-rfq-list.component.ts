@@ -27,18 +27,20 @@ import { TrustFactsComponent } from '../profiles/trust-facts.component';
         <input #searchInput type="search" placeholder="Produs, proiect sau localitate" (keyup.enter)="load(searchInput.value, categoryInput.value)">
       </label>
       <label>Categorie
-        <select #categoryInput>
+        <select #categoryInput (change)="load(searchInput.value, categoryInput.value)">
           <option value="">Toate categoriile potrivite</option>
           @for (category of categories(); track category.id) { <option [value]="category.id">{{ category.name }}</option> }
         </select>
       </label>
-      <button type="button" (click)="load(searchInput.value, categoryInput.value)">Aplică filtrele</button>
     </section>
+    <aside class="matching-explanation"><span aria-hidden="true">✓</span><div><strong>De ce vezi aceste cereri?</strong>
+      <p>Se potrivesc cu cel puțin o categorie din profilul firmei și cu zona în care ai spus că poți livra. O potrivire parțială arată numai pozițiile relevante pentru specializarea ta.</p></div>
+      <a routerLink="/account">Verifică preferințele</a></aside>
 
     @if (loading()) {
       <div class="loading-grid" role="status" aria-label="Se încarcă cererile"><span></span><span></span><span></span></div>
     }
-    @if (error()) { <p class="state error" role="alert">{{ error() }}</p> }
+    @if (error()) { <section class="state error" role="alert"><div><strong>Cererile nu sunt disponibile momentan.</strong><span>{{ error() }}</span></div><button type="button" (click)="load()">Încearcă din nou</button></section> }
     @if (!loading() && !error() && requests().length === 0) {
       <section class="state empty"><span class="empty-icon" aria-hidden="true">⌕</span><div><strong>Nu există cereri potrivite acum.</strong>
         <span>Poți ajusta categoriile și județele deservite pentru a primi potriviri mai bune.</span></div>
@@ -52,6 +54,7 @@ import { TrustFactsComponent } from '../profiles/trust-facts.component';
               <span class="deadline" [class.urgent]="daysRemaining(request.quotationDeadline) <= 2">{{ deadlineLabel(request.quotationDeadline) }}</span></div>
             <h2>{{ request.title }}</h2>
             <p class="buyer">{{ request.buyerDisplayName }} · {{ request.deliveryLocality }}, {{ request.county }}</p>
+            <p class="match-reason"><span aria-hidden="true">✓</span><strong>Potrivire după {{ request.categoryName }}</strong> și zona {{ request.county }}</p>
             <p class="description">{{ request.description || request.projectName || 'Cerere generală de ofertă' }}</p>
             <dl>
               <div><dt>Poziții</dt><dd>{{ request.items.length || 'Cerere generală' }}</dd></div>

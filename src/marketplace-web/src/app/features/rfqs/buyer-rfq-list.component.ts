@@ -13,8 +13,8 @@ import { ProcurementOutcome, Rfq, RfqService, RfqStatus } from '../../core/rfqs/
         <p>Pregătește o listă de materiale și public-o atunci când este completă.</p></div>
         <a class="primary-link" routerLink="/rfqs/new">Cerere nouă</a>
       </header>
-      @if (loading()) { <p role="status">Se încarcă cererile…</p> }
-      @if (error()) { <p class="error" role="alert">{{ error() }}</p> }
+      @if (loading()) { <div class="loading-board" role="status" aria-label="Se încarcă cererile"><span></span><span></span><span></span></div> }
+      @if (error()) { <div class="error-state" role="alert"><div><strong>Cererile nu sunt disponibile momentan.</strong><span>{{ error() }}</span></div><button type="button" (click)="load()">Încearcă din nou</button></div> }
       @if (!loading() && rfqs().length === 0) {
         <div class="empty"><strong>Nu ai încă nicio cerere.</strong>
           <span>Începe cu o ciornă; o poți verifica înainte să o publici.</span></div>
@@ -101,7 +101,7 @@ export class BuyerRfqListComponent {
       NoSuitableOffer:'Fără ofertă potrivită', InsufficientResponses:'Răspunsuri insuficiente', Other:'Închisă'
     })[outcome];
   }
-  private load(): void {
+  load(): void {
     this.loading.set(true); this.error.set('');
     this.service.getMine().subscribe({
       next: values => {

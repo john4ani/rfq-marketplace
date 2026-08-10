@@ -2,6 +2,7 @@ import { TestBed } from '@angular/core/testing';
 import { provideHttpClient } from '@angular/common/http';
 import { provideRouter } from '@angular/router';
 import { App } from './app';
+import { AuthService } from './core/auth/auth.service';
 import { BackendAvailabilityService } from './core/connectivity/backend-availability.service';
 
 describe('App', () => {
@@ -28,5 +29,31 @@ describe('App', () => {
     const status = (fixture.nativeElement as HTMLElement).querySelector<HTMLElement>('.service-status');
     expect(status?.textContent).toContain('Serviciul este temporar indisponibil');
     expect(status?.querySelector('button')?.textContent).toContain('Reîncearcă');
+  });
+
+  it('opens and closes the complete mobile navigation without losing account actions', () => {
+    const auth = TestBed.inject(AuthService);
+    Object.defineProperties(auth, {
+      isAuthenticated: { value: () => true },
+      isAdministrator: { value: () => false },
+      session: { value: () => ({ userId: 'user-1', email: 'buyer@example.com', accountType: 'Buyer', roles: ['Buyer'] }) },
+      profiles: { value: () => [{ userId: 'user-1', email: 'buyer@example.com', accountType: 'Buyer' }] }
+    });
+    const fixture = TestBed.createComponent(App);
+    fixture.detectChanges();
+
+    const toggle = (fixture.nativeElement as HTMLElement).querySelector<HTMLButtonElement>('.mobile-menu-toggle')!;
+    toggle.click();
+    fixture.detectChanges();
+
+    const rail = (fixture.nativeElement as HTMLElement).querySelector<HTMLElement>('.side-rail');
+    expect(rail?.classList.contains('mobile-open')).toBe(true);
+    expect(rail?.textContent).toContain('Piața Live');
+    expect(rail?.textContent).toContain('Contul meu');
+    expect(rail?.textContent).toContain('Deconectare');
+
+    (fixture.nativeElement as HTMLElement).querySelector<HTMLButtonElement>('.navigation-scrim')!.click();
+    fixture.detectChanges();
+    expect(rail?.classList.contains('mobile-open')).toBe(false);
   });
 });

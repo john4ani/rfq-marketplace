@@ -2,8 +2,9 @@ import { HttpErrorResponse } from '@angular/common/http';
 import { ChangeDetectionStrategy, Component, ElementRef, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
+import { of, switchMap, tap } from 'rxjs';
 import { AssistedDraft, AssistedIntakeResult, AssistedIntakeService } from '../../core/rfqs/assisted-intake.service';
-import { RfqDraft, UnitOfMeasure } from '../../core/rfqs/rfq.service';
+import { RfqDraft, RfqService, UnitOfMeasure } from '../../core/rfqs/rfq.service';
 import { CategoryOption, SupplierSettingsService } from '../../core/suppliers/supplier-settings.service';
 import { ROMANIAN_COUNTIES } from '../../shared/romanian-counties';
 import { unitLabel } from '../../shared/unit-label';
@@ -13,8 +14,9 @@ import { unitLabel } from '../../shared/unit-label';
   imports: [FormsModule, RouterLink],
   template: `<main class="intake-shell">
     <a class="back" routerLink="/dashboard">← Înapoi acasă</a>
-    <header><p class="eyebrow">Cerere nouă</p><h1>Spune-ne ce ai nevoie</h1>
-      <p>Scrie natural, ca într-un mesaj. Asistentul îți pune doar întrebările care mai contează.</p></header>
+    <header><div class="assistant-title"><span aria-hidden="true">✦</span><div><p class="eyebrow">Cerere asistată</p><h1>Spune-ne ce ai nevoie</h1></div></div>
+      <p>Scrie natural, ca într-un mesaj. Asistentul îți pune doar întrebările care mai contează.</p>
+      <ol class="stage-list" aria-label="Etapele cererii"><li class="active">Descriere</li><li [class.active]="!!result()?.clarification">Clarificare</li><li [class.active]="!!result() && !result()?.clarification">Verificare</li></ol></header>
     @if (checkingAvailability()) {
       <section class="start-card" aria-live="polite">Se pregătește asistentul…</section>
     } @else if (!result()) {
@@ -25,7 +27,7 @@ import { unitLabel } from '../../shared/unit-label';
           <button type="button" (click)="start()" [disabled]="busy() || input.trim().length < 10">{{ busy() ? 'Analizăm ce ai nevoie…' : 'Continuă cu AI →' }}</button></div>
       </section>
     } @else {
-      <div class="workspace">
+      <div class="workspace" [class.reviewing]="!result()?.clarification">
         <section class="conversation">
           <div class="user-message"><span>Ai descris</span><p>{{ input }}</p></div>
           @for (entry of result()?.answers; track $index) {
@@ -38,22 +40,37 @@ import { unitLabel } from '../../shared/unit-label';
             </div>
           } @else { <div class="ready"><strong>Draft pregătit pentru verificare</strong><p>Nu este publicat automat. Îl poți corecta înainte să-l salvezi.</p></div> }
         </section>
-        <aside class="understanding"><h2>Ce am înțeles</h2>
-          <label>Titlu *<input [(ngModel)]="draft.title"></label>
-          <label>Categorie *<select [(ngModel)]="draft.primaryCategoryId"><option [ngValue]="null">Alege categoria</option>@for(category of leafCategories();track category.id){<option [value]="category.id">{{category.name}}</option>}</select></label>
-          <label>Descriere<textarea [(ngModel)]="draft.description" rows="3"></textarea></label>
-          <div class="two"><label>Localitate *<input [(ngModel)]="draft.deliveryLocality"></label><label>Județ *<input [(ngModel)]="draft.county"></label></div>
-          <label>Adresă de livrare *<input [(ngModel)]="draft.deliveryAddress"></label>
-          <h3>Produse sau servicii</h3>
-          @for(line of draft.lines;track $index){<div class="line"><select [(ngModel)]="line.kind"><option value="Product">Produs</option><option value="Service">Serviciu</option></select><input class="name" [(ngModel)]="line.name" aria-label="Denumire"><input type="number" min="0.01" [(ngModel)]="line.quantity" aria-label="Cantitate"><select [(ngModel)]="line.unit"><option [ngValue]="null">Unitate</option>@for(unit of units;track unit){<option [value]="unit">{{unitLabel(unit)}}</option>}</select></div>}
-          @if(result()?.assumptions?.length){<details open><summary>Presupuneri</summary><ul>@for(item of result()?.assumptions;track item){<li>{{item}}</li>}</ul></details>}
-          @if(result()?.uncertainties?.length){<details open class="uncertain"><summary>De verificat</summary><ul>@for(item of result()?.uncertainties;track item){<li>{{item}}</li>}</ul></details>}
-          @if(result()?.researchSources?.length){<details open class="sources"><summary>Surse folosite pentru propunere</summary><ul>@for(source of result()?.researchSources;track source.url){<li><a [href]="source.url" target="_blank" rel="noopener noreferrer">{{source.title}}</a><p>{{source.finding}}</p></li>}</ul></details>}
-          @if (!result()?.clarification) { <button class="approve" type="button" (click)="approve()" [disabled]="busy()">{{busy()?'Se salvează…':'Aprobă și salvează ciorna'}}</button> }
-          @if (!result()?.clarification) {
-            <a class="advanced" routerLink="/rfqs/new/advanced" [queryParams]="{assistedSession: result()?.sessionId}">Continuă acest draft în formularul avansat</a>
+        <aside class="understanding">
+          @if (result()?.clarification) {
+            <div class="understanding-heading"><span aria-hidden="true">✓</span><div><p class="eyebrow">Pe măsură ce răspunzi</p><h2>Ce am înțeles până acum</h2></div></div>
+            <dl class="known-facts">
+              <div><dt>Nevoie</dt><dd>{{ draft.title || 'Încă o clarificăm' }}</dd></div>
+              <div><dt>Categorie</dt><dd>{{ categoryName(draft.primaryCategoryId) }}</dd></div>
+              <div><dt>Livrare</dt><dd>{{ draft.deliveryLocality || draft.county ? (draft.deliveryLocality + (draft.county ? ', ' + draft.county : '')) : 'De stabilit' }}</dd></div>
+              <div><dt>Poziții propuse</dt><dd>{{ draft.lines.length || 'În curs de pregătire' }}</dd></div>
+            </dl>
+            @if(result()?.assumptions?.length){<details><summary>Presupuneri de confirmat</summary><ul>@for(item of result()?.assumptions;track item){<li>{{item}}</li>}</ul></details>}
+            @if(result()?.uncertainties?.length){<details class="uncertain"><summary>Informații încă necesare</summary><ul>@for(item of result()?.uncertainties;track item){<li>{{item}}</li>}</ul></details>}
+            <p class="advanced-note">Răspunde la întrebarea din stânga. Vei putea verifica și corecta propunerea completă înainte de salvare.</p>
           } @else {
-            <p class="advanced-note">După această clarificare poți continua același draft în formularul avansat.</p>
+            <div class="understanding-heading"><span aria-hidden="true">✓</span><div><p class="eyebrow">Confirmare umană</p><h2>Verifică propunerea</h2></div></div>
+            <p class="review-note">Acesta este un draft editabil. Verifică datele esențiale înainte să îl salvezi.</p>
+            <section class="preview-group"><h3>Despre nevoie</h3>
+              <label>Titlu *<input [(ngModel)]="draft.title"></label>
+              <label>Categorie *<select [(ngModel)]="draft.primaryCategoryId"><option [ngValue]="null">Alege categoria</option>@for(category of leafCategories();track category.id){<option [value]="category.id">{{category.name}}</option>}</select></label>
+              <label>Descriere<textarea [(ngModel)]="draft.description" rows="3"></textarea></label></section>
+            <section class="preview-group"><h3>Livrare</h3><div class="two"><label>Localitate *<input [(ngModel)]="draft.deliveryLocality"></label><label>Județ *<input [(ngModel)]="draft.county"></label></div>
+              <label>Adresă de livrare *<input [(ngModel)]="draft.deliveryAddress"></label></section>
+            <section class="preview-group"><h3>Produse sau servicii <span>{{ draft.lines.length }}</span></h3>
+              @for(line of draft.lines;track $index){<div class="line"><select [(ngModel)]="line.kind"><option value="Product">Produs</option><option value="Service">Serviciu</option></select><input class="name" [(ngModel)]="line.name" aria-label="Denumire"><input type="number" min="0.01" [(ngModel)]="line.quantity" aria-label="Cantitate"><select [(ngModel)]="line.unit"><option [ngValue]="null">Unitate</option>@for(unit of units;track unit){<option [value]="unit">{{unitLabel(unit)}}</option>}</select></div>}</section>
+            @if(result()?.assumptions?.length){<details><summary>Presupuneri</summary><ul>@for(item of result()?.assumptions;track item){<li>{{item}}</li>}</ul></details>}
+            @if(result()?.uncertainties?.length){<details open class="uncertain"><summary>De verificat</summary><ul>@for(item of result()?.uncertainties;track item){<li>{{item}}</li>}</ul></details>}
+            @if(result()?.researchSources?.length){<details class="sources"><summary>Surse folosite pentru propunere</summary><ul>@for(source of result()?.researchSources;track source.url){<li><a [href]="source.url" target="_blank" rel="noopener noreferrer">{{source.title}}</a><p>{{source.finding}}</p></li>}</ul></details>}
+            <div class="approval-actions">
+              <button class="save-draft" type="button" (click)="approve(false)" [disabled]="busy()">Salvează ciorna</button>
+              <button class="approve" type="button" (click)="approve(true)" [disabled]="busy()">{{busy()?'Se publică…':'Confirmă și publică'}}</button>
+            </div>
+            <a class="advanced" routerLink="/rfqs/new/advanced" [queryParams]="{assistedSession: result()?.sessionId}">Prefer lista avansată? Continuă același draft</a>
           }
         </aside>
       </div>
@@ -66,7 +83,7 @@ import { unitLabel } from '../../shared/unit-label';
   changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class AssistedIntakeComponent {
-  private readonly service=inject(AssistedIntakeService); private readonly categoriesService=inject(SupplierSettingsService);
+  private readonly service=inject(AssistedIntakeService); private readonly rfqService=inject(RfqService); private readonly categoriesService=inject(SupplierSettingsService);
   private readonly route=inject(ActivatedRoute); private readonly router=inject(Router); private readonly host=inject(ElementRef<HTMLElement>);
   readonly result=signal<AssistedIntakeResult|null>(null); readonly categories=signal<CategoryOption[]>([]); readonly busy=signal(false); readonly message=signal(''); readonly hasError=signal(false); readonly needsBuyerProfile=signal(false); readonly checkingAvailability=signal(true);
   input=''; answer=''; draft:AssistedDraft=this.emptyDraft();
@@ -85,9 +102,10 @@ export class AssistedIntakeComponent {
     },error:()=>this.fallbackToAdvanced(id)});
   }
   leafCategories(){const all=this.categories(),parents=new Set(all.flatMap(x=>x.parentId?[x.parentId]:[]));return all.filter(x=>!parents.has(x.id));}
+  categoryName(id:string|null){return this.categories().find(category=>category.id===id)?.name??(id?'Categorie selectată':'De stabilit');}
   start(){if(this.input.trim().length<10)return;this.busy.set(true);this.clear();this.service.start(this.input.trim()).subscribe({next:v=>{this.apply(v);void this.router.navigate([], {queryParams:{session:v.sessionId},replaceUrl:true});},error:e=>this.fail(e)});}
   clarify(){if(!this.answer.trim()||!this.result())return;this.busy.set(true);this.clear();this.service.clarify(this.result()!.sessionId,this.answer.trim()).subscribe({next:v=>{this.answer='';this.apply(v);},error:e=>this.fail(e)});}
-  approve(){const invalid=this.validate();if(invalid){this.message.set(invalid);this.hasError.set(true);this.scrollError();return;}this.busy.set(true);this.clear();this.service.approve(this.result()!.sessionId,this.toRfqDraft()).subscribe({next:rfq=>void this.router.navigate(['/rfqs',rfq.id,'edit'],{queryParams:{assisted:'saved'}}),error:e=>this.fail(e)});}
+  approve(publish=false){const invalid=this.validate();if(invalid){this.message.set(invalid);this.hasError.set(true);this.scrollError();return;}this.busy.set(true);this.clear();let draftSaved=false;this.service.approve(this.result()!.sessionId,this.toRfqDraft()).pipe(tap(()=>draftSaved=true),switchMap(rfq=>publish?this.rfqService.publish(rfq.id):of(rfq))).subscribe({next:rfq=>void this.router.navigate(publish?['/rfqs',rfq.id,'offers']:['/rfqs',rfq.id,'edit'],publish?undefined:{queryParams:{assisted:'saved'}}),error:e=>{if(publish&&draftSaved){this.busy.set(false);this.message.set('Ciorna a fost salvată, dar publicarea nu a reușit. Încearcă din nou; informațiile nu s-au pierdut.');this.hasError.set(true);this.scrollError();return;}this.fail(e);}});}
   private apply(value:AssistedIntakeResult){this.result.set(value);this.input=value.initialInput;this.draft=structuredClone(value.draft);this.draft.county=this.canonicalCounty(this.draft.county);this.busy.set(false);}
   private validate(){if(!this.draft.title.trim())return'Titlul este obligatoriu.';if(!this.draft.primaryCategoryId)return'Selectează cel puțin o categorie.';if(!this.draft.deliveryAddress.trim())return'Completează adresa de livrare.';if(!this.draft.deliveryLocality.trim()||!this.draft.county.trim())return'Completează localitatea și județul.';if(this.draft.lines.some(x=>!x.name.trim()||!x.quantity||x.quantity<=0||!x.unit))return'Verifică denumirea, cantitatea și unitatea fiecărei poziții.';return'';}
   private toRfqDraft():RfqDraft{const categoryIds=Array.from(new Set([this.draft.primaryCategoryId,...this.draft.lines.map(line=>line.categoryId)].filter((id):id is string=>!!id)));const needType=this.draft.inputType==='ProjectDescription'?'Project':this.draft.inputType==='ShoppingList'?'ShoppingList':'DirectPurchase';return{source:'Assisted',inputType:this.draft.inputType,needType,projectTemplateId:null,categoryIds,title:this.draft.title,projectName:this.draft.projectName,description:this.draft.description,primaryCategoryId:this.draft.primaryCategoryId!,deliveryAddress:this.draft.deliveryAddress,deliveryLocality:this.draft.deliveryLocality,county:this.draft.county,supplierSearchRadiusKm:this.draft.supplierSearchRadiusKm,latitude:null,longitude:null,preferredDeliveryDate:this.draft.preferredDeliveryDate,quotationDeadline:this.draft.quotationDeadline,alternativeProductsAccepted:this.draft.alternativeProductsAccepted,estimatedBudget:this.draft.estimatedBudget,buyerNotes:this.draft.buyerNotes,allowSplit:this.draft.allowSplit,deliveryRequired:this.draft.deliveryRequired,items:this.draft.lines.map(x=>({productName:x.name,manufacturerOrBrand:null,specification:x.specification,quantity:x.quantity!,unit:x.unit!,alternativesAccepted:x.alternativesAccepted,buyerNotes:null,categoryId:x.categoryId,kind:x.kind}))};}

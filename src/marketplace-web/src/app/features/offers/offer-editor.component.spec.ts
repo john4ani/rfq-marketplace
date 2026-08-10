@@ -63,6 +63,71 @@ describe('OfferEditorComponent', () => {
     expect(fixture.componentInstance.draft().deliveryIncluded).toBe(true);
   });
 
+  it('uses one total price for a simple single-position request', async () => {
+    await TestBed.configureTestingModule({
+      imports: [OfferEditorComponent],
+      providers: [{ provide: OfferService, useValue: { getForRequest: () => of(null) } }]
+    }).compileComponents();
+    const fixture = TestBed.createComponent(OfferEditorComponent);
+    fixture.componentRef.setInput('request', {
+      ...itemizedRequest,
+      id: 'rfq-pellets',
+      title: '6 tone peleți',
+      isPartialMatch: false,
+      items: [{ ...itemizedRequest.items[0], productName: 'Peleți', quantity: 6, unit: 'Tonne' }]
+    });
+    fixture.detectChanges();
+
+    const text = (fixture.nativeElement as HTMLElement).textContent ?? '';
+    expect(fixture.componentInstance.draft().pricingMode).toBe('Total');
+    expect(text).toContain('Preț total, inclusiv livrarea');
+    expect(text).not.toContain('Preț pe fiecare poziție');
+    expect(text).not.toContain('Cum vrei să prezinți prețul?');
+  });
+
+  it('uses total pricing when delivery is stored as a service line', async () => {
+    await TestBed.configureTestingModule({
+      imports: [OfferEditorComponent],
+      providers: [{ provide: OfferService, useValue: { getForRequest: () => of(null) } }]
+    }).compileComponents();
+    const fixture = TestBed.createComponent(OfferEditorComponent);
+    fixture.componentRef.setInput('request', {
+      ...itemizedRequest,
+      id: 'rfq-pellets-delivery',
+      isPartialMatch: false,
+      items: [
+        { ...itemizedRequest.items[0], productName: 'Pellets', quantity: 6, unit: 'Tonne', kind: 'Product' },
+        { ...itemizedRequest.items[1], productName: 'Livrare la adresa', kind: 'Service' }
+      ]
+    });
+    fixture.detectChanges();
+
+    const text = (fixture.nativeElement as HTMLElement).textContent ?? '';
+    expect(fixture.componentInstance.draft().pricingMode).toBe('Total');
+    expect(text).not.toContain('PreÈ› pe fiecare poziÈ›ie');
+    expect(text).not.toContain('Cum vrei sÄƒ prezinÈ›i preÈ›ul?');
+  });
+
+  it('offers a pricing choice for multiple commercial positions', async () => {
+    await TestBed.configureTestingModule({
+      imports: [OfferEditorComponent],
+      providers: [{ provide: OfferService, useValue: { getForRequest: () => of(null) } }]
+    }).compileComponents();
+    const fixture = TestBed.createComponent(OfferEditorComponent);
+    fixture.componentRef.setInput('request', {
+      ...itemizedRequest,
+      id: 'rfq-two-products',
+      isPartialMatch: false,
+      items: [
+        { ...itemizedRequest.items[0], productName: 'Ciment', kind: 'Product' },
+        { ...itemizedRequest.items[1], productName: 'BCA', kind: 'Product' }
+      ]
+    });
+    fixture.detectChanges();
+
+    expect(fixture.componentInstance.hasPricingModeChoice()).toBe(true);
+  });
+
   it('normalizes a legacy general offer stored as delivery cost', async () => {
     await TestBed.configureTestingModule({
       imports: [OfferEditorComponent],

@@ -12,14 +12,20 @@
         </svg>
         <span><strong>CompaSpot</strong><small>Nevoi. Oameni. Valoare.</small></span>
       </a>
+      <button class="mobile-menu-toggle" type="button" (click)="toggleMobileNavigation()"
+        [attr.aria-expanded]="mobileNavigationOpen()" aria-controls="primary-navigation">
+        <span aria-hidden="true">{{ mobileNavigationOpen() ? '×' : '☰' }}</span>
+        <span>{{ mobileNavigationOpen() ? 'Închide' : 'Meniu' }}</span>
+      </button>
     </header>
-    <aside class="side-rail" aria-label="Navigare principală">
+    @if (mobileNavigationOpen()) { <button class="navigation-scrim" type="button" aria-label="Închide meniul" (click)="closeMobileNavigation()"></button> }
+    <aside id="primary-navigation" class="side-rail" [class.mobile-open]="mobileNavigationOpen()" aria-label="Navigare principală">
       <div class="side-nav" [class.has-admin-navigation]="auth.isAdministrator()">
       <nav aria-label="Meniu principal">
-        <a class="nav-link" routerLink="/dashboard" routerLinkActive="active" [routerLinkActiveOptions]="{ exact: true }" ariaCurrentWhenActive="page"><span aria-hidden="true">⌂</span> Acasă</a>
-        <a class="nav-link" routerLink="/" routerLinkActive="active" [routerLinkActiveOptions]="{ exact: true }" ariaCurrentWhenActive="page"><span aria-hidden="true">◉</span> Piața Live</a>
-        @if (hasSupplierProfile()) { <a class="nav-link" routerLink="/open-requests" routerLinkActive="active" ariaCurrentWhenActive="page"><span aria-hidden="true">⌕</span> Cereri deschise</a> }
-        <a class="nav-link" routerLink="/participants" routerLinkActive="active" ariaCurrentWhenActive="page"><span aria-hidden="true">♧</span> Furnizori</a>
+        <a class="nav-link" routerLink="/dashboard" routerLinkActive="active" [routerLinkActiveOptions]="{ exact: true }" ariaCurrentWhenActive="page" (click)="closeMobileNavigation()"><span aria-hidden="true">⌂</span> Acasă</a>
+        <a class="nav-link" routerLink="/" routerLinkActive="active" [routerLinkActiveOptions]="{ exact: true }" ariaCurrentWhenActive="page" (click)="closeMobileNavigation()"><span aria-hidden="true">◉</span> Piața Live</a>
+        @if (hasSupplierProfile()) { <a class="nav-link" routerLink="/open-requests" routerLinkActive="active" ariaCurrentWhenActive="page" (click)="closeMobileNavigation()"><span aria-hidden="true">⌕</span> Cereri deschise</a> }
+        <a class="nav-link" routerLink="/participants" routerLinkActive="active" ariaCurrentWhenActive="page" (click)="closeMobileNavigation()"><span aria-hidden="true">♧</span> Furnizori</a>
         @if (auth.isAdministrator()) {
           <span class="nav-section-label">Administrare</span>
           <a class="nav-link admin-link" routerLink="/admin/invitations-referrals" routerLinkActive="active" ariaCurrentWhenActive="page"><span aria-hidden="true">✉</span> Invitații și recomandări</a>
@@ -31,7 +37,7 @@
       </nav>
       <div class="notification-slot"><app-notification-menu /></div>
       <div class="side-nav-footer">
-        <a class="profile-link" routerLink="/account" routerLinkActive="active" ariaCurrentWhenActive="page"><span class="profile-avatar" aria-hidden="true">{{ profileInitial() }}</span><span><strong>Contul meu</strong><small>Profil, încredere și preferințe</small></span><span aria-hidden="true">›</span></a>
+        <a class="profile-link" routerLink="/account" routerLinkActive="active" ariaCurrentWhenActive="page" (click)="closeMobileNavigation()"><span class="profile-avatar" aria-hidden="true">{{ profileInitial() }}</span><span><strong>Contul meu</strong><small>Profil, încredere și preferințe</small></span><span aria-hidden="true">›</span></a>
         <button class="side-sign-out" type="button" (click)="signOut()" [disabled]="signingOut()"><span aria-hidden="true">↪</span>{{ signingOut() ? 'Se închide sesiunea…' : 'Deconectare' }}</button>
       </div>
       </div>

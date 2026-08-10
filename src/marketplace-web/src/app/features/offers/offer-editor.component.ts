@@ -20,7 +20,7 @@ import { unitLabel } from '../../shared/unit-label';
       @if (offer()?.status === 'NotSelected') { <p class="notice">Cumpărătorul a selectat o altă ofertă.</p> }
 
       @if (editable()) {
-        @if (request().items.length > 0 && !request().isPartialMatch) {
+        @if (hasPricingModeChoice()) {
           <fieldset class="pricing-mode">
             <legend>Cum vrei să prezinți prețul?</legend>
             <label [class.selected]="draft().pricingMode === 'Total'">
@@ -187,15 +187,14 @@ export class OfferEditorComponent {
       }));
       this.service.getForRequest(request.id).subscribe(value => {
         if (!value) return;
-        const normalizeGeneralOffer = request.items.length === 0
-          && value.pricingMode === 'Itemized'
-          && value.items.length === 0;
+        const normalizeSimpleOffer = this.mustUseTotalPricing(request)
+          && value.pricingMode === 'Itemized';
         this.offer.set(value);
         this.draft.set({
-          pricingMode: normalizeGeneralOffer ? 'Total' : value.pricingMode,
-          totalPrice: normalizeGeneralOffer ? value.total : value.totalPrice,
+          pricingMode: normalizeSimpleOffer ? 'Total' : value.pricingMode,
+          totalPrice: normalizeSimpleOffer ? value.total : value.totalPrice,
           deliveryIncluded: value.deliveryIncluded,
-          deliveryCost: normalizeGeneralOffer ? 0 : value.deliveryCost,
+          deliveryCost: normalizeSimpleOffer ? 0 : value.deliveryCost,
           deliveryDays: value.deliveryDays,
           validUntil: value.validUntil,
           paymentTerms: value.paymentTerms,
@@ -215,6 +214,7 @@ export class OfferEditorComponent {
   }
 
   setPricingMode(mode: OfferPricingMode): void {
+    if (mode === 'Itemized' && this.mustUseTotalPricing()) return;
     this.draft.update(value => ({
       ...value,
       pricingMode: mode,
@@ -359,6 +359,23 @@ export class OfferEditorComponent {
       available: true,
       isAlternative: false
     }));
+  }
+
+  hasPricingModeChoice(): boolean {
+    return !this.mustUseTotalPricing();
+  }
+
+  private mustUseTotalPricing(request = this.request()): boolean {
+    return !request.isPartialMatch && this.commercialPositionCount(request) <= 1;
+  }
+
+  private commercialPositionCount(request: OpenRfq): number {
+    return request.items.filter(item => !this.isDeliveryService(item)).length;
+  }
+
+  private isDeliveryService(item: RfqItem): boolean {
+    return item.kind === 'Service'
+      && /(^|\s)(livrare|transport)(\s|$)/i.test(item.productName);
   }
 
   private orderItems(items: Offer['items']): Offer['items'] {

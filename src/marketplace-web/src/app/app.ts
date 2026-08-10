@@ -9,9 +9,18 @@ export class App {
   readonly backend = inject(BackendAvailabilityService);
   private readonly router = inject(Router);
   readonly signingOut = signal(false);
+  readonly mobileNavigationOpen = signal(false);
   readonly hasSupplierProfile = computed(() =>
     this.auth.profiles().some(profile => profile.accountType === 'Supplier'));
   readonly profileInitial = computed(() => this.auth.session()?.email?.trim().charAt(0).toLocaleUpperCase('ro-RO') || 'C');
+
+  toggleMobileNavigation(): void {
+    this.mobileNavigationOpen.update(open => !open);
+  }
+
+  closeMobileNavigation(): void {
+    this.mobileNavigationOpen.set(false);
+  }
 
   signOut(): void {
     this.signingOut.set(true);

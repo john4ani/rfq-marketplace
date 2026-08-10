@@ -4,6 +4,7 @@ import { ActivatedRoute, Router, convertToParamMap, provideRouter } from '@angul
 import { of } from 'rxjs';
 import { vi } from 'vitest';
 import { AssistedIntakeService } from '../../core/rfqs/assisted-intake.service';
+import { RfqService } from '../../core/rfqs/rfq.service';
 import { SupplierSettingsService } from '../../core/suppliers/supplier-settings.service';
 import { AssistedIntakeComponent } from './assisted-intake.component';
 
@@ -20,6 +21,7 @@ describe('AssistedIntakeComponent', () => {
       providers: [
         provideRouter([{ path: 'rfqs/new/advanced', component: AdvancedFormStub }]),
         { provide: AssistedIntakeService, useValue: { availability: () => of({ enabled: true, modelAvailable: false }) } },
+        { provide: RfqService, useValue: { publish: vi.fn() } },
         { provide: SupplierSettingsService, useValue: { getCategories: () => of([]) } }
       ]
     }).compileComponents();
@@ -52,6 +54,7 @@ describe('AssistedIntakeComponent dashboard handoff', () => {
         provideRouter([]),
         { provide: ActivatedRoute, useValue: { snapshot: { queryParamMap: convertToParamMap({ description: 'Am nevoie de 2 tone de peleți.' }) } } },
         { provide: AssistedIntakeService, useValue: { availability: () => of({ enabled: true, modelAvailable: true }), start } },
+        { provide: RfqService, useValue: { publish: vi.fn() } },
         { provide: SupplierSettingsService, useValue: { getCategories: () => of([]) } }
       ]
     }).compileComponents();
@@ -60,5 +63,43 @@ describe('AssistedIntakeComponent dashboard handoff', () => {
     fixture.detectChanges();
 
     expect(start).toHaveBeenCalledWith('Am nevoie de 2 tone de peleți.');
+  });
+});
+
+describe('AssistedIntakeComponent final confirmation', () => {
+  it('publishes the approved request directly after explicit confirmation', async () => {
+    const ready = {
+      sessionId: 'e405b27c-1846-46d1-98d5-5681581149c6', initialInput: 'Am nevoie de cherestea pentru acoperiș.', status: 'ReadyForApproval', mode: 'OpenAi',
+      provider: 'OpenAI', model: 'test', promptVersion: 'test',
+      draft: { inputType: 'FreeText', title: 'Cherestea pentru acoperiș', projectName: null, description: null, primaryCategoryId: 'wood',
+        deliveryAddress: 'Strada Exemplu 1', deliveryLocality: 'Brașov', county: 'Brașov', supplierSearchRadiusKm: 30,
+        preferredDeliveryDate: null, quotationDeadline: '2026-08-12T12:00:00Z', alternativeProductsAccepted: true,
+        allowSplit: false, deliveryRequired: true, estimatedBudget: null, buyerNotes: null,
+        lines: [{ kind: 'Product', name: 'Cherestea', specification: null, quantity: 4, unit: 'CubicMetre', alternativesAccepted: true, categoryId: 'wood' }] },
+      assumptions: [], uncertainties: [], researchSources: [], clarification: null, answers: [], inputTokens: 1, outputTokens: 1, approvedRfqId: null
+    };
+    const approve = vi.fn().mockReturnValue(of({ id: 'rfq-1' }));
+    const publish = vi.fn().mockReturnValue(of({ id: 'rfq-1' }));
+    await TestBed.configureTestingModule({
+      imports: [AssistedIntakeComponent],
+      providers: [
+        provideRouter([{ path: 'rfqs/:id/offers', component: AdvancedFormStub }]),
+        { provide: ActivatedRoute, useValue: { snapshot: { queryParamMap: convertToParamMap({ session: ready.sessionId }) } } },
+        { provide: AssistedIntakeService, useValue: { availability: () => of({ enabled: true, modelAvailable: true }), get: () => of(ready), approve } },
+        { provide: RfqService, useValue: { publish } },
+        { provide: SupplierSettingsService, useValue: { getCategories: () => of([{ id: 'wood', name: 'Lemn', parentId: null }]) } }
+      ]
+    }).compileComponents();
+
+    const fixture = TestBed.createComponent(AssistedIntakeComponent);
+    fixture.detectChanges();
+    const publishButton = Array.from(fixture.nativeElement.querySelectorAll('button') as NodeListOf<HTMLButtonElement>)
+      .find(button => button.textContent?.includes('Confirmă și publică'))!;
+    publishButton.click();
+    await fixture.whenStable();
+
+    expect(approve).toHaveBeenCalledOnce();
+    expect(publish).toHaveBeenCalledWith('rfq-1');
+    expect(TestBed.inject(Router).url).toBe('/rfqs/rfq-1/offers');
   });
 });

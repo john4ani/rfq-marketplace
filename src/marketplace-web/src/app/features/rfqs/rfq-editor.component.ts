@@ -118,10 +118,15 @@ import { ROMANIAN_COUNTIES } from '../../shared/romanian-counties';
         <button type="button" (click)="openPreview()" [disabled]="saving()">Verifică înainte de trimitere →</button></footer>
       @if (previewing()) {
         <section class="request-preview" role="dialog" aria-modal="true" aria-labelledby="preview-title">
-          <div><p class="eyebrow">Verificare finală</p><h2 id="preview-title">Cererea ta</h2><p>Totul este corect? Nimic nu este trimis furnizorilor până nu confirmi.</p></div>
-          <dl><div><dt>Ce cauți</dt><dd>{{ form.controls.title.value }}</dd></div><div><dt>Livrare</dt><dd>{{ form.controls.deliveryLocality.value }}, {{ form.controls.county.value }}</dd></div><div><dt>Poziții</dt><dd>{{ items.length ? items.length + ' poziții' : 'Cerere generală' }}</dd></div><div><dt>Oferte până la</dt><dd>{{ form.controls.quotationDeadline.value }}</dd></div></dl>
-          <ul>@for (item of items.controls; track $index) { <li>{{ item.controls['productName'].value }} — {{ item.controls['quantity'].value }} {{ unitLabel(item.controls['unit'].value) }}</li> }</ul>
-          <div class="preview-actions"><button type="button" class="secondary" (click)="previewing.set(false)">Modifică</button><button type="button" (click)="save(true)" [disabled]="saving()">{{ saving() ? 'Se trimite…' : 'Trimite cererea' }}</button></div>
+          <div class="preview-card">
+            <header><span class="preview-check" aria-hidden="true">✓</span><div><p class="eyebrow">Verificare finală</p><h2 id="preview-title">Așa vor vedea furnizorii cererea</h2><p>Recitește informațiile esențiale. Publicarea are loc numai după confirmarea ta.</p></div></header>
+            <section class="preview-need"><span class="preview-label">Cerere</span><h3>{{ form.controls.title.value }}</h3>
+              @if(form.controls.description.value){<p>{{ form.controls.description.value }}</p>}</section>
+            <dl><div><dt>Categorii</dt><dd>{{ selectedCategories().length }} selectate</dd></div><div><dt>Livrare</dt><dd>{{ form.controls.deliveryLocality.value }}, {{ form.controls.county.value }}</dd></div><div><dt>Necesar</dt><dd>{{ items.length ? items.length + ' poziții' : 'Cerere generală' }}</dd></div><div><dt>Oferte până la</dt><dd>{{ form.controls.quotationDeadline.value }}</dd></div></dl>
+            @if(items.length){<div class="preview-lines"><h3>Produse sau servicii</h3><ul>@for (item of items.controls; track $index) { <li><span>{{ $index + 1 }}</span><strong>{{ item.controls['productName'].value }}</strong><small>{{ item.controls['quantity'].value }} {{ unitLabel(item.controls['unit'].value) }}</small></li> }</ul></div>}
+            <div class="publish-note"><span aria-hidden="true">i</span><p><strong>Ce se întâmplă după publicare?</strong> Furnizorii potriviți pot vedea cererea și îți pot trimite oferte. Vei primi o notificare pentru fiecare ofertă nouă.</p></div>
+            <div class="preview-actions"><button type="button" class="secondary" (click)="previewing.set(false)">Înapoi la modificări</button><button type="button" (click)="save(true)" [disabled]="saving()">{{ saving() ? 'Se publică…' : 'Confirmă și publică' }}</button></div>
+          </div>
         </section>
       }
     </form>

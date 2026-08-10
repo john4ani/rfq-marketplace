@@ -156,7 +156,7 @@ describe('RfqEditorComponent material positions', () => {
     fixture.detectChanges();
 
     expect(component.previewing()).toBe(true);
-    expect((fixture.nativeElement as HTMLElement).querySelector('.request-preview')?.textContent).toContain('Trimite cererea');
+    expect((fixture.nativeElement as HTMLElement).querySelector('.request-preview')?.textContent).toContain('Confirmă și publică');
   });
 
   it('opens a collapsed invalid position before focusing its field', async () => {

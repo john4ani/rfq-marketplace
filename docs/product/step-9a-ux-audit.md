@@ -41,3 +41,31 @@ This audit covers the live Angular routes and components for the Buyer and Provi
 - New business capabilities such as ratings, sponsored ranking, or automatic external supplier search.
 
 These are deliberately outside the MVP UX hardening scope; the redesign focuses on making existing workflows clearer and more human.
+
+## Closure gap assessment
+
+This assessment was made against the implementation that existed before the final 9A closure pass.
+
+### Done
+
+- Forest Warm tokens and Inter typography.
+- Core request, offer, matching, notification and Trust Facts business behaviour.
+- AI confirmation and human approval before publication.
+- Buyer request grouping and outcome handling.
+
+### Partially done
+
+- Dashboard hierarchy and role distinction.
+- AI clarification versus editable preview.
+- Request Preview, matching rationale, offer comparison and Provider response layout.
+- Contextual loading, empty, error and success states.
+- Navigation density and persistent header.
+
+### Missing
+
+- A usable mobile navigation drawer with no hidden actions or visible menu scrollbar.
+- A clearly differentiated Provider workspace.
+- Screenshot evidence from one real Buyer-to-Provider-to-Buyer journey.
+- A criterion-by-criterion closure record.
+
+The partial and missing items above were implemented during the closure pass. The final result and remaining deliberate deviations are recorded in `docs/architecture/step-9a-ux-verification.md`.
