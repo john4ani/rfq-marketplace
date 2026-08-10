@@ -2,12 +2,13 @@ data "aws_caller_identity" "current" {}
 data "aws_partition" "current" {}
 
 locals {
-  name              = "${var.project_name}-${var.environment}"
-  has_custom_domain = var.root_domain != null && var.hosted_zone_id != null
-  frontend_domain   = local.has_custom_domain ? "${var.frontend_subdomain}.${var.root_domain}" : null
-  bucket_prefix     = "${var.project_name}-${var.environment}-${data.aws_caller_identity.current.account_id}-${var.aws_region}"
-  parameter_path    = "/${var.project_name}/${var.environment}"
-  oidc_provider_arn = "arn:${data.aws_partition.current.partition}:iam::${data.aws_caller_identity.current.account_id}:oidc-provider/token.actions.githubusercontent.com"
+  name               = "${var.project_name}-${var.environment}"
+  has_managed_domain = var.root_domain != null && var.hosted_zone_id != null
+  frontend_domain    = var.frontend_domain != null ? var.frontend_domain : (local.has_managed_domain ? "${var.frontend_subdomain}.${var.root_domain}" : null)
+  frontend_domains   = local.frontend_domain == null ? [] : concat([local.frontend_domain], var.frontend_aliases)
+  bucket_prefix      = "${var.project_name}-${var.environment}-${data.aws_caller_identity.current.account_id}-${var.aws_region}"
+  parameter_path     = "/${var.project_name}/${var.environment}"
+  oidc_provider_arn  = "arn:${data.aws_partition.current.partition}:iam::${data.aws_caller_identity.current.account_id}:oidc-provider/token.actions.githubusercontent.com"
   common_tags = merge(var.tags, {
     Application = var.project_name
     Environment = var.environment
@@ -26,11 +27,11 @@ module "host" {
 }
 
 locals {
-  api_origin_domain = local.has_custom_domain ? "${var.api_subdomain}.${var.root_domain}" : "${replace(module.host.static_ip, ".", "-")}.sslip.io"
+  api_origin_domain = local.has_managed_domain ? "${var.api_subdomain}.${var.root_domain}" : "${replace(module.host.static_ip, ".", "-")}.sslip.io"
 }
 
 resource "aws_route53_record" "api" {
-  count = local.has_custom_domain ? 1 : 0
+  count = local.has_managed_domain ? 1 : 0
 
   zone_id = var.hosted_zone_id
   name    = local.api_origin_domain
@@ -58,7 +59,8 @@ module "frontend" {
   frontend_bucket_arn         = module.storage.frontend_bucket_arn
   frontend_bucket_domain_name = module.storage.frontend_bucket_domain_name
   api_origin_domain           = local.api_origin_domain
-  frontend_domain             = local.frontend_domain
+  frontend_domains            = local.frontend_domains
+  frontend_certificate_arn    = var.frontend_certificate_arn
   hosted_zone_id              = var.hosted_zone_id
   tags                        = local.common_tags
 }

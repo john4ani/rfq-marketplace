@@ -1,5 +1,8 @@
 locals {
-  use_custom_domain = var.frontend_domain != null && var.hosted_zone_id != null
+  use_custom_domain           = length(var.frontend_domains) > 0
+  use_route53_dns             = var.hosted_zone_id != null
+  manage_frontend_certificate = local.use_custom_domain && var.frontend_certificate_arn == null
+  frontend_certificate_arn    = var.frontend_certificate_arn != null ? var.frontend_certificate_arn : aws_acm_certificate_validation.frontend[0].certificate_arn
 }
 
 data "aws_cloudfront_cache_policy" "caching_optimized" {
@@ -15,12 +18,13 @@ data "aws_cloudfront_origin_request_policy" "all_viewer_except_host" {
 }
 
 resource "aws_acm_certificate" "frontend" {
-  count    = local.use_custom_domain ? 1 : 0
+  count    = local.manage_frontend_certificate ? 1 : 0
   provider = aws.us_east_1
 
-  domain_name       = var.frontend_domain
-  validation_method = "DNS"
-  tags              = var.tags
+  domain_name               = var.frontend_domains[0]
+  subject_alternative_names = slice(var.frontend_domains, 1, length(var.frontend_domains))
+  validation_method         = "DNS"
+  tags                      = var.tags
 
   lifecycle {
     create_before_destroy = true
@@ -28,7 +32,7 @@ resource "aws_acm_certificate" "frontend" {
 }
 
 resource "aws_route53_record" "certificate_validation" {
-  for_each = local.use_custom_domain ? {
+  for_each = local.manage_frontend_certificate && local.use_route53_dns ? {
     for option in aws_acm_certificate.frontend[0].domain_validation_options :
     option.domain_name => {
       name   = option.resource_record_name
@@ -45,7 +49,7 @@ resource "aws_route53_record" "certificate_validation" {
 }
 
 resource "aws_acm_certificate_validation" "frontend" {
-  count    = local.use_custom_domain ? 1 : 0
+  count    = local.manage_frontend_certificate && local.use_route53_dns ? 1 : 0
   provider = aws.us_east_1
 
   certificate_arn         = aws_acm_certificate.frontend[0].arn
@@ -119,11 +123,18 @@ resource "aws_cloudfront_distribution" "this" {
   is_ipv6_enabled     = true
   comment             = var.name
   default_root_object = "index.html"
-  aliases             = local.use_custom_domain ? [var.frontend_domain] : []
+  aliases             = local.use_custom_domain ? var.frontend_domains : []
   price_class         = "PriceClass_100"
   http_version        = "http2and3"
   wait_for_deployment = true
   tags                = var.tags
+
+  lifecycle {
+    precondition {
+      condition     = !local.use_custom_domain || local.use_route53_dns || var.frontend_certificate_arn != null
+      error_message = "Externally managed DNS requires an issued ACM certificate ARN in us-east-1."
+    }
+  }
 
   origin {
     domain_name              = var.frontend_bucket_domain_name
@@ -189,7 +200,7 @@ resource "aws_cloudfront_distribution" "this" {
   }
 
   viewer_certificate {
-    acm_certificate_arn            = local.use_custom_domain ? aws_acm_certificate_validation.frontend[0].certificate_arn : null
+    acm_certificate_arn            = local.use_custom_domain ? local.frontend_certificate_arn : null
     cloudfront_default_certificate = !local.use_custom_domain
     ssl_support_method             = local.use_custom_domain ? "sni-only" : null
     minimum_protocol_version       = local.use_custom_domain ? "TLSv1.2_2021" : "TLSv1"
@@ -217,10 +228,10 @@ resource "aws_s3_bucket_policy" "frontend" {
 }
 
 resource "aws_route53_record" "frontend_ipv4" {
-  count = local.use_custom_domain ? 1 : 0
+  for_each = local.use_custom_domain && local.use_route53_dns ? toset(var.frontend_domains) : []
 
   zone_id = var.hosted_zone_id
-  name    = var.frontend_domain
+  name    = each.value
   type    = "A"
 
   alias {
@@ -231,10 +242,10 @@ resource "aws_route53_record" "frontend_ipv4" {
 }
 
 resource "aws_route53_record" "frontend_ipv6" {
-  count = local.use_custom_domain ? 1 : 0
+  for_each = local.use_custom_domain && local.use_route53_dns ? toset(var.frontend_domains) : []
 
   zone_id = var.hosted_zone_id
-  name    = var.frontend_domain
+  name    = each.value
   type    = "AAAA"
 
   alias {

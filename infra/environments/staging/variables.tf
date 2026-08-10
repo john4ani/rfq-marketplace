@@ -34,6 +34,23 @@ variable "hosted_zone_id" {
   nullable = true
 }
 
+variable "frontend_domain" {
+  type     = string
+  default  = null
+  nullable = true
+}
+
+variable "frontend_aliases" {
+  type    = list(string)
+  default = []
+}
+
+variable "frontend_certificate_arn" {
+  type     = string
+  default  = null
+  nullable = true
+}
+
 variable "acme_email" {
   type = string
 }

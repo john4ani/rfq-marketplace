@@ -13,6 +13,9 @@ module "environment" {
   lightsail_bundle_id            = var.lightsail_bundle_id
   root_domain                    = var.root_domain
   hosted_zone_id                 = var.hosted_zone_id
+  frontend_domain                = var.frontend_domain
+  frontend_aliases               = var.frontend_aliases
+  frontend_certificate_arn       = var.frontend_certificate_arn
   acme_email                     = var.acme_email
   smtp_from_address              = var.smtp_from_address
 }

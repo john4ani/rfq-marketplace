@@ -18,10 +18,17 @@ variable "api_origin_domain" {
   type = string
 }
 
-variable "frontend_domain" {
-  type     = string
-  default  = null
-  nullable = true
+variable "frontend_domains" {
+  description = "CloudFront aliases for the frontend, with the canonical domain first."
+  type        = list(string)
+  default     = []
+}
+
+variable "frontend_certificate_arn" {
+  description = "Existing ACM certificate ARN in us-east-1 for an externally managed DNS zone."
+  type        = string
+  default     = null
+  nullable    = true
 }
 
 variable "hosted_zone_id" {

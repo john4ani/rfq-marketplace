@@ -41,6 +41,26 @@ variable "hosted_zone_id" {
   nullable = true
 }
 
+variable "frontend_domain" {
+  description = "Canonical frontend domain. Set this directly for DNS hosted outside Route 53."
+  type        = string
+  default     = null
+  nullable    = true
+}
+
+variable "frontend_aliases" {
+  description = "Additional frontend domains, such as www, served by the same CloudFront distribution."
+  type        = list(string)
+  default     = []
+}
+
+variable "frontend_certificate_arn" {
+  description = "Existing issued ACM certificate ARN in us-east-1 when DNS validation is external to Route 53."
+  type        = string
+  default     = null
+  nullable    = true
+}
+
 variable "frontend_subdomain" {
   type    = string
   default = "app"

@@ -11,5 +11,5 @@ output "distribution_domain_name" {
 }
 
 output "frontend_origin" {
-  value = "https://${local.use_custom_domain ? var.frontend_domain : aws_cloudfront_distribution.this.domain_name}"
+  value = "https://${local.use_custom_domain ? var.frontend_domains[0] : aws_cloudfront_distribution.this.domain_name}"
 }

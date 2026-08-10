@@ -140,3 +140,15 @@ Use the database restore runbook only for a confirmed data/schema recovery event
 ## Production
 
 Repeat the environment process under `infra/environments/production` with an owned Route 53 zone and domain. Review the full Terraform plan, require GitHub environment approval, and execute the production acceptance and backup checks during the agreed window.
+
+### Cloudflare or another external DNS provider
+
+Cloudflare remains the DNS authority; the application remains behind the existing CloudFront distribution. Do not create a duplicate public host or expose the API directly.
+
+1. Request an ACM public certificate in `us-east-1` for the canonical frontend domain and aliases. ACM certificates for CloudFront are free.
+2. Add each ACM DNS-validation CNAME as DNS-only in the external DNS provider and wait for the certificate to become `ISSUED`.
+3. Set `frontend_domain`, `frontend_aliases`, and `frontend_certificate_arn` in the environment's ignored `terraform.tfvars`. Leave `hosted_zone_id` unset. The certificate ARN must be in `us-east-1`.
+4. Run `terraform plan`, inspect it, then apply. Terraform updates CloudFront aliases and the deployment health-check origin without attempting Route 53 records.
+5. Add DNS-only CNAME records for the canonical domain and aliases pointing to the distribution hostname. Verify both `/` and `/health/ready` through the custom domain.
+
+For the current staging site, `compaspot.com` is canonical, `www.compaspot.com` is an alias, and the API continues to use same-origin CloudFront routes.
