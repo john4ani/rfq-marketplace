@@ -18,7 +18,7 @@ type OfferFilter = 'All' | 'Active' | 'Selected' | 'NotSelected' | 'Draft' | 'Wi
     @if (loading()) {
       <div class="loading" role="status" aria-label="Se încarcă ofertele"><span></span><span></span></div>
     } @else if (error()) {
-      <p class="error" role="alert">{{ error() }}</p>
+      <div class="empty error" role="alert"><div><strong>Ofertele nu sunt disponibile momentan.</strong><small>{{ error() }}</small></div><button type="button" (click)="load()">Încearcă din nou</button></div>
     } @else if (offers().length === 0) {
       <div class="empty"><span aria-hidden="true">↗</span><div><strong>Nu ai trimis încă nicio ofertă.</strong>
         <small>Explorează cererile potrivite și răspunde oportunităților relevante.</small></div>
@@ -92,7 +92,11 @@ export class SupplierOfferListComponent {
       : offer.status === filter));
   });
 
-  constructor() {
+  constructor() { this.load(); }
+
+  load(): void {
+    this.loading.set(true);
+    this.error.set('');
     this.service.getMine().subscribe({
       next: offers => { this.offers.set(offers); this.loading.set(false); },
       error: () => { this.loading.set(false); this.error.set('Ofertele nu au putut fi încărcate. Încearcă din nou.'); }

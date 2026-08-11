@@ -221,7 +221,7 @@ import { TrustFactsComponent } from '../profiles/trust-facts.component';
         }
       </div>
     }
-    @if (error()) { <p class="error" role="alert">{{ error() }}</p> }
+    @if (error()) { <div class="error load-error" role="alert"><p>{{ error() }}</p><button type="button" class="secondary" (click)="load()">Încearcă din nou</button></div> }
   </section>`,
   styleUrl: './buyer-offer-comparison.component.scss',
   changeDetection: ChangeDetectionStrategy.OnPush
@@ -474,7 +474,7 @@ export class BuyerOfferComparisonComponent {
     });
   }
 
-  private load(): void {
+  load(): void {
     this.loading.set(true);
     this.error.set('');
     forkJoin({ request: this.rfqService.get(this.id), offers: this.offerService.forBuyer(this.id), history: this.rfqService.getHistory(this.id) }).subscribe({

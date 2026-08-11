@@ -10,7 +10,8 @@ import { Observable } from 'rxjs';
   selector: 'app-profile-editor', imports: [ReactiveFormsModule],
   template: `<section class="profile-card"><div class="section-heading"><div><p class="eyebrow">Datele tale</p><h2>Profil {{ auth.session()?.accountType === 'Buyer' ? 'cumpărător' : 'furnizor' }}</h2></div><p>Completează doar informațiile necesare. Le poți modifica oricând.</p></div>
   @if (loading()) { <p role="status">Se încarcă profilul…</p> }
-  @if (auth.session()?.accountType === 'Buyer') {
+  @else if (loadFailed()) { <div class="profile-load-error" role="alert"><p>Profilul nu a putut fi încărcat. Nu îl poți edita în siguranță până nu avem datele actuale.</p><button type="button" (click)="loadProfile()">Încearcă din nou</button></div> }
+  @else if (auth.session()?.accountType === 'Buyer') {
     <form [formGroup]="buyerForm" (ngSubmit)="saveBuyer()">
       <fieldset><legend>Informații de bază</legend>
       <label>Nume afișat *<input formControlName="displayName" placeholder="Cum să te afișăm?"></label>
@@ -53,7 +54,7 @@ import { Observable } from 'rxjs';
 export class ProfileEditorComponent {
   readonly auth = inject(AuthService); private readonly profiles = inject(ProfileService);
   readonly profileSaved = output<'Buyer' | 'Supplier'>();
-  readonly counties = ROMANIAN_COUNTIES; readonly loading = signal(false); readonly saving = signal(false); readonly message = signal(''); readonly hasError = signal(false);
+  readonly counties = ROMANIAN_COUNTIES; readonly loading = signal(false); readonly saving = signal(false); readonly message = signal(''); readonly hasError = signal(false); readonly loadFailed = signal(false);
   readonly buyerForm = new FormGroup({
     displayName: new FormControl('', { nonNullable: true, validators: Validators.required }),
     buyerType: new FormControl<'Individual'|'Company'>('Individual', { nonNullable: true }),
@@ -76,11 +77,14 @@ export class ProfileEditorComponent {
 
   constructor() {
     effect(() => {
-      const session = this.auth.session(); if (!session) return;
-      this.message.set(''); this.loading.set(true);
-      if (session.accountType === 'Buyer') this.profiles.getBuyer(session.userId).subscribe({ next: value => { this.loading.set(false); this.buyerForm.patchValue(value); }, error: error => this.loadError(error) });
-      else this.profiles.getSupplier(session.userId).subscribe({ next: value => { this.loading.set(false); this.supplierForm.patchValue(value); }, error: error => this.loadError(error) });
+      if (this.auth.session()) this.loadProfile();
     });
+  }
+  loadProfile(): void {
+    const session = this.auth.session(); if (!session) return;
+    this.message.set(''); this.loading.set(true); this.loadFailed.set(false);
+    if (session.accountType === 'Buyer') this.profiles.getBuyer(session.userId).subscribe({ next: value => { this.loading.set(false); this.buyerForm.patchValue(value); }, error: error => this.loadError(error) });
+    else this.profiles.getSupplier(session.userId).subscribe({ next: value => { this.loading.set(false); this.supplierForm.patchValue(value); }, error: error => this.loadError(error) });
   }
   saveBuyer(): void { const session = this.auth.session(); if (!session || this.buyerForm.invalid) return; this.save(this.profiles.saveBuyer(session.userId, this.buyerForm.getRawValue())); }
   saveSupplier(): void { const session = this.auth.session(); if (!session || this.supplierForm.invalid) return; this.save(this.profiles.saveSupplier(session.userId, this.supplierForm.getRawValue())); }
@@ -91,6 +95,6 @@ export class ProfileEditorComponent {
   private loadError(error: HttpErrorResponse): void {
     this.loading.set(false);
     if (error.status === 404) { this.hasError.set(false); this.message.set('Profilul nu este completat încă. Adaugă datele de mai jos pentru a continua.'); }
-    else { this.hasError.set(true); this.message.set('Profilul nu a putut fi încărcat. Verificați dacă API-ul rulează.'); }
+    else { this.loadFailed.set(true); this.hasError.set(true); this.message.set('Profilul nu a putut fi încărcat.'); }
   }
 }

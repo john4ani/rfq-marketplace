@@ -23,7 +23,10 @@ export class SupplierInvitationComponent {
   readonly currentPath=`/supplier-invitations/${encodeURIComponent(this.token)}`;
   readonly hasSupplierRole=computed(()=>this.auth.profiles().some(profile=>profile.accountType==='Supplier'));
 
-  constructor(){
+  constructor(){this.loadInvitation();}
+
+  loadInvitation():void{
+    this.loading.set(true);this.error.set('');
     this.discovery.invitation(this.token).subscribe({
       next:value=>{this.invitation.set(value);this.loading.set(false);},
       error:error=>{this.loading.set(false);this.error.set(error.status===404?'Invitația nu există sau linkul este incorect.':'Invitația nu a putut fi încărcată. Încearcă din nou.');}

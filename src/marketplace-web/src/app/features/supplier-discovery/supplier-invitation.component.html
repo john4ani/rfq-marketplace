@@ -1,6 +1,6 @@
 <section class="invitation-page">
   @if(loading()){<div class="loading" role="status">Se încarcă oportunitatea…</div>}
-  @if(error()){<p class="error" role="alert">{{error()}}</p>}
+  @if(error()){<div class="error" role="alert"><p>{{error()}}</p><button type="button" (click)="loadInvitation()">Încearcă din nou</button></div>}
   @if(invitation();as item){
     <header><p class="eyebrow">Invitație comercială CompaSpot</p><h1>Ați primit o cerere relevantă pentru produsele dumneavoastră.</h1>
       <p>Invitația este adresată companiei <strong>{{item.companyName}}</strong>.</p></header>

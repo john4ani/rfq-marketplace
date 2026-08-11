@@ -21,9 +21,9 @@ import { AuthService } from '../../core/auth/auth.service';
         (click)="addProfile('Supplier')">+ Furnizor</button>
     }
   </nav>
-  @if (error()) { <p class="profile-switch-error" role="alert">{{ error() }}</p> }
+  @if (error()) { <div class="profile-switch-error" role="alert"><span>{{ error() }}</span>@if (failedProfileType()) { <button type="button" (click)="addProfile(failedProfileType()!)">Încearcă din nou</button> }</div> }
   </div>`,
-  styles: [`.profile-switch-error{margin:.4rem 0 0;color:#b42318;font-size:.86rem;font-weight:650}`],
+  styles: [`.profile-switch-error{display:flex;align-items:center;gap:.5rem;margin:.4rem 0 0;color:#b42318;font-size:.86rem;font-weight:650}.profile-switch-error button{border:1px solid currentColor;border-radius:.35rem;padding:.25rem .45rem;color:inherit;background:transparent;font:inherit}`],
   changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class AccountSwitcherComponent {
@@ -31,12 +31,13 @@ export class AccountSwitcherComponent {
   readonly profileAdded = output<'Buyer' | 'Supplier'>();
   readonly addingProfile = signal(false);
   readonly error = signal('');
+  readonly failedProfileType = signal<'Buyer' | 'Supplier' | null>(null);
   readonly hasBuyerProfile = computed(() => this.auth.profiles().some(profile => profile.accountType === 'Buyer'));
   readonly hasSupplierProfile = computed(() => this.auth.profiles().some(profile => profile.accountType === 'Supplier'));
 
   addProfile(accountType: 'Buyer' | 'Supplier'): void {
     this.addingProfile.set(true);
-    this.error.set('');
+    this.error.set(''); this.failedProfileType.set(null);
     this.auth.addProfile(accountType).subscribe({
       next: () => {
         this.addingProfile.set(false);
@@ -44,7 +45,7 @@ export class AccountSwitcherComponent {
       },
       error: () => {
         this.addingProfile.set(false);
-        this.error.set('Profilul nu a putut fi adăugat. Verifică conexiunea și încearcă din nou.');
+        this.failedProfileType.set(accountType); this.error.set('Profilul nu a putut fi adăugat. Verifică conexiunea și încearcă din nou.');
       }
     });
   }

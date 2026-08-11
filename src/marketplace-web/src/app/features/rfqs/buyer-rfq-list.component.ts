@@ -13,12 +13,15 @@ import { ProcurementOutcome, Rfq, RfqService, RfqStatus } from '../../core/rfqs/
         <p>Pregătește o listă de materiale și public-o atunci când este completă.</p></div>
         <a class="primary-link" routerLink="/rfqs/new">Cerere nouă</a>
       </header>
-      @if (loading()) { <div class="loading-board" role="status" aria-label="Se încarcă cererile"><span></span><span></span><span></span></div> }
-      @if (error()) { <div class="error-state" role="alert"><div><strong>Cererile nu sunt disponibile momentan.</strong><span>{{ error() }}</span></div><button type="button" (click)="load()">Încearcă din nou</button></div> }
-      @if (!loading() && rfqs().length === 0) {
+      @if (loading()) {
+        <div class="loading-board" role="status" aria-label="Se încarcă cererile"><span></span><span></span><span></span></div>
+      } @else if (error()) {
+        <div class="error-state" role="alert"><div><strong>Cererile nu sunt disponibile momentan.</strong><span>{{ error() }}</span></div><button type="button" (click)="load()">Încearcă din nou</button></div>
+      } @else if (rfqs().length === 0) {
         <div class="empty"><strong>Nu ai încă nicio cerere.</strong>
-          <span>Începe cu o ciornă; o poți verifica înainte să o publici.</span></div>
-      }
+          <span>Începe cu o ciornă; o poți verifica înainte să o publici.</span>
+          <a class="primary-link" routerLink="/rfqs/new">Creează prima cerere</a></div>
+      } @else {
       <div class="request-board">
         @for (column of columns(); track column.key) {
           <section class="request-column" [class.live]="column.key === 'live'" [class.drafts]="column.key === 'drafts'" [class.completed]="column.key === 'completed'">
@@ -42,6 +45,7 @@ import { ProcurementOutcome, Rfq, RfqService, RfqStatus } from '../../core/rfqs/
           </section>
         }
       </div>
+      }
     </section>
   }`,
   styleUrl: './buyer-rfq-list.component.scss',
@@ -52,7 +56,7 @@ export class BuyerRfqListComponent {
   private readonly service = inject(RfqService);
   private readonly destroyRef = inject(DestroyRef);
   readonly rfqs = signal<Rfq[]>([]);
-  readonly loading = signal(false);
+  readonly loading = signal(true);
   readonly error = signal('');
   readonly columns = computed(() => [
     {

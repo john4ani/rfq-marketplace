@@ -11,9 +11,11 @@ import { TrustFactsComponent } from '../profiles/trust-facts.component';
   imports: [RouterLink, DatePipe, OfferEditorComponent, TrustFactsComponent],
   template: `<section class="detail-shell">
     <a class="back" routerLink="/open-requests">← Cereri deschise</a>
-    @if (loading()) { <div class="loading" role="status"><span></span><span></span><span></span></div> }
-    @if (error()) { <section class="error" role="alert"><div><strong>Cererea nu este disponibilă momentan.</strong><span>{{ error() }}</span></div><button type="button" (click)="load()">Încearcă din nou</button></section> }
-    @if (request(); as rfq) {
+    @if (loading()) {
+      <div class="loading" role="status"><span></span><span></span><span></span></div>
+    } @else if (error()) {
+      <section class="error" role="alert"><div><strong>Cererea nu este disponibilă momentan.</strong><span>{{ error() }}</span></div><button type="button" (click)="load()">Încearcă din nou</button></section>
+    } @else if (request(); as rfq) {
       <header><div><p class="eyebrow">{{ rfq.isPartialMatch ? 'Partea relevantă pentru specializarea ta' : rfq.categoryName }}</p><h1>{{ rfq.title }}</h1>
         <p>{{ rfq.projectName || 'Cerere publicată în Piața Live' }}</p></div>
         <div class="deadline"><small>Termen pentru ofertă</small><strong>{{ rfq.quotationDeadline | date:'dd.MM.yyyy, HH:mm' }}</strong></div></header>
@@ -61,6 +63,7 @@ export class OpenRfqDetailComponent {
   load(): void {
     this.loading.set(true);
     this.error.set('');
+    this.request.set(null);
     this.service.get(this.requestId).subscribe({
       next: value => { this.request.set(value); this.loading.set(false); },
       error: error => { this.loading.set(false); this.error.set(error.status === 404

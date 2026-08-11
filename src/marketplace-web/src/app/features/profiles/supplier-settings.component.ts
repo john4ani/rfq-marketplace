@@ -12,16 +12,17 @@ import { ROMANIAN_COUNTIES } from '../../shared/romanian-counties';
       <div class="section-heading"><div><p class="eyebrow">Ce livrezi</p><h2>Categorii de produse</h2></div>
         <p>Alege materialele pentru care vrei să primești cereri de ofertă.</p></div>
       @if (loadingCategories()) { <p role="status">Se încarcă categoriile…</p> }
-      <div class="choice-grid" role="group" aria-label="Categorii de produse">
+      @else if (categoryLoadFailed()) { <div class="state-error" role="alert"><p>Categoriile nu sunt disponibile momentan.</p><button type="button" class="secondary" (click)="loadCategories()">Încearcă din nou</button></div> }
+      @else { <div class="choice-grid" role="group" aria-label="Categorii de produse">
         @for (category of selectableCategories(); track category.id) {
           <label class="choice-card" [class.selected]="selectedCategoryIds().includes(category.id)">
             <input type="checkbox" [checked]="selectedCategoryIds().includes(category.id)" (change)="toggleCategory(category.id)">
             <span>{{ category.name }}</span>
           </label>
         }
-      </div>
+      </div> }
       <p class="field-help">Nu găsești o categorie potrivită? Trimite administratorului denumirea pieței lipsă; catalogul este comun tuturor participanților.</p>
-      <div class="form-actions"><button type="button" (click)="saveCategories()" [disabled]="selectedCategoryIds().length === 0 || savingCategories()">
+      <div class="form-actions"><button type="button" (click)="saveCategories()" [disabled]="categoryLoadFailed() || selectedCategoryIds().length === 0 || savingCategories()">
         {{ savingCategories() ? 'Se salvează…' : 'Salvează categoriile' }}
       </button></div>
       @if (categoryMessage()) { <p [class.error]="categoryError()" role="status">{{ categoryMessage() }}</p> }
@@ -69,6 +70,7 @@ export class SupplierSettingsComponent {
   readonly selectedCategoryIds = signal<string[]>([]);
   readonly selectedCounties = signal<string[]>([]);
   readonly loadingCategories = signal(true);
+  readonly categoryLoadFailed = signal(false);
   readonly savingCategories = signal(false);
   readonly savingDelivery = signal(false);
   readonly categoryMessage = signal('');
@@ -88,14 +90,19 @@ export class SupplierSettingsComponent {
   });
 
   constructor() {
-    this.settings.getCategories().subscribe({
-      next: categories => { this.categories.set(categories); this.loadingCategories.set(false); },
-      error: () => { this.loadingCategories.set(false); this.categoryError.set(true); this.categoryMessage.set('Categoriile nu au putut fi încărcate. Verifică dacă API-ul rulează.'); }
-    });
+    this.loadCategories();
     effect(() => {
       const session = this.auth.session();
       if (!session || session.accountType !== 'Supplier') return;
       this.loadSupplierSettings(session.userId);
+    });
+  }
+
+  loadCategories(): void {
+    this.loadingCategories.set(true); this.categoryLoadFailed.set(false); this.categoryMessage.set('');
+    this.settings.getCategories().subscribe({
+      next: categories => { this.categories.set(categories); this.loadingCategories.set(false); },
+      error: () => { this.loadingCategories.set(false); this.categoryLoadFailed.set(true); this.categoryError.set(true); this.categoryMessage.set('Categoriile nu au putut fi încărcate.'); }
     });
   }
 

@@ -32,7 +32,7 @@ import { LiveMarketService, LiveParticipant, LiveMarketSnapshot } from '../../co
     @if (loading()) {
       <div class="skeletons" role="status" aria-label="Se încarcă participanții"><span></span><span></span><span></span></div>
     } @else if (error()) {
-      <p class="state error" role="alert">{{ error() }}</p>
+      <section class="state error" role="alert"><div><strong>Directorul nu este disponibil momentan.</strong><span>{{ error() }}</span></div><button type="button" (click)="retry()">Încearcă din nou</button></section>
     } @else {
       <section class="group">
         <div class="group-title"><div><p class="eyebrow">Cerere</p><h2>Cumpărători</h2></div><span>{{ buyers().length }} rezultate</span></div>
@@ -92,6 +92,7 @@ export class ParticipantDirectoryComponent implements OnDestroy {
 
   ngOnDestroy(): void { clearInterval(this.refreshTimer); }
   initials(name: string): string { return name.split(/\s+/).slice(0, 2).map(part => part[0]).join('').toUpperCase(); }
+  retry(): void { this.load(); }
 
   private load(showLoading = true): void {
     if (showLoading) this.loading.set(true);

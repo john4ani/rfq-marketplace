@@ -31,9 +31,9 @@ import { ROMANIAN_COUNTIES } from '../../shared/romanian-counties';
         </fieldset>
         <div class="two"><label>Nume proiect<input formControlName="projectName" placeholder="Opțional"></label>
           @if(form.controls.needType.value==='Project'){<label>Pornește de la un șablon<select formControlName="projectTemplateId" (change)="applyProjectTemplate()"><option value="">Fără șablon</option>@for(template of projectTemplates();track template.id){<option [value]="template.id">{{template.name}}</option>}</select><small>Șablonul doar propune categorii; selecția rămâne editabilă.</small></label>}</div>
-        <fieldset><legend>Categoriile necesarului *</legend><p class="help">Alege una sau mai multe categorii, indiferent de tipul necesarului.</p><div class="category-choice-grid">
+        <fieldset><legend>Categoriile necesarului *</legend><p class="help">Alege una sau mai multe categorii, indiferent de tipul necesarului.</p>@if(categoryLoadFailed()){<div class="category-load-error" role="alert"><span>Categoriile nu sunt disponibile momentan.</span><button type="button" class="secondary" (click)="loadCategories()">Încearcă din nou</button></div>}@else{<div class="category-choice-grid">
           @for(category of selectableCategories();track category.id){<label [class.selected]="selectedCategoryIds().includes(category.id)"><input type="checkbox" [checked]="selectedCategoryIds().includes(category.id)" (change)="toggleNeedCategory(category.id)">{{category.name}}</label>}
-        </div>@if(!selectedCategoryIds().length){<small class="field-error">Selectează cel puțin o categorie.</small>}</fieldset>
+        </div>}@if(!selectedCategoryIds().length&&!categoryLoadFailed()){<small class="field-error">Selectează cel puțin o categorie.</small>}</fieldset>
         <label>Descriere<textarea formControlName="description" rows="3" placeholder="Contextul proiectului sau cerințe generale"></textarea></label>
       </section>
 
@@ -114,8 +114,8 @@ import { ROMANIAN_COUNTIES } from '../../shared/romanian-counties';
         <div class="validation-summary" role="alert"><strong>Verifică următoarele câmpuri:</strong>
           <ul>@for (error of validationErrors(); track error) { <li>{{ error }}</li> }</ul></div>
       }
-      <footer><button class="secondary" type="submit" [disabled]="saving()">Salvează ciorna</button>
-        <button type="button" (click)="openPreview()" [disabled]="saving()">Verifică înainte de trimitere →</button></footer>
+      <footer><button class="secondary" type="submit" [disabled]="saving() || categoryLoadFailed()">Salvează ciorna</button>
+        <button type="button" (click)="openPreview()" [disabled]="saving() || categoryLoadFailed()">Verifică înainte de trimitere →</button></footer>
       @if (previewing()) {
         <section class="request-preview" role="dialog" aria-modal="true" aria-labelledby="preview-title">
           <div class="preview-card">
@@ -152,7 +152,7 @@ export class RfqEditorComponent {
     {value:'Kilogram',label:'Kilogram'},{value:'Tonne',label:'Tonă'},{value:'Metre',label:'Metru'},
     {value:'SquareMetre',label:'Metru pătrat'},{value:'CubicMetre',label:'Metru cub'},
     {value:'Litre',label:'Litru'},{value:'Pallet',label:'Palet'},{value:'Other',label:'Altă unitate'}];
-  readonly categories = signal<CategoryOption[]>([]);
+  readonly categories = signal<CategoryOption[]>([]); readonly categoryLoadFailed = signal(false);
   readonly projectTemplates = signal<ProjectTemplateOption[]>([]);
   readonly selectedCategoryIds = signal<string[]>([]);
   readonly loading = signal(false); readonly saving = signal(false);
@@ -197,10 +197,7 @@ export class RfqEditorComponent {
     if (this.auth.session()?.accountType !== 'Buyer') { void this.router.navigateByUrl('/dashboard'); return; }
     const navigationMessage = history.state?.message;
     if (typeof navigationMessage === 'string') this.message.set(navigationMessage);
-    this.categoriesService.getCategories().subscribe({
-      next: values => this.categories.set(values),
-      error: () => this.fail('Categoriile nu au putut fi încărcate. Verifică dacă API-ul rulează.')
-    });
+    this.loadCategories();
     if (this.rfqId) {
       this.loading.set(true);
       this.service.get(this.rfqId).subscribe({
@@ -236,6 +233,14 @@ export class RfqEditorComponent {
   selectedCategories():CategoryOption[]{
     const ids=new Set(this.selectedCategoryIds());
     return this.selectableCategories().filter(category=>ids.has(category.id));
+  }
+
+  loadCategories(): void {
+    this.categoryLoadFailed.set(false);
+    this.categoriesService.getCategories().subscribe({
+      next: values => this.categories.set(values),
+      error: () => { this.categoryLoadFailed.set(true); this.fail('Categoriile nu au putut fi încărcate.'); }
+    });
   }
   toggleNeedCategory(id:string):void{
     const current=this.selectedCategoryIds();

@@ -24,6 +24,7 @@ import { OpenRfq, OpenRfqService } from '../../core/rfqs/open-rfq.service';
         <div class="my-presence"><i aria-hidden="true"></i><div><small>Tu ești online ca</small><b>{{presenceRoleLabel()}}</b></div></div>
       }
     </div>
+    @if(marketError()){<section class="market-error" role="alert"><strong>Activitatea pieței nu a putut fi actualizată.</strong><button type="button" (click)="retryMarket()">Încearcă din nou</button></section>}
   </section>
 
   <section class="open-requests-home" aria-labelledby="open-requests-title">
@@ -34,7 +35,7 @@ import { OpenRfq, OpenRfqService } from '../../core/rfqs/open-rfq.service';
     </div>
     @if(hasSupplierProfile()){
       @if(requestsLoading()){<div class="request-skeleton" role="status"><span></span><span></span><span></span></div>}
-      @else if(requestsError()){<p class="open-request-state error">{{requestsError()}}</p>}
+      @else if(requestsError()){<div class="open-request-state error" role="alert"><span>{{requestsError()}}</span><button type="button" (click)="retryRequests()">Încearcă din nou</button></div>}
       @else{<div class="open-request-grid">
         @for(request of openRequests().slice(0,3);track request.id){
           <a class="open-request-card" [routerLink]="['/open-requests',request.id]">
@@ -63,7 +64,7 @@ import { OpenRfq, OpenRfqService } from '../../core/rfqs/open-rfq.service';
 })
 export class LiveMarketComponent implements OnDestroy{
   readonly auth=inject(AuthService);private readonly market=inject(LiveMarketService);private readonly openRfqService=inject(OpenRfqService);
-  readonly participants=signal<LiveParticipant[]>([]);readonly openRequests=signal<OpenRfq[]>([]);readonly requestsLoading=signal(false);readonly requestsError=signal('');
+  readonly participants=signal<LiveParticipant[]>([]);readonly openRequests=signal<OpenRfq[]>([]);readonly requestsLoading=signal(false);readonly requestsError=signal('');readonly marketError=signal(false);
   readonly hasSupplierProfile=computed(()=>this.auth.profiles().some(p=>p.accountType==='Supplier'));
   readonly hasBuyerProfile=computed(()=>this.auth.profiles().some(p=>p.accountType==='Buyer'));
   readonly buyers=computed(()=>this.participants().filter(p=>p.profileType==='Buyer'));
@@ -78,11 +79,14 @@ export class LiveMarketComponent implements OnDestroy{
   private readonly refreshTimer:ReturnType<typeof setInterval>;private requestsLoaded=false;
   constructor(){this.loadMarket();effect(()=>{if(this.hasSupplierProfile()&&!this.requestsLoaded){this.requestsLoaded=true;this.loadRequests();}});this.refreshTimer=setInterval(()=>this.loadMarket(),30_000);}
   ngOnDestroy(){clearInterval(this.refreshTimer);}
+  retryMarket(){this.loadMarket();}
+  retryRequests(){this.loadRequests();}
   private loadMarket(){this.market.getSnapshot(this.auth.session()?.accountType).subscribe({next:value=>{
     this.participants.set(value.participants);
     this.onlineCount.set(value.onlineUserCount);
     this.onlineBuyers.set(value.onlineBuyerCount);
     this.onlineSuppliers.set(value.onlineSupplierCount);
-  },error:()=>undefined});}
-  private loadRequests(){this.requestsLoading.set(true);this.openRfqService.list().subscribe({next:value=>{this.openRequests.set(value);this.requestsLoading.set(false);},error:()=>{this.requestsLoading.set(false);this.requestsError.set('Recomandările nu au putut fi încărcate.');}});}
+    this.marketError.set(false);
+  },error:()=>this.marketError.set(true)});}
+  private loadRequests(){this.requestsLoading.set(true);this.requestsError.set('');this.openRfqService.list().subscribe({next:value=>{this.openRequests.set(value);this.requestsLoading.set(false);},error:()=>{this.requestsLoading.set(false);this.requestsError.set('Recomandările nu au putut fi încărcate.');}});}
 }

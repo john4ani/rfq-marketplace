@@ -55,7 +55,7 @@ import { Conversation, ConversationMessage, MessagingService } from '../../core/
       <section class="unavailable" role="alert">
         <h1>Conversația nu este disponibilă</h1>
         <p>{{ error() }}</p>
-        <a routerLink="/dashboard">Înapoi la contul meu</a>
+        <div class="unavailable-actions"><button type="button" (click)="loadInitial()">Încearcă din nou</button><a routerLink="/dashboard">Înapoi la contul meu</a></div>
       </section>
     }
   </main>`,
@@ -129,7 +129,7 @@ export class ConversationComponent {
       : `${chat.otherPartyName} · ${this.otherRoleLabel(chat.viewerRole)}`;
   }
 
-  private loadInitial(): void {
+  loadInitial(): void {
     this.service.get(this.offerId).subscribe({
       next: conversation => {
         this.conversation.set(conversation);

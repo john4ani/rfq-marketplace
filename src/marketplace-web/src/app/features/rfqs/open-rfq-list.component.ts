@@ -39,14 +39,13 @@ import { TrustFactsComponent } from '../profiles/trust-facts.component';
 
     @if (loading()) {
       <div class="loading-grid" role="status" aria-label="Se încarcă cererile"><span></span><span></span><span></span></div>
-    }
-    @if (error()) { <section class="state error" role="alert"><div><strong>Cererile nu sunt disponibile momentan.</strong><span>{{ error() }}</span></div><button type="button" (click)="load()">Încearcă din nou</button></section> }
-    @if (!loading() && !error() && requests().length === 0) {
+    } @else if (error()) {
+      <section class="state error" role="alert"><div><strong>Cererile nu sunt disponibile momentan.</strong><span>{{ error() }}</span></div><button type="button" (click)="load()">Încearcă din nou</button></section>
+    } @else if (requests().length === 0) {
       <section class="state empty"><span class="empty-icon" aria-hidden="true">⌕</span><div><strong>Nu există cereri potrivite acum.</strong>
         <span>Poți ajusta categoriile și județele deservite pentru a primi potriviri mai bune.</span></div>
         <a routerLink="/dashboard">Verifică preferințele</a></section>
-    }
-    @if (!loading()) {
+    } @else {
       <section class="request-grid">
         @for (request of requests(); track request.id) {
           <article>
