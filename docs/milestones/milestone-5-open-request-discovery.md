@@ -73,7 +73,7 @@ The milestone includes a usability pass across the complete request-to-offer jou
 - The interface uses industry-neutral language. Construction materials may be seeded as the first category, but no core workflow assumes a specific industry.
 - Category duplicate/similarity integration tests delete the temporary categories they create, preventing test data from leaking into the local product directory.
 
-### Primary navigation
+### Provider discovery navigation
 
 ```text
 Piața Live (/)
@@ -86,6 +86,17 @@ Piața Live (/)
 ```
 
 Users who have both Buyer and Supplier profiles can discover open requests without first changing the active profile. The active-profile selector remains useful inside the account workspace for role-specific management screens.
+
+### Buyer navigation (R1)
+
+```text
+Acasă (/dashboard)
+├── Cererile mele (/dashboard#requests)
+├── Oferte (/dashboard#offers)
+└── Cont (/account)
+```
+
+Piața Live, Furnizori and Notificări are intentionally hidden while the Buyer profile is active, to keep the MVP buyer journey focused on creating, managing and comparing requests.
 
 ## Deferred
 

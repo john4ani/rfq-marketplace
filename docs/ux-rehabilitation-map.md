@@ -139,9 +139,9 @@ Authenticated Buyer
 │   ├── Cerere asistată (/rfqs/new)
 │   ├── Formular avansat (/rfqs/new/advanced)
 │   └── Cererile mele (embedded)
-├── Piața Live (/)
-├── Furnizori (/participants)
-├── Contul meu (/account)
+├── Cererile mele (/dashboard#requests)
+├── Oferte (/dashboard#offers; cereri active și comparațiile lor)
+├── Cont (/account)
 │   └── Profil / încredere (embedded)
 ├── Editare cerere (/rfqs/:id/edit)
 └── Oferte / rezultat (/rfqs/:id/offers)
@@ -162,9 +162,11 @@ Administrator
 
 No routes are declared as dead; the wildcard redirect means mistyped/deprecated paths silently go to home. The invitation route is operationally valid but isolated from ordinary navigation.
 
+R1 intentionally keeps the Buyer rail to these four entries only: **Acasă, Cererile mele, Oferte, Cont**. Piața Live, Furnizori and Notificări are hidden from the active Buyer navigation; they remain available for Provider flows and may be reconsidered after MVP validation.
+
 ## 10. Component/design-system map and responsive behaviour
 
-The app shell is `App`: persistent CompaSpot masthead (handshake SVG mark and “Nevoi. Oameni. Valoare.”), desktop fixed left rail, mobile drawer, notification panel, account shortcut, sign-out, and an API-unavailable banner with manual retry. There is a public header for anonymous users. Feature components use standalone Angular components, mostly inline templates and feature-local SCSS. Reusable functional pieces include account switcher, notification menu, profile editor, supplier settings, trust summary/facts, Buyer/Provider lists, offer editor/outcome, and conversation.
+The app shell is `App`: persistent CompaSpot masthead (handshake SVG mark and “Nevoi. Oameni. Valoare.”), desktop fixed left rail, mobile drawer, role-specific navigation, sign-out, and an API-unavailable banner with manual retry. The notification panel is retained for Provider navigation, but intentionally omitted from the Buyer rail in R1. There is a public header for anonymous users. Feature components use standalone Angular components, mostly inline templates and feature-local SCSS. Reusable functional pieces include account switcher, notification menu, profile editor, supplier settings, trust summary/facts, Buyer/Provider lists, offer editor/outcome, and conversation.
 
 Forest Warm tokens are centralized in `styles.scss`: forest, light forest, warm white, sand, ink, amber, semantic states, soft shadow and card radius. The system is not yet a complete shared component library: many feature components hold their own templates/styles; button, card, status, error and loading patterns are repeated or vary by feature. Inline styles are used in at least notifications and several admin/auth components.
 

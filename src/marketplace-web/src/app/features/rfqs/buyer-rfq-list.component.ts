@@ -24,7 +24,7 @@ import { ProcurementOutcome, Rfq, RfqService, RfqStatus } from '../../core/rfqs/
       } @else {
       <div class="request-board">
         @for (column of columns(); track column.key) {
-          <section class="request-column" [class.live]="column.key === 'live'" [class.drafts]="column.key === 'drafts'" [class.completed]="column.key === 'completed'">
+          <section class="request-column" [id]="column.key === 'live' ? 'offers' : null" [class.live]="column.key === 'live'" [class.drafts]="column.key === 'drafts'" [class.completed]="column.key === 'completed'">
             <header class="column-header"><div><p>{{ column.eyebrow }}</p><h3>{{ column.title }}</h3></div><span>{{ column.requests.length }}</span></header>
             <p class="column-description">{{ column.description }}</p>
             <div class="column-list">

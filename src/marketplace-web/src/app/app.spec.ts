@@ -48,8 +48,13 @@ describe('App', () => {
 
     const rail = (fixture.nativeElement as HTMLElement).querySelector<HTMLElement>('.side-rail');
     expect(rail?.classList.contains('mobile-open')).toBe(true);
-    expect(rail?.textContent).toContain('Piața Live');
-    expect(rail?.textContent).toContain('Contul meu');
+    expect(rail?.textContent).toContain('Acasă');
+    expect(rail?.textContent).toContain('Cererile mele');
+    expect(rail?.textContent).toContain('Oferte');
+    expect(rail?.textContent).toContain('Cont');
+    expect(rail?.textContent).not.toContain('Piața Live');
+    expect(rail?.textContent).not.toContain('Furnizori');
+    expect(rail?.textContent).not.toContain('Notificări');
     expect(rail?.textContent).toContain('Deconectare');
 
     (fixture.nativeElement as HTMLElement).querySelector<HTMLButtonElement>('.navigation-scrim')!.click();
