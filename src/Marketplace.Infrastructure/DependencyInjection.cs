@@ -24,6 +24,8 @@ using Marketplace.Application.Trust;
 using Marketplace.Infrastructure.Trust;
 using Marketplace.Application.Operations;
 using Marketplace.Infrastructure.Operations;
+using Marketplace.Application.Companies;
+using Marketplace.Infrastructure.Companies;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
@@ -74,6 +76,7 @@ public static class DependencyInjection
         services.AddScoped<IPasswordResetDelivery, SmtpPasswordResetDelivery>();
         services.AddScoped<IEmailVerificationDelivery, SmtpEmailVerificationDelivery>();
         services.AddScoped<IProfileService, ProfileService>();
+        services.AddScoped<ICompanyAuthorizationService, CompanyAuthorizationService>();
         services.AddScoped<ISupplierSettingsService, SupplierSettingsService>();
         services.AddScoped<ILiveMarketService, LiveMarketService>();
         services.AddScoped<IRfqService, RfqService>();

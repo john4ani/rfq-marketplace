@@ -22,6 +22,7 @@ public sealed class MarketplaceDbContext(DbContextOptions<MarketplaceDbContext> 
     public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();
     public DbSet<BuyerProfile> BuyerProfiles => Set<BuyerProfile>();
     public DbSet<SupplierProfile> SupplierProfiles => Set<SupplierProfile>();
+    public DbSet<CompanyMembership> CompanyMemberships => Set<CompanyMembership>();
     public DbSet<Category> Categories => Set<Category>();
     public DbSet<Vertical> Verticals => Set<Vertical>();
     public DbSet<SupplierCategory> SupplierCategories => Set<SupplierCategory>();

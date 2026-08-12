@@ -17,6 +17,7 @@ Domain does not depend on AWS, OpenAI, SMS/email implementation, Angular, EF Cor
 - Important operations are idempotent where appropriate.
 - Invitation delivery uses transactional persistence of Invitation + Outbox record, followed by a background worker. Retries must not lose or duplicate contact.
 - Cache only stable reference data such as categories/templates/service-area lookups. Do not cache active offers, workflows, permissions, claims, notification preferences or user-specific AI responses.
+- Company representation is resolved through active `CompanyMembership`, not a global active-company claim. This foundation is additive: `SupplierProfile` and its shared-key compatibility constraint remain unchanged until a concrete future requirement justifies a broader migration.
 
 ## AI contracts and observability
 

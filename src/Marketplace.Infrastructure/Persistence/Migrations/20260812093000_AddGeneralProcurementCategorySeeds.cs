@@ -1,4 +1,3 @@
-using System;
 using Marketplace.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Migrations;
@@ -9,45 +8,36 @@ namespace Marketplace.Infrastructure.Persistence.Migrations
 {
     [DbContext(typeof(MarketplaceDbContext))]
     [Migration("20260812093000_AddGeneralProcurementCategorySeeds")]
-    /// <inheritdoc />
     public partial class AddGeneralProcurementCategorySeeds : Migration
     {
-        /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
         {
-            migrationBuilder.InsertData(
-                table: "Verticals",
-                columns: new[] { "Id", "IsActive", "Name", "Slug" },
-                values: new object[] { new Guid("20000000-0000-0000-0000-000000000002"), true, "Achiziții generale (provizoriu)", "achizitii-generale-provizoriu" });
+            // SQL avoids EF's current-model seed mapping during upgrades from Task 3A.
+            migrationBuilder.Sql("""
+                INSERT INTO "Verticals" ("Id", "IsActive", "Name", "Slug")
+                VALUES ('20000000-0000-0000-0000-000000000002', TRUE, 'Achiziții generale (provizoriu)', 'achizitii-generale-provizoriu')
+                ON CONFLICT ("Id") DO NOTHING;
 
-            migrationBuilder.InsertData(
-                table: "Categories",
-                columns: new[] { "Id", "IsActive", "Name", "ParentId", "Slug", "SortOrder", "VerticalId" },
-                values: new object[] { new Guid("10000000-0000-0000-0000-000000000011"), true, "Achiziții generale", null, "achizitii-generale", 0, new Guid("20000000-0000-0000-0000-000000000002") });
-
-            migrationBuilder.InsertData(
-                table: "Categories",
-                columns: new[] { "Id", "IsActive", "Name", "ParentId", "Slug", "SortOrder", "VerticalId" },
-                values: new object[,]
-                {
-                    { new Guid("10000000-0000-0000-0000-000000000012"), true, "Piese auto", new Guid("10000000-0000-0000-0000-000000000011"), "piese-auto", 10, new Guid("20000000-0000-0000-0000-000000000002") },
-                    { new Guid("10000000-0000-0000-0000-000000000013"), true, "Lemn și produse din lemn", new Guid("10000000-0000-0000-0000-000000000011"), "lemn-produse-din-lemn", 20, new Guid("20000000-0000-0000-0000-000000000002") },
-                    { new Guid("10000000-0000-0000-0000-000000000014"), true, "Transport și logistică", new Guid("10000000-0000-0000-0000-000000000011"), "transport-logistica", 30, new Guid("20000000-0000-0000-0000-000000000002") },
-                    { new Guid("10000000-0000-0000-0000-000000000015"), true, "Închiriere utilaje", new Guid("10000000-0000-0000-0000-000000000011"), "inchiriere-utilaje", 40, new Guid("20000000-0000-0000-0000-000000000002") },
-                    { new Guid("10000000-0000-0000-0000-000000000016"), true, "Servicii specializate", new Guid("10000000-0000-0000-0000-000000000011"), "servicii-specializate", 50, new Guid("20000000-0000-0000-0000-000000000002") }
-                });
+                INSERT INTO "Categories" ("Id", "IsActive", "Name", "ParentId", "Slug", "SortOrder", "VerticalId") VALUES
+                ('10000000-0000-0000-0000-000000000011', TRUE, 'Achiziții generale', NULL, 'achizitii-generale', 0, '20000000-0000-0000-0000-000000000002'),
+                ('10000000-0000-0000-0000-000000000012', TRUE, 'Piese auto', '10000000-0000-0000-0000-000000000011', 'piese-auto', 10, '20000000-0000-0000-0000-000000000002'),
+                ('10000000-0000-0000-0000-000000000013', TRUE, 'Lemn și produse din lemn', '10000000-0000-0000-0000-000000000011', 'lemn-produse-din-lemn', 20, '20000000-0000-0000-0000-000000000002'),
+                ('10000000-0000-0000-0000-000000000014', TRUE, 'Transport și logistică', '10000000-0000-0000-0000-000000000011', 'transport-logistica', 30, '20000000-0000-0000-0000-000000000002'),
+                ('10000000-0000-0000-0000-000000000015', TRUE, 'Închiriere utilaje', '10000000-0000-0000-0000-000000000011', 'inchiriere-utilaje', 40, '20000000-0000-0000-0000-000000000002'),
+                ('10000000-0000-0000-0000-000000000016', TRUE, 'Servicii specializate', '10000000-0000-0000-0000-000000000011', 'servicii-specializate', 50, '20000000-0000-0000-0000-000000000002')
+                ON CONFLICT ("Id") DO NOTHING;
+                """);
         }
 
-        /// <inheritdoc />
         protected override void Down(MigrationBuilder migrationBuilder)
         {
-            migrationBuilder.DeleteData("Categories", "Id", new Guid("10000000-0000-0000-0000-000000000012"));
-            migrationBuilder.DeleteData("Categories", "Id", new Guid("10000000-0000-0000-0000-000000000013"));
-            migrationBuilder.DeleteData("Categories", "Id", new Guid("10000000-0000-0000-0000-000000000014"));
-            migrationBuilder.DeleteData("Categories", "Id", new Guid("10000000-0000-0000-0000-000000000015"));
-            migrationBuilder.DeleteData("Categories", "Id", new Guid("10000000-0000-0000-0000-000000000016"));
-            migrationBuilder.DeleteData("Categories", "Id", new Guid("10000000-0000-0000-0000-000000000011"));
-            migrationBuilder.DeleteData("Verticals", "Id", new Guid("20000000-0000-0000-0000-000000000002"));
+            migrationBuilder.Sql("""
+                DELETE FROM "Categories" WHERE "Id" IN (
+                    '10000000-0000-0000-0000-000000000012', '10000000-0000-0000-0000-000000000013',
+                    '10000000-0000-0000-0000-000000000014', '10000000-0000-0000-0000-000000000015',
+                    '10000000-0000-0000-0000-000000000016', '10000000-0000-0000-0000-000000000011');
+                DELETE FROM "Verticals" WHERE "Id" = '20000000-0000-0000-0000-000000000002';
+                """);
         }
     }
 }

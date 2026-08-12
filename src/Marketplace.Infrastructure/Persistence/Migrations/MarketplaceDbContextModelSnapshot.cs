@@ -493,6 +493,38 @@ namespace Marketplace.Infrastructure.Persistence.Migrations
                         });
                 });
 
+            modelBuilder.Entity("Marketplace.Domain.Profiles.CompanyMembership", b =>
+                {
+                    b.Property<Guid>("CompanyId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTimeOffset?>("RevokedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Role")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("CompanyId", "UserId");
+
+                    b.HasIndex("CompanyId", "UserId")
+                        .IsUnique();
+
+                    b.HasIndex("UserId", "RevokedAt");
+
+                    b.ToTable("CompanyMemberships", (string)null);
+                });
+
             modelBuilder.Entity("Marketplace.Domain.Profiles.SupplierProfile", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1844,6 +1876,21 @@ namespace Marketplace.Infrastructure.Persistence.Migrations
                         .WithOne()
                         .HasForeignKey("Marketplace.Domain.Profiles.BuyerProfile", "Id")
                         .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Marketplace.Domain.Profiles.CompanyMembership", b =>
+                {
+                    b.HasOne("Marketplace.Domain.Profiles.SupplierProfile", null)
+                        .WithMany()
+                        .HasForeignKey("CompanyId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Marketplace.Infrastructure.Identity.ApplicationUser", null)
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
                 });
 

@@ -18,6 +18,7 @@ export const routes: Routes = [
   { path: 'dashboard', canActivate: [authGuard], loadComponent: () => import('./features/dashboard/dashboard.component').then(m => m.DashboardComponent) },
   { path: 'account', canActivate: [authGuard], loadComponent: () => import('./features/profiles/account.component').then(m => m.AccountComponent) },
   { path: 'requests', canActivate: [buyerGuard], loadComponent: () => import('./features/rfqs/buyer-rfq-list.component').then(m => m.BuyerRfqListComponent) },
+  { path: 'offers', canActivate: [buyerGuard], loadComponent: () => import('./features/offers/buyer-offer-inbox.component').then(m => m.BuyerOfferInboxComponent) },
   { path: 'open-requests', canActivate: [authGuard], loadComponent: () => import('./features/rfqs/open-rfq-list.component').then(m => m.OpenRfqListComponent) },
   { path: 'open-requests/:rfqId', canActivate: [authGuard], loadComponent: () => import('./features/rfqs/open-rfq-detail.component').then(m => m.OpenRfqDetailComponent) },
   { path: 'rfqs/new/advanced', canActivate: [authGuard], loadComponent: () => import('./features/rfqs/rfq-editor.component').then(m => m.RfqEditorComponent) },

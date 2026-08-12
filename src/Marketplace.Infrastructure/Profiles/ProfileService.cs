@@ -37,6 +37,7 @@ public sealed class ProfileService(MarketplaceDbContext dbContext, TimeProvider 
         {
             profile = SupplierProfile.Create(id, input.TradingName, input.CompanyRegistrationNumber, input.TaxIdentifier, input.ContactPerson, input.ContactEmail, input.PhoneNumber, input.Website, input.Address, input.City, input.County, input.Latitude, input.Longitude, input.Description, now);
             dbContext.SupplierProfiles.Add(profile);
+            dbContext.CompanyMemberships.Add(CompanyMembership.Create(id, profile.Id, CompanyMembershipRole.Owner, now));
         }
         else profile.Update(input.TradingName, input.CompanyRegistrationNumber, input.TaxIdentifier, input.ContactPerson, input.ContactEmail, input.PhoneNumber, input.Website, input.Address, input.City, input.County, input.Latitude, input.Longitude, input.Description, now);
         dbContext.AccountAuditEvents.Add(AccountAuditEvent.Create(id, id, AccountAuditEventType.ProfileSaved, "Profil de furnizor salvat.", now));
