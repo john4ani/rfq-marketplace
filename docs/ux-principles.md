@@ -1,0 +1,28 @@
+# CompaSpot UX principles
+
+These principles govern all new user-facing work.
+
+## Easy experience
+
+- One dominant action per screen; minimal choices; progressive disclosure.
+- Users see practical Romanian language, not internal terms such as RFQ, publication, match score or supplier candidate.
+- AI presents visible understanding, assumptions and uncertainty; it asks one meaningful clarification at a time and allows correction in natural language.
+- Drafts autosave where practical; back/refresh do not silently destroy work; irreversible actions require explicit human confirmation.
+- Every operation has loading, success, empty, error and recovery feedback. No unexplained blank screens.
+- The critical flow is comfortable on mobile.
+
+## General Procurement
+
+Home is led by **Caut ceva**: a natural-language description, `Continuă`, reassurance that AI helps clarify, and a manual alternative. **Am un proiect de construcții** is secondary and distinct. Do not force category, need type, or other internal choices before AI can infer them.
+
+## Provider and claim
+
+Provider Home begins with relevant opportunities, not KPIs. Request detail immediately answers what is needed, where, when and what to complete, with `Trimite ofertă`, partial response, and decline actions. Claim follows opportunity → claim/confirm company → verify account/contact → offer with minimum friction.
+
+## Offers and integrity
+
+Comparison emphasises total, coverage, delivery, condition, warranty, transport and trust. It does not label the cheapest offer as best without an explanation. Avoid fake urgency, scarcity, hidden ranking, misleading AI, referral spam, or manipulative prompts.
+
+## Visual direction
+
+Forest Warm remains the MVP direction: warm, calm, trustworthy, premium through restraint, human Romanian, readable Inter typography, generous whitespace and accessible status labels. Standardize only real reused components touched by the current slice.
