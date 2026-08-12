@@ -1258,6 +1258,65 @@ namespace Marketplace.Infrastructure.Persistence.Migrations
                             Slug = "instalatii-electrice",
                             SortOrder = 90,
                             VerticalId = new Guid("20000000-0000-0000-0000-000000000001")
+                        },
+                        new
+                        {
+                            Id = new Guid("10000000-0000-0000-0000-000000000011"),
+                            IsActive = true,
+                            Name = "Achiziții generale",
+                            Slug = "achizitii-generale",
+                            SortOrder = 0,
+                            VerticalId = new Guid("20000000-0000-0000-0000-000000000002")
+                        },
+                        new
+                        {
+                            Id = new Guid("10000000-0000-0000-0000-000000000012"),
+                            IsActive = true,
+                            Name = "Piese auto",
+                            ParentId = new Guid("10000000-0000-0000-0000-000000000011"),
+                            Slug = "piese-auto",
+                            SortOrder = 10,
+                            VerticalId = new Guid("20000000-0000-0000-0000-000000000002")
+                        },
+                        new
+                        {
+                            Id = new Guid("10000000-0000-0000-0000-000000000013"),
+                            IsActive = true,
+                            Name = "Lemn și produse din lemn",
+                            ParentId = new Guid("10000000-0000-0000-0000-000000000011"),
+                            Slug = "lemn-produse-din-lemn",
+                            SortOrder = 20,
+                            VerticalId = new Guid("20000000-0000-0000-0000-000000000002")
+                        },
+                        new
+                        {
+                            Id = new Guid("10000000-0000-0000-0000-000000000014"),
+                            IsActive = true,
+                            Name = "Transport și logistică",
+                            ParentId = new Guid("10000000-0000-0000-0000-000000000011"),
+                            Slug = "transport-logistica",
+                            SortOrder = 30,
+                            VerticalId = new Guid("20000000-0000-0000-0000-000000000002")
+                        },
+                        new
+                        {
+                            Id = new Guid("10000000-0000-0000-0000-000000000015"),
+                            IsActive = true,
+                            Name = "Închiriere utilaje",
+                            ParentId = new Guid("10000000-0000-0000-0000-000000000011"),
+                            Slug = "inchiriere-utilaje",
+                            SortOrder = 40,
+                            VerticalId = new Guid("20000000-0000-0000-0000-000000000002")
+                        },
+                        new
+                        {
+                            Id = new Guid("10000000-0000-0000-0000-000000000016"),
+                            IsActive = true,
+                            Name = "Servicii specializate",
+                            ParentId = new Guid("10000000-0000-0000-0000-000000000011"),
+                            Slug = "servicii-specializate",
+                            SortOrder = 50,
+                            VerticalId = new Guid("20000000-0000-0000-0000-000000000002")
                         });
                 });
 
@@ -1356,6 +1415,13 @@ namespace Marketplace.Infrastructure.Persistence.Migrations
                             IsActive = true,
                             Name = "Construcții",
                             Slug = "constructii"
+                        },
+                        new
+                        {
+                            Id = new Guid("20000000-0000-0000-0000-000000000002"),
+                            IsActive = true,
+                            Name = "Achiziții generale (provizoriu)",
+                            Slug = "achizitii-generale-provizoriu"
                         });
                 });
 

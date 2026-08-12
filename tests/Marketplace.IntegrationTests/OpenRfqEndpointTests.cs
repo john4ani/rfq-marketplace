@@ -80,6 +80,55 @@ public sealed class OpenRfqEndpointTests : IClassFixture<WebApplicationFactory<P
             && notification.Link == $"/open-requests/{notifiedRfq.Id}");
     }
 
+    [Fact]
+    public async Task GenericProcurementCategoriesSupportMatchingForTheInitialCrossIndustryExamples()
+    {
+        const string password = "password";
+        TokenResponse buyer = await RegisterAndLogin("buyer", $"generic-buyer-{Guid.NewGuid():N}@example.test", password);
+        Authorize(buyer.AccessToken);
+        CategoryResponse[] categories = (await _client.GetFromJsonAsync<CategoryResponse[]>("/api/v1/categories"))!;
+        var examples = new[]
+        {
+            ("Piese auto", "Alternator pentru autoturism"),
+            ("Lemn și produse din lemn", "Cherestea uscată"),
+            ("Transport și logistică", "Transport marfă paletizată"),
+            ("Închiriere utilaje", "Închiriere excavator"),
+            ("Servicii specializate", "Serviciu de excavare")
+        };
+        Guid[] categoryIds = examples.Select(example => Assert.Single(categories, category => category.Name == example.Item1).Id).ToArray();
+
+        foreach ((string _, string title) in examples)
+        {
+            Guid categoryId = categoryIds[Array.FindIndex(examples, example => example.Item2 == title)];
+            RfqResponse request = (await (await _client.PostAsJsonAsync("/api/v1/rfqs", Request(categoryId, title)))
+                .Content.ReadFromJsonAsync<RfqResponse>())!;
+            Assert.Equal(HttpStatusCode.OK, (await _client.PostAsJsonAsync($"/api/v1/rfqs/{request.Id}/publish", new { })).StatusCode);
+        }
+
+        string supplierEmail = $"generic-supplier-{Guid.NewGuid():N}@example.test";
+        TokenResponse supplier = await RegisterAndLogin("supplier", supplierEmail, password);
+        Guid supplierId = UserId(supplier.AccessToken);
+        Authorize(supplier.AccessToken);
+        Assert.Equal(HttpStatusCode.OK, (await _client.PutAsJsonAsync($"/api/v1/suppliers/{supplierId}", new
+        {
+            tradingName = "Furnizor general", companyRegistrationNumber = "J00/3/2026", taxIdentifier = "RO789",
+            contactPerson = "Furnizor Test", contactEmail = supplierEmail, phoneNumber = "0722222222",
+            website = (string?)null, address = "Strada Furnizor 2", city = "Iași", county = "Iași",
+            latitude = (decimal?)null, longitude = (decimal?)null, description = "Produse și servicii"
+        })).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await _client.PutAsJsonAsync($"/api/v1/suppliers/{supplierId}/categories",
+            new { categoryIds })).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await _client.PutAsJsonAsync($"/api/v1/suppliers/{supplierId}/delivery-settings", new
+        {
+            normalDeliveryRadiusKm = 50, maximumDeliveryRadiusKm = 100, minimumOrderValue = (decimal?)null,
+            nationwideDelivery = false, counties = IasiCounty
+        })).StatusCode);
+
+        OpenRfqResponse[] matches = (await _client.GetFromJsonAsync<OpenRfqResponse[]>("/api/v1/open-rfqs"))!;
+        foreach ((string _, string title) in examples)
+            Assert.Contains(matches, item => item.Title == title);
+    }
+
     private async Task<TokenResponse> RegisterAndLogin(string role, string email, string password)
     {
         _client.DefaultRequestHeaders.Authorization = null;
@@ -125,6 +174,6 @@ public sealed class OpenRfqEndpointTests : IClassFixture<WebApplicationFactory<P
     private sealed record TokenResponse(string AccessToken, DateTimeOffset ExpiresAt);
     private sealed record CategoryResponse(Guid Id, Guid? ParentId, string Name, string Slug);
     private sealed record RfqResponse(Guid Id);
-    private sealed record OpenRfqResponse(Guid Id, string County, string BuyerDisplayName);
+    private sealed record OpenRfqResponse(Guid Id, string County, string BuyerDisplayName, string Title);
     private sealed record NotificationResponse(string Type, string Link);
 }

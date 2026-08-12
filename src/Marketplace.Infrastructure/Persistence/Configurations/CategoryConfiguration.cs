@@ -7,6 +7,7 @@ namespace Marketplace.Infrastructure.Persistence.Configurations;
 public sealed class CategoryConfiguration : IEntityTypeConfiguration<Category>
 {
     public static readonly Guid RootId = Guid.Parse("10000000-0000-0000-0000-000000000001");
+    public static readonly Guid GeneralProcurementRootId = Guid.Parse("10000000-0000-0000-0000-000000000011");
 
     public void Configure(EntityTypeBuilder<Category> builder)
     {
@@ -27,6 +28,12 @@ public sealed class CategoryConfiguration : IEntityTypeConfiguration<Category>
             Category.Create(Guid.Parse("10000000-0000-0000-0000-000000000007"), VerticalConfiguration.ConstructionId, RootId, "Gips-carton", "gips-carton", 60),
             Category.Create(Guid.Parse("10000000-0000-0000-0000-000000000008"), VerticalConfiguration.ConstructionId, RootId, "Finisaje", "finisaje", 70),
             Category.Create(Guid.Parse("10000000-0000-0000-0000-000000000009"), VerticalConfiguration.ConstructionId, RootId, "Instalații sanitare", "instalatii-sanitare", 80),
-            Category.Create(Guid.Parse("10000000-0000-0000-0000-000000000010"), VerticalConfiguration.ConstructionId, RootId, "Instalații electrice", "instalatii-electrice", 90));
+            Category.Create(Guid.Parse("10000000-0000-0000-0000-000000000010"), VerticalConfiguration.ConstructionId, RootId, "Instalații electrice", "instalatii-electrice", 90),
+            Category.Create(GeneralProcurementRootId, VerticalConfiguration.GeneralProcurementCompatibilityId, null, "Achiziții generale", "achizitii-generale", 0),
+            Category.Create(Guid.Parse("10000000-0000-0000-0000-000000000012"), VerticalConfiguration.GeneralProcurementCompatibilityId, GeneralProcurementRootId, "Piese auto", "piese-auto", 10),
+            Category.Create(Guid.Parse("10000000-0000-0000-0000-000000000013"), VerticalConfiguration.GeneralProcurementCompatibilityId, GeneralProcurementRootId, "Lemn și produse din lemn", "lemn-produse-din-lemn", 20),
+            Category.Create(Guid.Parse("10000000-0000-0000-0000-000000000014"), VerticalConfiguration.GeneralProcurementCompatibilityId, GeneralProcurementRootId, "Transport și logistică", "transport-logistica", 30),
+            Category.Create(Guid.Parse("10000000-0000-0000-0000-000000000015"), VerticalConfiguration.GeneralProcurementCompatibilityId, GeneralProcurementRootId, "Închiriere utilaje", "inchiriere-utilaje", 40),
+            Category.Create(Guid.Parse("10000000-0000-0000-0000-000000000016"), VerticalConfiguration.GeneralProcurementCompatibilityId, GeneralProcurementRootId, "Servicii specializate", "servicii-specializate", 50));
     }
 }

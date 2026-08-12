@@ -10,7 +10,7 @@ import { ROMANIAN_COUNTIES } from '../../shared/romanian-counties';
   template: `@if (auth.session()?.accountType === 'Supplier') {
     <section class="profile-card settings-card">
       <div class="section-heading"><div><p class="eyebrow">Ce livrezi</p><h2>Categorii de produse</h2></div>
-        <p>Alege materialele pentru care vrei să primești cereri de ofertă.</p></div>
+        <p>Alege produsele și serviciile pentru care vrei să primești cereri de ofertă.</p></div>
       @if (loadingCategories()) { <p role="status">Se încarcă categoriile…</p> }
       @else if (categoryLoadFailed()) { <div class="state-error" role="alert"><p>Categoriile nu sunt disponibile momentan.</p><button type="button" class="secondary" (click)="loadCategories()">Încearcă din nou</button></div> }
       @else { <div class="choice-grid" role="group" aria-label="Categorii de produse">

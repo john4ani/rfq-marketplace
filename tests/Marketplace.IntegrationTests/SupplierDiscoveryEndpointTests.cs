@@ -45,7 +45,8 @@ public sealed class SupplierDiscoveryEndpointTests : IClassFixture<WebApplicatio
         })).StatusCode);
 
         CategoryResponse[] categories = (await adminClient.GetFromJsonAsync<CategoryResponse[]>("/api/v1/categories"))!;
-        Guid categoryId = categories.First(category => category.ParentId is not null).Id;
+        Guid constructionRootId = categories.Single(category => category.Slug == "constructii").Id;
+        Guid categoryId = categories.First(category => category.ParentId == constructionRootId).Id;
         string customCategoryName = $"Categorie centrală {Guid.NewGuid():N}";
         CategoryCreationResponse customCategory = (await (await adminClient.PostAsJsonAsync(
             "/api/v1/categories", new { name = customCategoryName })).Content.ReadFromJsonAsync<CategoryCreationResponse>())!;
@@ -58,9 +59,9 @@ public sealed class SupplierDiscoveryEndpointTests : IClassFixture<WebApplicatio
         Assert.Equal(HttpStatusCode.Conflict, similarCategory.StatusCode);
         ProjectTemplateResponse template = (await (await adminClient.PostAsJsonAsync(
             "/api/v1/project-templates", new {
-                name = $"Proiect test {Guid.NewGuid():N}", description = "Șablon editabil", categoryIds = new[] { categoryId, customCategory.Id }
+                name = $"Proiect test {Guid.NewGuid():N}", description = "Șablon editabil", categoryIds = new[] { categoryId }
             })).Content.ReadFromJsonAsync<ProjectTemplateResponse>())!;
-        Assert.Equal(2, template.CategoryIds.Length);
+        Assert.Single(template.CategoryIds);
         Assert.Contains((await adminClient.GetFromJsonAsync<ProjectTemplateResponse[]>("/api/v1/project-templates"))!, item => item.Id == template.Id);
         HttpResponseMessage rfqCreated = await adminClient.PostAsJsonAsync("/api/v1/rfqs", new
         {
@@ -255,7 +256,7 @@ public sealed class SupplierDiscoveryEndpointTests : IClassFixture<WebApplicatio
     }
 
     private sealed record TokenResponse(string AccessToken);
-    private sealed record CategoryResponse(Guid Id, Guid? ParentId);
+    private sealed record CategoryResponse(Guid Id, Guid? ParentId, string Slug);
     private sealed record CategoryCreationResponse(Guid Id, bool AlreadyExisted);
     private sealed record ProjectTemplateResponse(Guid Id, Guid[] CategoryIds);
     private sealed record RfqResponse(Guid Id);

@@ -4,6 +4,7 @@ using Marketplace.Application.Suppliers;
 using Marketplace.Domain.Profiles;
 using Marketplace.Domain.Suppliers;
 using Marketplace.Infrastructure.Persistence;
+using Marketplace.Infrastructure.Persistence.Configurations;
 using Microsoft.EntityFrameworkCore;
 
 namespace Marketplace.Infrastructure.Suppliers;
@@ -29,13 +30,13 @@ public sealed class SupplierSettingsService(MarketplaceDbContext dbContext, Time
             .ToArray();
         if (similarCategories.Length > 0 && !confirmSimilar)
             return new(null, false, similarCategories);
-        Guid rootId = await dbContext.Categories.Where(category => category.ParentId == null)
-            .Select(category => category.Id).SingleAsync(cancellationToken);
+        Guid rootId = CategoryConfiguration.GeneralProcurementRootId;
+        bool generalRootExists = await dbContext.Categories.AnyAsync(category => category.Id == rootId, cancellationToken);
+        if (!generalRootExists)
+            throw new InvalidOperationException("Catalogul general nu este configurat.");
         int lastOrder = await dbContext.Categories.Where(category => category.ParentId == rootId)
             .MaxAsync(category => (int?)category.SortOrder, cancellationToken) ?? 0;
-        Guid verticalId = await dbContext.Categories.Where(category => category.Id == rootId)
-            .Select(category => category.VerticalId).SingleAsync(cancellationToken);
-        Category category = Category.Create(Guid.NewGuid(), verticalId, rootId, cleanName, slug, lastOrder + 10);
+        Category category = Category.Create(Guid.NewGuid(), VerticalConfiguration.GeneralProcurementCompatibilityId, rootId, cleanName, slug, lastOrder + 10);
         dbContext.Categories.Add(category);
         await dbContext.SaveChangesAsync(cancellationToken);
         return new(category, false, similarCategories);
