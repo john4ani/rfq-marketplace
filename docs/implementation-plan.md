@@ -24,7 +24,20 @@ Not deployed in this task. Deployment remains an explicit release action after r
 
 ## Task 2 — Procurement Core analysis
 
-Analysis only. Identify construction-specific assumptions, reusable elements, necessary migration only, generic-need support, retained APIs and construction separation. **Stop for review.**
+Analysis only. Identify construction-specific assumptions, reusable elements, necessary migration only, generic-need support, retained APIs and construction separation.
+
+Also analyse the current identity/profile model against the target contextual-role model. Before proposing any implementation, document:
+
+- how `/register` works today;
+- which entities are created for a Buyer;
+- which entities are created for a Provider;
+- how `ActiveProfile` works;
+- which foreign keys and ownership rules depend on Buyer/Provider;
+- what can remain unchanged;
+- the smallest safe migration required;
+- how existing accounts, ownership, offers, requests, trust data and company associations are preserved.
+
+Do not implement identity, registration or profile changes in Task 2. **Stop for review.**
 
 ## Task 3 — Procurement Core implementation
 
