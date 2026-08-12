@@ -22,7 +22,7 @@ Completed locally:
 
 Not deployed in this task. Deployment remains an explicit release action after review.
 
-## Task 2 — Procurement Core analysis
+## Task 2 — Procurement Core analysis — complete, pending review
 
 Analysis only. Identify construction-specific assumptions, reusable elements, necessary migration only, generic-need support, retained APIs and construction separation.
 
@@ -39,9 +39,11 @@ Also analyse the current identity/profile model against the target contextual-ro
 
 Do not implement identity, registration or profile changes in Task 2. **Stop for review.**
 
+Analysis outcome and decision gate: [`task-2-procurement-core-analysis.md`](task-2-procurement-core-analysis.md).
+
 ## Task 3 — Procurement Core implementation
 
-After approval only: 3A remove shared construction assumptions; 3B generic requirement/categories/location; 3C AI compatibility; 3D offer compatibility; 3E construction compatibility. One slice at a time.
+After approval only: 3A remove shared construction assumptions; 3B generic requirement/categories/location; 3C AI compatibility; 3D offer compatibility; 3E construction compatibility. Introducing `IConstructionProjectInterpreter` before Task 9 preserves the existing Construction state exactly as-is and must not add temporary generic `Rfq` fields for new Construction facts. One slice at a time.
 
 ## Task 4 — General Procurement UX
 

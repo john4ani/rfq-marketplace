@@ -7,6 +7,10 @@ Format: JSON
 Time: UTC ISO 8601  
 Errors: RFC 7807 Problem Details
 
+## Compatibility policy
+
+`ProcurementNeed` is the product/domain term, while `/api/v1/rfqs` remains the compatible public API resource. Do not rename the route to `/procurement-needs` merely to match internal terminology. Retain existing RFQ routes and DTO fields; introduce only additive DTO fields where a concrete workflow needs them.
+
 ## Endpoint groups
 
 | Area | Main endpoints | Access |

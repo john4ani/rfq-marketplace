@@ -14,6 +14,8 @@ Construction Projects┘
 
 General Procurement provides breadth: products, materials, parts, equipment, transport, and services across industries. Construction Projects provides depth through construction-specific vocabulary, rules, project decomposition, and AI assistance. Construction remains in MVP, but is not the default CompaSpot experience.
 
+**General Procurement is an entry mode and generic flow, not an assumed permanent business Vertical.** Reuse the current Vertical/Category model pragmatically. If compatibility requires a general placeholder Vertical, mark it provisional, keep it free of business rules, and do not make future category or matching behaviour depend on it.
+
 ## Experience
 
 Buyer Home presents two choices:
@@ -22,6 +24,10 @@ Buyer Home presents two choices:
 2. **Am un proiect de construcții** — a secondary entry into specialised project assistance.
 
 If a general request looks like construction, AI may suggest Construction Projects discreetly. It must not redirect automatically; the user decides whether to switch or continue as a simple request.
+
+Construction mode is explicit. The legacy `NeedType.Project` value describes a generic project-shaped procurement need and may remain for backward compatibility; it is not, and must never become, the discriminator for the Construction bounded context.
+
+Until Task 9, preserve the existing Construction project state exactly as it is, including compatible `ProjectName`, `ProjectTemplateId` and project-specific intake behaviour. Introducing `IConstructionProjectInterpreter` earlier separates interpretation only; it does not introduce a new aggregate or temporary generic fields on `Rfq` for new Construction facts.
 
 Users may receive value through description, clarification and review before verification. Publishing requires the required account/contact confirmation. A person or company may buy and sell; profile management belongs in Account, not in the first-task experience.
 
@@ -56,7 +62,7 @@ The original opportunity is preserved throughout this flow. An invited supplier 
 
 ### Existing model and migration safety
 
-Reuse the existing `BuyerProfile`, `ProviderProfile` and active-profile mechanisms where practical. Do not perform a broad identity rewrite merely for architectural purity. The smallest compatible evolution must allow one User to buy, let that User represent a selling Company, let that Company/User later create Procurement Needs, and remove Buyer-versus-Provider identity decisions from the main UX.
+Reuse the existing `BuyerProfile`, `SupplierProfile` and active-profile mechanisms where practical. `SupplierProfile` is the legacy persistence name; semantically it represents the selling Company / ProviderOrganization, not a personal selling profile. Do not perform a broad identity rewrite merely for architectural purity. The smallest compatible evolution must allow one User to buy, let that User represent a selling Company, let that Company/User later create Procurement Needs, and remove Buyer-versus-Provider identity decisions from the main UX.
 
 Existing Buyer and Provider accounts must continue to work. No migration may invalidate users or require account recreation; ownership, offers, requests, trust data and company associations must be preserved.
 
@@ -74,6 +80,21 @@ If organisational context is necessary, ask **„Pentru cine faci această achiz
 Included: General Procurement Need, AI clarification, requirements/location/publish, provider matching, human-approved Supplier Discovery, invitations and company claim, offers/comparison/outcome, trust, notification preferences and suppression, basic product analytics, and specialised Construction Projects that generate one or more procurement needs.
 
 Excluded: inventory, ERP/catalog/stock integrations, payments, company offering, automatic discovery outreach, complex CRM, non-construction vertical AI assistants, broad design-system rewrite, and speculative platform infrastructure.
+
+## Explicit MVP deferrals and rejected rewrites
+
+The following are deliberate boundaries, not unfinished Task 3 work:
+
+- **Defer:** the complete `ConstructionProject` aggregate to Task 9.
+- **Defer:** `BuyingCompanyId` until organizational buying UX is implemented and validated.
+- **Defer:** removal of legacy Buyer/Supplier Identity roles to post-MVP.
+- **Defer:** removal of legacy registration endpoints until deployed clients have migrated.
+- **Defer:** any `SupplierProfile` rename; it may never be needed.
+- **Defer:** any `Rfq` rename; it should happen only if a real reason emerges, and may never be needed.
+- **Defer:** composite `(VerticalId, Slug)` category uniqueness until an actual slug collision occurs.
+- **Reject for MVP:** a broad Company rewrite, including `SupplierProfile` rename and Offers, categories or Trust migrations.
+- **Reject for MVP:** a universal taxonomy refactor for every future industry; reuse the current model and add categories incrementally.
+- **Reject for MVP:** distributed cache/Redis; use the current application and database approach until measured demand justifies otherwise.
 
 ## Product integrity
 

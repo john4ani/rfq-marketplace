@@ -22,6 +22,8 @@ Domain does not depend on AWS, OpenAI, SMS/email implementation, Angular, EF Cor
 
 Keep separate application contracts: `IGeneralNeedInterpreter` and `IConstructionProjectInterpreter`. Each user turn should normally use one model call. Capture operation, model/provider, prompt version, duration, success/failure, token count, need/project ID, clarification count, fallback and user correction—never secrets or unnecessary request content.
 
+Before Task 9, the Construction interpreter is a routing/interpretation boundary only. Preserve the existing Construction project state and compatible request fields exactly as they are; do not add temporary generic fields to `Rfq` to store new Construction facts.
+
 ## Routing
 
 Critical business states should be refreshable, back-safe and directly addressable where meaningful. Not every transient dialog needs a route. Buyer Home, My Requests, offer comparison, provider opportunity/request and claim continuity are critical paths.

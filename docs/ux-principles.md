@@ -17,7 +17,9 @@ Home is led by **Caut ceva**: a natural-language description, `Continuă`, reass
 
 ## Registration and account recovery
 
-Registration is deliberately simple: a person selects **Cumpărător**, **Furnizor**, or both, then provides an email address and a password of at least eight characters. A person or company can add the other profile later from **Cont**, without creating another email identity. Clear, user-language validation, rate-limit feedback and a sign-in alternative must be shown; no browser, API, development-environment or HTTP-status jargon is shown to end users.
+Registration is deliberately simple: it creates a normal CompaSpot User from an email address and a password of at least eight characters. It does not ask the person to choose Buyer or Provider as a permanent account type. Buying is available to an authenticated User; selling is activated incrementally by creating or claiming a company, or by being added as its representative. Clear, user-language validation, rate-limit feedback and a sign-in alternative must be shown; no browser, API, development-environment or HTTP-status jargon is shown to end users.
+
+The action determines context: **Caut ceva** enters procurement and **Oportunități pentru firma mea** enters selling. When organization context is required, ask **Pentru cine faci această achiziție?** or **Pentru ce firmă trimiți această ofertă?** Never ask **Ce rol ai?** Existing Buyer and Supplier accounts remain valid during the compatible transition.
 
 After successful registration, the user is asked to sign in and returns to a safe requested route where applicable. Password recovery always responds in an enumeration-safe way, explains that instructions will arrive only if the address belongs to an account, and provides a clear retry path for expired or incomplete reset links. Development-only reset tokens must never be exposed in a deployed environment.
 

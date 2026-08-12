@@ -16,6 +16,10 @@
 
 This is a modular monolith. These boundaries do not require separate `.csproj` projects or services.
 
+## Supplier / Company semantic alias
+
+`SupplierProfile` is a **legacy persistence name**. Semantically, it represents a selling **Company / ProviderOrganization**, including its capability, delivery and offer relationships. It is not the personal profile of the User who sells. `CompanyMembership` associates one or more Users with that company; the legacy shared-key constraint remains until a later, concrete scenario justifies changing it.
+
 ## Shared Procurement Core
 
 `ProcurementNeed` is the user’s Cerere. The existing `Rfq` remains the compatible internal implementation until a concrete workflow requires a split.
@@ -31,6 +35,12 @@ ProcurementNeed (current Rfq)
 ```
 
 It must support a car alternator, timber, transport, excavator hire, electrical materials, or a construction-generated need without construction-only assumptions. A need can have one or many categories regardless of whether it is a direct purchase, list, or project. Each requirement line belongs to the relevant need category grouping.
+
+General Procurement is a generic entry mode into this Core, not a permanent domain Vertical. The current `Vertical`/`Category` model may be reused for compatibility. If a general placeholder Vertical is temporarily necessary, it must be explicitly provisional and must not carry domain rules or determine matching semantics.
+
+`NeedType.Project` is a legacy/general shape for a project-like Procurement Need. It is not a `ConstructionProject` and must not be used to enter, select, or infer the Construction bounded context. Construction mode is explicit and owns the specialised project context before it generates Procurement Needs.
+
+Until Task 9, the current compatible Construction state remains stored and handled exactly as it is. `IConstructionProjectInterpreter` may be introduced before the aggregate solely as an interpretation boundary. It must not create temporary generic `Rfq` fields, or place new Construction facts in the Procurement Core.
 
 ## Construction boundary
 
