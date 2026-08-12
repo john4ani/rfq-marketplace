@@ -27,7 +27,7 @@ export class SignInComponent {
       next: () => void this.router.navigateByUrl(this.returnUrl??'/dashboard'),
       error: (response) => {
         this.error.set(response.status === 0
-          ? 'API-ul nu poate fi contactat. Verificați dacă Marketplace.Api rulează.'
+          ? 'Nu ne putem conecta momentan. Verifică conexiunea și încearcă din nou.'
           : 'E-mailul sau parola este incorectă.');
         this.submitting.set(false);
       }

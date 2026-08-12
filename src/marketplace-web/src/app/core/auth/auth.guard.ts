@@ -24,3 +24,15 @@ export const administratorGuard: CanActivateFn = async () => {
     ? router.createUrlTree(['/sign-in'])
     : auth.isAdministrator() || router.createUrlTree(['/dashboard']);
 };
+
+export const buyerGuard: CanActivateFn = async () => {
+  const auth = inject(AuthService);
+  const router = inject(Router);
+  await auth.initialize();
+  await auth.waitForProfiles();
+  return !auth.isAuthenticated()
+    ? router.createUrlTree(['/sign-in'])
+    : auth.profiles().some(profile => profile.accountType === 'Buyer')
+      ? true
+      : router.createUrlTree(['/dashboard']);
+};

@@ -69,7 +69,7 @@ export class RegisterComponent {
     if (validationMessages.length > 0) return [...new Set(validationMessages)].join(' ');
     if (problem?.detail) return problem.detail;
     if (response.status === 0)
-      return 'API-ul nu poate fi contactat. Porniți Marketplace.Api în Visual Studio și încercați din nou.';
+      return 'Nu ne putem conecta momentan. Verifică conexiunea și încearcă din nou.';
     if (response.status === 409)
       return 'Există deja un cont de acest tip pentru adresa de e-mail. Autentificați-vă sau alegeți celălalt tip de cont.';
     if (response.status === 429)
@@ -77,8 +77,8 @@ export class RegisterComponent {
     if (response.status === 400)
       return problem?.title ?? 'Datele contului sunt invalide. Verificați e-mailul și cerințele parolei.';
     if (response.status >= 500)
-      return 'Serverul a întâmpinat o eroare la crearea contului. Verificați fereastra Marketplace.Api din Visual Studio.';
-    return `Înregistrarea a eșuat cu statusul HTTP ${response.status}. Verificați răspunsul API și încercați din nou.`;
+      return 'Contul nu a putut fi creat momentan. Încearcă din nou peste câteva minute.';
+    return 'Înregistrarea nu a putut fi finalizată. Încearcă din nou.';
   }
 
   private problemDetails(value: unknown): ProblemDetails | null {

@@ -4,9 +4,23 @@
 
 Update authoritative direction, domain, UX, architecture, plan, AGENTS and ADRs. No application code. **Stop for review.**
 
-## Task 1 — Stabilization
+## Task 1 — Stabilization — completed locally, pending deployment
 
-P0/P1 only: AI availability verification, Live Market error handling, form feedback, dashboard/account overlap, embedded critical states, password recovery, and Provider relevance dead-end. Deploy and test. No redesign.
+P0/P1 only: AI availability verification, Live Market error handling, form feedback, dashboard/account overlap, embedded critical states, password recovery, and Provider relevance dead-end. No redesign.
+
+Completed locally:
+
+- verified AI availability is checked before assisted intake starts; unavailable configurations keep the user on the complete form rather than a failed AI flow;
+- retained explicit Live Market loading, retry and error states;
+- retained actionable form validation and error focus/scroll behaviour;
+- separated Dashboard from Account: Dashboard is the work/start surface and Account is a dedicated route for profiles, preferences and trust;
+- protected Buyer-only requests from rendering blank for a Supplier/direct URL; profile loading now completes before the Buyer route decision;
+- replaced Provider relevance dead ends with return-to-requests and company-preferences actions, and pointed stale preference actions to Account;
+- documented registration, role selection, adding a second profile and password recovery in the active UX requirements; sign-in and registration errors now use user language rather than development tooling;
+- verified password reset has production configuration validation and keeps an enumeration-safe response;
+- verified locally with TypeScript, focused Angular tests (18), focused .NET integration tests (11), and browser navigation on the local stack.
+
+Not deployed in this task. Deployment remains an explicit release action after review.
 
 ## Task 2 — Procurement Core analysis
 

@@ -1,19 +1,13 @@
-import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
-import { ActivatedRoute, Router, RouterLink } from '@angular/router';
+import { ChangeDetectionStrategy, Component, computed, inject } from '@angular/core';
+import { Router, RouterLink } from '@angular/router';
 import { FormsModule } from '@angular/forms';
 import { AuthService } from '../../core/auth/auth.service';
-import { AccountSwitcherComponent } from '../profiles/account-switcher.component';
-import { ProfileEditorComponent } from '../profiles/profile-editor.component';
-import { SupplierSettingsComponent } from '../profiles/supplier-settings.component';
-import { BuyerRfqListComponent } from '../rfqs/buyer-rfq-list.component';
 import { SupplierOfferListComponent } from '../offers/supplier-offer-list.component';
-import { TrustSummaryComponent } from '../profiles/trust-summary.component';
 
 @Component({
   selector: 'app-dashboard',
-  imports: [RouterLink, FormsModule, AccountSwitcherComponent, ProfileEditorComponent, SupplierSettingsComponent, BuyerRfqListComponent, SupplierOfferListComponent, TrustSummaryComponent],
-  template: `@if(section()==='overview'){
-    @if(isBuyer()) {
+  imports: [RouterLink, FormsModule, SupplierOfferListComponent],
+  template: `@if(isBuyer()) {
       <section class="need-starter" aria-labelledby="need-starter-title">
         <div><h1 id="need-starter-title">Bună! Cu ce te putem ajuta?</h1>
           <p>Scrie-ne ce ai nevoie, așa cum i-ai spune unui furnizor.</p></div>
@@ -28,38 +22,18 @@ import { TrustSummaryComponent } from '../profiles/trust-summary.component';
         <a routerLink="/open-requests">Explorează cererile <span aria-hidden="true">→</span></a>
       </section>
     }
-  }
-
-  @if (!isBuyer() || section() !== 'overview') { <section class="workspace-bar">
-    <div><span>Lucrezi ca</span><app-account-switcher (profileAdded)="openNewProfile($event)" /></div>
-    <nav aria-label="Secțiuni cont"><button type="button" [class.active]="section()==='overview'" (click)="showOverview()">Activitate</button><button type="button" [class.active]="section()==='settings'" (click)="showSettings()">Profil și preferințe</button></nav>
-  </section> }
 
   <section class="dashboard-content">
-    @if(section()==='overview'){
       @if(!isBuyer()){<div class="quick-actions">
           <a class="action-card primary" routerLink="/open-requests"><span>↗</span><div><strong>Vezi cererile potrivite</strong><small>Răspunde rapid oportunităților relevante.</small></div><b aria-hidden="true">›</b></a>
-          <button class="action-card" type="button" (click)="showSettings()"><span>✓</span><div><strong>Verifică preferințele</strong><small>Categoriile și zonele influențează potrivirile.</small></div><b aria-hidden="true">›</b></button>
+          <a class="action-card" routerLink="/account"><span>✓</span><div><strong>Verifică preferințele</strong><small>Categoriile și zonele influențează potrivirile.</small></div><b aria-hidden="true">›</b></a>
       </div>}
       @if(auth.session()?.accountType==='Supplier'){
         <div id="supplier-offers"><app-supplier-offer-list /></div>
         <section class="activity-card"><div><p class="eyebrow">Următorul pas</p><h2>Ține profilul relevant pentru potriviri mai bune</h2>
           <p>Categoriile și zonele de livrare determină cererile pe care le vezi. Semnalele verificate ajută cumpărătorii să decidă cu încredere.</p></div>
-          <button type="button" class="secondary-action" (click)="showSettings()">Verifică profilul și preferințele</button></section>
+          <a routerLink="/account" class="secondary-action">Verifică profilul și preferințele</a></section>
       }
-    }@else{
-      <div class="settings-intro"><div><p class="eyebrow">Configurare</p><h2>Profil și preferințe</h2></div>
-        <p>Informațiile complete îmbunătățesc relevanța potrivirilor și încrederea partenerilor.</p></div>
-      @if (returnUrl()) {
-        <section class="onboarding-callout" role="status">
-          <strong>Completează profilul de cumpărător înainte de prima cerere.</strong>
-          <span>Folosim localitatea și raza de interes pentru livrare și potrivirea furnizorilor. După salvare, revenim automat la cerere.</span>
-        </section>
-      }
-      <app-profile-editor (profileSaved)="resumeAfterProfileSave($event)" />
-      <app-supplier-settings />
-      <app-trust-summary [refreshVersion]="trustVersion()" />
-    }
   </section>`,
   styleUrl: './dashboard.component.scss',
   changeDetection: ChangeDetectionStrategy.OnPush
@@ -67,15 +41,7 @@ import { TrustSummaryComponent } from '../profiles/trust-summary.component';
 export class DashboardComponent {
   readonly auth = inject(AuthService);
   private readonly router = inject(Router);
-  private readonly route = inject(ActivatedRoute);
-  readonly section = signal<'overview' | 'settings'>(
-    this.route.snapshot.routeConfig?.path === 'account' || this.route.snapshot.queryParamMap.get('section') === 'settings'
-      ? 'settings'
-      : 'overview');
-  readonly returnUrl = signal(this.safeReturnUrl(this.route.snapshot.queryParamMap.get('returnUrl')));
-  readonly hasBuyerProfile = computed(() => this.auth.profiles().some(profile => profile.accountType === 'Buyer'));
   readonly isBuyer = computed(() => this.auth.session()?.accountType === 'Buyer');
-  readonly trustVersion = signal(0);
   needText = '';
 
   startNeed(): void {
@@ -83,31 +49,4 @@ export class DashboardComponent {
     void this.router.navigate(['/rfqs/new'], { queryParams: description ? { description } : undefined });
   }
 
-  showOverview(): void {
-    this.section.set('overview');
-    void this.router.navigateByUrl('/dashboard');
-  }
-
-  showSettings(): void {
-    this.section.set('settings');
-    void this.router.navigateByUrl('/account');
-  }
-
-  openNewProfile(accountType: 'Buyer' | 'Supplier'): void {
-    this.auth.switchProfile(accountType);
-    this.returnUrl.set(null);
-    this.showSettings();
-  }
-
-  resumeAfterProfileSave(accountType: 'Buyer' | 'Supplier'): void {
-    this.trustVersion.update(value => value + 1);
-    const destination = this.returnUrl();
-    if (destination && (accountType === 'Buyer' && destination === '/rfqs/new'
-      || accountType === 'Supplier' && destination.startsWith('/supplier-invitations/')))
-      void this.router.navigateByUrl(destination);
-  }
-
-  private safeReturnUrl(value: string | null): string | null {
-    return value === '/rfqs/new' || value?.startsWith('/supplier-invitations/') ? value : null;
-  }
 }

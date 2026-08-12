@@ -33,6 +33,7 @@ import { TrustFactsComponent } from '../profiles/trust-facts.component';
         </select>
       </label>
     </section>
+    @if (categoryError()) { <p class="filter-warning" role="status">{{ categoryError() }}</p> }
     <aside class="matching-explanation"><span aria-hidden="true">✓</span><div><strong>De ce vezi aceste cereri?</strong>
       <p>Se potrivesc cu cel puțin o categorie din profilul firmei și cu zona în care ai spus că poți livra. O potrivire parțială arată numai pozițiile relevante pentru specializarea ta.</p></div>
       <a routerLink="/account">Verifică preferințele</a></aside>
@@ -44,7 +45,7 @@ import { TrustFactsComponent } from '../profiles/trust-facts.component';
     } @else if (requests().length === 0) {
       <section class="state empty"><span class="empty-icon" aria-hidden="true">⌕</span><div><strong>Nu există cereri potrivite acum.</strong>
         <span>Poți ajusta categoriile și județele deservite pentru a primi potriviri mai bune.</span></div>
-        <a routerLink="/dashboard">Verifică preferințele</a></section>
+        <a routerLink="/account">Verifică preferințele</a></section>
     } @else {
       <section class="request-grid">
         @for (request of requests(); track request.id) {
@@ -78,9 +79,13 @@ export class OpenRfqListComponent {
   readonly categories = signal<CategoryOption[]>([]);
   readonly loading = signal(true);
   readonly error = signal('');
+  readonly categoryError = signal('');
 
   constructor() {
-    this.categoryService.getCategories().subscribe({ next: values => this.categories.set(values.filter(value => value.parentId !== null)) });
+    this.categoryService.getCategories().subscribe({
+      next: values => this.categories.set(values.filter(value => value.parentId !== null)),
+      error: () => this.categoryError.set('Filtrarea pe categorie nu este disponibilă momentan. Poți vedea în continuare toate cererile potrivite.')
+    });
     this.load();
   }
 

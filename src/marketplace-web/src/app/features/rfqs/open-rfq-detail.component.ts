@@ -14,7 +14,7 @@ import { TrustFactsComponent } from '../profiles/trust-facts.component';
     @if (loading()) {
       <div class="loading" role="status"><span></span><span></span><span></span></div>
     } @else if (error()) {
-      <section class="error" role="alert"><div><strong>Cererea nu este disponibilă momentan.</strong><span>{{ error() }}</span></div><button type="button" (click)="load()">Încearcă din nou</button></section>
+      <section class="error" role="alert"><div><strong>Cererea nu este disponibilă momentan.</strong><span>{{ error() }}</span></div><div class="error-actions"><a routerLink="/open-requests">Înapoi la cereri</a>@if (notRelevant()) { <a routerLink="/account">Verifică preferințele firmei</a> }<button type="button" (click)="load()">Încearcă din nou</button></div></section>
     } @else if (request(); as rfq) {
       <header><div><p class="eyebrow">{{ rfq.isPartialMatch ? 'Partea relevantă pentru specializarea ta' : rfq.categoryName }}</p><h1>{{ rfq.title }}</h1>
         <p>{{ rfq.projectName || 'Cerere publicată în Piața Live' }}</p></div>
@@ -53,6 +53,7 @@ export class OpenRfqDetailComponent {
   readonly request = signal<OpenRfq | null>(null);
   readonly loading = signal(true);
   readonly error = signal('');
+  readonly notRelevant = signal(false);
   readonly unitLabel = unitLabel;
   private readonly requestId = inject(ActivatedRoute).snapshot.paramMap.get('rfqId') ?? '';
 
@@ -63,12 +64,17 @@ export class OpenRfqDetailComponent {
   load(): void {
     this.loading.set(true);
     this.error.set('');
+    this.notRelevant.set(false);
     this.request.set(null);
     this.service.get(this.requestId).subscribe({
       next: value => { this.request.set(value); this.loading.set(false); },
-      error: error => { this.loading.set(false); this.error.set(error.status === 404
-        ? 'Cererea nu este disponibilă pentru profilul și zona ta.'
-        : 'Cererea nu a putut fi încărcată. Încearcă din nou.'); }
+      error: error => {
+        this.loading.set(false);
+        this.notRelevant.set(error.status === 404);
+        this.error.set(error.status === 404
+          ? 'Cererea nu se potrivește categoriilor sau zonei de livrare din profilul firmei.'
+          : 'Cererea nu a putut fi încărcată. Încearcă din nou.');
+      }
     });
   }
 }

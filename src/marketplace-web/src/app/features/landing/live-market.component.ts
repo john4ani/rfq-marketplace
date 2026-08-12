@@ -46,10 +46,10 @@ import { OpenRfq, OpenRfqService } from '../../core/rfqs/open-rfq.service';
             <p>Termen {{request.quotationDeadline|date:'dd.MM, HH:mm'}}</p><strong>Vezi cererea →</strong>
           </a>
         }@empty{<div class="open-request-state empty-action"><strong>Nicio recomandare momentan</strong>
-          <span>Actualizează categoriile și zona de livrare pentru rezultate mai bune.</span><a routerLink="/dashboard">Configurează preferințele</a></div>}
+        <span>Actualizează categoriile și zona de livrare pentru rezultate mai bune.</span><a routerLink="/account">Configurează preferințele</a></div>}
       </div>}
     }@else{<div class="open-request-callout"><div><strong>Descoperă cereri potrivite activității tale</strong>
-      <p>Completează profilul de furnizor pentru recomandări personalizate.</p></div><a routerLink="/dashboard">Configurează profilul</a></div>}
+      <p>Completează profilul de furnizor pentru recomandări personalizate.</p></div><a routerLink="/account">Configurează profilul</a></div>}
   </section>
 
   <section class="community-preview">

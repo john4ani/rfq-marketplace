@@ -15,6 +15,12 @@ These principles govern all new user-facing work.
 
 Home is led by **Caut ceva**: a natural-language description, `Continuă`, reassurance that AI helps clarify, and a manual alternative. **Am un proiect de construcții** is secondary and distinct. Do not force category, need type, or other internal choices before AI can infer them.
 
+## Registration and account recovery
+
+Registration is deliberately simple: a person selects **Cumpărător**, **Furnizor**, or both, then provides an email address and a password of at least eight characters. A person or company can add the other profile later from **Cont**, without creating another email identity. Clear, user-language validation, rate-limit feedback and a sign-in alternative must be shown; no browser, API, development-environment or HTTP-status jargon is shown to end users.
+
+After successful registration, the user is asked to sign in and returns to a safe requested route where applicable. Password recovery always responds in an enumeration-safe way, explains that instructions will arrive only if the address belongs to an account, and provides a clear retry path for expired or incomplete reset links. Development-only reset tokens must never be exposed in a deployed environment.
+
 ## Provider and claim
 
 Provider Home begins with relevant opportunities, not KPIs. Request detail immediately answers what is needed, where, when and what to complete, with `Trimite ofertă`, partial response, and decline actions. Claim follows opportunity → claim/confirm company → verify account/contact → offer with minimum friction.

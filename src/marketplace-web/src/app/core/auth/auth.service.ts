@@ -15,6 +15,7 @@ export class AuthService {
   private readonly profilesState = signal<LinkedProfile[]>([]);
   private readonly activeProfileState = signal<'Buyer' | 'Supplier' | null>(null);
   private initialization: Promise<void> | null = null;
+  private profilesLoading: Promise<void> = Promise.resolve();
   private presenceTimer: ReturnType<typeof setInterval> | null = null;
   readonly isAuthenticated = computed(() => this.accessTokenState() !== null);
   readonly isAdministrator = computed(() => this.decodeIdentity(this.accessTokenState())?.roles.includes('Administrator') ?? false);
@@ -34,9 +35,11 @@ export class AuthService {
     this.initialization ??= firstValueFrom(this.refresh().pipe(
       timeout(2000),
       catchError(() => of(null))
-    )).then(() => undefined);
+    )).then(async () => this.profilesLoading);
     return this.initialization;
   }
+
+  waitForProfiles(): Promise<void> { return this.profilesLoading; }
 
   registerBuyer(email: string, password: string): Observable<void> {
     return this.http.post<void>('/api/v1/auth/register/buyer', { email, password });
@@ -94,14 +97,14 @@ export class AuthService {
   private acceptToken(token: string): void {
     this.accessTokenState.set(token);
     this.startPresence();
-    this.http.get<LinkedProfile[]>('/api/v1/auth/profiles').subscribe({
-      next: profiles => {
+    this.profilesLoading = firstValueFrom(this.http.get<LinkedProfile[]>('/api/v1/auth/profiles').pipe(
+      tap(profiles => {
         this.profilesState.set(profiles);
         if (!profiles.some(profile => profile.accountType === this.activeProfileState()))
           this.activeProfileState.set(profiles[0]?.accountType ?? null);
-      },
-      error: () => undefined
-    });
+      }),
+      catchError(() => of<LinkedProfile[]>([]))
+    )).then(() => undefined);
   }
 
   private startPresence(): void {
