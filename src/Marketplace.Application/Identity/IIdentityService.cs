@@ -2,7 +2,7 @@ namespace Marketplace.Application.Identity;
 
 public interface IIdentityService
 {
-    Task<RegistrationResult> RegisterAsync(string email, string password, IReadOnlyCollection<string> roles, CancellationToken cancellationToken);
+    Task<RegistrationResult> RegisterAsync(string email, string password, IReadOnlyCollection<string>? roles, CancellationToken cancellationToken);
     Task<AuthenticationResult?> LoginAsync(string email, string password, CancellationToken cancellationToken);
     Task<AuthenticationResult?> RefreshAsync(string refreshToken, CancellationToken cancellationToken);
     Task<ProfileAdditionResult> AddProfileAsync(Guid currentUserId, string accountType, CancellationToken cancellationToken);

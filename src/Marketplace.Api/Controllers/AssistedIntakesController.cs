@@ -2,7 +2,6 @@ using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using Marketplace.Application.AiIntake;
 using Marketplace.Domain.AiIntake;
-using Marketplace.Domain.Identity;
 using Marketplace.Domain.Rfqs;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -12,7 +11,7 @@ namespace Marketplace.Api.Controllers;
 
 [ApiController]
 [Route("api/v1/assisted-intakes")]
-[Authorize(Roles = MarketplaceRoles.Buyer)]
+[Authorize]
 public sealed class AssistedIntakesController(IAssistedIntakeService service) : ControllerBase
 {
     [HttpGet("availability")]

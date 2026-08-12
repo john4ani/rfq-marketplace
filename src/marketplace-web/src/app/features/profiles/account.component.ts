@@ -15,7 +15,7 @@ import { TrustSummaryComponent } from './trust-summary.component';
       <div class="profile-switch"><span>Lucrezi ca</span><app-account-switcher (profileAdded)="openNewProfile($event)" /></div>
     </header>
     @if (returnUrl()) {
-      <section class="onboarding-callout" role="status"><strong>Completează profilul de cumpărător înainte de prima cerere.</strong>
+      <section class="onboarding-callout" role="status"><strong>Poți completa aceste preferințe oricând.</strong>
         <span>Folosim localitatea și raza de interes pentru livrare și potrivirea furnizorilor. După salvare, revenim automat la cerere.</span></section>
     }
     <app-profile-editor (profileSaved)="resumeAfterProfileSave($event)" />

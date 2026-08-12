@@ -12,8 +12,8 @@ export class App {
   readonly mobileNavigationOpen = signal(false);
   readonly hasSupplierProfile = computed(() =>
     this.auth.profiles().some(profile => profile.accountType === 'Supplier'));
-  readonly isBuyer = computed(() => this.auth.session()?.accountType === 'Buyer');
-  readonly profileInitial = computed(() => this.auth.session()?.email?.trim().charAt(0).toLocaleUpperCase('ro-RO') || 'C');
+  readonly isBuyer = computed(() => this.auth.isAuthenticated());
+  readonly profileInitial = computed(() => this.auth.identity()?.email?.trim().charAt(0).toLocaleUpperCase('ro-RO') || 'C');
 
   toggleMobileNavigation(): void {
     this.mobileNavigationOpen.update(open => !open);

@@ -7,8 +7,7 @@ import { ProcurementOutcome, Rfq, RfqService, RfqStatus } from '../../core/rfqs/
 @Component({
   selector: 'app-buyer-rfq-list',
   imports: [RouterLink, DatePipe],
-  template: `@if (auth.session()?.accountType === 'Buyer') {
-    <section class="rfq-card">
+  template: `<section class="rfq-card">
       <header><div><p class="eyebrow">Cumpărător</p><h2>Cererile mele</h2>
         <p>Pregătește o listă de materiale și public-o atunci când este completă.</p></div>
         <a class="primary-link" routerLink="/rfqs/new">Cerere nouă</a>
@@ -46,8 +45,7 @@ import { ProcurementOutcome, Rfq, RfqService, RfqStatus } from '../../core/rfqs/
         }
       </div>
       }
-    </section>
-  }`,
+    </section>`,
   styleUrl: './buyer-rfq-list.component.scss',
   changeDetection: ChangeDetectionStrategy.OnPush
 })
@@ -84,9 +82,9 @@ export class BuyerRfqListComponent {
 
   constructor() {
     effect(() => {
-      const session = this.auth.session();
-      if (session?.accountType !== 'Buyer' || this.loadedFor === session.userId) return;
-      this.loadedFor = session.userId; this.load();
+      const identity = this.auth.identity();
+      if (!identity || this.loadedFor === identity.userId) return;
+      this.loadedFor = identity.userId; this.load();
     });
     this.destroyRef.onDestroy(() => this.clearDeadlineTimer());
   }

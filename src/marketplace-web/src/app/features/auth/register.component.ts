@@ -7,10 +7,7 @@ import { HttpErrorResponse } from '@angular/common/http';
 @Component({
   selector: 'app-register', imports: [ReactiveFormsModule, RouterLink],
   template: `<section class="auth-card"><h1>Creează un cont</h1><form [formGroup]="form" (ngSubmit)="submit()">
-    <fieldset><legend>Cum vrei să folosești platforma?</legend><div class="role-options">
-      <button type="button" [disabled]="submitting() || registrationSucceeded()" [class.active]="selectedRoles().includes('Buyer')" [attr.aria-pressed]="selectedRoles().includes('Buyer')" (click)="toggleRole('Buyer')"><strong>Cumpărător</strong><span>Hai să economisim bani</span></button>
-      <button type="button" [disabled]="submitting() || registrationSucceeded()" [class.active]="selectedRoles().includes('Supplier')" [attr.aria-pressed]="selectedRoles().includes('Supplier')" (click)="toggleRole('Supplier')"><strong>Furnizor</strong><span>Hai să facem bani</span></button>
-    </div><small>Poți selecta unul sau ambele profiluri și îl poți adăuga pe celălalt mai târziu din Contul meu.</small></fieldset>
+    <p class="auth-intro">Creezi un cont CompaSpot. Poți începe o cerere imediat; firma se adaugă doar când vrei să răspunzi la oportunități.</p>
     <label>E-mail<input type="email" formControlName="email" autocomplete="email" [readonly]="submitting() || registrationSucceeded()"><small>Folosește o adresă de e-mail pe care o poți reține.</small></label>
     <label>Parolă<input [type]="showPassword() ? 'text' : 'password'" formControlName="password" autocomplete="new-password" [readonly]="submitting() || registrationSucceeded()"><small>Folosește cel puțin 8 caractere. Nu sunt obligatorii simboluri sau litere mari.</small></label>
     <label class="checkbox-label"><input type="checkbox" [disabled]="submitting() || registrationSucceeded()" [checked]="showPassword()" (change)="showPassword.set(!showPassword())">Arată parola</label>
@@ -18,7 +15,7 @@ import { HttpErrorResponse } from '@angular/common/http';
     @if (registrationSucceeded()) {
       <a class="button-link" routerLink="/sign-in" [queryParams]="returnUrl?{returnUrl}:null">Autentifică-te</a>
     } @else {
-      <button type="submit" [disabled]="form.invalid || selectedRoles().length === 0 || submitting()">{{ submitting() ? 'Se creează contul…' : 'Înregistrare' }}</button>
+      <button type="submit" [disabled]="form.invalid || submitting()">{{ submitting() ? 'Se creează contul…' : 'Înregistrare' }}</button>
     }
   </form>@if (!registrationSucceeded()) { <a routerLink="/sign-in">Înapoi la autentificare</a> }</section>`,
   changeDetection: ChangeDetectionStrategy.OnPush
@@ -28,17 +25,12 @@ export class RegisterComponent {
   private readonly route=inject(ActivatedRoute);
   readonly returnUrl=this.safeReturnUrl(this.route.snapshot.queryParamMap.get('supplierInvite'));
   readonly submitting = signal(false); readonly registrationSucceeded = signal(false);
-  readonly selectedRoles = signal<('Buyer'|'Supplier')[]>(this.returnUrl?['Supplier']:['Buyer']);
   readonly form = new FormGroup({ email: new FormControl('', { nonNullable: true, validators: [Validators.required, Validators.email] }), password: new FormControl('', { nonNullable: true, validators: [Validators.required, Validators.minLength(8)] }) });
-  toggleRole(role: 'Buyer'|'Supplier'): void {
-    const roles = this.selectedRoles();
-    this.selectedRoles.set(roles.includes(role) ? roles.filter(value => value !== role) : [...roles, role]);
-  }
   submit(): void {
     if (this.submitting() || this.registrationSucceeded()) return;
-    if (this.form.invalid || this.selectedRoles().length === 0) { this.hasError.set(true); this.message.set('Selectați cel puțin un profil și introduceți un e-mail valid și o parolă de cel puțin 8 caractere.'); return; }
+    if (this.form.invalid) { this.hasError.set(true); this.message.set('Introdu un e-mail valid și o parolă de cel puțin 8 caractere.'); return; }
     this.submitting.set(true); this.message.set(''); this.hasError.set(false);
-    const request = this.auth.register(this.form.controls.email.value, this.form.controls.password.value, this.selectedRoles());
+    const request = this.auth.register(this.form.controls.email.value, this.form.controls.password.value);
     request.subscribe({
       next: () => {
         this.submitting.set(false);
@@ -71,7 +63,7 @@ export class RegisterComponent {
     if (response.status === 0)
       return 'Nu ne putem conecta momentan. Verifică conexiunea și încearcă din nou.';
     if (response.status === 409)
-      return 'Există deja un cont de acest tip pentru adresa de e-mail. Autentificați-vă sau alegeți celălalt tip de cont.';
+      return 'Există deja un cont pentru această adresă de e-mail. Autentifică-te pentru a continua.';
     if (response.status === 429)
       return 'Au fost prea multe încercări. Așteptați un minut și încercați din nou.';
     if (response.status === 400)

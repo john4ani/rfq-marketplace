@@ -194,7 +194,6 @@ export class RfqEditorComponent {
   }
 
   constructor() {
-    if (this.auth.session()?.accountType !== 'Buyer') { void this.router.navigateByUrl('/dashboard'); return; }
     const navigationMessage = history.state?.message;
     if (typeof navigationMessage === 'string') this.message.set(navigationMessage);
     this.loadCategories();
@@ -214,15 +213,11 @@ export class RfqEditorComponent {
         error:()=>{this.loading.set(false);this.fail('Draftul asistat nu a putut fi încărcat. Revino la cererea asistată și încearcă din nou.');}
       });
     } else {
-      const session=this.auth.session();
-      if(session) this.profiles.getBuyer(session.userId).subscribe({
+      const identity=this.auth.identity();
+      if(identity) this.profiles.getBuyer(identity.userId).subscribe({
         next:p=>this.form.patchValue({deliveryLocality:p.defaultCity,county:p.defaultCounty,supplierSearchRadiusKm:p.marketRadiusKm}),
         error:error=>{
-          if(error.status===404) {
-            void this.router.navigate(['/dashboard'], {
-              queryParams:{section:'settings',returnUrl:'/rfqs/new'}
-            });
-          } else {
+          if(error.status!==404) {
             this.fail('Profilul de cumpărător nu a putut fi verificat. Reîncarcă pagina și încearcă din nou.');
           }
         }

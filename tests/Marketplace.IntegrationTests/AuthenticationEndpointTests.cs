@@ -79,6 +79,26 @@ public sealed class AuthenticationEndpointTests : IClassFixture<WebApplicationFa
     }
 
     [Fact]
+    public async Task UserCanRegisterWithoutSelectingBuyerOrSupplierRole()
+    {
+        string email = $"user-{Guid.NewGuid():N}@example.test";
+        const string password = "simple123";
+
+        Assert.Equal(HttpStatusCode.Created,
+            (await _client.PostAsJsonAsync("/api/v1/auth/register", new { email, password })).StatusCode);
+
+        TokenResponse? login = await (await _client.PostAsJsonAsync("/api/v1/auth/login", new { email, password }))
+            .Content.ReadFromJsonAsync<TokenResponse>();
+        Assert.NotNull(login);
+        _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", login.AccessToken);
+
+        CurrentUser? currentUser = await _client.GetFromJsonAsync<CurrentUser>("/api/v1/auth/me");
+        Assert.NotNull(currentUser);
+        Assert.Empty(currentUser.Roles);
+        Assert.Empty((await _client.GetFromJsonAsync<LinkedAccount[]>("/api/v1/auth/profiles"))!);
+    }
+
+    [Fact]
     public async Task BuyerCanCompletePasswordRecoveryInDevelopment()
     {
         string email = $"recovery-{Guid.NewGuid():N}@example.test";

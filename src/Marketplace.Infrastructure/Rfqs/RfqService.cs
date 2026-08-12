@@ -272,8 +272,6 @@ public sealed class RfqService(
 
     private async Task ValidateReferences(Guid buyerId, RfqDraft draft, CancellationToken cancellationToken)
     {
-        if (!await dbContext.BuyerProfiles.AnyAsync(profile => profile.Id == buyerId, cancellationToken))
-            throw new RfqRuleException("Completați și salvați mai întâi profilul de cumpărător.");
         Guid[] categoryIds = (draft.CategoryIds ?? []).Concat(
                 draft.Items.Where(item => item.CategoryId.HasValue).Select(item => item.CategoryId!.Value))
             .Append(draft.PrimaryCategoryId).Where(id => id != Guid.Empty).Distinct().ToArray();

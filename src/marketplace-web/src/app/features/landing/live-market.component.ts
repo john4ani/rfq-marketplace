@@ -14,7 +14,7 @@ import { OpenRfq, OpenRfqService } from '../../core/rfqs/open-rfq.service';
       <div class="hero-actions">
         @if(auth.isAuthenticated()){
           @if(hasSupplierProfile()){<a class="primary-action" routerLink="/open-requests">Explorează cererile</a>}
-          @if(hasBuyerProfile()){<a class="secondary-action" routerLink="/rfqs/new">Cerere nouă</a>}
+          <a class="secondary-action" routerLink="/rfqs/new">Cerere nouă</a>
         }@else{<a class="primary-action" routerLink="/register">Începe acum</a><a class="secondary-action" routerLink="/sign-in">Autentificare</a>}
       </div>
     </div>
@@ -66,15 +66,13 @@ export class LiveMarketComponent implements OnDestroy{
   readonly auth=inject(AuthService);private readonly market=inject(LiveMarketService);private readonly openRfqService=inject(OpenRfqService);
   readonly participants=signal<LiveParticipant[]>([]);readonly openRequests=signal<OpenRfq[]>([]);readonly requestsLoading=signal(false);readonly requestsError=signal('');readonly marketError=signal(false);
   readonly hasSupplierProfile=computed(()=>this.auth.profiles().some(p=>p.accountType==='Supplier'));
-  readonly hasBuyerProfile=computed(()=>this.auth.profiles().some(p=>p.accountType==='Buyer'));
   readonly buyers=computed(()=>this.participants().filter(p=>p.profileType==='Buyer'));
   readonly suppliers=computed(()=>this.participants().filter(p=>p.profileType==='Supplier'));
   readonly onlineCount=signal(0);
   readonly onlineBuyers=signal(0);
   readonly onlineSuppliers=signal(0);
   readonly presenceRoleLabel=computed(()=>{
-    const buyer=this.hasBuyerProfile(),supplier=this.hasSupplierProfile();
-    return buyer&&supplier?'Cumpărător și Furnizor':supplier?'Furnizor':buyer?'Cumpărător':'utilizator conectat';
+    return this.hasSupplierProfile() ? 'Cumpărător și Furnizor' : 'utilizator conectat';
   });
   private readonly refreshTimer:ReturnType<typeof setInterval>;private requestsLoaded=false;
   constructor(){this.loadMarket();effect(()=>{if(this.hasSupplierProfile()&&!this.requestsLoaded){this.requestsLoaded=true;this.loadRequests();}});this.refreshTimer=setInterval(()=>this.loadMarket(),30_000);}

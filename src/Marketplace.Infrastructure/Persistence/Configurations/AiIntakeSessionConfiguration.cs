@@ -1,4 +1,5 @@
 using Marketplace.Domain.AiIntake;
+using Marketplace.Infrastructure.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
@@ -19,7 +20,7 @@ public sealed class AiIntakeSessionConfiguration : IEntityTypeConfiguration<AiIn
         builder.Property(session => session.Version).IsRowVersion().HasColumnName("xmin");
         builder.HasIndex(session => new { session.BuyerId, session.UpdatedAt });
         builder.HasIndex(session => session.ApprovedRfqId).IsUnique();
-        builder.HasOne<Marketplace.Domain.Profiles.BuyerProfile>().WithMany()
+        builder.HasOne<ApplicationUser>().WithMany()
             .HasForeignKey(session => session.BuyerId).OnDelete(DeleteBehavior.Cascade);
         builder.HasOne<Marketplace.Domain.Rfqs.Rfq>().WithOne()
             .HasForeignKey<AiIntakeSession>(session => session.ApprovedRfqId)

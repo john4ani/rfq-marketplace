@@ -28,7 +28,7 @@ import { SupplierOfferListComponent } from '../offers/supplier-offer-list.compon
           <a class="action-card primary" routerLink="/open-requests"><span>↗</span><div><strong>Vezi cererile potrivite</strong><small>Răspunde rapid oportunităților relevante.</small></div><b aria-hidden="true">›</b></a>
           <a class="action-card" routerLink="/account"><span>✓</span><div><strong>Verifică preferințele</strong><small>Categoriile și zonele influențează potrivirile.</small></div><b aria-hidden="true">›</b></a>
       </div>}
-      @if(auth.session()?.accountType==='Supplier'){
+      @if(auth.profiles().some(profile => profile.accountType === 'Supplier')){
         <div id="supplier-offers"><app-supplier-offer-list /></div>
         <section class="activity-card"><div><p class="eyebrow">Următorul pas</p><h2>Ține profilul relevant pentru potriviri mai bune</h2>
           <p>Categoriile și zonele de livrare determină cererile pe care le vezi. Semnalele verificate ajută cumpărătorii să decidă cu încredere.</p></div>
@@ -41,7 +41,7 @@ import { SupplierOfferListComponent } from '../offers/supplier-offer-list.compon
 export class DashboardComponent {
   readonly auth = inject(AuthService);
   private readonly router = inject(Router);
-  readonly isBuyer = computed(() => this.auth.session()?.accountType === 'Buyer');
+  readonly isBuyer = computed(() => this.auth.isAuthenticated());
   needText = '';
 
   startNeed(): void {

@@ -59,7 +59,7 @@ public sealed class OffersController(IOfferService offerService, ITrustService t
     }
 
     [HttpGet("rfqs/{rfqId:guid}/offers")]
-    [Authorize(Roles = MarketplaceRoles.Buyer)]
+    [Authorize]
     public async Task<IActionResult> ForBuyer(Guid rfqId, CancellationToken cancellationToken)
     {
         IReadOnlyCollection<BuyerOffer> offers = await offerService.GetForBuyerAsync(UserId(), rfqId, cancellationToken);
@@ -69,7 +69,7 @@ public sealed class OffersController(IOfferService offerService, ITrustService t
     }
 
     [HttpPost("rfqs/{rfqId:guid}/offers/{offerId:guid}/select")]
-    [Authorize(Roles = MarketplaceRoles.Buyer)]
+    [Authorize]
     public async Task<IActionResult> Select(Guid rfqId, Guid offerId, CancellationToken cancellationToken)
     {
         try {
@@ -83,7 +83,7 @@ public sealed class OffersController(IOfferService offerService, ITrustService t
     }
 
     [HttpPost("rfqs/{rfqId:guid}/reopen")]
-    [Authorize(Roles = MarketplaceRoles.Buyer)]
+    [Authorize]
     public async Task<IActionResult> Reopen(Guid rfqId, ReopenRfqRequest request, CancellationToken cancellationToken)
     {
         try {
@@ -115,7 +115,7 @@ public sealed class OffersController(IOfferService offerService, ITrustService t
     }
 
     [HttpPost("rfqs/{rfqId:guid}/delivery/confirm")]
-    [Authorize(Roles = MarketplaceRoles.Buyer)]
+    [Authorize]
     public async Task<IActionResult> ConfirmDelivery(Guid rfqId, CancellationToken cancellationToken)
     {
         try

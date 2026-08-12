@@ -137,13 +137,12 @@ internal sealed partial class AssistedIntakeService(
         DateTimeOffset now, CancellationToken cancellationToken)
     {
         var buyer = await dbContext.BuyerProfiles.AsNoTracking()
-            .SingleOrDefaultAsync(item => item.Id == session.BuyerId, cancellationToken)
-            ?? throw new AiIntakeRuleException("Completează profilul de cumpărător înainte de a crea o cerere.");
+            .SingleOrDefaultAsync(item => item.Id == session.BuyerId, cancellationToken);
         IntakeCategory[] categories = await dbContext.Categories.AsNoTracking()
             .Where(item => item.IsActive).OrderBy(item => item.SortOrder).ThenBy(item => item.Name)
             .Select(item => new IntakeCategory(item.Id, item.Name, item.Slug)).ToArrayAsync(cancellationToken);
-        return new(session.BuyerId, session.InitialInput, buyer.DefaultCity, buyer.DefaultCounty,
-            buyer.MarketRadiusKm, categories, turns, previous, now);
+        return new(session.BuyerId, session.InitialInput, buyer?.DefaultCity ?? string.Empty, buyer?.DefaultCounty ?? string.Empty,
+            buyer?.MarketRadiusKm ?? 30, categories, turns, previous, now);
     }
 
     private async Task<NeedExtractionOutcome> ExtractAsync(NeedExtractionContext context, CancellationToken cancellationToken)

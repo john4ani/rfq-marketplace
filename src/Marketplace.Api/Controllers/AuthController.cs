@@ -140,7 +140,7 @@ public sealed partial class AuthController(
         roles = User.FindAll(System.Security.Claims.ClaimTypes.Role).Select(claim => claim.Value)
     });
 
-    private async Task<IActionResult> Register(RegisterRequest request, IReadOnlyCollection<string> roles, CancellationToken cancellationToken)
+    private async Task<IActionResult> Register(RegisterRequest request, IReadOnlyCollection<string>? roles, CancellationToken cancellationToken)
     {
         RegistrationResult result = await identityService.RegisterAsync(request.Email, request.Password, roles, cancellationToken);
         if (!result.Succeeded)
@@ -170,7 +170,7 @@ public sealed partial class AuthController(
 }
 
 public sealed record RegisterRequest([Required, EmailAddress] string Email, [Required, MinLength(8)] string Password);
-public sealed record RegisterProfilesRequest([Required, EmailAddress] string Email, [Required, MinLength(8)] string Password, [Required, MinLength(1)] string[] AccountTypes);
+public sealed record RegisterProfilesRequest([Required, EmailAddress] string Email, [Required, MinLength(8)] string Password, string[]? AccountTypes = null);
 public sealed record LoginRequest([Required, EmailAddress] string Email, [Required] string Password);
 public sealed record EmailRequest([Required, EmailAddress] string Email);
 public sealed record TokenRequest([Required, EmailAddress] string Email, [Required] string Token);

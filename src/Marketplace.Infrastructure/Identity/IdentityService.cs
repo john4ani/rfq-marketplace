@@ -20,11 +20,11 @@ public sealed class IdentityService(
 {
     private readonly JwtOptions _options = options.Value;
 
-    public async Task<RegistrationResult> RegisterAsync(string email, string password, IReadOnlyCollection<string> roles, CancellationToken cancellationToken)
+    public async Task<RegistrationResult> RegisterAsync(string email, string password, IReadOnlyCollection<string>? roles, CancellationToken cancellationToken)
     {
-        string[] selectedRoles = roles.Distinct(StringComparer.Ordinal).ToArray();
-        if (selectedRoles.Length == 0 || selectedRoles.Any(role => role is not (MarketplaceRoles.Buyer or MarketplaceRoles.Supplier)))
-            return new(false, ["Selectați profilul Cumpărător, Furnizor sau ambele."]);
+        string[] selectedRoles = (roles ?? []).Distinct(StringComparer.Ordinal).ToArray();
+        if (selectedRoles.Any(role => role is not (MarketplaceRoles.Buyer or MarketplaceRoles.Supplier)))
+            return new(false, ["Profilul selectat nu este disponibil."]);
 
         string normalizedEmail = email.Trim();
         List<ApplicationUser> matchingUsers = await userManager.Users
@@ -48,11 +48,14 @@ public sealed class IdentityService(
             return new(false, errors);
         }
 
-        IdentityResult assigned = await userManager.AddToRolesAsync(user, selectedRoles);
-        if (!assigned.Succeeded)
+        if (selectedRoles.Length > 0)
         {
-            await userManager.DeleteAsync(user);
-            return new(false, assigned.Errors.Select(error => error.Description).ToArray());
+            IdentityResult assigned = await userManager.AddToRolesAsync(user, selectedRoles);
+            if (!assigned.Succeeded)
+            {
+                await userManager.DeleteAsync(user);
+                return new(false, assigned.Errors.Select(error => error.Description).ToArray());
+            }
         }
 
         return new(true, []);

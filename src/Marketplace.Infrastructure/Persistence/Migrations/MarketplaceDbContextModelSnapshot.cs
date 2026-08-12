@@ -1670,7 +1670,7 @@ namespace Marketplace.Infrastructure.Persistence.Migrations
                         .HasForeignKey("Marketplace.Domain.AiIntake.AiIntakeSession", "ApprovedRfqId")
                         .OnDelete(DeleteBehavior.SetNull);
 
-                    b.HasOne("Marketplace.Domain.Profiles.BuyerProfile", null)
+                    b.HasOne("Marketplace.Infrastructure.Identity.ApplicationUser", null)
                         .WithMany()
                         .HasForeignKey("BuyerId")
                         .OnDelete(DeleteBehavior.Cascade)
@@ -1840,7 +1840,7 @@ namespace Marketplace.Infrastructure.Persistence.Migrations
 
             modelBuilder.Entity("Marketplace.Domain.Rfqs.Rfq", b =>
                 {
-                    b.HasOne("Marketplace.Domain.Profiles.BuyerProfile", null)
+                    b.HasOne("Marketplace.Infrastructure.Identity.ApplicationUser", null)
                         .WithMany()
                         .HasForeignKey("BuyerId")
                         .OnDelete(DeleteBehavior.Restrict)

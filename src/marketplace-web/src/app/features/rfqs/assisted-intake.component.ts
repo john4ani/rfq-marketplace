@@ -76,7 +76,6 @@ import { unitLabel } from '../../shared/unit-label';
       </div>
     }
     @if(message()){<p class="message" [class.error]="hasError()" role="alert">{{message()}}
-      @if(needsBuyerProfile()){<a class="message-action" routerLink="/dashboard" [queryParams]="{section:'settings'}">Completează profilul</a>}
     </p>}
   </main>`,
   styleUrl: './assisted-intake.component.scss',
@@ -85,7 +84,7 @@ import { unitLabel } from '../../shared/unit-label';
 export class AssistedIntakeComponent {
   private readonly service=inject(AssistedIntakeService); private readonly rfqService=inject(RfqService); private readonly categoriesService=inject(SupplierSettingsService);
   private readonly route=inject(ActivatedRoute); private readonly router=inject(Router); private readonly host=inject(ElementRef<HTMLElement>);
-  readonly result=signal<AssistedIntakeResult|null>(null); readonly categories=signal<CategoryOption[]>([]); readonly busy=signal(false); readonly message=signal(''); readonly hasError=signal(false); readonly needsBuyerProfile=signal(false); readonly checkingAvailability=signal(true);
+  readonly result=signal<AssistedIntakeResult|null>(null); readonly categories=signal<CategoryOption[]>([]); readonly busy=signal(false); readonly message=signal(''); readonly hasError=signal(false); readonly checkingAvailability=signal(true);
   input=''; answer=''; draft:AssistedDraft=this.emptyDraft();
   readonly units:UnitOfMeasure[]=['Piece','Pack','Bag','Kilogram','Tonne','Metre','SquareMetre','CubicMetre','Litre','Pallet','Other'];
   readonly unitLabel=unitLabel;
@@ -109,9 +108,9 @@ export class AssistedIntakeComponent {
   private apply(value:AssistedIntakeResult){this.result.set(value);this.input=value.initialInput;this.draft=structuredClone(value.draft);this.draft.county=this.canonicalCounty(this.draft.county);this.busy.set(false);}
   private validate(){if(!this.draft.title.trim())return'Titlul este obligatoriu.';if(!this.draft.primaryCategoryId)return'Selectează cel puțin o categorie.';if(!this.draft.deliveryAddress.trim())return'Completează adresa de livrare.';if(!this.draft.deliveryLocality.trim()||!this.draft.county.trim())return'Completează localitatea și județul.';if(this.draft.lines.some(x=>!x.name.trim()||!x.quantity||x.quantity<=0||!x.unit))return'Verifică denumirea, cantitatea și unitatea fiecărei poziții.';return'';}
   private toRfqDraft():RfqDraft{const categoryIds=Array.from(new Set([this.draft.primaryCategoryId,...this.draft.lines.map(line=>line.categoryId)].filter((id):id is string=>!!id)));const needType=this.draft.inputType==='ProjectDescription'?'Project':this.draft.inputType==='ShoppingList'?'ShoppingList':'DirectPurchase';return{source:'Assisted',inputType:this.draft.inputType,needType,projectTemplateId:null,categoryIds,title:this.draft.title,projectName:this.draft.projectName,description:this.draft.description,primaryCategoryId:this.draft.primaryCategoryId!,deliveryAddress:this.draft.deliveryAddress,deliveryLocality:this.draft.deliveryLocality,county:this.draft.county,supplierSearchRadiusKm:this.draft.supplierSearchRadiusKm,latitude:null,longitude:null,preferredDeliveryDate:this.draft.preferredDeliveryDate,quotationDeadline:this.draft.quotationDeadline,alternativeProductsAccepted:this.draft.alternativeProductsAccepted,estimatedBudget:this.draft.estimatedBudget,buyerNotes:this.draft.buyerNotes,allowSplit:this.draft.allowSplit,deliveryRequired:this.draft.deliveryRequired,items:this.draft.lines.map(x=>({productName:x.name,manufacturerOrBrand:null,specification:x.specification,quantity:x.quantity!,unit:x.unit!,alternativesAccepted:x.alternativesAccepted,buyerNotes:null,categoryId:x.categoryId,kind:x.kind}))};}
-  private fail(error:HttpErrorResponse){if(error.status===503){this.fallbackToAdvanced(this.result()?.sessionId??null);return;}this.busy.set(false);const detail=error.error?.errors?.intake?.[0]??error.error?.detail??'Nu am putut procesa cererea. Încearcă din nou.';this.message.set(detail);this.needsBuyerProfile.set(detail.includes('Completează profilul de cumpărător'));this.hasError.set(true);this.scrollError();}
+  private fail(error:HttpErrorResponse){if(error.status===503){this.fallbackToAdvanced(this.result()?.sessionId??null);return;}this.busy.set(false);const detail=error.error?.errors?.intake?.[0]??error.error?.detail??'Nu am putut procesa cererea. Încearcă din nou.';this.message.set(detail);this.hasError.set(true);this.scrollError();}
   private fallbackToAdvanced(sessionId:string|null){void this.router.navigate(['/rfqs/new/advanced'],{replaceUrl:true,queryParams:sessionId?{assistedSession:sessionId}:undefined,state:{message:'Asistentul AI este temporar indisponibil. Poți continua cu formularul complet.'}});}
-  private clear(){this.message.set('');this.hasError.set(false);this.needsBuyerProfile.set(false);}
+  private clear(){this.message.set('');this.hasError.set(false);}
   private scrollError(){setTimeout(()=>this.host.nativeElement.querySelector('[role="alert"]')?.scrollIntoView({behavior:'smooth',block:'center'}));}
   private canonicalCounty(value:string){const key=this.fold(value);return ROMANIAN_COUNTIES.find(county=>this.fold(county)===key)??value;}
   private fold(value:string){return value.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLocaleLowerCase('ro-RO');}

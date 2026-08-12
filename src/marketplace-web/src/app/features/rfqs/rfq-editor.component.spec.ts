@@ -1,8 +1,7 @@
 import { HttpErrorResponse } from '@angular/common/http';
 import { TestBed } from '@angular/core/testing';
-import { ActivatedRoute, convertToParamMap, provideRouter, Router } from '@angular/router';
+import { ActivatedRoute, convertToParamMap, provideRouter } from '@angular/router';
 import { Observable, of, throwError } from 'rxjs';
-import { vi } from 'vitest';
 import { AuthService } from '../../core/auth/auth.service';
 import { ProfileService } from '../../core/profiles/profile.service';
 import { AssistedIntakeService } from '../../core/rfqs/assisted-intake.service';
@@ -19,7 +18,7 @@ describe('RfqEditorComponent material positions', () => {
       imports: [RfqEditorComponent],
       providers: [
         provideRouter([]),
-        { provide: AuthService, useValue: { session: () => ({ userId: 'buyer-id', email: 'buyer@example.com', accountType: 'Buyer' }) } },
+        { provide: AuthService, useValue: { identity: () => ({ userId: 'buyer-id', email: 'buyer@example.com', roles: [] }) } },
         { provide: SupplierSettingsService, useValue: { getCategories: () => of([]), getProjectTemplates: () => of([]) } },
         { provide: ProfileService, useValue: { getBuyer: () => buyerProfileResponse } },
         { provide: AssistedIntakeService, useValue: {} },
@@ -58,17 +57,13 @@ describe('RfqEditorComponent material positions', () => {
     expect(fixture.componentInstance.form.controls.title.value).toBe('Draft asistat');
   });
 
-  it('redirects a Buyer without completed Buyer details to the relevant profile form', () => {
+  it('keeps the request form usable without Buyer profile defaults', () => {
     buyerProfileResponse = throwError(() => new HttpErrorResponse({ status: 404 }));
-    const router = TestBed.inject(Router);
-    const navigate = vi.spyOn(router, 'navigate').mockResolvedValue(true);
-
     const fixture = TestBed.createComponent(RfqEditorComponent);
     fixture.detectChanges();
 
-    expect(navigate).toHaveBeenCalledWith(['/dashboard'], {
-      queryParams: { section: 'settings', returnUrl: '/rfqs/new' }
-    });
+    expect(fixture.componentInstance.form.controls.deliveryLocality.value).toBe('');
+    expect(fixture.componentInstance.hasError()).toBe(false);
   });
 
   it('collapses a completed position and focuses the newly added one', async () => {

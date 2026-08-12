@@ -13,7 +13,7 @@ namespace Marketplace.Api.Controllers;
 [Route("api/v1")]
 public sealed class ProfilesController(IProfileService profileService) : ControllerBase
 {
-    [Authorize(Roles = MarketplaceRoles.Buyer)]
+    [Authorize]
     [HttpGet("buyers/{buyerId:guid}")]
     public async Task<IActionResult> GetBuyer(Guid buyerId, CancellationToken cancellationToken)
     {
@@ -22,7 +22,7 @@ public sealed class ProfilesController(IProfileService profileService) : Control
         return profile is null ? NotFound() : Ok(BuyerResponse.From(profile));
     }
 
-    [Authorize(Roles = MarketplaceRoles.Buyer)]
+    [Authorize]
     [HttpPut("buyers/{buyerId:guid}")]
     public async Task<IActionResult> SaveBuyer(Guid buyerId, BuyerProfileRequest request, CancellationToken cancellationToken)
     {

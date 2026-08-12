@@ -20,6 +20,7 @@ export class AuthService {
   readonly isAuthenticated = computed(() => this.accessTokenState() !== null);
   readonly isAdministrator = computed(() => this.decodeIdentity(this.accessTokenState())?.roles.includes('Administrator') ?? false);
   readonly accessToken = this.accessTokenState.asReadonly();
+  readonly identity = computed(() => this.decodeIdentity(this.accessTokenState()));
   readonly session = computed(() => {
     const identity = this.decodeIdentity(this.accessTokenState());
     const accountType = this.activeProfileState();
@@ -49,8 +50,8 @@ export class AuthService {
     return this.http.post<void>('/api/v1/auth/register/supplier', { email, password });
   }
 
-  register(email: string, password: string, accountTypes: ('Buyer' | 'Supplier')[]): Observable<void> {
-    return this.http.post<void>('/api/v1/auth/register', { email, password, accountTypes });
+  register(email: string, password: string): Observable<void> {
+    return this.http.post<void>('/api/v1/auth/register', { email, password });
   }
 
   addProfile(accountType: 'Buyer' | 'Supplier'): Observable<TokenResponse> {

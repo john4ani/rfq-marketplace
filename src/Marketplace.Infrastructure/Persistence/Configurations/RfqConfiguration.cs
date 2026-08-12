@@ -1,6 +1,6 @@
-using Marketplace.Domain.Profiles;
 using Marketplace.Domain.Rfqs;
 using Marketplace.Domain.Suppliers;
+using Marketplace.Infrastructure.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
@@ -43,7 +43,7 @@ public sealed class RfqConfiguration : IEntityTypeConfiguration<Rfq>
         builder.Ignore(rfq => rfq.RequiredCategoryIds);
         builder.HasIndex(rfq => new { rfq.BuyerId, rfq.Status });
         builder.HasIndex(rfq => new { rfq.Status, rfq.QuotationDeadline });
-        builder.HasOne<BuyerProfile>().WithMany().HasForeignKey(rfq => rfq.BuyerId).OnDelete(DeleteBehavior.Restrict);
+        builder.HasOne<ApplicationUser>().WithMany().HasForeignKey(rfq => rfq.BuyerId).OnDelete(DeleteBehavior.Restrict);
         builder.HasOne<ProjectTemplate>().WithMany().HasForeignKey(rfq => rfq.ProjectTemplateId).OnDelete(DeleteBehavior.SetNull);
         builder.HasMany(rfq => rfq.NeedCategories).WithOne().HasForeignKey(category => category.ProcurementNeedId).OnDelete(DeleteBehavior.Cascade);
         builder.Navigation(rfq => rfq.NeedCategories).UsePropertyAccessMode(PropertyAccessMode.Field);

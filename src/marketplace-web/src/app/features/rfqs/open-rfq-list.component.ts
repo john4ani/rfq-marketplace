@@ -16,7 +16,7 @@ import { TrustFactsComponent } from '../profiles/trust-facts.component';
         <p>Explorează cererile relevante pentru categoriile și zona ta de livrare.</p></div>
       <div class="header-actions">
         <span class="result-count">{{ requests().length }} rezultate</span>
-        @if (hasBuyerProfile()) {
+        @if (canCreateRequest()) {
           <a class="create-request" routerLink="/rfqs/new">+ Creează o cerere</a>
         }
       </div>
@@ -74,7 +74,7 @@ export class OpenRfqListComponent {
   private readonly auth = inject(AuthService);
   private readonly service = inject(OpenRfqService);
   private readonly categoryService = inject(SupplierSettingsService);
-  readonly hasBuyerProfile = computed(() => this.auth.profiles().some(profile => profile.accountType === 'Buyer'));
+  readonly canCreateRequest = computed(() => this.auth.isAuthenticated());
   readonly requests = signal<OpenRfq[]>([]);
   readonly categories = signal<CategoryOption[]>([]);
   readonly loading = signal(true);
