@@ -17,7 +17,7 @@ namespace Marketplace.Infrastructure.AiIntake;
 internal sealed partial class OpenAiNeedExtractionProvider(
     HttpClient httpClient,
     IOptions<AiIntakeOptions> options,
-    ILogger<OpenAiNeedExtractionProvider> logger) : INeedExtractionProvider
+    ILogger<OpenAiNeedExtractionProvider> logger) : IGeneralNeedInterpreter
 {
     private readonly AiIntakeOptions settings = options.Value;
     public bool IsAvailable => settings.Enabled
@@ -25,7 +25,7 @@ internal sealed partial class OpenAiNeedExtractionProvider(
         && !string.IsNullOrWhiteSpace(settings.Model)
         && Uri.TryCreate(settings.Endpoint, UriKind.Absolute, out _);
 
-    public async Task<NeedExtractionOutcome> ExtractAsync(NeedExtractionContext context, CancellationToken cancellationToken)
+    public async Task<GeneralNeedInterpretation> InterpretAsync(GeneralNeedInterpretationRequest context, CancellationToken cancellationToken)
     {
         Stopwatch stopwatch = Stopwatch.StartNew();
         int? statusCode = null;
@@ -54,7 +54,7 @@ internal sealed partial class OpenAiNeedExtractionProvider(
                 ?? throw new InvalidOperationException("AI intake provider did not return structured output.");
             AiExtraction extraction = JsonSerializer.Deserialize<AiExtraction>(outputText, JsonOptions)
                 ?? throw new InvalidOperationException("AI intake structured output is empty.");
-            NeedExtractionOutcome outcome = Map(context, extraction, document.RootElement);
+            GeneralNeedInterpretation outcome = Map(context, extraction, document.RootElement);
             if (logger.IsEnabled(LogLevel.Information))
             {
                 string providerName = ProviderName();
@@ -91,7 +91,7 @@ internal sealed partial class OpenAiNeedExtractionProvider(
         }
     }
 
-    private object BuildRequest(NeedExtractionContext context)
+    private object BuildRequest(GeneralNeedInterpretationRequest context)
     {
         string categories = string.Join("\n", context.Categories.Select(item => $"- {item.Slug}: {item.Name}"));
         string turns = context.Turns.Count == 0 ? "Nicio clarificare încă." : string.Join("\n",
@@ -101,9 +101,9 @@ internal sealed partial class OpenAiNeedExtractionProvider(
             de necesar pentru confirmare umană. Nu publica și nu prezenta propunerea drept specificație tehnică finală.
 
             1. Clarificare: identifică informația cu cel mai mare impact asupra necesarului și pune exact o întrebare
-            scurtă pe rând. Pentru elemente construite la comandă (de exemplu uși sau porți), clarifică numărul și
-            gruparea, dimensiunile fiecărui tip distinct, utilizarea și dacă utilizatorul dorește produs finit/serviciu
-            sau numai materiale. Cât timp lipsește o informație esențială, clarification nu poate fi null.
+            scurtă pe rând. Clarifică doar ce este necesar pentru a cere o ofertă utilă, de exemplu produsul sau
+            serviciul dorit, cantitatea, compatibilitatea, specificația, locul ori termenul. Cât timp lipsește o
+            informație esențială, clarification nu poate fi null.
             2. Analiză: numai după ce există suficiente date comerciale, folosește cunoștințele generale ale modelului
             pentru a identifica componentele uzuale și întrebările relevante. Nu ai acces la web search. Nu inventa
             surse, URL-uri, cantități, mărci sau standarde; orice detaliu incert trebuie marcat pentru verificare.
@@ -141,7 +141,7 @@ internal sealed partial class OpenAiNeedExtractionProvider(
         };
     }
 
-    private NeedExtractionOutcome Map(NeedExtractionContext context, AiExtraction extraction, JsonElement root)
+    private GeneralNeedInterpretation Map(GeneralNeedInterpretationRequest context, AiExtraction extraction, JsonElement root)
     {
         Dictionary<string, IntakeCategory> categories = context.Categories.ToDictionary(item => item.Slug, StringComparer.OrdinalIgnoreCase);
         IntakeCategory? primary = Resolve(extraction.PrimaryCategorySlug, categories);

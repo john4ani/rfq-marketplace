@@ -14,7 +14,7 @@ namespace Marketplace.Infrastructure.AiIntake;
 
 internal sealed partial class AssistedIntakeService(
     MarketplaceDbContext dbContext,
-    INeedExtractionProvider extractionProvider,
+    IGeneralNeedInterpreter generalNeedInterpreter,
     IRfqService rfqService,
     TimeProvider timeProvider,
     IOptions<AiIntakeOptions> options,
@@ -27,7 +27,7 @@ internal sealed partial class AssistedIntakeService(
     };
     private readonly AiIntakeOptions settings = options.Value;
 
-    public AssistedIntakeAvailability Availability => new(settings.Enabled, extractionProvider.IsAvailable);
+    public AssistedIntakeAvailability Availability => new(settings.Enabled, generalNeedInterpreter.IsAvailable);
 
     public async Task<AssistedIntakeResult> StartAsync(Guid buyerId, string input, CancellationToken cancellationToken)
     {
@@ -35,10 +35,10 @@ internal sealed partial class AssistedIntakeService(
         EnsureAiAvailable();
         DateTimeOffset now = timeProvider.GetUtcNow();
         AiIntakeSession session = AiIntakeSession.Create(Guid.NewGuid(), buyerId, input, now);
-        NeedExtractionContext context = await BuildContextAsync(session, [], null, now, cancellationToken);
+        GeneralNeedInterpretationRequest context = await BuildContextAsync(session, [], null, now, cancellationToken);
         dbContext.AiIntakeSessions.Add(session);
         await dbContext.SaveChangesAsync(cancellationToken);
-        NeedExtractionOutcome outcome;
+        GeneralNeedInterpretation outcome;
         try { outcome = await ExtractAsync(context, cancellationToken); }
         catch (AiIntakeUnavailableException)
         {
@@ -71,14 +71,14 @@ internal sealed partial class AssistedIntakeService(
         AiIntakeSession? session = await dbContext.AiIntakeSessions
             .SingleOrDefaultAsync(item => item.Id == sessionId && item.BuyerId == buyerId, cancellationToken);
         if (session is null) return null;
-        NeedExtractionOutcome previous = DeserializeOutcome(session.ExtractionJson);
+        GeneralNeedInterpretation previous = DeserializeOutcome(session.ExtractionJson);
         if (previous.Clarification is null)
             throw new AiIntakeRuleException("Draftul nu mai are o clarificare în așteptare.");
 
         List<ClarificationTurn> turns = DeserializeTurns(session.TranscriptJson);
         turns.Add(new(previous.Clarification.Field, previous.Clarification.Question, cleanAnswer));
         DateTimeOffset now = timeProvider.GetUtcNow();
-        NeedExtractionOutcome outcome;
+        GeneralNeedInterpretation outcome;
         try { outcome = await ExtractAsync(await BuildContextAsync(session, turns, previous.Draft, now, cancellationToken), cancellationToken); }
         catch (AiIntakeUnavailableException)
         {
@@ -114,7 +114,7 @@ internal sealed partial class AssistedIntakeService(
                 return;
             }
 
-            NeedExtractionOutcome extraction = DeserializeOutcome(session.ExtractionJson);
+            GeneralNeedInterpretation extraction = DeserializeOutcome(session.ExtractionJson);
             List<ClarificationTurn> turns = DeserializeTurns(session.TranscriptJson);
             if (completedInAdvancedForm)
                 session.CompleteInAdvancedForm(timeProvider.GetUtcNow());
@@ -132,7 +132,7 @@ internal sealed partial class AssistedIntakeService(
         return result;
     }
 
-    private async Task<NeedExtractionContext> BuildContextAsync(
+    private async Task<GeneralNeedInterpretationRequest> BuildContextAsync(
         AiIntakeSession session, IReadOnlyCollection<ClarificationTurn> turns, AssistedNeedDraft? previous,
         DateTimeOffset now, CancellationToken cancellationToken)
     {
@@ -145,12 +145,12 @@ internal sealed partial class AssistedIntakeService(
             buyer?.MarketRadiusKm ?? 30, categories, turns, previous, now);
     }
 
-    private async Task<NeedExtractionOutcome> ExtractAsync(NeedExtractionContext context, CancellationToken cancellationToken)
+    private async Task<GeneralNeedInterpretation> ExtractAsync(GeneralNeedInterpretationRequest context, CancellationToken cancellationToken)
     {
         EnsureAiAvailable();
         try
         {
-            return await extractionProvider.ExtractAsync(context, cancellationToken);
+            return await generalNeedInterpreter.InterpretAsync(context, cancellationToken);
         }
         catch (Exception exception) when (exception is not OperationCanceledException and not AiIntakeUnavailableException)
         {
@@ -161,19 +161,19 @@ internal sealed partial class AssistedIntakeService(
     }
 
     private static void Apply(AiIntakeSession session, IReadOnlyCollection<ClarificationTurn> turns,
-        NeedExtractionOutcome outcome, DateTimeOffset now) => session.ApplyExtraction(
+        GeneralNeedInterpretation outcome, DateTimeOffset now) => session.ApplyExtraction(
             JsonSerializer.Serialize(turns, JsonOptions), JsonSerializer.Serialize(outcome, JsonOptions),
             outcome.Provider, outcome.Model, outcome.PromptVersion, outcome.InputTokens, outcome.OutputTokens,
             outcome.Clarification is not null, now);
 
-    private static NeedExtractionOutcome DeserializeOutcome(string json) =>
-        JsonSerializer.Deserialize<NeedExtractionOutcome>(json, JsonOptions)
+    private static GeneralNeedInterpretation DeserializeOutcome(string json) =>
+        JsonSerializer.Deserialize<GeneralNeedInterpretation>(json, JsonOptions)
         ?? throw new InvalidOperationException("Stored assisted-intake extraction is invalid.");
 
     private static List<ClarificationTurn> DeserializeTurns(string json) =>
         JsonSerializer.Deserialize<List<ClarificationTurn>>(json, JsonOptions) ?? [];
 
-    private static AssistedIntakeResult ToResult(AiIntakeSession session, NeedExtractionOutcome outcome) => new(
+    private static AssistedIntakeResult ToResult(AiIntakeSession session, GeneralNeedInterpretation outcome) => new(
         session.Id, session.InitialInput, session.Status, outcome.Mode, session.Provider, session.Model, session.PromptVersion,
         outcome.Draft, outcome.Assumptions, outcome.Uncertainties, outcome.ResearchSources ?? [],
         outcome.Clarification,
@@ -201,7 +201,7 @@ internal sealed partial class AssistedIntakeService(
 
     private void EnsureAiAvailable()
     {
-        if (!extractionProvider.IsAvailable)
+        if (!generalNeedInterpreter.IsAvailable)
             throw new AiIntakeUnavailableException("Continuă cu formularul complet pentru a crea cererea.");
     }
 

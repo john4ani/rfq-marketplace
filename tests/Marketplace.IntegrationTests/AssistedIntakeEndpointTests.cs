@@ -117,8 +117,8 @@ public sealed class AssistedIntakeEndpointTests : IClassFixture<WebApplicationFa
     private WebApplicationFactory<Program> AiFactory() => factory.WithWebHostBuilder(builder =>
         builder.ConfigureTestServices(services =>
         {
-            services.RemoveAll<INeedExtractionProvider>();
-            services.AddScoped<INeedExtractionProvider, FakeNeedExtractionProvider>();
+            services.RemoveAll<IGeneralNeedInterpreter>();
+            services.AddScoped<IGeneralNeedInterpreter, FakeNeedExtractionProvider>();
         }));
 
     private static object DraftFrom(IntakeResponse intake) => new
@@ -161,10 +161,10 @@ public sealed class AssistedIntakeEndpointTests : IClassFixture<WebApplicationFa
         return Guid.Parse(JsonDocument.Parse(json).RootElement.GetProperty("sub").GetString()!);
     }
 
-    private sealed class FakeNeedExtractionProvider : INeedExtractionProvider
+    private sealed class FakeNeedExtractionProvider : IGeneralNeedInterpreter
     {
         public bool IsAvailable => true;
-        public Task<NeedExtractionOutcome> ExtractAsync(NeedExtractionContext context, CancellationToken cancellationToken)
+        public Task<GeneralNeedInterpretation> InterpretAsync(GeneralNeedInterpretationRequest context, CancellationToken cancellationToken)
         {
             Guid? categoryId = context.Categories.FirstOrDefault()?.Id;
             bool clarified = context.Turns.Count > 0;
@@ -181,7 +181,7 @@ public sealed class AssistedIntakeEndpointTests : IClassFixture<WebApplicationFa
             AssistedResearchSource[] sources = clarified
                 ? [new("Ghid pentru uși din lemn", "https://example.test/wooden-doors", "Componentele se confirmă după dimensiuni și utilizare.")]
                 : [];
-            return Task.FromResult(new NeedExtractionOutcome(AssistedIntakeMode.OpenAi, "TestAI", "test-model", "test-v1",
+            return Task.FromResult(new GeneralNeedInterpretation(AssistedIntakeMode.OpenAi, "TestAI", "test-model", "test-v1",
                 draft, [], clarified ? ["Feroneria și structura se confirmă cu furnizorul."] : [], sources, question, 100, 50));
         }
     }

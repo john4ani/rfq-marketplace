@@ -1,6 +1,7 @@
 using System.Net;
 using System.Text;
 using System.Text.Json;
+using Marketplace.Application.AiIntake;
 using Marketplace.Infrastructure.AiIntake;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -24,7 +25,7 @@ public sealed class OpenAiNeedExtractionProviderTests
         });
         var provider = new OpenAiNeedExtractionProvider(client, settings, logger);
 
-        NeedExtractionOutcome outcome = await provider.ExtractAsync(Context(), CancellationToken.None);
+        GeneralNeedInterpretation outcome = await provider.InterpretAsync(Context(), CancellationToken.None);
 
         Assert.True(provider.IsAvailable);
         Assert.Equal("OpenAI", outcome.Provider);
@@ -40,6 +41,7 @@ public sealed class OpenAiNeedExtractionProviderTests
         Assert.DoesNotContain("researchSources", handler.RequestBody, StringComparison.Ordinal);
         Assert.Contains("\"Kilogram\"", handler.RequestBody, StringComparison.Ordinal);
         Assert.Contains("Nu ai acces la web search", handler.RequestBody, StringComparison.Ordinal);
+        Assert.DoesNotContain("uși sau porți", handler.RequestBody, StringComparison.OrdinalIgnoreCase);
         LoggedEntry timing = Assert.Single(logger.Entries);
         Assert.Equal(4201, timing.EventId.Id);
         Assert.Equal(LogLevel.Information, timing.Level);
@@ -62,7 +64,7 @@ public sealed class OpenAiNeedExtractionProviderTests
             Model = "gpt-5.6-luna"
         }), NullLogger<OpenAiNeedExtractionProvider>.Instance);
 
-        NeedExtractionOutcome outcome = await provider.ExtractAsync(Context(), CancellationToken.None);
+        GeneralNeedInterpretation outcome = await provider.InterpretAsync(Context(), CancellationToken.None);
 
         Assert.Equal("Azure OpenAI", outcome.Provider);
         Assert.Null(handler.AuthorizationScheme);
@@ -81,7 +83,28 @@ public sealed class OpenAiNeedExtractionProviderTests
         Assert.False(provider.IsAvailable);
     }
 
-    private static NeedExtractionContext Context() => new(
+    [Fact]
+    public async Task ConstructionBoundaryReusesTheConfiguredGeneralInterpreterWithoutAddingConstructionFacts()
+    {
+        var handler = new RecordingHandler(ResponseBody());
+        using var client = new HttpClient(handler);
+        var general = new OpenAiNeedExtractionProvider(client, Options.Create(new AiIntakeOptions
+        {
+            ApiKey = "openai-test-key", Model = "gpt-5.6-luna"
+        }), NullLogger<OpenAiNeedExtractionProvider>.Instance);
+        var construction = new ConstructionProjectInterpreter(general);
+
+        ConstructionProjectInterpretation result = await construction.InterpretAsync(new(
+            Guid.NewGuid(), "O anexă mică pentru curte", [new IntakeCategory(Guid.NewGuid(), "Materiale", "materiale")],
+            new DateTimeOffset(2026, 8, 4, 12, 0, 0, TimeSpan.Zero)), CancellationToken.None);
+
+        Assert.True(construction.IsAvailable);
+        Assert.Equal("Trei usi din lemn", result.Summary);
+        Assert.Equal("Bearer", handler.AuthorizationScheme);
+        Assert.DoesNotContain("Passive House", handler.RequestBody, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static GeneralNeedInterpretationRequest Context() => new(
         Guid.NewGuid(), "Am nevoie de trei usi din lemn.", "Iasi", "Iasi", 50,
         [new IntakeCategory(Guid.NewGuid(), "Materiale", "materiale")], [], null,
         new DateTimeOffset(2026, 8, 4, 12, 0, 0, TimeSpan.Zero));
