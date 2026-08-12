@@ -17,6 +17,7 @@ export const routes: Routes = [
   { path: 'admin/concierge', canActivate: [administratorGuard], loadComponent: () => import('./features/admin/concierge-admin.component').then(m => m.ConciergeAdminComponent) },
   { path: 'dashboard', canActivate: [authGuard], loadComponent: () => import('./features/dashboard/dashboard.component').then(m => m.DashboardComponent) },
   { path: 'account', canActivate: [authGuard], loadComponent: () => import('./features/dashboard/dashboard.component').then(m => m.DashboardComponent) },
+  { path: 'requests', canActivate: [authGuard], loadComponent: () => import('./features/rfqs/buyer-rfq-list.component').then(m => m.BuyerRfqListComponent) },
   { path: 'open-requests', canActivate: [authGuard], loadComponent: () => import('./features/rfqs/open-rfq-list.component').then(m => m.OpenRfqListComponent) },
   { path: 'open-requests/:rfqId', canActivate: [authGuard], loadComponent: () => import('./features/rfqs/open-rfq-detail.component').then(m => m.OpenRfqDetailComponent) },
   { path: 'rfqs/new/advanced', canActivate: [authGuard], loadComponent: () => import('./features/rfqs/rfq-editor.component').then(m => m.RfqEditorComponent) },

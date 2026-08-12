@@ -14,23 +14,12 @@ import { TrustSummaryComponent } from '../profiles/trust-summary.component';
   imports: [RouterLink, FormsModule, AccountSwitcherComponent, ProfileEditorComponent, SupplierSettingsComponent, BuyerRfqListComponent, SupplierOfferListComponent, TrustSummaryComponent],
   template: `@if(section()==='overview'){
     @if(isBuyer()) {
-      <section class="dashboard-intro">
-        <div><p class="eyebrow">Acasă</p><h1>Bună! Cu ce te putem ajuta?</h1>
-          <p>Spune-ne ce ai nevoie. Te ghidăm pas cu pas, iar tu alegi când trimiți cererea.</p></div>
-      </section>
-
       <section class="need-starter" aria-labelledby="need-starter-title">
-        <div><p class="eyebrow">Începe simplu</p><h2 id="need-starter-title">Ce dorești să cumperi sau să construiești?</h2>
-          <p>Poți scrie exact cum ai spune unui furnizor.</p></div>
-        <div class="need-entry"><label class="sr-only" for="dashboard-need">Descrie pe scurt ce ai nevoie</label><input id="dashboard-need" [(ngModel)]="needText" (keyup.enter)="startNeed()" placeholder="De exemplu: Am nevoie de cherestea pentru un acoperiș de 10 × 8 m"><button type="button" (click)="startNeed()">Creează cererea <span aria-hidden="true">→</span></button></div>
-        <div class="starter-reassurance"><span aria-hidden="true">✦</span> AI-ul te ajută să clarifici. Nimic nu este trimis fără confirmarea ta.</div>
-      </section>
-      <section class="journey-strip" aria-label="Cum funcționează">
-        <div><span>1</span><p><strong>Spui ce ai nevoie</strong><small>În cuvintele tale, fără formulare complicate.</small></p></div>
-        <i aria-hidden="true">→</i>
-        <div><span>2</span><p><strong>Primești oferte relevante</strong><small>De la furnizori potriviți cererii și zonei.</small></p></div>
-        <i aria-hidden="true">→</i>
-        <div><span>3</span><p><strong>Compari și alegi</strong><small>Clar, transparent și fără publicare automată.</small></p></div>
+        <div><h1 id="need-starter-title">Bună! Cu ce te putem ajuta?</h1>
+          <p>Scrie-ne ce ai nevoie, așa cum i-ai spune unui furnizor.</p></div>
+        <div class="need-entry"><label class="sr-only" for="dashboard-need">Descrie pe scurt ce ai nevoie</label><input id="dashboard-need" [(ngModel)]="needText" (keyup.enter)="startNeed()" placeholder="Am nevoie de cherestea pentru un acoperiș de 10 × 8 m"><button type="button" (click)="startNeed()">Continuă</button></div>
+        <div class="starter-reassurance"><span>AI-ul te ajută să clarifici</span><span>Nimic nu este trimis fără confirmarea ta</span></div>
+        <a class="manual-entry" routerLink="/rfqs/new/advanced">Am deja lista / completez manual</a>
       </section>
     } @else {
       <section class="supplier-intro">
@@ -41,23 +30,17 @@ import { TrustSummaryComponent } from '../profiles/trust-summary.component';
     }
   }
 
-  <section class="workspace-bar">
+  @if (!isBuyer() || section() !== 'overview') { <section class="workspace-bar">
     <div><span>Lucrezi ca</span><app-account-switcher (profileAdded)="openNewProfile($event)" /></div>
     <nav aria-label="Secțiuni cont"><button type="button" [class.active]="section()==='overview'" (click)="showOverview()">Activitate</button><button type="button" [class.active]="section()==='settings'" (click)="showSettings()">Profil și preferințe</button></nav>
-  </section>
+  </section> }
 
   <section class="dashboard-content">
     @if(section()==='overview'){
-      <div class="quick-actions">
-        @if(auth.session()?.accountType==='Buyer'){
-          <a class="action-card" routerLink="/"><span>◉</span><div><strong>Vezi Piața Live</strong><small>Urmărește activitatea și furnizorii disponibili.</small></div><b aria-hidden="true">›</b></a>
-          <a class="action-card" routerLink="/participants"><span>♧</span><div><strong>Descoperă furnizori</strong><small>Vezi firmele care îți pot răspunde.</small></div><b aria-hidden="true">›</b></a>
-        }@else{
+      @if(!isBuyer()){<div class="quick-actions">
           <a class="action-card primary" routerLink="/open-requests"><span>↗</span><div><strong>Vezi cererile potrivite</strong><small>Răspunde rapid oportunităților relevante.</small></div><b aria-hidden="true">›</b></a>
           <button class="action-card" type="button" (click)="showSettings()"><span>✓</span><div><strong>Verifică preferințele</strong><small>Categoriile și zonele influențează potrivirile.</small></div><b aria-hidden="true">›</b></button>
-        }
-      </div>
-      @if(isBuyer()) { <div id="requests"><app-buyer-rfq-list /></div> }
+      </div>}
       @if(auth.session()?.accountType==='Supplier'){
         <div id="supplier-offers"><app-supplier-offer-list /></div>
         <section class="activity-card"><div><p class="eyebrow">Următorul pas</p><h2>Ține profilul relevant pentru potriviri mai bune</h2>

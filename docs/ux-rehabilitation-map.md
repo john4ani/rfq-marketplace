@@ -12,7 +12,8 @@
 | `/register` | Anonymous only | Select Buyer, Provider, or both, then email/password registration. | Sign-in / verification | `RegisterComponent`; `POST /auth/register` | Partial: account profile completion happens separately after registration. |
 | `/forgot-password`, `/reset-password`, `/verify-email` | All | Password recovery, reset and email confirmation. | Sign-in | Auth components; `/auth/request-password-reset`, `/auth/reset-password`, `/auth/confirm-email` | Partial: recovery includes a development-token link in the UI source. |
 | `/supplier-invitations/:token` | All | Claim a secure supplier invitation. | Profile completion / dashboard | `SupplierInvitationComponent`; `GET/POST /supplier-invitations/{token}` | Partial: a token-only entry path, not reachable through ordinary Provider navigation. |
-| `/dashboard` | Authenticated | Role-dependent home/workspace. Buyer: need starter, request list and trust/profile settings. Provider: opportunities, offer list, profile/settings. | Live Market, directory, new request, open requests, settings | `DashboardComponent` plus nested list/settings components | Partial: one route contains several distinct screens controlled by local state. |
+| `/dashboard` | Authenticated | Role-dependent home/workspace. Buyer: a single need-entry flow. Provider: opportunities, offer list, profile/settings. | AI start, open requests, settings | `DashboardComponent` plus nested list/settings components | Buyer Home is intentionally focused in R2. |
+| `/requests` | Authenticated Buyer | Manage drafts, live requests, outcomes and open a specific offer comparison. | Request editor, offer comparison | `BuyerRfqListComponent`; `/rfqs` | Buyer work is separated from the Home entry flow in R2. |
 | `/account` | Authenticated | Same `DashboardComponent`, initially opens **Profil și preferințe**. | Dashboard; back to workflow after profile save | Profile, supplier-settings, trust components | Working but duplicates dashboard implementation and creates “Acasă/Contul meu” conceptual overlap. |
 | `/open-requests` | Authenticated; useful only with Provider profile | Relevant published requests, category filter, create-request link for Buyer-capable accounts. | Request detail; dashboard/account settings; assisted request | `OpenRfqListComponent`; `GET /open-rfqs` | Partial: relevance depends on Provider categories/service area; incomplete profile yields an instructional empty/error state. |
 | `/open-requests/:rfqId` | Authenticated Provider | Request detail and Provider offer editor; can save/submit/withdraw offer and report delivery after selection. | Open requests, offer conversation | `OpenRfqDetailComponent`, `OfferEditorComponent`; `GET /open-rfqs/{id}`, offer APIs | Partial: access can be denied for profile/zone/category mismatch; offer editor is embedded, not a route. |
@@ -139,8 +140,8 @@ Authenticated Buyer
 │   ├── Cerere asistată (/rfqs/new)
 │   ├── Formular avansat (/rfqs/new/advanced)
 │   └── Cererile mele (embedded)
-├── Cererile mele (/dashboard#requests)
-├── Oferte (/dashboard#offers; cereri active și comparațiile lor)
+├── Cererile mele (/requests)
+├── Oferte (/requests#offers; cereri active și comparațiile lor)
 ├── Cont (/account)
 │   └── Profil / încredere (embedded)
 ├── Editare cerere (/rfqs/:id/edit)
@@ -163,6 +164,8 @@ Administrator
 No routes are declared as dead; the wildcard redirect means mistyped/deprecated paths silently go to home. The invitation route is operationally valid but isolated from ordinary navigation.
 
 R1 intentionally keeps the Buyer rail to these four entries only: **Acasă, Cererile mele, Oferte, Cont**. Piața Live, Furnizori and Notificări are hidden from the active Buyer navigation; they remain available for Provider flows and may be reconsidered after MVP validation.
+
+R2 makes Buyer Home a single entry flow: one title, one natural-language input, one **Continuă** action, two reassurance messages, and the manual-entry link. Buyer activity, role switching, profile controls, marketplace/discovery shortcuts and the three-step strip are deliberately moved away from Home.
 
 ## 10. Component/design-system map and responsive behaviour
 

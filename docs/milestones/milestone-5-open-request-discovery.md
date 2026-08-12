@@ -91,12 +91,14 @@ Users who have both Buyer and Supplier profiles can discover open requests witho
 
 ```text
 Acasă (/dashboard)
-├── Cererile mele (/dashboard#requests)
-├── Oferte (/dashboard#offers)
+├── Cererile mele (/requests)
+├── Oferte (/requests#offers)
 └── Cont (/account)
 ```
 
 Piața Live, Furnizori and Notificări are intentionally hidden while the Buyer profile is active, to keep the MVP buyer journey focused on creating, managing and comparing requests.
+
+Buyer Home itself contains only the need-entry flow: title, natural-language input, **Continuă**, two reassurance messages and a manual-entry link. Requests and offer work live under the corresponding Buyer navigation entries.
 
 ## Deferred
 

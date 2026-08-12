@@ -24,8 +24,8 @@
       <nav aria-label="Meniu principal">
         @if (isBuyer()) {
           <a class="nav-link" routerLink="/dashboard" routerLinkActive="active" [routerLinkActiveOptions]="{ exact: true }" ariaCurrentWhenActive="page" (click)="closeMobileNavigation()"><span aria-hidden="true">⌂</span> Acasă</a>
-          <a class="nav-link" routerLink="/dashboard" fragment="requests" (click)="closeMobileNavigation()"><span aria-hidden="true">☷</span> Cererile mele</a>
-          <a class="nav-link" routerLink="/dashboard" fragment="offers" (click)="closeMobileNavigation()"><span aria-hidden="true">◌</span> Oferte</a>
+          <a class="nav-link" routerLink="/requests" routerLinkActive="active" ariaCurrentWhenActive="page" (click)="closeMobileNavigation()"><span aria-hidden="true">☷</span> Cererile mele</a>
+          <a class="nav-link" routerLink="/requests" fragment="offers" (click)="closeMobileNavigation()"><span aria-hidden="true">◌</span> Oferte</a>
           <a class="nav-link" routerLink="/account" routerLinkActive="active" ariaCurrentWhenActive="page" (click)="closeMobileNavigation()"><span aria-hidden="true">◉</span> Cont</a>
         } @else {
           <a class="nav-link" routerLink="/dashboard" routerLinkActive="active" [routerLinkActiveOptions]="{ exact: true }" ariaCurrentWhenActive="page" (click)="closeMobileNavigation()"><span aria-hidden="true">⌂</span> Acasă</a>
