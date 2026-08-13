@@ -196,7 +196,8 @@ public sealed class SupplierDiscoveryService(
     }
 
     public async Task<SupplierInvitationView?> ClaimAsync(
-        Guid supplierId,
+        Guid actorId,
+        Guid companyId,
         string token,
         CancellationToken cancellationToken)
     {
@@ -206,22 +207,22 @@ public sealed class SupplierDiscoveryService(
         if (invitation is null) return null;
         SupplierCandidate candidate = await dbContext.SupplierCandidates.Include(item => item.Categories)
             .SingleAsync(item => item.Id == invitation.CandidateId, cancellationToken);
-        if (!await dbContext.SupplierProfiles.AnyAsync(profile => profile.Id == supplierId, cancellationToken))
+        if (!await dbContext.SupplierProfiles.AnyAsync(profile => profile.Id == companyId, cancellationToken))
             throw new SupplierDiscoveryRuleException("Completează profilul de furnizor înainte de a revendica firma.");
-        if (candidate.ClaimedBySupplierId == supplierId && invitation.ClaimedBySupplierId == supplierId)
+        if (candidate.ClaimedBySupplierId == actorId && invitation.ClaimedBySupplierId == actorId)
             return await ToInvitationView(invitation, cancellationToken);
 
         DateTimeOffset now = timeProvider.GetUtcNow();
-        invitation.Claim(supplierId, now);
-        candidate.Claim(supplierId, now);
+        invitation.Claim(actorId, now);
+        candidate.Claim(actorId, now);
         Guid[] existingCategoryIds = await dbContext.SupplierCategories
-            .Where(category => category.SupplierId == supplierId)
+            .Where(category => category.SupplierId == companyId)
             .Select(category => category.CategoryId)
             .ToArrayAsync(cancellationToken);
         HashSet<Guid> existingCategories = existingCategoryIds.ToHashSet();
         dbContext.SupplierCategories.AddRange(candidate.CategoryIds
             .Where(categoryId => !existingCategories.Contains(categoryId))
-            .Select(categoryId => SupplierCategory.Create(supplierId, categoryId)));
+            .Select(categoryId => SupplierCategory.Create(companyId, categoryId)));
         SupplierInvitation[] otherInvitations = await dbContext.SupplierInvitations
             .Where(item => item.CandidateId == candidate.Id && item.Id != invitation.Id)
             .ToArrayAsync(cancellationToken);
@@ -229,7 +230,7 @@ public sealed class SupplierDiscoveryService(
             if (other.StatusAt(now) == SupplierInvitationStatus.Active)
                 other.Revoke(now);
         dbContext.SupplierDiscoveryAuditEvents.Add(SupplierDiscoveryAuditEvent.Create(
-            candidate.Id, supplierId, SupplierDiscoveryAuditEventType.CompanyClaimed, now,
+            candidate.Id, actorId, SupplierDiscoveryAuditEventType.CompanyClaimed, now,
             invitation.Id, invitation.RfqId));
         await SaveChangesAsync(cancellationToken);
         return await ToInvitationView(invitation, cancellationToken);

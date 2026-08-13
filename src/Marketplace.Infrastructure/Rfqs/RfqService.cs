@@ -1,4 +1,5 @@
 using Marketplace.Application.Categories;
+using Marketplace.Application.Companies;
 using Marketplace.Application.Rfqs;
 using Marketplace.Application.Operations;
 using Marketplace.Domain.Offers;
@@ -11,6 +12,7 @@ namespace Marketplace.Infrastructure.Rfqs;
 
 public sealed class RfqService(
     MarketplaceDbContext dbContext,
+    ICompanyAuthorizationService companyAuthorizationService,
     TimeProvider timeProvider,
     IProcurementNeedAuditTrail auditTrail,
     IProductEventService productEvents) : IRfqService
@@ -331,14 +333,15 @@ public sealed class RfqService(
             if (ProviderCoveragePolicy.Decide(rfq.AllowSplit, requiredCategories, compatibleCategories) == ProviderCoverageMatch.None)
                 continue;
 
-            dbContext.Notifications.Add(Notification.Create(
-                supplier.Id,
-                NotificationType.RequestPublished,
-                "Cerere nouă relevantă",
-                $"O cerere nouă, „{rfq.Title}”, se potrivește categoriilor și zonei tale.",
-                $"/open-requests/{rfq.Id}",
-                $"rfq:{rfq.Id}:published:{supplier.Id}",
-                now));
+            foreach (Guid recipientId in await companyAuthorizationService.GetActiveMemberUserIdsAsync(supplier.Id, cancellationToken))
+                dbContext.Notifications.Add(Notification.Create(
+                    recipientId,
+                    NotificationType.RequestPublished,
+                    "Cerere nouă relevantă",
+                    $"O cerere nouă, „{rfq.Title}”, se potrivește categoriilor și zonei tale.",
+                    $"/open-requests/{rfq.Id}",
+                    $"rfq:{rfq.Id}:published:{supplier.Id}:recipient:{recipientId}",
+                    now));
         }
     }
 

@@ -5,6 +5,7 @@ public interface ICompanyAuthorizationService
     Task<bool> CanRepresentCompanyAsync(Guid userId, Guid companyId, CancellationToken cancellationToken);
     Task<bool> CanCreateLegacyCompanyAsync(Guid userId, Guid companyId, CancellationToken cancellationToken);
     Task<CompanyContextResolution> ResolveCompanyContextAsync(Guid userId, Guid? companyId, CancellationToken cancellationToken);
+    Task<IReadOnlyCollection<Guid>> GetActiveMemberUserIdsAsync(Guid companyId, CancellationToken cancellationToken);
 }
 
 public enum CompanyContextStatus { Resolved, Unavailable, Ambiguous, Forbidden }

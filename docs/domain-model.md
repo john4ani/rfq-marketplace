@@ -20,6 +20,8 @@ This is a modular monolith. These boundaries do not require separate `.csproj` p
 
 `SupplierProfile` is a **legacy persistence name**. Semantically, it represents a selling **Company / ProviderOrganization**, including its capability, delivery and offer relationships. It is not the personal profile of the User who sells. `CompanyMembership` associates one or more Users with that company and records `Owner` or `Representative`; a revoked membership cannot represent the company. The legacy shared-key constraint remains until a later, concrete scenario justifies changing it.
 
+Commercial conversations retain the `SupplierProfile` company ID; individual messages retain their authenticated User sender ID. Provider-company notifications are materialized for active CompanyMembership users, while buyer notifications remain addressed directly to the Buyer User. `AccountTrustRecord` remains account persistence: provider commercial activity is queried by Company ID and legacy company-verification records are read compatibly from the original owner-keyed record.
+
 ## Shared Procurement Core
 
 `ProcurementNeed` is the user’s Cerere. The existing `Rfq` remains the compatible internal implementation until a concrete workflow requires a split.

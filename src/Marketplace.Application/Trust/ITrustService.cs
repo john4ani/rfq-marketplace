@@ -4,6 +4,7 @@ public interface ITrustService
 {
     Task<AccountTrustSummary?> GetForAccountAsync(Guid accountId, CancellationToken cancellationToken);
     Task<TrustFacts?> GetFactsAsync(Guid accountId, CancellationToken cancellationToken);
+    Task<TrustFacts?> GetCompanyFactsAsync(Guid companyId, CancellationToken cancellationToken);
     Task<IReadOnlyCollection<AccountTrustSummary>> SearchAsync(string? search, CancellationToken cancellationToken);
     Task<AccountTrustSummary?> ReviewAsync(Guid administratorId, Guid accountId, TrustReviewInput input, CancellationToken cancellationToken);
 }

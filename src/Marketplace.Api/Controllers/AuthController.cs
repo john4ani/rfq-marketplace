@@ -14,6 +14,7 @@ public sealed partial class AuthController(
     IIdentityService identityService,
     IPasswordResetDelivery passwordResetDelivery,
     IEmailVerificationDelivery emailVerificationDelivery,
+    IConfiguration configuration,
     IWebHostEnvironment environment,
     ILogger<AuthController> logger) : ControllerBase
 {
@@ -57,7 +58,7 @@ public sealed partial class AuthController(
         if (!CurrentUserId(out Guid userId)) return Unauthorized();
         string? email = User.FindFirst("email")?.Value;
         string? token = await identityService.CreateEmailConfirmationTokenAsync(userId, cancellationToken);
-        if (token is not null && email is not null && !environment.IsDevelopment())
+        if (token is not null && email is not null && EmailEnabled())
         {
             try { await emailVerificationDelivery.SendAsync(email, token, cancellationToken); }
             catch (EmailVerificationDeliveryException exception) { LogEmailVerificationDeliveryFailure(logger, exception); return Problem(statusCode: StatusCodes.Status503ServiceUnavailable, title: "E-mailul de confirmare nu a putut fi trimis. Încearcă mai târziu."); }
@@ -112,7 +113,7 @@ public sealed partial class AuthController(
     public async Task<IActionResult> RequestPasswordReset(EmailRequest request, CancellationToken cancellationToken)
     {
         string? token = await identityService.CreatePasswordResetTokenAsync(request.Email, cancellationToken);
-        if (token is not null && !environment.IsDevelopment())
+        if (token is not null && EmailEnabled())
         {
             try
             {
@@ -139,6 +140,8 @@ public sealed partial class AuthController(
         email = User.FindFirst("email")?.Value ?? User.FindFirst(System.Security.Claims.ClaimTypes.Email)?.Value,
         roles = User.FindAll(System.Security.Claims.ClaimTypes.Role).Select(claim => claim.Value)
     });
+
+    private bool EmailEnabled() => bool.TryParse(configuration["Email:Enabled"], out bool enabled) && enabled;
 
     private async Task<IActionResult> Register(RegisterRequest request, IReadOnlyCollection<string>? roles, CancellationToken cancellationToken)
     {

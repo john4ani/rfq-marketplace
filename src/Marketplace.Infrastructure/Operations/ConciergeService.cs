@@ -1,4 +1,5 @@
 using Marketplace.Application.Operations;
+using Marketplace.Application.Companies;
 using Marketplace.Application.Rfqs;
 using Marketplace.Domain.Notifications;
 using Marketplace.Domain.Offers;
@@ -11,6 +12,7 @@ namespace Marketplace.Infrastructure.Operations;
 
 internal sealed class ConciergeService(
     MarketplaceDbContext dbContext,
+    ICompanyAuthorizationService companyAuthorizationService,
     IProcurementNeedAuditTrail auditTrail,
     IProductEventService productEvents,
     TimeProvider timeProvider) : IConciergeService
@@ -89,9 +91,9 @@ internal sealed class ConciergeService(
         if (await dbContext.ConciergeMatchOverrides.AnyAsync(item => item.RfqId == rfqId && item.SupplierId == supplierId, cancellationToken))
             throw new ConciergeRuleException("Furnizorul are deja o potrivire manuală pentru această cerere.");
         dbContext.ConciergeMatchOverrides.Add(ConciergeMatchOverride.Create(rfqId, supplierId, administratorId, reason, now));
-        dbContext.Notifications.Add(Notification.Create(supplierId, NotificationType.ConciergeManualMatch,
+        await AddCompanyNotificationsAsync(supplierId, NotificationType.ConciergeManualMatch,
             "Oportunitate potrivită manual", "Un administrator a verificat că poți răspunde la această cerere.",
-            $"/open-requests/{rfqId}", $"concierge-match:{rfqId}:{supplierId}", now));
+            $"/open-requests/{rfqId}", $"concierge-match:{rfqId}:{supplierId}", now, cancellationToken);
         productEvents.Record("ConciergeMatchOverrideCreated", "ProcurementNeed", rfqId, administratorId, $"SupplierId={supplierId}", now);
         await dbContext.SaveChangesAsync(cancellationToken);
     }
@@ -113,9 +115,9 @@ internal sealed class ConciergeService(
         Offer? offer = await dbContext.Offers.SingleOrDefaultAsync(item => item.Id == offerId, cancellationToken);
         if (offer is null || offer.Status is not (OfferStatus.Submitted or OfferStatus.Revised)) throw new ConciergeRuleException("Oferta nu mai poate fi revizuită.");
         DateTimeOffset now = timeProvider.GetUtcNow();
-        dbContext.Notifications.Add(Notification.Create(offer.SupplierId, NotificationType.ConciergeOfferNormalizationRequested,
+        await AddCompanyNotificationsAsync(offer.SupplierId, NotificationType.ConciergeOfferNormalizationRequested,
             "Te rugăm să clarifici oferta", $"Un administrator a cerut clarificarea ofertei: {CleanNote(note)}",
-            $"/open-requests/{offer.RfqId}", $"concierge-normalize:{offerId}:{now.ToUnixTimeMilliseconds()}", now));
+            $"/open-requests/{offer.RfqId}", $"concierge-normalize:{offerId}:{now.ToUnixTimeMilliseconds()}", now, cancellationToken);
         productEvents.Record("ConciergeOfferNormalizationRequested", "Offer", offerId, administratorId, null, now);
         await dbContext.SaveChangesAsync(cancellationToken);
     }
@@ -140,5 +142,14 @@ internal sealed class ConciergeService(
         string clean = note?.Trim() ?? string.Empty;
         if (clean.Length is < 5 or > 1000) throw new ConciergeRuleException("Explicația trebuie să aibă între 5 și 1.000 de caractere.");
         return clean;
+    }
+
+    private async Task AddCompanyNotificationsAsync(
+        Guid companyId, NotificationType type, string title, string message, string link, string idempotencyKey,
+        DateTimeOffset now, CancellationToken cancellationToken)
+    {
+        foreach (Guid recipientId in await companyAuthorizationService.GetActiveMemberUserIdsAsync(companyId, cancellationToken))
+            dbContext.Notifications.Add(Notification.Create(recipientId, type, title, message, link,
+                $"{idempotencyKey}:recipient:{recipientId}", now));
     }
 }

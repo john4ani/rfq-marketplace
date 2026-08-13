@@ -39,4 +39,11 @@ public sealed class CompanyAuthorizationService(MarketplaceDbContext dbContext) 
             _ => CompanyContextResolution.Ambiguous()
         };
     }
+
+    public async Task<IReadOnlyCollection<Guid>> GetActiveMemberUserIdsAsync(Guid companyId, CancellationToken cancellationToken) =>
+        await dbContext.CompanyMemberships.AsNoTracking()
+            .Where(membership => membership.CompanyId == companyId && membership.RevokedAt == null)
+            .Select(membership => membership.UserId)
+            .Distinct()
+            .ToArrayAsync(cancellationToken);
 }

@@ -23,7 +23,8 @@ public interface ISupplierDiscoveryService
         CancellationToken cancellationToken);
     Task<SupplierInvitationView?> GetInvitationAsync(string token, CancellationToken cancellationToken);
     Task<SupplierInvitationView?> ClaimAsync(
-        Guid supplierId,
+        Guid actorId,
+        Guid companyId,
         string token,
         CancellationToken cancellationToken);
 }

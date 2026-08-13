@@ -28,9 +28,21 @@ public sealed class TrustService(
         AccountTrustRecord? trust = await dbContext.AccountTrustRecords.AsNoTracking().SingleOrDefaultAsync(item => item.AccountId == accountId, cancellationToken);
         int published = await dbContext.Rfqs.CountAsync(item => item.BuyerId == accountId && item.PublishedAt != null, cancellationToken);
         int completed = await dbContext.Rfqs.CountAsync(item => item.BuyerId == accountId && item.Status == RfqStatus.Closed, cancellationToken);
-        int submitted = await dbContext.Offers.CountAsync(item => item.SupplierId == accountId && item.Status != OfferStatus.Draft && item.Status != OfferStatus.Withdrawn, cancellationToken);
-        int collaborations = await dbContext.Offers.CountAsync(item => item.SupplierId == accountId && item.Status == OfferStatus.Selected, cancellationToken);
-        return new(user.EmailConfirmed, trust?.PhoneVerifiedAt is not null, trust?.CompanyVerifiedAt is not null, user.CreatedAt, published, completed, submitted, collaborations);
+        return new(user.EmailConfirmed, trust?.PhoneVerifiedAt is not null, false, user.CreatedAt, published, completed, 0, 0);
+    }
+
+    public async Task<TrustFacts?> GetCompanyFactsAsync(Guid companyId, CancellationToken cancellationToken)
+    {
+        SupplierProfile? company = await dbContext.SupplierProfiles.AsNoTracking()
+            .SingleOrDefaultAsync(item => item.Id == companyId, cancellationToken);
+        if (company is null) return null;
+        AccountTrustRecord? legacyTrust = await dbContext.AccountTrustRecords.AsNoTracking()
+            .SingleOrDefaultAsync(item => item.AccountId == companyId, cancellationToken);
+        int submitted = await dbContext.Offers.CountAsync(item => item.SupplierId == companyId
+            && item.Status != OfferStatus.Draft && item.Status != OfferStatus.Withdrawn, cancellationToken);
+        int collaborations = await dbContext.Offers.CountAsync(item => item.SupplierId == companyId
+            && item.Status == OfferStatus.Selected, cancellationToken);
+        return new(false, false, legacyTrust?.CompanyVerifiedAt is not null, company.CreatedAt, 0, 0, submitted, collaborations);
     }
 
     public async Task<IReadOnlyCollection<AccountTrustSummary>> SearchAsync(string? search, CancellationToken cancellationToken)
@@ -69,8 +81,12 @@ public sealed class TrustService(
         if (roles.Contains("Buyer")) { total += 5; if (buyer is not null) { if (!string.IsNullOrWhiteSpace(buyer.DisplayName)) completed++; if (!string.IsNullOrWhiteSpace(buyer.PhoneNumber)) completed++; if (!string.IsNullOrWhiteSpace(buyer.DefaultCity)) completed++; if (!string.IsNullOrWhiteSpace(buyer.DefaultCounty)) completed++; if (buyer.BuyerType != Marketplace.Domain.Profiles.BuyerType.Company || !string.IsNullOrWhiteSpace(buyer.CompanyName) && !string.IsNullOrWhiteSpace(buyer.TaxIdentifier)) completed++; } }
         if (roles.Contains("Supplier")) { total += 6; if (supplier is not null) { if (!string.IsNullOrWhiteSpace(supplier.TradingName)) completed++; if (!string.IsNullOrWhiteSpace(supplier.CompanyRegistrationNumber)) completed++; if (!string.IsNullOrWhiteSpace(supplier.ContactPerson)) completed++; if (!string.IsNullOrWhiteSpace(supplier.ContactEmail)) completed++; if (!string.IsNullOrWhiteSpace(supplier.PhoneNumber)) completed++; if (!string.IsNullOrWhiteSpace(supplier.Address) && !string.IsNullOrWhiteSpace(supplier.City) && !string.IsNullOrWhiteSpace(supplier.County)) completed++; } }
         int published = await dbContext.Rfqs.CountAsync(item => item.BuyerId == user.Id && item.PublishedAt != null, cancellationToken);
-        int submitted = await dbContext.Offers.CountAsync(item => item.SupplierId == user.Id && item.Status != OfferStatus.Draft && item.Status != OfferStatus.Withdrawn, cancellationToken);
-        int selected = await dbContext.Offers.CountAsync(item => item.SupplierId == user.Id && item.Status == OfferStatus.Selected, cancellationToken);
+        Guid[] representedCompanyIds = await dbContext.CompanyMemberships.AsNoTracking()
+            .Where(item => item.UserId == user.Id && item.RevokedAt == null).Select(item => item.CompanyId).ToArrayAsync(cancellationToken);
+        int submitted = await dbContext.Offers.CountAsync(item => representedCompanyIds.Contains(item.SupplierId)
+            && item.Status != OfferStatus.Draft && item.Status != OfferStatus.Withdrawn, cancellationToken);
+        int selected = await dbContext.Offers.CountAsync(item => representedCompanyIds.Contains(item.SupplierId)
+            && item.Status == OfferStatus.Selected, cancellationToken);
         TrustAuditEventView[] activity = await dbContext.AccountAuditEvents.AsNoTracking().Where(item => item.AccountId == user.Id).OrderByDescending(item => item.OccurredAt).Take(10).Select(item => new TrustAuditEventView(item.Type.ToString(), item.Details, item.OccurredAt)).ToArrayAsync(cancellationToken);
         return new(user.Id, user.Email ?? string.Empty, roles, user.EmailConfirmed, trust?.PhoneVerifiedAt is not null, trust?.PhoneVerifiedAt, trust?.CompanyVerifiedAt is not null, trust?.CompanyVerifiedAt, total == 0 ? 0 : completed * 100 / total, published, submitted, selected, activity);
     }

@@ -74,7 +74,7 @@ public sealed class OffersController(
     {
         IReadOnlyCollection<BuyerOffer> offers = await offerService.GetForBuyerAsync(UserId(), rfqId, cancellationToken);
         var response = new List<BuyerOfferResponse>();
-        foreach (BuyerOffer offer in offers) response.Add(BuyerOfferResponse.From(offer, await trustService.GetFactsAsync(offer.Offer.SupplierId, cancellationToken)));
+        foreach (BuyerOffer offer in offers) response.Add(BuyerOfferResponse.From(offer, await trustService.GetCompanyFactsAsync(offer.Offer.SupplierId, cancellationToken)));
         return Ok(response);
     }
 

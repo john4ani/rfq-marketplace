@@ -2,6 +2,7 @@ using System.ComponentModel.DataAnnotations;
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using Marketplace.Application.SupplierDiscovery;
+using Marketplace.Application.Companies;
 using Marketplace.Domain.Identity;
 using Marketplace.Domain.SupplierDiscovery;
 using Microsoft.AspNetCore.Authorization;
@@ -11,7 +12,9 @@ namespace Marketplace.Api.Controllers;
 
 [ApiController]
 [Route("api/v1")]
-public sealed class SupplierDiscoveryController(ISupplierDiscoveryService discoveryService) : ControllerBase
+public sealed class SupplierDiscoveryController(
+    ISupplierDiscoveryService discoveryService,
+    ICompanyAuthorizationService companyAuthorizationService) : ControllerBase
 {
     [Authorize(Roles = MarketplaceRoles.Administrator)]
     [HttpGet("admin/supplier-candidates")]
@@ -121,15 +124,22 @@ public sealed class SupplierDiscoveryController(ISupplierDiscoveryService discov
         return invitation is null ? NotFound(Problem(title: "Invitația nu există.")) : Ok(invitation);
     }
 
-    [Authorize(Roles = MarketplaceRoles.Supplier)]
+    [Authorize]
     [HttpPost("supplier-invitations/{token}/claim")]
-    public async Task<IActionResult> Claim(string token, CancellationToken cancellationToken)
+    public async Task<IActionResult> Claim(string token, [FromQuery] Guid? companyId, CancellationToken cancellationToken)
     {
-        if (!CurrentUserId(out Guid supplierId)) return Unauthorized();
+        if (!CurrentUserId(out Guid actorId)) return Unauthorized();
+        CompanyContextResolution context = await companyAuthorizationService.ResolveCompanyContextAsync(actorId, companyId, cancellationToken);
+        if (context.Status != CompanyContextStatus.Resolved)
+            return context.Status == CompanyContextStatus.Ambiguous
+                ? Conflict(Problem(title: "Alege compania care revendică invitația."))
+                : context.Status == CompanyContextStatus.Unavailable
+                    ? ValidationProblem(Errors("claim", "Completează profilul de furnizor înainte de a revendica firma."))
+                    : Forbid();
         try
         {
             SupplierInvitationView? invitation = await discoveryService.ClaimAsync(
-                supplierId, token, cancellationToken);
+                actorId, context.CompanyId!.Value, token, cancellationToken);
             return invitation is null ? NotFound(Problem(title: "Invitația nu există.")) : Ok(invitation);
         }
         catch (SupplierDiscoveryRuleException exception)

@@ -1,11 +1,11 @@
-using System.Net;
-using System.Net.Mail;
 using Marketplace.Application.Identity;
 using Microsoft.Extensions.Options;
 
 namespace Marketplace.Infrastructure.Identity;
 
-public sealed class SmtpPasswordResetDelivery(IOptions<PasswordResetEmailOptions> options) : IPasswordResetDelivery
+public sealed class SmtpPasswordResetDelivery(
+    IOptions<PasswordResetEmailOptions> options,
+    IEmailSender emailSender) : IPasswordResetDelivery
 {
     private readonly PasswordResetEmailOptions _options = options.Value;
 
@@ -14,30 +14,19 @@ public sealed class SmtpPasswordResetDelivery(IOptions<PasswordResetEmailOptions
         try
         {
             string resetUrl = $"{_options.ResetPageUrl}?email={Uri.EscapeDataString(email)}&token={Uri.EscapeDataString(token)}";
-            using var message = new MailMessage
-            {
-                From = new MailAddress(_options.FromAddress, _options.FromName),
-                Subject = "Resetarea parolei RFQ Marketplace",
-                Body = $"""
+            await emailSender.SendAsync(new(
+                email,
+                "Resetarea parolei CompaSpot",
+                $"""
                     A fost solicitată resetarea parolei contului tău RFQ Marketplace.
 
                     Deschide linkul de mai jos pentru a alege o parolă nouă:
                     {resetUrl}
 
                     Dacă nu ai făcut această solicitare, poți ignora mesajul.
-                    """,
-                IsBodyHtml = false
-            };
-            message.To.Add(new MailAddress(email));
-
-            using var client = new SmtpClient(_options.SmtpHost, _options.SmtpPort)
-            {
-                EnableSsl = _options.EnableSsl,
-                Credentials = new NetworkCredential(_options.SmtpUsername, _options.SmtpPassword)
-            };
-            await client.SendMailAsync(message, cancellationToken);
+                    """), cancellationToken);
         }
-        catch (Exception exception) when (exception is SmtpException or InvalidOperationException or FormatException)
+        catch (EmailDeliveryException exception)
         {
             throw new PasswordResetDeliveryException("Password-reset email delivery failed.", exception);
         }

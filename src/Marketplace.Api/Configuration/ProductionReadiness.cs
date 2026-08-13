@@ -33,12 +33,7 @@ public static class ProductionReadiness
             || !Path.IsPathRooted(dataProtectionKeysPath))
             errors.Add("DataProtection__KeysPath must be an absolute persistent directory.");
 
-        Require(configuration, errors,
-            "PasswordReset:ResetPageUrl",
-            "PasswordReset:SmtpHost",
-            "PasswordReset:SmtpUsername",
-            "PasswordReset:SmtpPassword",
-            "PasswordReset:FromAddress");
+        Require(configuration, errors, "PasswordReset:ResetPageUrl");
         string resetPageUrl = configuration["PasswordReset:ResetPageUrl"] ?? string.Empty;
         if (!Uri.TryCreate(resetPageUrl, UriKind.Absolute, out Uri? resetUri)
             || resetUri.Scheme != Uri.UriSchemeHttps)
@@ -46,11 +41,20 @@ public static class ProductionReadiness
         else if (frontendUri is not null
                  && !string.Equals(resetUri.GetLeftPart(UriPartial.Authority), frontendUri.GetLeftPart(UriPartial.Authority), StringComparison.OrdinalIgnoreCase))
             errors.Add("PasswordReset__ResetPageUrl must use the configured frontend origin.");
-        if (!int.TryParse(configuration["PasswordReset:SmtpPort"], out int smtpPort)
-            || smtpPort is < 1 or > 65535)
-            errors.Add("PasswordReset__SmtpPort must be between 1 and 65535.");
-        if (!MailAddress.TryCreate(configuration["PasswordReset:FromAddress"], out _))
-            errors.Add("PasswordReset__FromAddress must be a valid email address.");
+        if (bool.TryParse(configuration["Email:Enabled"], out bool emailEnabled) && emailEnabled)
+        {
+            Require(configuration, errors, "Email:Host", "Email:FromAddress", "Email:ReplyToAddress");
+            if (!int.TryParse(configuration["Email:Port"], out int smtpPort) || smtpPort is < 1 or > 65535)
+                errors.Add("Email__Port must be between 1 and 65535.");
+            if (!MailAddress.TryCreate(configuration["Email:FromAddress"], out _))
+                errors.Add("Email__FromAddress must be a valid email address.");
+            if (!MailAddress.TryCreate(configuration["Email:ReplyToAddress"], out _))
+                errors.Add("Email__ReplyToAddress must be a valid email address.");
+            bool hasUsername = !string.IsNullOrWhiteSpace(configuration["Email:Username"]);
+            bool hasPassword = !string.IsNullOrWhiteSpace(configuration["Email:Password"]);
+            if (hasUsername != hasPassword)
+                errors.Add("Email__Username and Email__Password must either both be configured or both be empty for IP-authenticated SMTP relay.");
+        }
 
         string[] trustedProxies = configuration.GetSection("ReverseProxy:KnownProxies").Get<string[]>() ?? [];
         if (trustedProxies.Length == 0)

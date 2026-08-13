@@ -17,12 +17,12 @@ public sealed class Conversation
 
     public void MessageSent(DateTimeOffset now) => UpdatedAt = now;
 
-    public void MarkRead(Guid userId, DateTimeOffset now)
+    public void MarkBuyerRead(DateTimeOffset now)
     {
-        if (userId == BuyerId) BuyerLastReadAt = now;
-        else if (userId == SupplierId) SupplierLastReadAt = now;
-        else throw new MessagingRuleException("Nu ai acces la această conversație.");
+        BuyerLastReadAt = now;
     }
+
+    public void MarkSupplierRead(DateTimeOffset now) => SupplierLastReadAt = now;
 }
 
 public sealed class MessagingRuleException(string message) : InvalidOperationException(message);

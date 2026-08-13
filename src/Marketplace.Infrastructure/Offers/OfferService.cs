@@ -1,4 +1,5 @@
 using Marketplace.Application.Categories;
+using Marketplace.Application.Companies;
 using Marketplace.Application.Offers;
 using Marketplace.Application.Rfqs;
 using Marketplace.Application.Operations;
@@ -12,6 +13,7 @@ namespace Marketplace.Infrastructure.Offers;
 
 public sealed class OfferService(
     MarketplaceDbContext dbContext,
+    ICompanyAuthorizationService companyAuthorizationService,
     TimeProvider timeProvider,
     IProcurementNeedAuditTrail auditTrail,
     IProductEventService productEvents) : IOfferService
@@ -187,14 +189,9 @@ public sealed class OfferService(
             previousStatus, rfq.NeedStatus, null, now);
         auditTrail.Record(rfq.Id, buyerId, ProcurementNeedAuditEventType.OutcomeRecorded,
             previousStatus, rfq.NeedStatus, $"Outcome={rfq.Outcome}", now.Add(TimeSpan.FromMicroseconds(1)));
-        dbContext.Notifications.Add(Notification.Create(
-            selected.SupplierId,
-            NotificationType.DeliveryConfirmed,
-            "Livrare confirmată",
-            $"Cumpărătorul a confirmat primirea pentru cererea „{rfq.Title}”.",
-            $"/open-requests/{rfq.Id}",
-            $"rfq:{rfq.Id}:delivery-confirmed",
-            now));
+        await AddCompanyNotificationsAsync(selected.SupplierId, NotificationType.DeliveryConfirmed,
+            "Livrare confirmată", $"Cumpărătorul a confirmat primirea pentru cererea „{rfq.Title}”.",
+            $"/open-requests/{rfq.Id}", $"rfq:{rfq.Id}:delivery-confirmed", now, cancellationToken);
         await SaveRfqChangesAsync(cancellationToken);
         return rfq;
     }
@@ -221,14 +218,9 @@ public sealed class OfferService(
 
         string cleanReason = reason.Trim();
         foreach (Guid supplierId in offers.Select(offer => offer.SupplierId).Distinct())
-            dbContext.Notifications.Add(Notification.Create(
-                supplierId,
-                NotificationType.RequestReopened,
-                "Cerere redeschisă",
-                $"Cererea „{rfq.Title}” a fost redeschisă. Motiv: {cleanReason}",
-                $"/open-requests/{rfq.Id}",
-                $"rfq:{rfq.Id}:reopened:{now.ToUnixTimeMilliseconds()}:{supplierId}",
-                now));
+            await AddCompanyNotificationsAsync(supplierId, NotificationType.RequestReopened,
+                "Cerere redeschisă", $"Cererea „{rfq.Title}” a fost redeschisă. Motiv: {cleanReason}",
+                $"/open-requests/{rfq.Id}", $"rfq:{rfq.Id}:reopened:{now.ToUnixTimeMilliseconds()}", now, cancellationToken);
 
         await SaveRfqChangesAsync(cancellationToken);
         return rfq;
@@ -323,6 +315,14 @@ public sealed class OfferService(
         }
     }
 
+    private async Task AddCompanyNotificationsAsync(
+        Guid companyId, NotificationType type, string title, string message, string link, string idempotencyKey,
+        DateTimeOffset now, CancellationToken cancellationToken)
+    {
+        foreach (Guid recipientId in await companyAuthorizationService.GetActiveMemberUserIdsAsync(companyId, cancellationToken))
+            dbContext.Notifications.Add(Notification.Create(recipientId, type, title, message, link,
+                $"{idempotencyKey}:recipient:{recipientId}", now));
+    }
     private static void ValidateCommercialTerms(Rfq rfq, OfferDraft draft)
     {
         OfferDeliveryTerms deliveryTerms = draft.DeliveryTerms ?? (draft.DeliveryIncluded
