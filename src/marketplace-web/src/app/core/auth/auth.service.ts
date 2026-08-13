@@ -3,7 +3,7 @@ import { computed, DestroyRef, inject, Injectable, signal } from '@angular/core'
 import { catchError, finalize, firstValueFrom, Observable, of, switchMap, tap, timeout } from 'rxjs';
 
 export interface TokenResponse { accessToken: string; expiresAt: string; }
-export interface PasswordResetRequestResponse { token: string | null; }
+export interface PasswordResetRequestResponse { token: string | null; emailTransportEnabled?: boolean; emailSent?: boolean; }
 export interface AccountSession { userId: string; email: string; accountType: 'Buyer' | 'Supplier'; roles: string[]; }
 export interface LinkedProfile { userId: string; email: string; accountType: 'Buyer' | 'Supplier'; }
 

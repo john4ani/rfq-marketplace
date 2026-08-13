@@ -32,13 +32,11 @@ postgres_database="$(get_parameter postgres-database)"
 postgres_user="$(get_parameter postgres-user)"
 postgres_password="$(get_parameter postgres-password true)"
 jwt_signing_key="$(get_parameter jwt-signing-key true)"
-smtp_username="$(get_parameter smtp-username true)"
-smtp_password="$(get_parameter smtp-password true)"
 ai_intake_api_key="$(get_optional_parameter ai-intake-api-key true)"
 
 for value_name in \
   api_origin_host frontend_origin postgres_database postgres_user \
-  postgres_password jwt_signing_key smtp_username smtp_password; do
+  postgres_password jwt_signing_key; do
   if [[ -z "${!value_name}" || "${!value_name}" == "None" ]]; then
     echo "Required deployment parameter is missing: ${value_name}" >&2
     exit 78
@@ -60,12 +58,15 @@ umask 077
   printf 'JWT_ISSUER=%s\n' "$(get_parameter jwt-issuer)"
   printf 'JWT_AUDIENCE=%s\n' "$(get_parameter jwt-audience)"
   printf 'JWT_SIGNING_KEY=%s\n' "${jwt_signing_key}"
-  printf 'SMTP_HOST=%s\n' "$(get_parameter smtp-host)"
-  printf 'SMTP_PORT=%s\n' "$(get_parameter smtp-port)"
-  printf 'SMTP_USERNAME=%s\n' "${smtp_username}"
-  printf 'SMTP_PASSWORD=%s\n' "${smtp_password}"
-  printf 'SMTP_FROM_ADDRESS=%s\n' "$(get_parameter smtp-from-address)"
-  printf 'SMTP_FROM_NAME=%s\n' "$(get_parameter smtp-from-name)"
+  printf 'EMAIL_ENABLED=%s\n' "$(get_parameter email-enabled)"
+  printf 'EMAIL_HOST=%s\n' "$(get_parameter email-host)"
+  printf 'EMAIL_PORT=%s\n' "$(get_parameter email-port)"
+  printf 'EMAIL_USE_TLS=%s\n' "$(get_parameter email-use-tls)"
+  printf 'EMAIL_USERNAME=%s\n' "$(get_optional_parameter email-username true)"
+  printf 'EMAIL_PASSWORD=%s\n' "$(get_optional_parameter email-password true)"
+  printf 'EMAIL_FROM_ADDRESS=%s\n' "$(get_parameter email-from-address)"
+  printf 'EMAIL_FROM_NAME=%s\n' "$(get_parameter email-from-name)"
+  printf 'EMAIL_REPLY_TO_ADDRESS=%s\n' "$(get_parameter email-reply-to-address)"
   printf 'AI_INTAKE_PROVIDER=%s\n' "$(get_optional_parameter ai-intake-provider)"
   printf 'AI_INTAKE_API_KEY=%s\n' "${ai_intake_api_key}"
   printf 'AI_INTAKE_RESPONSES_ENDPOINT=%s\n' "$(get_optional_parameter ai-intake-responses-endpoint)"

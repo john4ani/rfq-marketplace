@@ -12,8 +12,18 @@ public sealed partial class SmtpEmailSender(
 {
     private readonly EmailOptions options = options.Value;
 
-    [LoggerMessage(EventId = 5101, Level = LogLevel.Error, Message = "SMTP email delivery failed for recipient domain {RecipientDomain}")]
-    private static partial void LogDeliveryFailure(ILogger logger, Exception exception, string recipientDomain);
+    [LoggerMessage(
+        EventId = 5101,
+        Level = LogLevel.Error,
+        Message = "SMTP delivery failed. Host: {Host}; port: {Port}; TLS: {UseTls}; authentication: {AuthenticationMode}; recipient domain: {RecipientDomain}. For an IP-authenticated relay, authorize the API host public IP. For an authenticated relay, configure both Email__Username and Email__Password.")]
+    private static partial void LogDeliveryFailure(
+        ILogger logger,
+        Exception exception,
+        string host,
+        int port,
+        bool useTls,
+        string authenticationMode,
+        string recipientDomain);
 
     public async Task SendAsync(EmailMessage message, CancellationToken cancellationToken)
     {
@@ -28,12 +38,22 @@ public sealed partial class SmtpEmailSender(
         }
         catch (Exception exception) when (exception is SmtpException or InvalidOperationException or FormatException)
         {
-            LogDeliveryFailure(logger, exception, DomainOf(message.Recipient));
+            LogDeliveryFailure(
+                logger,
+                exception,
+                options.Host,
+                options.Port,
+                options.UseTls,
+                HasCredentials(options) ? "username/password" : "IP allow-list",
+                DomainOf(message.Recipient));
             throw new EmailDeliveryException("Email delivery failed.", exception);
         }
     }
 
     private static string DomainOf(string address) => address.Split('@').LastOrDefault() ?? "invalid";
+
+    private static bool HasCredentials(EmailOptions emailOptions) =>
+        !string.IsNullOrWhiteSpace(emailOptions.Username) || !string.IsNullOrWhiteSpace(emailOptions.Password);
 
     internal static MailMessage CreateMailMessage(EmailOptions options, EmailMessage message)
     {

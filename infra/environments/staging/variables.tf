@@ -59,6 +59,10 @@ variable "smtp_from_address" {
   type = string
 }
 
+variable "smtp_reply_to_address" {
+  type = string
+}
+
 variable "create_ses_identity" {
   type    = bool
   default = true

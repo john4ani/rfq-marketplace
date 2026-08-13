@@ -42,6 +42,7 @@ public sealed class ProductionReadinessTests
             ["PasswordReset:SmtpUsername"] = "smtp-user",
             ["PasswordReset:SmtpPassword"] = "smtp-secret",
             ["PasswordReset:FromAddress"] = "no-reply@marketplace.test",
+            ["EmailVerification:ConfirmationPageUrl"] = "https://app.marketplace.test/verify-email",
             ["Email:Enabled"] = "true",
             ["Email:Host"] = "smtp-relay.gmail.com",
             ["Email:Port"] = "587",
@@ -67,6 +68,25 @@ public sealed class ProductionReadinessTests
 
         Assert.Contains("Email_Host", error.Message, StringComparison.Ordinal);
         Assert.Contains("Email_FromAddress", error.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void ProductionRejectsLocalVerificationLinkWhenEmailIsEnabled()
+    {
+        Dictionary<string, string?> settings = ProductionSettings();
+        settings["Email:Enabled"] = "true";
+        settings["Email:Host"] = "smtp-relay.gmail.com";
+        settings["Email:Port"] = "587";
+        settings["Email:FromAddress"] = "notifications@compaspot.com";
+        settings["Email:ReplyToAddress"] = "support@compaspot.com";
+        settings["EmailVerification:ConfirmationPageUrl"] = "http://localhost:4200/verify-email";
+
+        IConfiguration configuration = Configuration(settings);
+
+        InvalidOperationException error = Assert.Throws<InvalidOperationException>(
+            () => ProductionReadiness.Validate(configuration, Environment(Environments.Production)));
+
+        Assert.Contains("EmailVerification__ConfirmationPageUrl", error.Message, StringComparison.Ordinal);
     }
 
     [Fact]

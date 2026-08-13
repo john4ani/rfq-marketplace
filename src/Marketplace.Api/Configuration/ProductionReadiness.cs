@@ -43,7 +43,7 @@ public static class ProductionReadiness
             errors.Add("PasswordReset__ResetPageUrl must use the configured frontend origin.");
         if (bool.TryParse(configuration["Email:Enabled"], out bool emailEnabled) && emailEnabled)
         {
-            Require(configuration, errors, "Email:Host", "Email:FromAddress", "Email:ReplyToAddress");
+            Require(configuration, errors, "Email:Host", "Email:FromAddress", "Email:ReplyToAddress", "EmailVerification:ConfirmationPageUrl");
             if (!int.TryParse(configuration["Email:Port"], out int smtpPort) || smtpPort is < 1 or > 65535)
                 errors.Add("Email__Port must be between 1 and 65535.");
             if (!MailAddress.TryCreate(configuration["Email:FromAddress"], out _))
@@ -54,6 +54,14 @@ public static class ProductionReadiness
             bool hasPassword = !string.IsNullOrWhiteSpace(configuration["Email:Password"]);
             if (hasUsername != hasPassword)
                 errors.Add("Email__Username and Email__Password must either both be configured or both be empty for IP-authenticated SMTP relay.");
+
+            string confirmationPageUrl = configuration["EmailVerification:ConfirmationPageUrl"] ?? string.Empty;
+            if (!Uri.TryCreate(confirmationPageUrl, UriKind.Absolute, out Uri? confirmationUri)
+                || confirmationUri.Scheme != Uri.UriSchemeHttps)
+                errors.Add("EmailVerification__ConfirmationPageUrl must be an absolute HTTPS URL.");
+            else if (frontendUri is not null
+                     && !string.Equals(confirmationUri.GetLeftPart(UriPartial.Authority), frontendUri.GetLeftPart(UriPartial.Authority), StringComparison.OrdinalIgnoreCase))
+                errors.Add("EmailVerification__ConfirmationPageUrl must use the configured frontend origin.");
         }
 
         string[] trustedProxies = configuration.GetSection("ReverseProxy:KnownProxies").Get<string[]>() ?? [];

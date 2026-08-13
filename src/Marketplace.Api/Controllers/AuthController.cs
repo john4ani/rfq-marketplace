@@ -113,18 +113,20 @@ public sealed partial class AuthController(
     public async Task<IActionResult> RequestPasswordReset(EmailRequest request, CancellationToken cancellationToken)
     {
         string? token = await identityService.CreatePasswordResetTokenAsync(request.Email, cancellationToken);
+        bool emailSent = false;
         if (token is not null && EmailEnabled())
         {
             try
             {
                 await passwordResetDelivery.SendAsync(request.Email.Trim(), token, cancellationToken);
+                emailSent = true;
             }
             catch (PasswordResetDeliveryException exception)
             {
                 LogPasswordResetDeliveryFailure(logger, exception);
             }
         }
-        return Accepted(environment.IsDevelopment() ? new DevelopmentTokenResponse(token) : null);
+        return Accepted(environment.IsDevelopment() ? new DevelopmentTokenResponse(token, EmailEnabled(), emailSent) : null);
     }
 
     [HttpPost("reset-password")]
@@ -179,4 +181,4 @@ public sealed record EmailRequest([Required, EmailAddress] string Email);
 public sealed record TokenRequest([Required, EmailAddress] string Email, [Required] string Token);
 public sealed record ResetPasswordRequest([Required, EmailAddress] string Email, [Required] string Token, [Required, MinLength(8)] string NewPassword);
 public sealed record TokenResponse(string AccessToken, DateTimeOffset ExpiresAt);
-public sealed record DevelopmentTokenResponse(string? Token);
+public sealed record DevelopmentTokenResponse(string? Token, bool EmailTransportEnabled = false, bool EmailSent = false);

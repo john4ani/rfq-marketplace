@@ -25,12 +25,15 @@ import { AuthService } from '../../core/auth/auth.service';
       </button>
     </form>
     @if (developmentToken()) {
-      <p class="development-note">
-        Mediu local: e-mailul nu este trimis.
+      <details class="development-note">
+        <summary>Opțiune doar pentru dezvoltare</summary>
+        <p role="status">
+        {{ emailSent() ? 'E-mailul de test a fost trimis. Verifică inboxul.' : (emailTransportEnabled() ? 'E-mailul de test nu a putut fi trimis. Verifică jurnalul API-ului.' : 'Trimiterea de e-mail nu este activată în configurația acestui API local.') }}
         <a routerLink="/reset-password" [queryParams]="{ email: form.controls.email.value, token: developmentToken() }">
           Continuați cu tokenul de dezvoltare
         </a>
-      </p>
+        </p>
+      </details>
     }
     <a routerLink="/sign-in">Înapoi la autentificare</a>
   </section>`,
@@ -42,6 +45,8 @@ export class ForgotPasswordComponent {
   readonly message = signal('');
   readonly error = signal('');
   readonly developmentToken = signal<string | null>(null);
+  readonly emailTransportEnabled = signal(false);
+  readonly emailSent = signal(false);
   readonly form = new FormGroup({
     email: new FormControl('', {
       nonNullable: true,
@@ -57,12 +62,16 @@ export class ForgotPasswordComponent {
     this.message.set('');
     this.error.set('');
     this.developmentToken.set(null);
+    this.emailTransportEnabled.set(false);
+    this.emailSent.set(false);
     this.auth.requestPasswordReset(this.form.controls.email.value.trim())
       .pipe(finalize(() => this.submitting.set(false)))
       .subscribe({
         next: response => {
           this.message.set('Dacă adresa aparține unui cont, veți primi în scurt timp instrucțiunile de resetare.');
           this.developmentToken.set(response?.token ?? null);
+          this.emailTransportEnabled.set(response?.emailTransportEnabled === true);
+          this.emailSent.set(response?.emailSent === true);
         },
         error: (response: HttpErrorResponse) => this.error.set(
           response.status === 429

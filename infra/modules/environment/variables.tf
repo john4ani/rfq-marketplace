@@ -81,7 +81,11 @@ variable "smtp_from_address" {
 
 variable "smtp_from_name" {
   type    = string
-  default = "RFQ Marketplace"
+  default = "CompaSpot"
+}
+
+variable "smtp_reply_to_address" {
+  type = string
 }
 
 variable "create_ses_identity" {

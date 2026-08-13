@@ -1,6 +1,7 @@
 admin_cidr        = "203.0.113.10/32"
 acme_email        = "operations@example.com"
-smtp_from_address = "no-reply@example.com"
+smtp_from_address      = "notifications@compaspot.com"
+smtp_reply_to_address  = "support@compaspot.com"
 
 # Optional Route 53 custom-domain configuration. Without it, staging uses the CloudFront
 # domain for the frontend and <static-ip>.sslip.io for the API origin.

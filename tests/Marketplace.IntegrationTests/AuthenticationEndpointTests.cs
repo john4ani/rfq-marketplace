@@ -114,6 +114,8 @@ public sealed class AuthenticationEndpointTests : IClassFixture<WebApplicationFa
         DevelopmentTokenResponse? response = await requested.Content.ReadFromJsonAsync<DevelopmentTokenResponse>();
         Assert.Equal(HttpStatusCode.Accepted, requested.StatusCode);
         Assert.False(string.IsNullOrWhiteSpace(response?.Token));
+        Assert.False(response!.EmailTransportEnabled);
+        Assert.False(response!.EmailSent);
 
         using HttpResponseMessage reset = await _client.PostAsJsonAsync(
             "/api/v1/auth/reset-password",
@@ -191,5 +193,5 @@ public sealed class AuthenticationEndpointTests : IClassFixture<WebApplicationFa
     private sealed record TokenResponse(string AccessToken, DateTimeOffset ExpiresAt);
     private sealed record CurrentUser(Guid UserId, string Email, string[] Roles);
     private sealed record LinkedAccount(Guid UserId, string Email, string AccountType);
-    private sealed record DevelopmentTokenResponse(string? Token);
+    private sealed record DevelopmentTokenResponse(string? Token, bool EmailTransportEnabled = false, bool EmailSent = false);
 }

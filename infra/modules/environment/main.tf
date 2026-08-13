@@ -109,10 +109,13 @@ locals {
     "jwt-issuer"                 = "rfq-marketplace-api"
     "postgres-database"          = "marketplace"
     "postgres-user"              = "marketplace"
-    "smtp-from-address"          = var.smtp_from_address
-    "smtp-from-name"             = var.smtp_from_name
-    "smtp-host"                  = "email-smtp.${var.aws_region}.amazonaws.com"
-    "smtp-port"                  = "587"
+    "email-enabled"              = "true"
+    "email-host"                 = "smtp-relay.gmail.com"
+    "email-port"                 = "587"
+    "email-use-tls"              = "true"
+    "email-from-address"         = var.smtp_from_address
+    "email-from-name"            = var.smtp_from_name
+    "email-reply-to-address"     = var.smtp_reply_to_address
   }
 }
 
