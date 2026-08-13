@@ -26,15 +26,12 @@ public sealed class MessagingTests
     }
 
     [Fact]
-    public void OnlyParticipantsCanMarkConversationRead()
+    public void BuyerAndSupplierReadMarkersAreTrackedSeparately()
     {
-        Guid buyerId = Guid.NewGuid();
-        Guid supplierId = Guid.NewGuid();
-        Conversation conversation = Conversation.Create(Guid.NewGuid(), buyerId, supplierId, Now);
-        conversation.MarkRead(buyerId, Now.AddMinutes(1));
-        conversation.MarkRead(supplierId, Now.AddMinutes(2));
+        Conversation conversation = Conversation.Create(Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), Now);
+        conversation.MarkBuyerRead(Now.AddMinutes(1));
+        conversation.MarkSupplierRead(Now.AddMinutes(2));
         Assert.Equal(Now.AddMinutes(1), conversation.BuyerLastReadAt);
         Assert.Equal(Now.AddMinutes(2), conversation.SupplierLastReadAt);
-        Assert.Throws<MessagingRuleException>(() => conversation.MarkRead(Guid.NewGuid(), Now.AddMinutes(3)));
     }
 }
