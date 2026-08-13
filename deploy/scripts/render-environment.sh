@@ -33,6 +33,13 @@ postgres_user="$(get_parameter postgres-user)"
 postgres_password="$(get_parameter postgres-password true)"
 jwt_signing_key="$(get_parameter jwt-signing-key true)"
 ai_intake_api_key="$(get_optional_parameter ai-intake-api-key true)"
+email_enabled="$(get_parameter email-enabled)"
+email_host="$(get_parameter email-host)"
+email_port="$(get_parameter email-port)"
+email_use_tls="$(get_parameter email-use-tls)"
+email_from_address="$(get_parameter email-from-address)"
+email_from_name="$(get_parameter email-from-name)"
+email_reply_to_address="$(get_parameter email-reply-to-address)"
 
 for value_name in \
   api_origin_host frontend_origin postgres_database postgres_user \
@@ -42,6 +49,23 @@ for value_name in \
     exit 78
   fi
 done
+
+case "${email_enabled,,}" in
+  true|false) ;;
+  *)
+    echo "Required deployment parameter email-enabled must be exactly true or false." >&2
+    exit 78
+    ;;
+esac
+
+if [[ "${email_enabled,,}" == "true" ]]; then
+  for value_name in email_host email_port email_use_tls email_from_address email_from_name email_reply_to_address; do
+    if [[ -z "${!value_name}" || "${!value_name}" == "None" ]]; then
+      echo "Required enabled-email deployment parameter is missing: ${value_name}" >&2
+      exit 78
+    fi
+  done
+fi
 
 umask 077
 {
@@ -58,15 +82,15 @@ umask 077
   printf 'JWT_ISSUER=%s\n' "$(get_parameter jwt-issuer)"
   printf 'JWT_AUDIENCE=%s\n' "$(get_parameter jwt-audience)"
   printf 'JWT_SIGNING_KEY=%s\n' "${jwt_signing_key}"
-  printf 'EMAIL_ENABLED=%s\n' "$(get_parameter email-enabled)"
-  printf 'EMAIL_HOST=%s\n' "$(get_parameter email-host)"
-  printf 'EMAIL_PORT=%s\n' "$(get_parameter email-port)"
-  printf 'EMAIL_USE_TLS=%s\n' "$(get_parameter email-use-tls)"
+  printf 'EMAIL_ENABLED=%s\n' "${email_enabled}"
+  printf 'EMAIL_HOST=%s\n' "${email_host}"
+  printf 'EMAIL_PORT=%s\n' "${email_port}"
+  printf 'EMAIL_USE_TLS=%s\n' "${email_use_tls}"
   printf 'EMAIL_USERNAME=%s\n' "$(get_optional_parameter email-username true)"
   printf 'EMAIL_PASSWORD=%s\n' "$(get_optional_parameter email-password true)"
-  printf 'EMAIL_FROM_ADDRESS=%s\n' "$(get_parameter email-from-address)"
-  printf 'EMAIL_FROM_NAME=%s\n' "$(get_parameter email-from-name)"
-  printf 'EMAIL_REPLY_TO_ADDRESS=%s\n' "$(get_parameter email-reply-to-address)"
+  printf 'EMAIL_FROM_ADDRESS=%s\n' "${email_from_address}"
+  printf 'EMAIL_FROM_NAME=%s\n' "${email_from_name}"
+  printf 'EMAIL_REPLY_TO_ADDRESS=%s\n' "${email_reply_to_address}"
   printf 'AI_INTAKE_PROVIDER=%s\n' "$(get_optional_parameter ai-intake-provider)"
   printf 'AI_INTAKE_API_KEY=%s\n' "${ai_intake_api_key}"
   printf 'AI_INTAKE_RESPONSES_ENDPOINT=%s\n' "$(get_optional_parameter ai-intake-responses-endpoint)"
