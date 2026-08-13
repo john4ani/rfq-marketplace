@@ -30,7 +30,7 @@ public sealed class ProfileEndpointTests : IClassFixture<WebApplicationFactory<P
         Assert.Equal(HttpStatusCode.OK, (await _client.PutAsJsonAsync($"/api/v1/buyers/{id}", profile)).StatusCode);
         Assert.Equal(HttpStatusCode.OK, (await _client.GetAsync($"/api/v1/buyers/{id}")).StatusCode);
         Assert.Equal(HttpStatusCode.NotFound, (await _client.GetAsync($"/api/v1/buyers/{Guid.NewGuid()}")).StatusCode);
-        Assert.Equal(HttpStatusCode.Forbidden, (await _client.GetAsync($"/api/v1/suppliers/{id}")).StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, (await _client.GetAsync($"/api/v1/suppliers/{id}")).StatusCode);
     }
 
     [Fact]

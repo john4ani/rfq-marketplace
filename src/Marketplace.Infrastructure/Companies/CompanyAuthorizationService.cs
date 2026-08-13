@@ -12,4 +12,11 @@ public sealed class CompanyAuthorizationService(MarketplaceDbContext dbContext) 
                 && membership.CompanyId == companyId
                 && membership.RevokedAt == null,
             cancellationToken);
+
+    public async Task<bool> CanCreateLegacyCompanyAsync(Guid userId, Guid companyId, CancellationToken cancellationToken)
+    {
+        if (userId != companyId) return false;
+        return !await dbContext.SupplierProfiles.AsNoTracking()
+            .AnyAsync(profile => profile.Id == companyId, cancellationToken);
+    }
 }

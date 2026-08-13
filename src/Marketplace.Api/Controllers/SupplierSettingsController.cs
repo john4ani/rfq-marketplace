@@ -1,5 +1,6 @@
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
+using Marketplace.Application.Companies;
 using Marketplace.Application.Suppliers;
 using Marketplace.Domain.Identity;
 using Marketplace.Domain.Suppliers;
@@ -13,6 +14,7 @@ namespace Marketplace.Api.Controllers;
 [Route("api/v1")]
 public sealed partial class SupplierSettingsController(
     ISupplierSettingsService settingsService,
+    ICompanyAuthorizationService companyAuthorizationService,
     ILogger<SupplierSettingsController> logger) : ControllerBase
 {
     [Authorize]
@@ -54,20 +56,20 @@ public sealed partial class SupplierSettingsController(
         return Ok(new CategoryCreationResponse(category.Id, category.VerticalId, category.ParentId, category.Name, category.Slug, result.AlreadyExisted));
     }
 
-    [Authorize(Roles = MarketplaceRoles.Supplier)]
+    [Authorize]
     [HttpGet("suppliers/{supplierId:guid}/categories")]
     public async Task<IActionResult> SupplierCategories(Guid supplierId, CancellationToken cancellationToken)
     {
-        if (!Owns(supplierId)) return NotFound();
+        if (!await CanRepresentCompany(supplierId, cancellationToken)) return NotFound();
         SupplierCategorySelection? selection = await settingsService.GetCategoriesAsync(supplierId, cancellationToken);
         return selection is null ? MissingProfile() : Ok(selection);
     }
 
-    [Authorize(Roles = MarketplaceRoles.Supplier)]
+    [Authorize]
     [HttpPut("suppliers/{supplierId:guid}/categories")]
     public async Task<IActionResult> SaveSupplierCategories(Guid supplierId, SupplierCategoriesRequest request, CancellationToken cancellationToken)
     {
-        if (!Owns(supplierId)) return NotFound();
+        if (!await CanRepresentCompany(supplierId, cancellationToken)) return NotFound();
         IReadOnlyCollection<Category> categories = await settingsService.GetCategoriesAsync(cancellationToken);
         HashSet<Guid> parentIds = categories.Where(category => category.ParentId.HasValue).Select(category => category.ParentId!.Value).ToHashSet();
         HashSet<Guid> selectableIds = categories.Where(category => !parentIds.Contains(category.Id)).Select(category => category.Id).ToHashSet();
@@ -79,20 +81,20 @@ public sealed partial class SupplierSettingsController(
         return selection is null ? MissingProfile() : Ok(selection);
     }
 
-    [Authorize(Roles = MarketplaceRoles.Supplier)]
+    [Authorize]
     [HttpGet("suppliers/{supplierId:guid}/delivery-settings")]
     public async Task<IActionResult> DeliverySettings(Guid supplierId, CancellationToken cancellationToken)
     {
-        if (!Owns(supplierId)) return NotFound();
+        if (!await CanRepresentCompany(supplierId, cancellationToken)) return NotFound();
         SupplierDeliverySelection? selection = await settingsService.GetDeliverySettingsAsync(supplierId, cancellationToken);
         return selection is null ? MissingProfile() : Ok(selection);
     }
 
-    [Authorize(Roles = MarketplaceRoles.Supplier)]
+    [Authorize]
     [HttpPut("suppliers/{supplierId:guid}/delivery-settings")]
     public async Task<IActionResult> SaveDeliverySettings(Guid supplierId, SupplierDeliveryRequest request, CancellationToken cancellationToken)
     {
-        if (!Owns(supplierId)) return NotFound();
+        if (!await CanRepresentCompany(supplierId, cancellationToken)) return NotFound();
         if (request.NormalDeliveryRadiusKm is < 1 or > 1000)
             return ValidationProblem(ProblemErrors("normalDeliveryRadiusKm", "Raza normală trebuie să fie între 1 și 1.000 km."));
         if (request.MaximumDeliveryRadiusKm is < 1 or > 1000)
@@ -118,10 +120,11 @@ public sealed partial class SupplierSettingsController(
         return selection is null ? MissingProfile() : Ok(selection);
     }
 
-    private bool Owns(Guid id)
+    private async Task<bool> CanRepresentCompany(Guid companyId, CancellationToken cancellationToken)
     {
         string? subject = User.FindFirstValue(JwtRegisteredClaimNames.Sub) ?? User.FindFirstValue(ClaimTypes.NameIdentifier);
-        return Guid.TryParse(subject, out Guid accountId) && accountId == id;
+        return Guid.TryParse(subject, out Guid userId)
+            && await companyAuthorizationService.CanRepresentCompanyAsync(userId, companyId, cancellationToken);
     }
 
     private NotFoundObjectResult MissingProfile() => NotFound(Problem(title: "Completați mai întâi profilul companiei."));

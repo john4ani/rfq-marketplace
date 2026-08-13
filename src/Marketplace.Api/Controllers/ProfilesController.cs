@@ -1,8 +1,8 @@
 using System.ComponentModel.DataAnnotations;
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
+using Marketplace.Application.Companies;
 using Marketplace.Application.Profiles;
-using Marketplace.Domain.Identity;
 using Marketplace.Domain.Profiles;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -11,7 +11,9 @@ namespace Marketplace.Api.Controllers;
 
 [ApiController]
 [Route("api/v1")]
-public sealed class ProfilesController(IProfileService profileService) : ControllerBase
+public sealed class ProfilesController(
+    IProfileService profileService,
+    ICompanyAuthorizationService companyAuthorizationService) : ControllerBase
 {
     [Authorize]
     [HttpGet("buyers/{buyerId:guid}")]
@@ -31,20 +33,20 @@ public sealed class ProfilesController(IProfileService profileService) : Control
         return Ok(BuyerResponse.From(profile));
     }
 
-    [Authorize(Roles = MarketplaceRoles.Supplier)]
+    [Authorize]
     [HttpGet("suppliers/{supplierId:guid}")]
     public async Task<IActionResult> GetSupplier(Guid supplierId, CancellationToken cancellationToken)
     {
-        if (!Owns(supplierId)) return NotFound();
+        if (!await CanRepresentCompany(supplierId, cancellationToken)) return NotFound();
         SupplierProfile? profile = await profileService.GetSupplierAsync(supplierId, cancellationToken);
         return profile is null ? NotFound() : Ok(SupplierResponse.From(profile));
     }
 
-    [Authorize(Roles = MarketplaceRoles.Supplier)]
+    [Authorize]
     [HttpPut("suppliers/{supplierId:guid}")]
     public async Task<IActionResult> SaveSupplier(Guid supplierId, SupplierProfileRequest request, CancellationToken cancellationToken)
     {
-        if (!Owns(supplierId)) return NotFound();
+        if (!await CanManageCompany(supplierId, cancellationToken)) return NotFound();
         SupplierProfile profile = await profileService.SaveSupplierAsync(supplierId, new(request.TradingName.Trim(), request.CompanyRegistrationNumber.Trim(), Clean(request.TaxIdentifier), request.ContactPerson.Trim(), request.ContactEmail.Trim(), request.PhoneNumber.Trim(), Clean(request.Website), request.Address.Trim(), request.City.Trim(), request.County.Trim(), request.Latitude, request.Longitude, Clean(request.Description)), cancellationToken);
         return Ok(SupplierResponse.From(profile));
     }
@@ -53,6 +55,21 @@ public sealed class ProfilesController(IProfileService profileService) : Control
     {
         string? subject = User.FindFirstValue(JwtRegisteredClaimNames.Sub) ?? User.FindFirstValue(ClaimTypes.NameIdentifier);
         return Guid.TryParse(subject, out Guid accountId) && accountId == id;
+    }
+
+    private async Task<bool> CanManageCompany(Guid companyId, CancellationToken cancellationToken)
+    {
+        string? subject = User.FindFirstValue(JwtRegisteredClaimNames.Sub) ?? User.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (!Guid.TryParse(subject, out Guid userId)) return false;
+        return await companyAuthorizationService.CanRepresentCompanyAsync(userId, companyId, cancellationToken)
+            || await companyAuthorizationService.CanCreateLegacyCompanyAsync(userId, companyId, cancellationToken);
+    }
+
+    private async Task<bool> CanRepresentCompany(Guid companyId, CancellationToken cancellationToken)
+    {
+        string? subject = User.FindFirstValue(JwtRegisteredClaimNames.Sub) ?? User.FindFirstValue(ClaimTypes.NameIdentifier);
+        return Guid.TryParse(subject, out Guid userId)
+            && await companyAuthorizationService.CanRepresentCompanyAsync(userId, companyId, cancellationToken);
     }
 
     private static string? Clean(string? value) => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
