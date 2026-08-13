@@ -7,8 +7,8 @@ public interface IOfferService
 {
     Task<Offer?> GetMineForRfqAsync(Guid supplierId, Guid rfqId, CancellationToken cancellationToken);
     Task<IReadOnlyCollection<OfferSummary>> GetMineAsync(Guid supplierId, CancellationToken cancellationToken);
-    Task<Offer> SaveDraftAsync(Guid supplierId, Guid rfqId, OfferDraft draft, CancellationToken cancellationToken);
-    Task<Offer?> SubmitAsync(Guid supplierId, Guid rfqId, CancellationToken cancellationToken);
+    Task<Offer> SaveDraftAsync(Guid actorId, Guid supplierId, Guid rfqId, OfferDraft draft, CancellationToken cancellationToken);
+    Task<Offer?> SubmitAsync(Guid actorId, Guid supplierId, Guid rfqId, CancellationToken cancellationToken);
     Task<Offer?> WithdrawAsync(Guid supplierId, Guid offerId, CancellationToken cancellationToken);
     Task<IReadOnlyCollection<BuyerOffer>> GetForBuyerAsync(Guid buyerId, Guid rfqId, CancellationToken cancellationToken);
     Task<Offer?> SelectAsync(Guid buyerId, Guid rfqId, Guid offerId, CancellationToken cancellationToken);

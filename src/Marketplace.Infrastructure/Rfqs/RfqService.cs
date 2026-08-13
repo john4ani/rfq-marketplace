@@ -140,7 +140,7 @@ public sealed class RfqService(
     }
 
     public async Task<IReadOnlyCollection<OpenRfq>> GetOpenAsync(
-        Guid supplierId, string? search, Guid? categoryId, CancellationToken cancellationToken)
+        Guid supplierId, Guid actorId, string? search, Guid? categoryId, CancellationToken cancellationToken)
     {
         DateTimeOffset now = timeProvider.GetUtcNow();
         Guid[] manuallyMatchedRequestIds = await dbContext.ConciergeMatchOverrides.AsNoTracking()
@@ -176,6 +176,7 @@ public sealed class RfqService(
             .Include(rfq => rfq.Items).ThenInclude(item => item.NeedCategory)
             .Where(rfq => (rfq.Status == RfqStatus.Published || rfq.Status == RfqStatus.ReceivingOffers)
                 && rfq.QuotationDeadline > now
+                && rfq.BuyerId != actorId
                 && (manuallyMatchedRequestIds.Contains(rfq.Id)
                     || (rfq.NeedCategories.Any(category => compatibleSupplierCategoryIds.Contains(category.CategoryId))
                         && (nationwide || deliveryCounties.Contains(rfq.County)))));
@@ -218,9 +219,9 @@ public sealed class RfqService(
             matchingItems.GetValueOrDefault(rfq.Id))).ToArray();
     }
 
-    public async Task<OpenRfq?> GetOpenAsync(Guid supplierId, Guid rfqId, CancellationToken cancellationToken)
+    public async Task<OpenRfq?> GetOpenAsync(Guid supplierId, Guid actorId, Guid rfqId, CancellationToken cancellationToken)
     {
-        OpenRfq? openRequest = (await GetOpenAsync(supplierId, null, null, cancellationToken))
+        OpenRfq? openRequest = (await GetOpenAsync(supplierId, actorId, null, null, cancellationToken))
             .SingleOrDefault(item => item.Rfq.Id == rfqId);
         if (openRequest is not null) return openRequest;
 
@@ -234,6 +235,7 @@ public sealed class RfqService(
             .Include(item => item.Items).ThenInclude(item => item.NeedCategory)
             .SingleOrDefaultAsync(item => item.Id == rfqId, cancellationToken);
         if (rfq is null) return null;
+        if (rfq.BuyerId == actorId) return null;
 
         string[] categoryNames = await dbContext.Categories.AsNoTracking()
             .Where(category => rfq.RequiredCategoryIds.Contains(category.Id))

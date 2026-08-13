@@ -8,7 +8,6 @@ namespace Marketplace.IntegrationTests;
 
 public sealed class OfferEndpointTests : IClassFixture<WebApplicationFactory<Program>>
 {
-    private static readonly string[] BuyerAndSupplier = ["Buyer", "Supplier"];
     private readonly HttpClient _client;
     public OfferEndpointTests(WebApplicationFactory<Program> factory) =>
         _client = factory.CreateClient(new() { BaseAddress = new Uri("https://localhost"), HandleCookies = true });
@@ -16,30 +15,38 @@ public sealed class OfferEndpointTests : IClassFixture<WebApplicationFactory<Pro
     [Fact]
     public async Task ProviderCanSubmitAndBuyerCanSelectOffer()
     {
-        string email = $"offer-{Guid.NewGuid():N}@example.test";
+        string buyerEmail = $"offer-buyer-{Guid.NewGuid():N}@example.test";
+        string supplierEmail = $"offer-supplier-{Guid.NewGuid():N}@example.test";
         const string password = "password";
-        Assert.Equal(HttpStatusCode.Created, (await _client.PostAsJsonAsync("/api/v1/auth/register",
-            new { email, password, accountTypes = BuyerAndSupplier })).StatusCode);
-        TokenResponse login = (await (await _client.PostAsJsonAsync("/api/v1/auth/login", new { email, password }))
+        Assert.Equal(HttpStatusCode.Created, (await _client.PostAsJsonAsync("/api/v1/auth/register/buyer",
+            new { email = buyerEmail, password })).StatusCode);
+        TokenResponse buyerLogin = (await (await _client.PostAsJsonAsync("/api/v1/auth/login", new { email = buyerEmail, password }))
             .Content.ReadFromJsonAsync<TokenResponse>())!;
-        Guid userId = UserId(login.AccessToken);
-        _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", login.AccessToken);
+        Guid buyerId = UserId(buyerLogin.AccessToken);
+        _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", buyerLogin.AccessToken);
 
-        Assert.Equal(HttpStatusCode.OK, (await _client.PutAsJsonAsync($"/api/v1/buyers/{userId}", new {
+        Assert.Equal(HttpStatusCode.OK, (await _client.PutAsJsonAsync($"/api/v1/buyers/{buyerId}", new {
             displayName = "Buyer Offer", buyerType = "Company", companyName = "Buyer Offer SRL",
             taxIdentifier = "RO123", phoneNumber = "0700000000", defaultCity = "Iași", defaultCounty = "Iași"
         })).StatusCode);
-        Assert.Equal(HttpStatusCode.OK, (await _client.PutAsJsonAsync($"/api/v1/suppliers/{userId}", new {
+        Assert.Equal(HttpStatusCode.Created, (await _client.PostAsJsonAsync("/api/v1/auth/register/supplier",
+            new { email = supplierEmail, password })).StatusCode);
+        TokenResponse supplierLogin = (await (await _client.PostAsJsonAsync("/api/v1/auth/login", new { email = supplierEmail, password }))
+            .Content.ReadFromJsonAsync<TokenResponse>())!;
+        Guid supplierId = UserId(supplierLogin.AccessToken);
+        _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", supplierLogin.AccessToken);
+        Assert.Equal(HttpStatusCode.OK, (await _client.PutAsJsonAsync($"/api/v1/suppliers/{supplierId}", new {
             tradingName = "Provider Offer SRL", companyRegistrationNumber = "J00/9/2026", taxIdentifier = "RO456",
-            contactPerson = "Provider", contactEmail = email, phoneNumber = "0711111111", website = (string?)null,
+            contactPerson = "Provider", contactEmail = supplierEmail, phoneNumber = "0711111111", website = (string?)null,
             address = "Strada Test 2", city = "Iași", county = "Iași", latitude = (decimal?)null,
             longitude = (decimal?)null, description = "Test"
         })).StatusCode);
         CategoryResponse[] categories = (await _client.GetFromJsonAsync<CategoryResponse[]>("/api/v1/categories"))!;
         Guid categoryId = categories.First(category => category.ParentId is not null).Id;
-        Assert.Equal(HttpStatusCode.OK, (await _client.PutAsJsonAsync($"/api/v1/suppliers/{userId}/categories",
+        Assert.Equal(HttpStatusCode.OK, (await _client.PutAsJsonAsync($"/api/v1/suppliers/{supplierId}/categories",
             new { categoryIds = new[] { categoryId } })).StatusCode);
 
+        _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", buyerLogin.AccessToken);
         HttpResponseMessage created = await _client.PostAsJsonAsync("/api/v1/rfqs", new {
             title = "Request with offer", projectName = "Project", description = "Test", primaryCategoryId = categoryId,
             deliveryAddress = "Private 1", deliveryLocality = "Iași", county = "Iași", supplierSearchRadiusKm = 30,
@@ -53,6 +60,7 @@ public sealed class OfferEndpointTests : IClassFixture<WebApplicationFactory<Pro
         RfqResponse rfq = (await created.Content.ReadFromJsonAsync<RfqResponse>())!;
         Assert.Equal(HttpStatusCode.OK, (await _client.PostAsJsonAsync($"/api/v1/rfqs/{rfq.Id}/publish", new { })).StatusCode);
 
+        _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", supplierLogin.AccessToken);
         HttpResponseMessage saved = await _client.PutAsJsonAsync($"/api/v1/open-rfqs/{rfq.Id}/offer", new {
             coverage = "Full", taxTreatment = "VatIncluded", vatRate = 19m, deliveryTerms = "AddedToTotal",
             deliveryIncluded = true, deliveryCost = 50m, deliveryDays = 3, validUntil = DateOnly.FromDateTime(DateTime.UtcNow.AddDays(7)),
@@ -68,6 +76,7 @@ public sealed class OfferEndpointTests : IClassFixture<WebApplicationFactory<Pro
         Assert.True(offer.VatAmount > 0);
         Assert.Equal("Submitted", (await (await _client.PostAsJsonAsync($"/api/v1/open-rfqs/{rfq.Id}/offer/submit", new { }))
             .Content.ReadFromJsonAsync<OfferResponse>())!.Status);
+        _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", buyerLogin.AccessToken);
         NotificationResponse[] notifications = (await _client.GetFromJsonAsync<NotificationResponse[]>("/api/v1/notifications"))!;
         NotificationResponse received = Assert.Single(notifications, item => item.Type == "OfferReceived" && item.Link == $"/rfqs/{rfq.Id}/offers");
         Assert.False(received.IsRead);
@@ -87,11 +96,13 @@ public sealed class OfferEndpointTests : IClassFixture<WebApplicationFactory<Pro
         Assert.Equal(rfq.Id, conversation.RfqId);
         Assert.Equal(HttpStatusCode.NoContent,
             (await _client.PostAsJsonAsync($"/api/v1/offers/{offer.Id}/conversation/read", new { })).StatusCode);
+        _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", supplierLogin.AccessToken);
         notifications = (await _client.GetFromJsonAsync<NotificationResponse[]>("/api/v1/notifications"))!;
         Assert.Single(notifications, item => item.Type == "MessageReceived" && item.Link == $"/offers/{offer.Id}/conversation");
         Assert.Equal(HttpStatusCode.NotFound,
             (await _client.GetAsync($"/api/v1/offers/{Guid.NewGuid()}/conversation")).StatusCode);
 
+        _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", supplierLogin.AccessToken);
         Assert.Equal(HttpStatusCode.OK, (await _client.PutAsJsonAsync($"/api/v1/open-rfqs/{rfq.Id}/offer", new {
             coverage = "Full", taxTreatment = "VatIncluded", vatRate = 19m, deliveryTerms = "AddedToTotal",
             deliveryIncluded = true, deliveryCost = 40m, deliveryDays = 2, validUntil = DateOnly.FromDateTime(DateTime.UtcNow.AddDays(8)),
@@ -101,6 +112,7 @@ public sealed class OfferEndpointTests : IClassFixture<WebApplicationFactory<Pro
         })).StatusCode);
         Assert.Equal("Revised", (await (await _client.PostAsJsonAsync($"/api/v1/open-rfqs/{rfq.Id}/offer/submit", new { }))
             .Content.ReadFromJsonAsync<OfferResponse>())!.Status);
+        _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", buyerLogin.AccessToken);
         notifications = (await _client.GetFromJsonAsync<NotificationResponse[]>("/api/v1/notifications"))!;
         Assert.Single(notifications, item => item.Type == "OfferRevised" && item.Link == $"/rfqs/{rfq.Id}/offers");
 
@@ -114,10 +126,12 @@ public sealed class OfferEndpointTests : IClassFixture<WebApplicationFactory<Pro
         RfqResponse selected = (await _client.GetFromJsonAsync<RfqResponse>($"/api/v1/rfqs/{rfq.Id}"))!;
         Assert.Equal("OfferSelected", selected.Status);
         Assert.Equal(offer.Id, selected.SelectedOfferId);
+        _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", supplierLogin.AccessToken);
         Assert.Equal(HttpStatusCode.OK, (await _client.GetAsync($"/api/v1/open-rfqs/{rfq.Id}")).StatusCode);
         OfferResponse selectedProviderOffer =
             (await _client.GetFromJsonAsync<OfferResponse>($"/api/v1/open-rfqs/{rfq.Id}/offer"))!;
         Assert.Equal("Selected", selectedProviderOffer.Status);
+        _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", buyerLogin.AccessToken);
         const string reopenReason = "Oferta a fost selectată din greșeală și trebuie reevaluată.";
         HttpResponseMessage reopenedResponse = await _client.PostAsJsonAsync($"/api/v1/rfqs/{rfq.Id}/reopen", new {
             reason = reopenReason,
@@ -127,13 +141,16 @@ public sealed class OfferEndpointTests : IClassFixture<WebApplicationFactory<Pro
         RfqResponse reopened = (await reopenedResponse.Content.ReadFromJsonAsync<RfqResponse>())!;
         Assert.Equal("ReceivingOffers", reopened.Status);
         Assert.Null(reopened.SelectedOfferId);
+        _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", supplierLogin.AccessToken);
         OfferResponse restoredProviderOffer =
             (await _client.GetFromJsonAsync<OfferResponse>($"/api/v1/open-rfqs/{rfq.Id}/offer"))!;
         Assert.Equal("Revised", restoredProviderOffer.Status);
+        _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", supplierLogin.AccessToken);
         notifications = (await _client.GetFromJsonAsync<NotificationResponse[]>("/api/v1/notifications"))!;
         NotificationResponse reopenedNotification = Assert.Single(
             notifications, item => item.Type == "RequestReopened" && item.Link == $"/open-requests/{rfq.Id}");
         Assert.Contains(reopenReason, reopenedNotification.Message);
+        _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", supplierLogin.AccessToken);
 
         Assert.Equal(HttpStatusCode.OK, (await _client.PutAsJsonAsync($"/api/v1/open-rfqs/{rfq.Id}/offer", new {
             pricingMode = "Total", coverage = "Full", taxTreatment = "VatIncluded", vatRate = 19m, deliveryTerms = "IncludedInPrice",
@@ -145,6 +162,7 @@ public sealed class OfferEndpointTests : IClassFixture<WebApplicationFactory<Pro
             $"/api/v1/open-rfqs/{rfq.Id}/offer/submit", new { })).Content.ReadFromJsonAsync<OfferResponse>())!;
         Assert.Equal("Total", quickTotal.PricingMode);
         Assert.Equal(1100m, quickTotal.Total);
+        _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", buyerLogin.AccessToken);
         Assert.Equal(HttpStatusCode.OK,
             (await _client.PostAsJsonAsync($"/api/v1/rfqs/{rfq.Id}/offers/{quickTotal.Id}/select", new { })).StatusCode);
         HttpResponseMessage secondReopen = await _client.PostAsJsonAsync($"/api/v1/rfqs/{rfq.Id}/reopen", new {
@@ -157,8 +175,10 @@ public sealed class OfferEndpointTests : IClassFixture<WebApplicationFactory<Pro
         Assert.Equal("OfferSelected", finallySelected.Status);
         Assert.Equal("AwaitingDelivery", finallySelected.FulfillmentStatus);
 
+        _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", supplierLogin.AccessToken);
         Assert.Equal(HttpStatusCode.OK,
             (await _client.PostAsJsonAsync($"/api/v1/open-rfqs/{rfq.Id}/delivery/report", new { })).StatusCode);
+        _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", buyerLogin.AccessToken);
         RfqResponse deliveryReported = (await _client.GetFromJsonAsync<RfqResponse>($"/api/v1/rfqs/{rfq.Id}"))!;
         Assert.Equal("DeliveryReported", deliveryReported.FulfillmentStatus);
         notifications = (await _client.GetFromJsonAsync<NotificationResponse[]>("/api/v1/notifications"))!;
@@ -169,9 +189,11 @@ public sealed class OfferEndpointTests : IClassFixture<WebApplicationFactory<Pro
         RfqResponse delivered = (await _client.GetFromJsonAsync<RfqResponse>($"/api/v1/rfqs/{rfq.Id}"))!;
         Assert.Equal("Closed", delivered.Status);
         Assert.Equal("Delivered", delivered.FulfillmentStatus);
+        _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", supplierLogin.AccessToken);
         notifications = (await _client.GetFromJsonAsync<NotificationResponse[]>("/api/v1/notifications"))!;
         Assert.Single(notifications, item => item.Type == "DeliveryConfirmed" && item.Link == $"/open-requests/{rfq.Id}");
 
+        _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", buyerLogin.AccessToken);
         HttpResponseMessage generalCreated = await _client.PostAsJsonAsync("/api/v1/rfqs", new {
             title = "General request without lines", projectName = (string?)null, description = "General need",
             primaryCategoryId = categoryId, deliveryAddress = "Private 2", deliveryLocality = "Iași", county = "Iași",
@@ -184,6 +206,7 @@ public sealed class OfferEndpointTests : IClassFixture<WebApplicationFactory<Pro
         RfqResponse generalRfq = (await generalCreated.Content.ReadFromJsonAsync<RfqResponse>())!;
         Assert.Equal(HttpStatusCode.OK,
             (await _client.PostAsJsonAsync($"/api/v1/rfqs/{generalRfq.Id}/publish", new { })).StatusCode);
+        _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", supplierLogin.AccessToken);
         Assert.Equal(HttpStatusCode.OK, (await _client.PutAsJsonAsync($"/api/v1/open-rfqs/{generalRfq.Id}/offer", new {
             pricingMode = "Total", coverage = "Full", taxTreatment = "VatIncluded", vatRate = 19m, deliveryTerms = "IncludedInPrice",
             totalPrice = 1250m, deliveryCost = 0m, deliveryDays = 4, validUntil = DateOnly.FromDateTime(DateTime.UtcNow.AddDays(7)),

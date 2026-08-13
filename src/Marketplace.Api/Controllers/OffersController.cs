@@ -1,7 +1,7 @@
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
+using Marketplace.Application.Companies;
 using Marketplace.Application.Offers;
-using Marketplace.Domain.Identity;
 using Marketplace.Domain.Offers;
 using Marketplace.Domain.Rfqs;
 using Marketplace.Application.Trust;
@@ -13,35 +13,44 @@ namespace Marketplace.Api.Controllers;
 [ApiController]
 [Route("api/v1")]
 [Authorize]
-public sealed class OffersController(IOfferService offerService, ITrustService trustService) : ControllerBase
+public sealed class OffersController(
+    IOfferService offerService,
+    ITrustService trustService,
+    ICompanyAuthorizationService companyAuthorizationService) : ControllerBase
 {
     [HttpGet("open-rfqs/{rfqId:guid}/offer")]
-    [Authorize(Roles = MarketplaceRoles.Supplier)]
-    public async Task<IActionResult> MineForRequest(Guid rfqId, CancellationToken cancellationToken)
+    public async Task<IActionResult> MineForRequest(Guid rfqId, [FromQuery] Guid? companyId, CancellationToken cancellationToken)
     {
-        Offer? offer = await offerService.GetMineForRfqAsync(UserId(), rfqId, cancellationToken);
+        CompanyContextResolution context = await ResolveCompany(companyId, cancellationToken);
+        if (context.Status != CompanyContextStatus.Resolved) return CompanyContextProblem(context);
+        Offer? offer = await offerService.GetMineForRfqAsync(context.CompanyId!.Value, rfqId, cancellationToken);
         return offer is null ? NoContent() : Ok(OfferResponse.From(offer));
     }
 
     [HttpGet("offers/mine")]
-    [Authorize(Roles = MarketplaceRoles.Supplier)]
-    public async Task<IActionResult> Mine(CancellationToken cancellationToken) =>
-        Ok((await offerService.GetMineAsync(UserId(), cancellationToken)).Select(OfferSummaryResponse.From));
+    public async Task<IActionResult> Mine([FromQuery] Guid? companyId, CancellationToken cancellationToken)
+    {
+        CompanyContextResolution context = await ResolveCompany(companyId, cancellationToken);
+        if (context.Status != CompanyContextStatus.Resolved) return CompanyContextProblem(context);
+        return Ok((await offerService.GetMineAsync(context.CompanyId!.Value, cancellationToken)).Select(OfferSummaryResponse.From));
+    }
 
     [HttpPut("open-rfqs/{rfqId:guid}/offer")]
-    [Authorize(Roles = MarketplaceRoles.Supplier)]
-    public async Task<IActionResult> Save(Guid rfqId, OfferRequest request, CancellationToken cancellationToken)
+    public async Task<IActionResult> Save(Guid rfqId, OfferRequest request, [FromQuery] Guid? companyId, CancellationToken cancellationToken)
     {
-        try { return Ok(OfferResponse.From(await offerService.SaveDraftAsync(UserId(), rfqId, request.ToDraft(), cancellationToken))); }
+        CompanyContextResolution context = await ResolveCompany(companyId, cancellationToken);
+        if (context.Status != CompanyContextStatus.Resolved) return CompanyContextProblem(context);
+        try { return Ok(OfferResponse.From(await offerService.SaveDraftAsync(UserId(), context.CompanyId!.Value, rfqId, request.ToDraft(), cancellationToken))); }
         catch (OfferRuleException exception) { return InvalidOffer(exception.Message); }
     }
 
     [HttpPost("open-rfqs/{rfqId:guid}/offer/submit")]
-    [Authorize(Roles = MarketplaceRoles.Supplier)]
-    public async Task<IActionResult> Submit(Guid rfqId, CancellationToken cancellationToken)
+    public async Task<IActionResult> Submit(Guid rfqId, [FromQuery] Guid? companyId, CancellationToken cancellationToken)
     {
+        CompanyContextResolution context = await ResolveCompany(companyId, cancellationToken);
+        if (context.Status != CompanyContextStatus.Resolved) return CompanyContextProblem(context);
         try {
-            Offer? offer = await offerService.SubmitAsync(UserId(), rfqId, cancellationToken);
+            Offer? offer = await offerService.SubmitAsync(UserId(), context.CompanyId!.Value, rfqId, cancellationToken);
             return offer is null ? NotFound() : Ok(OfferResponse.From(offer));
         }
         catch (RfqConcurrencyException exception) { return StaleRfq(exception.Message); }
@@ -49,11 +58,12 @@ public sealed class OffersController(IOfferService offerService, ITrustService t
     }
 
     [HttpPost("offers/{offerId:guid}/withdraw")]
-    [Authorize(Roles = MarketplaceRoles.Supplier)]
-    public async Task<IActionResult> Withdraw(Guid offerId, CancellationToken cancellationToken)
+    public async Task<IActionResult> Withdraw(Guid offerId, [FromQuery] Guid? companyId, CancellationToken cancellationToken)
     {
+        CompanyContextResolution context = await ResolveCompany(companyId, cancellationToken);
+        if (context.Status != CompanyContextStatus.Resolved) return CompanyContextProblem(context);
         try {
-            Offer? offer = await offerService.WithdrawAsync(UserId(), offerId, cancellationToken);
+            Offer? offer = await offerService.WithdrawAsync(context.CompanyId!.Value, offerId, cancellationToken);
             return offer is null ? NotFound() : Ok(OfferResponse.From(offer));
         } catch (OfferRuleException exception) { return InvalidOffer(exception.Message); }
     }
@@ -98,13 +108,14 @@ public sealed class OffersController(IOfferService offerService, ITrustService t
     }
 
     [HttpPost("open-rfqs/{rfqId:guid}/delivery/report")]
-    [Authorize(Roles = MarketplaceRoles.Supplier)]
-    public async Task<IActionResult> ReportDelivered(Guid rfqId, CancellationToken cancellationToken)
+    public async Task<IActionResult> ReportDelivered(Guid rfqId, [FromQuery] Guid? companyId, CancellationToken cancellationToken)
     {
+        CompanyContextResolution context = await ResolveCompany(companyId, cancellationToken);
+        if (context.Status != CompanyContextStatus.Resolved) return CompanyContextProblem(context);
         try
         {
             Rfq? rfq =
-                await offerService.ReportDeliveredAsync(UserId(), rfqId, cancellationToken);
+                await offerService.ReportDeliveredAsync(context.CompanyId!.Value, rfqId, cancellationToken);
             return rfq is null ? NotFound() : Ok(RfqResponse.From(rfq));
         }
         catch (RfqConcurrencyException exception) { return StaleRfq(exception.Message); }
@@ -136,6 +147,14 @@ public sealed class OffersController(IOfferService offerService, ITrustService t
         string? subject = User.FindFirstValue(JwtRegisteredClaimNames.Sub) ?? User.FindFirstValue(ClaimTypes.NameIdentifier);
         return Guid.TryParse(subject, out Guid id) ? id : throw new UnauthorizedAccessException();
     }
+    private Task<CompanyContextResolution> ResolveCompany(Guid? companyId, CancellationToken cancellationToken) =>
+        companyAuthorizationService.ResolveCompanyContextAsync(UserId(), companyId, cancellationToken);
+    private ActionResult CompanyContextProblem(CompanyContextResolution context) => context.Status switch
+    {
+        CompanyContextStatus.Ambiguous => Conflict(new ProblemDetails { Title = "Alege compania pentru această operațiune." }),
+        CompanyContextStatus.Forbidden => NotFound(),
+        _ => Forbid()
+    };
     private ConflictObjectResult StaleRfq(string message) => Conflict(new ProblemDetails
     {
         Title = "Cererea a fost modificată.",

@@ -31,10 +31,10 @@ public sealed class OfferService(
             row.offer, row.Title, row.QuotationDeadline, row.FulfillmentStatus)).ToArray();
     }
 
-    public async Task<Offer> SaveDraftAsync(Guid supplierId, Guid rfqId, OfferDraft draft, CancellationToken cancellationToken)
+    public async Task<Offer> SaveDraftAsync(Guid actorId, Guid supplierId, Guid rfqId, OfferDraft draft, CancellationToken cancellationToken)
     {
         DateTimeOffset now = timeProvider.GetUtcNow();
-        EligibleOfferRequest eligible = await EligibleRfq(supplierId, rfqId, now, cancellationToken);
+        EligibleOfferRequest eligible = await EligibleRfq(actorId, supplierId, rfqId, now, cancellationToken);
         Rfq rfq = eligible.Rfq;
         if (draft.PricingMode == OfferPricingMode.Total && eligible.Coverage != ProviderCoverageMatch.Full)
             throw new OfferRuleException("Oferta cu preț total este disponibilă doar furnizorilor care pot acoperi întreaga cerere.");
@@ -51,10 +51,10 @@ public sealed class OfferService(
         return offer;
     }
 
-    public async Task<Offer?> SubmitAsync(Guid supplierId, Guid rfqId, CancellationToken cancellationToken)
+    public async Task<Offer?> SubmitAsync(Guid actorId, Guid supplierId, Guid rfqId, CancellationToken cancellationToken)
     {
         DateTimeOffset now = timeProvider.GetUtcNow();
-        Rfq rfq = (await EligibleRfq(supplierId, rfqId, now, cancellationToken)).Rfq;
+        Rfq rfq = (await EligibleRfq(actorId, supplierId, rfqId, now, cancellationToken)).Rfq;
         Offer? offer = await dbContext.Offers.Include(item => item.Items)
             .SingleOrDefaultAsync(item => item.SupplierId == supplierId && item.RfqId == rfqId, cancellationToken);
         if (offer is null) return null;
@@ -235,6 +235,7 @@ public sealed class OfferService(
     }
 
     private async Task<EligibleOfferRequest> EligibleRfq(
+        Guid actorId,
         Guid supplierId,
         Guid rfqId,
         DateTimeOffset now,
@@ -245,6 +246,8 @@ public sealed class OfferService(
             item.Id == rfqId && (item.Status == RfqStatus.Published || item.Status == RfqStatus.ReceivingOffers)
             && item.QuotationDeadline > now, cancellationToken);
         if (rfq is null) throw new OfferRuleException("Cererea nu mai primește oferte.");
+        if (rfq.BuyerId == actorId)
+            throw new OfferRuleException("Nu poți trimite o ofertă pentru propria cerere, inclusiv prin firma pe care o reprezinți.");
 
         bool manuallyMatched = await dbContext.ConciergeMatchOverrides.AsNoTracking()
             .AnyAsync(item => item.RfqId == rfqId && item.SupplierId == supplierId, cancellationToken);
