@@ -21,7 +21,10 @@ describe('BuyerRfqListComponent', () => {
       imports:[BuyerRfqListComponent],
       providers:[
         provideRouter([]),
-        {provide:AuthService,useValue:{session:signal({userId:'buyer-1',email:'buyer@example.test',accountType:'Buyer'})}},
+        {provide:AuthService,useValue:{
+          identity: signal({userId:'buyer-1',email:'buyer@example.test',roles:['Buyer']}),
+          session: signal({userId:'buyer-1',email:'buyer@example.test',accountType:'Buyer'})
+        }},
         {provide:RfqService,useValue:{getMine:()=>of([rfq])}}
       ]
     });
@@ -46,7 +49,10 @@ describe('BuyerRfqListComponent', () => {
       imports:[BuyerRfqListComponent],
       providers:[
         provideRouter([]),
-        {provide:AuthService,useValue:{session:signal({userId:'buyer-1',email:'buyer@example.test',accountType:'Buyer'})}},
+        {provide:AuthService,useValue:{
+          identity: signal({userId:'buyer-1',email:'buyer@example.test',roles:['Buyer']}),
+          session: signal({userId:'buyer-1',email:'buyer@example.test',accountType:'Buyer'})
+        }},
         {provide:RfqService,useValue:{getMine:()=>of([
           request('live-1','Cerere live','ReceivingOffers'),
           request('draft-1','Cerere ciornă','Draft'),
