@@ -78,7 +78,9 @@ public sealed class ProcurementFlowEndpointTests : IClassFixture<WebApplicationF
         OpenRfqResponse[] open = (await _client.GetFromJsonAsync<OpenRfqResponse[]>("/api/v1/open-rfqs"))!;
         Assert.Contains(open, request => request.Id == rfq.Id);
         Assert.Equal(HttpStatusCode.OK, (await _client.GetAsync($"/api/v1/open-rfqs/{rfq.Id}")).StatusCode);
-        Assert.Equal(HttpStatusCode.Forbidden, (await _client.GetAsync($"/api/v1/rfqs/{rfq.Id}")).StatusCode);
+        // RFQs are user-owned after Task 3A; another authenticated user must not be
+        // able to discover a buyer's request through the buyer-only endpoint.
+        Assert.Equal(HttpStatusCode.NotFound, (await _client.GetAsync($"/api/v1/rfqs/{rfq.Id}")).StatusCode);
 
         HttpResponseMessage saved = await _client.PutAsJsonAsync($"/api/v1/open-rfqs/{rfq.Id}/offer", new
         {
