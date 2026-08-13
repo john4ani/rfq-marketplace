@@ -116,6 +116,24 @@ public sealed class ProductionReadinessTests
         await sender.SendAsync(new("user@example.test", "Subject", "Plain body"), CancellationToken.None);
     }
 
+    [Fact]
+    public async Task EmailTransportWrapsInvalidSmtpConfigurationAsDeliveryFailure()
+    {
+        var options = new EmailOptions
+        {
+            Enabled = true,
+            Host = "smtp-relay.gmail.com",
+            Port = 0,
+            UseTls = true,
+            FromAddress = "notifications@compaspot.com",
+            ReplyToAddress = "support@compaspot.com"
+        };
+        var sender = new SmtpEmailSender(Options.Create(options), NullLogger<SmtpEmailSender>.Instance);
+
+        await Assert.ThrowsAsync<EmailDeliveryException>(() =>
+            sender.SendAsync(new("user@example.test", "Subject", "Plain body"), CancellationToken.None));
+    }
+
     private static Dictionary<string, string?> ProductionSettings() => new()
     {
         ["ConnectionStrings:MarketplaceDatabase"] = "Host=postgres;Database=marketplace;Username=app;Password=a-secret",

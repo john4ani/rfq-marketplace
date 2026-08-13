@@ -36,7 +36,7 @@ public sealed partial class SmtpEmailSender(
                 client.Credentials = new NetworkCredential(options.Username, options.Password);
             await client.SendMailAsync(mailMessage, cancellationToken);
         }
-        catch (Exception exception) when (exception is SmtpException or InvalidOperationException or FormatException)
+        catch (Exception exception) when (exception is not OperationCanceledException)
         {
             LogDeliveryFailure(
                 logger,
