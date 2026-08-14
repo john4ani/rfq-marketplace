@@ -1349,6 +1349,36 @@ namespace Marketplace.Infrastructure.Persistence.Migrations
                             Slug = "servicii-specializate",
                             SortOrder = 50,
                             VerticalId = new Guid("20000000-0000-0000-0000-000000000002")
+                        },
+                        new
+                        {
+                            Id = new Guid("10000000-0000-0000-0000-000000000017"),
+                            IsActive = true,
+                            Name = "Materiale și consumabile",
+                            ParentId = new Guid("10000000-0000-0000-0000-000000000011"),
+                            Slug = "materiale-consumabile",
+                            SortOrder = 60,
+                            VerticalId = new Guid("20000000-0000-0000-0000-000000000002")
+                        },
+                        new
+                        {
+                            Id = new Guid("10000000-0000-0000-0000-000000000018"),
+                            IsActive = true,
+                            Name = "Echipamente",
+                            ParentId = new Guid("10000000-0000-0000-0000-000000000011"),
+                            Slug = "echipamente",
+                            SortOrder = 70,
+                            VerticalId = new Guid("20000000-0000-0000-0000-000000000002")
+                        },
+                        new
+                        {
+                            Id = new Guid("10000000-0000-0000-0000-000000000019"),
+                            IsActive = true,
+                            Name = "Combustibili și încălzire",
+                            ParentId = new Guid("10000000-0000-0000-0000-000000000011"),
+                            Slug = "combustibili-incalzire",
+                            SortOrder = 80,
+                            VerticalId = new Guid("20000000-0000-0000-0000-000000000002")
                         });
                 });
 

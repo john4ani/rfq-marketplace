@@ -97,20 +97,23 @@ internal sealed partial class OpenAiNeedExtractionProvider(
         string turns = context.Turns.Count == 0 ? "Nicio clarificare încă." : string.Join("\n",
             context.Turns.Select(turn => $"Î: {turn.Question}\nR: {turn.Answer}"));
         string instructions = """
-            Ești asistentul de achiziții CompaSpot. Fluxul obligatoriu este: clarificare, apoi research, apoi propunere
-            de necesar pentru confirmare umană. Nu publica și nu prezenta propunerea drept specificație tehnică finală.
+            Ești asistentul general de achiziții CompaSpot. Nu ești expert tehnic într-o industrie și nu faci research web.
+            Fluxul obligatoriu este: clarificare, apoi o propunere comercială editabilă pentru confirmare umană. Nu publica
+            și nu prezenta propunerea drept specificație tehnică finală.
 
             1. Clarificare: identifică informația cu cel mai mare impact asupra necesarului și pune exact o întrebare
             scurtă pe rând. Clarifică doar ce este necesar pentru a cere o ofertă utilă, de exemplu produsul sau
             serviciul dorit, cantitatea, compatibilitatea, specificația, locul ori termenul. Cât timp lipsește o
             informație esențială, clarification nu poate fi null.
-            2. Analiză: numai după ce există suficiente date comerciale, folosește cunoștințele generale ale modelului
-            pentru a identifica componentele uzuale și întrebările relevante. Nu ai acces la web search. Nu inventa
-            surse, URL-uri, cantități, mărci sau standarde; orice detaliu incert trebuie marcat pentru verificare.
-            3. Propunere: creează o listă editabilă de produse și/sau servicii. Pentru o lucrare completă păstrează
-            serviciul ca opțiune și propune materiale separate doar dacă utilizatorul le-a cerut. Marchează explicit
-            presupunerile și aspectele de verificat.
-            4. Confirmare: când propunerea poate fi verificată de utilizator, setează clarification la null. Niciodată
+            2. Analiză: după ce există suficiente date comerciale, extrage numai ceea ce utilizatorul a spus sau poate fi
+            formulat ca întrebare comercială. Nu ai acces la web search. Nu inventa compatibilități, coduri OEM, stoc,
+            prețuri, certificări, capabilități ale furnizorilor, surse, URL-uri, cantități, mărci sau standarde.
+            3. Propunere: creează o listă editabilă de produse și/sau servicii numai când informația este suficientă.
+            Pentru o lucrare completă păstrează serviciul ca opțiune; nu deduce materiale sau componente necerute.
+            Marchează explicit presupunerile și aspectele de verificat.
+            4. Mod sugerat: dacă descrierea pare un proiect de construcții, setează suggestedMode la ConstructionProjects;
+            nu schimba fluxul și nu transforma cererea. În toate celelalte cazuri setează GeneralProcurement sau null.
+            5. Confirmare: când propunerea poate fi verificată de utilizator, setează clarification la null. Niciodată
             nu considera cererea publicată sau aprobată.
 
             categorySlug trebuie să fie null sau unul dintre slug-urile furnizate. Scrie toate textele în română.
@@ -171,9 +174,12 @@ internal sealed partial class OpenAiNeedExtractionProvider(
             CleanNullable(extraction.BuyerNotes, 1000), lines);
         int inputTokens = ReadUsage(root, "input_tokens");
         int outputTokens = ReadUsage(root, "output_tokens");
+        SuggestedProcurementMode? suggestedMode = Enum.TryParse(extraction.SuggestedMode, true,
+            out SuggestedProcurementMode parsedSuggestedMode) ? parsedSuggestedMode : null;
         return new(AssistedIntakeMode.OpenAi, ProviderName(), settings.Model, settings.PromptVersion, draft,
             extraction.Assumptions.Where(NotBlank).Take(20).ToArray(),
-            extraction.Uncertainties.Where(NotBlank).Take(20).ToArray(), [], clarification, inputTokens, outputTokens);
+            extraction.Uncertainties.Where(NotBlank).Take(20).ToArray(), [], clarification, inputTokens, outputTokens,
+            suggestedMode);
     }
 
     private string ProviderName() => settings.Provider == AiIntakeProvider.AzureOpenAi
@@ -228,7 +234,7 @@ internal sealed partial class OpenAiNeedExtractionProvider(
     private static readonly JsonNode Schema = JsonNode.Parse("""
     {
       "type":"object","additionalProperties":false,
-      "required":["inputType","title","projectName","description","primaryCategorySlug","deliveryAddress","deliveryLocality","county","preferredDeliveryDate","quotationDeadline","alternativeProductsAccepted","allowSplit","deliveryRequired","estimatedBudget","buyerNotes","lines","assumptions","uncertainties","clarification"],
+      "required":["inputType","title","projectName","description","primaryCategorySlug","deliveryAddress","deliveryLocality","county","preferredDeliveryDate","quotationDeadline","alternativeProductsAccepted","allowSplit","deliveryRequired","estimatedBudget","buyerNotes","lines","assumptions","uncertainties","clarification","suggestedMode"],
       "properties":{
         "inputType":{"type":"string","enum":["FreeText","ShoppingList","ProjectDescription"]},
         "title":{"type":"string"},"projectName":{"type":["string","null"]},"description":{"type":["string","null"]},
@@ -238,7 +244,8 @@ internal sealed partial class OpenAiNeedExtractionProvider(
         "estimatedBudget":{"type":["number","null"]},"buyerNotes":{"type":["string","null"]},
         "lines":{"type":"array","items":{"type":"object","additionalProperties":false,"required":["kind","name","specification","quantity","unit","alternativesAccepted","categorySlug"],"properties":{"kind":{"type":"string","enum":["Product","Service"]},"name":{"type":"string"},"specification":{"type":["string","null"]},"quantity":{"type":["number","null"]},"unit":{"anyOf":[{"type":"null"},{"type":"string","enum":["Piece","Pack","Bag","Kilogram","Tonne","Metre","SquareMetre","CubicMetre","Litre","Pallet","Other"]}]},"alternativesAccepted":{"type":"boolean"},"categorySlug":{"type":["string","null"]}}}},
         "assumptions":{"type":"array","items":{"type":"string"}},"uncertainties":{"type":"array","items":{"type":"string"}},
-        "clarification":{"anyOf":[{"type":"null"},{"type":"object","additionalProperties":false,"required":["field","question","choices"],"properties":{"field":{"type":"string","enum":["Category","Quantity","Specification","ProjectScope","DeliveryAddress","DeliveryDate"]},"question":{"type":"string"},"choices":{"type":"array","items":{"type":"string"}}}}]}
+        "clarification":{"anyOf":[{"type":"null"},{"type":"object","additionalProperties":false,"required":["field","question","choices"],"properties":{"field":{"type":"string","enum":["Category","Quantity","Specification","ProjectScope","DeliveryAddress","DeliveryDate"]},"question":{"type":"string"},"choices":{"type":"array","items":{"type":"string"}}}}]},
+        "suggestedMode":{"anyOf":[{"type":"null"},{"type":"string","enum":["GeneralProcurement","ConstructionProjects"]}]}
       }
     }
     """)!;
@@ -249,7 +256,7 @@ internal sealed partial class OpenAiNeedExtractionProvider(
         bool AllowSplit, bool DeliveryRequired, decimal? EstimatedBudget, string? BuyerNotes,
         IReadOnlyCollection<AiLine> Lines, IReadOnlyCollection<string> Assumptions,
         IReadOnlyCollection<string> Uncertainties,
-        AiClarification? Clarification);
+        AiClarification? Clarification, string? SuggestedMode);
     private sealed record AiLine(string Kind, string Name, string? Specification, decimal? Quantity,
         string? Unit, bool AlternativesAccepted, string? CategorySlug);
     private sealed record AiClarification(string Field, string Question, IReadOnlyCollection<string> Choices);

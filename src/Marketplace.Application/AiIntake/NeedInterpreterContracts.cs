@@ -27,7 +27,12 @@ public sealed record GeneralNeedInterpretation(
     IReadOnlyCollection<AssistedResearchSource> ResearchSources,
     AssistedClarification? Clarification,
     int InputTokens,
-    int OutputTokens);
+    int OutputTokens,
+    SuggestedProcurementMode? SuggestedMode = null);
+
+// A non-binding hint from the general interpreter. The caller keeps the current
+// flow until the user explicitly chooses the specialised Construction experience.
+public enum SuggestedProcurementMode { GeneralProcurement, ConstructionProjects }
 
 public interface IGeneralNeedInterpreter
 {

@@ -40,6 +40,8 @@ It must support a car alternator, timber, transport, excavator hire, electrical 
 
 General Procurement is a generic entry mode into this Core, not a permanent domain Vertical. The current `Vertical`/`Category` model may be reused for compatibility. If a general placeholder Vertical is temporarily necessary, it must be explicitly provisional and must not carry domain rules or determine matching semantics.
 
+The General interpreter may return a non-binding `SuggestedProcurementMode` when a description appears to be a construction project. It is a UI hint only: it never converts the need, redirects the user, or persists new Construction facts in `Rfq`.
+
 `NeedType.Project` is a legacy/general shape for a project-like Procurement Need. It is not a `ConstructionProject` and must not be used to enter, select, or infer the Construction bounded context. Construction mode is explicit and owns the specialised project context before it generates Procurement Needs.
 
 Until Task 9, the current compatible Construction state remains stored and handled exactly as it is. `IConstructionProjectInterpreter` may be introduced before the aggregate solely as an interpretation boundary. It must not create temporary generic `Rfq` fields, or place new Construction facts in the Procurement Core.

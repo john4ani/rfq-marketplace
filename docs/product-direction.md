@@ -16,7 +16,7 @@ General Procurement provides breadth: products, materials, parts, equipment, tra
 
 **General Procurement is an entry mode and generic flow, not an assumed permanent business Vertical.** Reuse the current Vertical/Category model pragmatically. If compatibility requires a general placeholder Vertical, mark it provisional, keep it free of business rules, and do not make future category or matching behaviour depend on it.
 
-For the initial MVP compatibility set, the provisional category root contains **Piese auto**, **Lemn și produse din lemn**, **Transport și logistică**, **Închiriere utilaje** and **Servicii specializate**. These examples make normal procurement and supplier matching usable for alternators, timber, transport, excavator hire and specialist work; they are not a universal taxonomy.
+For the initial MVP compatibility set, the provisional category root contains **Piese auto**, **Lemn și produse din lemn**, **Transport și logistică**, **Închiriere utilaje**, **Servicii specializate**, **Materiale și consumabile**, **Echipamente** and **Combustibili și încălzire**. These examples make normal procurement and supplier matching usable for alternators, timber, transport, excavator hire, specialist work and pellets; they are not a universal taxonomy.
 
 ## Experience
 

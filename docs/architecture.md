@@ -24,6 +24,8 @@ Domain does not depend on AWS, OpenAI, SMS/email implementation, Angular, EF Cor
 
 Keep separate application contracts: `IGeneralNeedInterpreter` and `IConstructionProjectInterpreter`. Each user turn should normally use one model call. Capture operation, model/provider, prompt version, duration, success/failure, token count, need/project ID, clarification count, fallback and user correction—never secrets or unnecessary request content.
 
+`IGeneralNeedInterpreter` returns only a non-binding `SuggestedProcurementMode` (`ConstructionProjects` when appropriate). The shared Procurement Core remains in its current flow until the user makes an explicit choice; this keeps construction detection out of routing and persistence.
+
 Before Task 9, the Construction interpreter is a routing/interpretation boundary only. Preserve the existing Construction project state and compatible request fields exactly as they are; do not add temporary generic fields to `Rfq` to store new Construction facts.
 
 ## Routing

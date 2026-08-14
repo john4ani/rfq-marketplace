@@ -30,7 +30,7 @@ import { ROMANIAN_COUNTIES } from '../../shared/romanian-counties';
           <label [class.selected]="form.controls.needType.value==='Project'"><input type="radio" formControlName="needType" value="Project"><span><strong>Proiect</strong><small>Un context mai amplu, fără a limita numărul de categorii.</small></span></label>
         </fieldset>
         <div class="two"><label>Nume proiect<input formControlName="projectName" placeholder="Opțional"></label>
-          @if(form.controls.needType.value==='Project'){<label>Pornește de la un șablon<select formControlName="projectTemplateId" (change)="applyProjectTemplate()"><option value="">Fără șablon</option>@for(template of projectTemplates();track template.id){<option [value]="template.id">{{template.name}}</option>}</select><small>Șablonul doar propune categorii; selecția rămâne editabilă.</small></label>}</div>
+          @if(constructionEntryMode()){<label>Șablon de construcții<select formControlName="projectTemplateId" (change)="applyProjectTemplate()"><option value="">Fără șablon</option>@for(template of projectTemplates();track template.id){<option [value]="template.id">{{template.name}}</option>}</select><small>Folosește-l numai pentru un proiect de construcții; categoriile rămân editabile.</small></label>}</div>
         <fieldset><legend>Categoriile necesarului *</legend><p class="help">Alege una sau mai multe categorii, indiferent de tipul necesarului.</p>@if(categoryLoadFailed()){<div class="category-load-error" role="alert"><span>Categoriile nu sunt disponibile momentan.</span><button type="button" class="secondary" (click)="loadCategories()">Încearcă din nou</button></div>}@else{<div class="category-choice-grid">
           @for(category of selectableCategories();track category.id){<label [class.selected]="selectedCategoryIds().includes(category.id)"><input type="checkbox" [checked]="selectedCategoryIds().includes(category.id)" (change)="toggleNeedCategory(category.id)">{{category.name}}</label>}
         </div>}@if(!selectedCategoryIds().length&&!categoryLoadFailed()){<small class="field-error">Selectează cel puțin o categorie.</small>}</fieldset>
@@ -49,9 +49,9 @@ import { ROMANIAN_COUNTIES } from '../../shared/romanian-counties';
           <div class="optional-placeholder"><strong>Poți continua cu o cerere generală.</strong>
             <span>Descrierea și categoriile necesarului sunt suficiente dacă nu ai încă o listă detaliată.</span></div>
         } @else {
-          <details><summary>Lipește mai multe materiale</summary>
-            <p class="help">Câte un material pe rând: denumire, cantitate și unitate, separate prin Tab sau „;”. Exemplu: <code>Ciment;20;Sac</code></p>
-            <textarea [formControl]="pastedLines" rows="5" placeholder="Ciment 40 kg&#9;20&#9;Sac&#10;Plasă sudată&#9;12&#9;Bucată"></textarea>
+          <details><summary>Lipește mai multe poziții</summary>
+            <p class="help">Câte un produs sau serviciu pe rând: denumire, cantitate și unitate, separate prin Tab sau „;”. Exemplu: <code>Filtru ulei;2;Bucată</code></p>
+            <textarea [formControl]="pastedLines" rows="5" placeholder="Filtru ulei&#9;2&#9;Bucată&#10;Peleți&#9;6&#9;Tonă"></textarea>
             <button class="secondary" type="button" (click)="importLines()">Adaugă lista</button>
             @if (importMessage()) { <p [class.error]="importError()">{{ importMessage() }}</p> }
           </details>
@@ -164,6 +164,7 @@ export class RfqEditorComponent {
     {value:'Litre',label:'Litru'},{value:'Pallet',label:'Palet'},{value:'Other',label:'Altă unitate'}];
   readonly categories = signal<CategoryOption[]>([]); readonly categoryLoadFailed = signal(false);
   readonly projectTemplates = signal<ProjectTemplateOption[]>([]);
+  readonly constructionEntryMode = signal(this.route.snapshot.queryParamMap.get('entryMode') === 'construction');
   readonly selectedCategoryIds = signal<string[]>([]);
   readonly loading = signal(false); readonly saving = signal(false);
   readonly message = signal(''); readonly hasError = signal(false);
@@ -207,6 +208,7 @@ export class RfqEditorComponent {
     const navigationMessage = history.state?.message;
     if (typeof navigationMessage === 'string') this.message.set(navigationMessage);
     this.loadCategories();
+    if (this.constructionEntryMode()) this.loadProjectTemplates();
     if (this.rfqId) {
       this.loading.set(true);
       this.service.get(this.rfqId).subscribe({
@@ -245,6 +247,12 @@ export class RfqEditorComponent {
     this.categoriesService.getCategories().subscribe({
       next: values => this.categories.set(values),
       error: () => { this.categoryLoadFailed.set(true); this.fail('Categoriile nu au putut fi încărcate.'); }
+    });
+  }
+  private loadProjectTemplates(): void {
+    this.categoriesService.getProjectTemplates().subscribe({
+      next: values => this.projectTemplates.set(values),
+      error: () => this.projectTemplates.set([])
     });
   }
   toggleNeedCategory(id:string):void{
@@ -323,7 +331,7 @@ export class RfqEditorComponent {
       this.addItem({productName:parts[0],quantity,unit}); added++;
     });
     this.importError.set(invalid.length>0);
-    this.importMessage.set(invalid.length?`Au fost adăugate ${added} rânduri. Verifică rândurile ${invalid.join(', ')}: cantitatea sau unitatea nu este validă.`:`Au fost adăugate ${added} materiale.`);
+    this.importMessage.set(invalid.length?`Au fost adăugate ${added} rânduri. Verifică rândurile ${invalid.join(', ')}: cantitatea sau unitatea nu este validă.`:`Au fost adăugate ${added} poziții.`);
     if(added) this.pastedLines.reset();
   }
   openPreview(): void {
@@ -363,6 +371,7 @@ export class RfqEditorComponent {
   }
   private patch(rfq:Rfq):void {
     this.source=rfq.source;this.inputType=rfq.inputType;
+    if(rfq.projectTemplateId){this.constructionEntryMode.set(true);this.loadProjectTemplates();}
     this.form.patchValue({...rfq,quotationDeadline:this.localDateTime(rfq.quotationDeadline)});
     this.selectedCategoryIds.set(rfq.categoryIds?.length?rfq.categoryIds:[rfq.primaryCategoryId]);
     this.items.clear();rfq.items.forEach(item=>this.addItem(item,false));
@@ -382,10 +391,6 @@ export class RfqEditorComponent {
     });
     const assistedCategoryIds=Array.from(new Set([draft.primaryCategoryId,...draft.lines.map(line=>line.categoryId)].filter((id):id is string=>!!id)));
     this.selectedCategoryIds.set(assistedCategoryIds);
-    this.categoriesService.getProjectTemplates().subscribe({
-      next: values => this.projectTemplates.set(values),
-      error: () => this.projectTemplates.set([])
-    });
     this.items.clear();
     draft.lines.forEach(line=>this.addItem({productName:line.name,kind:line.kind,manufacturerOrBrand:null,
       specification:line.specification,quantity:line.quantity??0,unit:line.unit??'Other',
@@ -409,7 +414,7 @@ export class RfqEditorComponent {
   }
   private toDraft():RfqDraft {
     const value=this.form.getRawValue();
-    return {...value,categoryIds:this.selectedCategoryIds(),projectTemplateId:value.needType==='Project'?value.projectTemplateId:null,
+    return {...value,categoryIds:this.selectedCategoryIds(),projectTemplateId:this.constructionEntryMode()?value.projectTemplateId:null,
       source:this.source,inputType:this.inputType,latitude:null,longitude:null,quotationDeadline:new Date(value.quotationDeadline).toISOString(),items:value.items} as RfqDraft;
   }
   private parseUnit(value:string):UnitOfMeasure|null {

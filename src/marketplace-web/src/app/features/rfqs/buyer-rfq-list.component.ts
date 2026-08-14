@@ -9,7 +9,7 @@ import { ProcurementOutcome, Rfq, RfqService, RfqStatus } from '../../core/rfqs/
   imports: [RouterLink, DatePipe],
   template: `<section class="rfq-card">
       <header><div><p class="eyebrow">Cumpărător</p><h2>Cererile mele</h2>
-        <p>Pregătește o listă de materiale și public-o atunci când este completă.</p></div>
+        <p>Pregătește cererea și public-o atunci când ai toate informațiile importante.</p></div>
         <a class="primary-link" routerLink="/rfqs/new">Cerere nouă</a>
       </header>
       @if (loading()) {

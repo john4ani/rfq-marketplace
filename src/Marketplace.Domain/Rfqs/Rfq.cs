@@ -248,7 +248,9 @@ public sealed class Rfq
             ProcurementInputType.ProjectDescription => ProcurementNeedType.Project,
             _ => ProcurementNeedType.DirectPurchase
         };
-        ProjectTemplateId = NeedType == ProcurementNeedType.Project ? draft.ProjectTemplateId : null;
+        // A template is explicit Construction compatibility state. NeedType.Project
+        // remains a generic procurement shape and must not decide Construction mode.
+        ProjectTemplateId = draft.ProjectTemplateId;
         DeliveryAddress = draft.DeliveryAddress.Trim();
         DeliveryLocality = draft.DeliveryLocality.Trim();
         County = draft.County.Trim();

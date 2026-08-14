@@ -34,6 +34,9 @@ public sealed class CategoryConfiguration : IEntityTypeConfiguration<Category>
             Category.Create(Guid.Parse("10000000-0000-0000-0000-000000000013"), VerticalConfiguration.GeneralProcurementCompatibilityId, GeneralProcurementRootId, "Lemn și produse din lemn", "lemn-produse-din-lemn", 20),
             Category.Create(Guid.Parse("10000000-0000-0000-0000-000000000014"), VerticalConfiguration.GeneralProcurementCompatibilityId, GeneralProcurementRootId, "Transport și logistică", "transport-logistica", 30),
             Category.Create(Guid.Parse("10000000-0000-0000-0000-000000000015"), VerticalConfiguration.GeneralProcurementCompatibilityId, GeneralProcurementRootId, "Închiriere utilaje", "inchiriere-utilaje", 40),
-            Category.Create(Guid.Parse("10000000-0000-0000-0000-000000000016"), VerticalConfiguration.GeneralProcurementCompatibilityId, GeneralProcurementRootId, "Servicii specializate", "servicii-specializate", 50));
+            Category.Create(Guid.Parse("10000000-0000-0000-0000-000000000016"), VerticalConfiguration.GeneralProcurementCompatibilityId, GeneralProcurementRootId, "Servicii specializate", "servicii-specializate", 50),
+            Category.Create(Guid.Parse("10000000-0000-0000-0000-000000000017"), VerticalConfiguration.GeneralProcurementCompatibilityId, GeneralProcurementRootId, "Materiale și consumabile", "materiale-consumabile", 60),
+            Category.Create(Guid.Parse("10000000-0000-0000-0000-000000000018"), VerticalConfiguration.GeneralProcurementCompatibilityId, GeneralProcurementRootId, "Echipamente", "echipamente", 70),
+            Category.Create(Guid.Parse("10000000-0000-0000-0000-000000000019"), VerticalConfiguration.GeneralProcurementCompatibilityId, GeneralProcurementRootId, "Combustibili și încălzire", "combustibili-incalzire", 80));
     }
 }

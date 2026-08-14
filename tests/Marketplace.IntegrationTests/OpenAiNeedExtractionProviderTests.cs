@@ -30,6 +30,7 @@ public sealed class OpenAiNeedExtractionProviderTests
         Assert.True(provider.IsAvailable);
         Assert.Equal("OpenAI", outcome.Provider);
         Assert.Empty(outcome.ResearchSources);
+        Assert.Equal(SuggestedProcurementMode.GeneralProcurement, outcome.SuggestedMode);
         Assert.Equal("Bearer", handler.AuthorizationScheme);
         Assert.Equal("openai-test-key", handler.AuthorizationParameter);
         using JsonDocument request = JsonDocument.Parse(handler.RequestBody!);
@@ -122,7 +123,8 @@ public sealed class OpenAiNeedExtractionProviderTests
             lines = new[] { new { kind = "Product", name = "Usa din lemn", specification = "Dimensiuni de confirmat",
                 quantity = 3, unit = "Piece", alternativesAccepted = true, categorySlug = "materiale" } },
             assumptions = Array.Empty<string>(), uncertainties = new List<string> { "Feroneria se confirma cu furnizorul." },
-            clarification = (object?)null
+            clarification = (object?)null,
+            suggestedMode = "GeneralProcurement"
         });
         return JsonSerializer.Serialize(new
         {

@@ -179,7 +179,7 @@ internal sealed partial class AssistedIntakeService(
         outcome.Clarification,
         DeserializeTurns(session.TranscriptJson).Select(turn =>
             new AssistedIntakeAnswer(turn.Field, turn.Question, turn.Answer)).ToArray(),
-        session.InputTokens, session.OutputTokens, session.ApprovedRfqId);
+        session.InputTokens, session.OutputTokens, session.ApprovedRfqId, outcome.SuggestedMode);
 
     private static string? AppendClarifications(string? buyerNotes, List<ClarificationTurn> turns)
     {

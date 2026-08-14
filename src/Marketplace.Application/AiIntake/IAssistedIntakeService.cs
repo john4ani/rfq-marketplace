@@ -59,7 +59,8 @@ public sealed record AssistedIntakeResult(
     IReadOnlyCollection<AssistedIntakeAnswer> Answers,
     int InputTokens,
     int OutputTokens,
-    Guid? ApprovedRfqId);
+    Guid? ApprovedRfqId,
+    SuggestedProcurementMode? SuggestedMode = null);
 
 public sealed record AssistedIntakeAvailability(bool Enabled, bool ModelAvailable);
 
