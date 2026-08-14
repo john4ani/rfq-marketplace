@@ -58,12 +58,20 @@ public sealed partial class AuthController(
         if (!CurrentUserId(out Guid userId)) return Unauthorized();
         string? email = User.FindFirst("email")?.Value;
         string? token = await identityService.CreateEmailConfirmationTokenAsync(userId, cancellationToken);
+        bool emailSent = false;
         if (token is not null && email is not null && EmailEnabled())
         {
-            try { await emailVerificationDelivery.SendAsync(email, token, cancellationToken); }
+            try
+            {
+                await emailVerificationDelivery.SendAsync(email, token, cancellationToken);
+                emailSent = true;
+            }
             catch (EmailVerificationDeliveryException exception) { LogEmailVerificationDeliveryFailure(logger, exception); return Problem(statusCode: StatusCodes.Status503ServiceUnavailable, title: "E-mailul de confirmare nu a putut fi trimis. Încearcă mai târziu."); }
         }
-        return Accepted(environment.IsDevelopment() ? new DevelopmentTokenResponse(token) : null);
+        return Accepted(new EmailConfirmationRequestResponse(
+            EmailSent: emailSent,
+            AlreadyConfirmed: token is null,
+            Token: environment.IsDevelopment() ? token : null));
     }
 
     [HttpPost("confirm-email")]
@@ -182,3 +190,4 @@ public sealed record TokenRequest([Required, EmailAddress] string Email, [Requir
 public sealed record ResetPasswordRequest([Required, EmailAddress] string Email, [Required] string Token, [Required, MinLength(8)] string NewPassword);
 public sealed record TokenResponse(string AccessToken, DateTimeOffset ExpiresAt);
 public sealed record DevelopmentTokenResponse(string? Token, bool EmailTransportEnabled = false, bool EmailSent = false);
+public sealed record EmailConfirmationRequestResponse(bool EmailSent, bool AlreadyConfirmed, string? Token = null);

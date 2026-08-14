@@ -19,6 +19,7 @@ export interface AccountTrustSummary {
   recentActivity: { type: string; details: string | null; occurredAt: string }[];
 }
 export interface TrustFacts { emailVerified:boolean; phoneVerified:boolean; companyVerified:boolean; memberSince:string; publishedRequests:number; completedRequests:number; submittedOffers:number; confirmedCollaborations:number; }
+export interface EmailConfirmationRequestResponse { emailSent: boolean; alreadyConfirmed: boolean; token?: string | null; }
 
 @Injectable({ providedIn: 'root' })
 export class ProfileService {
@@ -29,7 +30,7 @@ export class ProfileService {
   saveSupplier(id: string, profile: Omit<SupplierProfile, 'id'|'approvalStatus'|'isActive'>) { return this.http.put<SupplierProfile>(`/api/v1/suppliers/${id}`, profile); }
   getTrustSummary() { return this.http.get<AccountTrustSummary>('/api/v1/trust/me'); }
   getTrustFacts() { return this.http.get<TrustFacts>('/api/v1/trust/me/facts'); }
-  requestEmailConfirmation() { return this.http.post<{ token?: string | null }>('/api/v1/auth/request-email-confirmation', {}); }
+  requestEmailConfirmation() { return this.http.post<EmailConfirmationRequestResponse>('/api/v1/auth/request-email-confirmation', {}); }
   searchTrustAccounts(search = '') { return this.http.get<AccountTrustSummary[]>(`/api/v1/admin/trust/accounts?search=${encodeURIComponent(search)}`); }
   reviewTrustAccount(id: string, review: { phoneVerified: boolean; companyVerified: boolean; note?: string | null }) { return this.http.put<AccountTrustSummary>(`/api/v1/admin/trust/accounts/${id}/verification`, review); }
 }

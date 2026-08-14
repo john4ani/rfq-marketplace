@@ -129,6 +129,28 @@ public sealed class AuthenticationEndpointTests : IClassFixture<WebApplicationFa
             (await _client.PostAsJsonAsync("/api/v1/auth/login", new { email, password = newPassword })).StatusCode);
     }
 
+    [Fact]
+    public async Task EmailConfirmationReportsWhetherDeliveryActuallyOccurred()
+    {
+        string email = $"confirmation-{Guid.NewGuid():N}@example.test";
+        const string password = "confirmation-password";
+        Assert.Equal(
+            HttpStatusCode.Created,
+            (await _client.PostAsJsonAsync("/api/v1/auth/register", new { email, password })).StatusCode);
+        TokenResponse login = (await (await _client.PostAsJsonAsync("/api/v1/auth/login", new { email, password }))
+            .Content.ReadFromJsonAsync<TokenResponse>())!;
+        _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", login.AccessToken);
+
+        using HttpResponseMessage requested = await _client.PostAsJsonAsync("/api/v1/auth/request-email-confirmation", new { });
+        EmailConfirmationResponse? response = await requested.Content.ReadFromJsonAsync<EmailConfirmationResponse>();
+
+        Assert.Equal(HttpStatusCode.Accepted, requested.StatusCode);
+        Assert.NotNull(response);
+        Assert.False(response!.EmailSent);
+        Assert.False(response.AlreadyConfirmed);
+        Assert.False(string.IsNullOrWhiteSpace(response.Token));
+    }
+
     [Theory]
     [InlineData("Buyer", "Supplier")]
     [InlineData("Supplier", "Buyer")]
@@ -194,4 +216,5 @@ public sealed class AuthenticationEndpointTests : IClassFixture<WebApplicationFa
     private sealed record CurrentUser(Guid UserId, string Email, string[] Roles);
     private sealed record LinkedAccount(Guid UserId, string Email, string AccountType);
     private sealed record DevelopmentTokenResponse(string? Token, bool EmailTransportEnabled = false, bool EmailSent = false);
+    private sealed record EmailConfirmationResponse(bool EmailSent, bool AlreadyConfirmed, string? Token);
 }
