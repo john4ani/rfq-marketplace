@@ -34,14 +34,20 @@ import { TrustFactsComponent } from '../profiles/trust-facts.component';
           <div><dt>Îndeplinire</dt><dd>{{ request.allowSplit ? 'Poate fi împărțită' : 'Un singur furnizor' }}</dd></div>
           <div><dt>Origine</dt><dd>{{ inputLabel(request.inputType) }}</dd></div>
         </dl>
-        <details class="request-details">
+        <details class="request-details" open>
           <summary>Vezi cererea completă <span>{{ request.items.length }} {{ request.items.length === 1 ? 'poziție' : 'poziții' }}</span></summary>
           <div class="request-copy">
             @if (request.projectName) { <div><small>Proiect</small><p>{{ request.projectName }}</p></div> }
             @if (request.description) { <div><small>Descriere</small><p>{{ request.description }}</p></div> }
             <div><small>Adresă de livrare</small><p>{{ request.deliveryAddress }}, {{ request.deliveryLocality }}, {{ request.county }}</p></div>
             @if (request.preferredDeliveryDate) { <div><small>Livrare preferată</small><p>{{ request.preferredDeliveryDate | date:'dd.MM.yyyy' }}</p></div> }
-            @if (request.buyerNotes) { <div><small>Observații pentru furnizori</small><p>{{ request.buyerNotes }}</p></div> }
+            @if (request.buyerNotes) {
+              <aside class="supplier-notes" aria-label="Observații pentru furnizori">
+                <div class="supplier-notes-heading"><span aria-hidden="true">i</span><div><small>Observații pentru furnizori</small>
+                  <p>Aceste detalii sunt vizibile furnizorilor când pregătesc oferta.</p></div></div>
+                <p class="supplier-notes-copy">{{ request.buyerNotes }}</p>
+              </aside>
+            }
           </div>
           @if (request.items.length > 0) {
             <ol class="request-items">

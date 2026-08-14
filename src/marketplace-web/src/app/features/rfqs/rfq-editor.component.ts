@@ -108,7 +108,17 @@ import { ROMANIAN_COUNTIES } from '../../shared/romanian-counties';
         <label>Buget estimat (lei)<input type="number" min="0" step="0.01" formControlName="estimatedBudget" placeholder="Opțional">
           @if (form.controls.estimatedBudget.touched && form.controls.estimatedBudget.invalid) { <small class="field-error">Bugetul nu poate fi negativ.</small> }</label>
         <label class="check"><input type="checkbox" formControlName="alternativeProductsAccepted">Accept alternative pentru cerere</label>
-        <label>Observații pentru furnizori<textarea formControlName="buyerNotes" rows="3"></textarea></label>
+        <div class="supplier-notes-field">
+          <div class="field-heading">
+            <label for="buyer-notes">Observații pentru furnizori <span class="optional">Opțional</span></label>
+            <p>Adaugă doar informații care îi ajută să pregătească oferta: acces, preferințe sau constrângeri relevante.</p>
+          </div>
+          <textarea id="buyer-notes" formControlName="buyerNotes" rows="4" maxlength="1000"
+            aria-describedby="buyer-notes-example buyer-notes-count"
+            placeholder="Ex.: acces după ora 16:00; te rog să indici separat costul transportului."></textarea>
+          <div class="field-meta"><small id="buyer-notes-example">Poți lăsa câmpul gol dacă detaliile sunt deja în descriere sau în pozițiile cererii.</small>
+            <small id="buyer-notes-count">{{ form.controls.buyerNotes.value?.length ?? 0 }}/1000</small></div>
+        </div>
       </section>
       @if (validationErrors().length) {
         <div class="validation-summary" role="alert"><strong>Verifică următoarele câmpuri:</strong>
