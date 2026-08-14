@@ -218,6 +218,11 @@ summary {
   font-size: 0.9rem;
   text-align: center;
 }
+.construction-suggestion { display:grid; gap:.55rem; margin-bottom:1rem; padding:1rem; border:1px solid color-mix(in srgb,var(--forest,#1e3d2f) 25%,#dce5e0); border-radius:.85rem; background:color-mix(in srgb,var(--sand,#f2e9d8) 58%,white); }
+.construction-suggestion p { margin:0; color:var(--muted,#5f665f); line-height:1.45; }
+.construction-suggestion div { display:flex; flex-wrap:wrap; gap:.6rem; }
+.construction-suggestion a { display:inline-flex; align-items:center; justify-content:center; padding:.65rem .85rem; border-radius:.55rem; color:#fff; background:var(--forest,#1e3d2f); font-weight:750; text-decoration:none; }
+.construction-suggestion button.secondary { margin:0; color:var(--forest,#1e3d2f); background:transparent; border:1px solid var(--forest,#1e3d2f); }
 .message {
   max-width: 1180px;
   margin: 18px auto;
@@ -258,4 +263,5 @@ button:disabled {
   .stage-list { overflow-x: auto; }
   .known-facts div { grid-template-columns: 1fr; gap: 3px; }
   .approval-actions { grid-template-columns: 1fr; }
+  .construction-suggestion div { display:grid; }
 }

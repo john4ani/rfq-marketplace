@@ -15,6 +15,11 @@ export class App {
   readonly isBuyer = computed(() => this.auth.isAuthenticated());
   readonly profileInitial = computed(() => this.auth.identity()?.email?.trim().charAt(0).toLocaleUpperCase('ro-RO') || 'C');
 
+  isAuthRoute(): boolean {
+    return ['/sign-in', '/register', '/forgot-password', '/reset-password', '/verify-email']
+      .some(route => this.router.url === route || this.router.url.startsWith(`${route}?`));
+  }
+
   toggleMobileNavigation(): void {
     this.mobileNavigationOpen.update(open => !open);
   }

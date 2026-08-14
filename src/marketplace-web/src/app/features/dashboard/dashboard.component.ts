@@ -7,15 +7,18 @@ import { SupplierOfferListComponent } from '../offers/supplier-offer-list.compon
 @Component({
   selector: 'app-dashboard',
   imports: [RouterLink, FormsModule, SupplierOfferListComponent],
-  template: `@if(isBuyer()) {
-      <section class="need-starter" aria-labelledby="need-starter-title">
-        <div><h1 id="need-starter-title">Bună! Cu ce te putem ajuta?</h1>
-          <p>Scrie-ne ce ai nevoie, așa cum i-ai spune unui furnizor.</p></div>
-        <div class="need-entry"><label class="sr-only" for="dashboard-need">Descrie pe scurt ce ai nevoie</label><input id="dashboard-need" [(ngModel)]="needText" (keyup.enter)="startNeed()" placeholder="Am nevoie de cherestea pentru un acoperiș de 10 × 8 m"><button type="button" (click)="startNeed()">Continuă</button></div>
-        <div class="starter-reassurance"><span>AI-ul te ajută să clarifici</span><span>Nimic nu este trimis fără confirmarea ta</span></div>
-        <a class="manual-entry" routerLink="/rfqs/new/advanced">Am deja lista / completez manual</a>
+  template: `<section class="need-starter" aria-labelledby="need-starter-title">
+      <header><h1 id="need-starter-title">De ce ai nevoie?</h1>
+        <p>Descrie ce cauți. Te ajutăm să găsești furnizori relevanți și să compari ofertele.</p></header>
+      <section class="general-entry" aria-labelledby="general-entry-title"><div><p class="eyebrow">Începe simplu</p><h2 id="general-entry-title">Caut ceva</h2><p>Produs, material, piesă, serviciu sau echipament.</p></div>
+        <label class="sr-only" for="dashboard-need">Descrie pe scurt ce ai nevoie</label><textarea id="dashboard-need" [(ngModel)]="needText" rows="3" placeholder="Ex: Am nevoie de un alternator pentru VW Passat 2018, în Suceava."></textarea>
+        <button type="button" (click)="startNeed()" [disabled]="needText.trim().length < 10">Continuă</button>
+        <small>Te ajutăm să clarifici detaliile. Nimic nu este trimis fără confirmarea ta.</small>
+        <a class="manual-entry" routerLink="/rfqs/new/advanced">Am deja o listă / prefer să completez manual</a>
       </section>
-    } @else {
+      <section class="construction-entry"><div><h2>Am un proiect de construcții</h2><p>Te ajutăm să structurezi proiectul și achizițiile necesare.</p></div><a routerLink="/rfqs/new/advanced" [queryParams]="{entryMode:'construction'}">Începe proiectul</a></section>
+    </section>
+    @if(!isBuyer()) {
       <section class="supplier-intro">
         <div><p class="eyebrow">Spațiul furnizorului</p><h1>Transformă cererile potrivite în colaborări.</h1>
           <p>Vezi oportunitățile relevante, răspunde simplu și urmărește fiecare ofertă dintr-un singur loc.</p></div>

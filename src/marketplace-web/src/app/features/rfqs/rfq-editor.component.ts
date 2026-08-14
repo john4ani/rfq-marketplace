@@ -24,11 +24,6 @@ import { ROMANIAN_COUNTIES } from '../../shared/romanian-counties';
         <label>Titlu clar *<input formControlName="title" maxlength="180" placeholder="Exemplu: Materiale pentru renovare apartament">
           <small>Spune pe scurt furnizorilor ce dorești să cumperi.</small>
           @if (form.controls.title.touched && form.controls.title.invalid) { <small class="field-error">Completează titlul cererii.</small> }</label>
-        <fieldset class="split-choice"><legend>Tipul necesarului</legend>
-          <label [class.selected]="form.controls.needType.value==='DirectPurchase'"><input type="radio" formControlName="needType" value="DirectPurchase"><span><strong>Cumpărare directă</strong><small>Un necesar punctual.</small></span></label>
-          <label [class.selected]="form.controls.needType.value==='ShoppingList'"><input type="radio" formControlName="needType" value="ShoppingList"><span><strong>Listă de cumpărături</strong><small>Mai multe poziții planificate.</small></span></label>
-          <label [class.selected]="form.controls.needType.value==='Project'"><input type="radio" formControlName="needType" value="Project"><span><strong>Proiect</strong><small>Un context mai amplu, fără a limita numărul de categorii.</small></span></label>
-        </fieldset>
         <div class="two"><label>Nume proiect<input formControlName="projectName" placeholder="Opțional"></label>
           @if(constructionEntryMode()){<label>Șablon de construcții<select formControlName="projectTemplateId" (change)="applyProjectTemplate()"><option value="">Fără șablon</option>@for(template of projectTemplates();track template.id){<option [value]="template.id">{{template.name}}</option>}</select><small>Folosește-l numai pentru un proiect de construcții; categoriile rămân editabile.</small></label>}</div>
         <fieldset><legend>Categoriile necesarului *</legend><p class="help">Alege una sau mai multe categorii, indiferent de tipul necesarului.</p>@if(categoryLoadFailed()){<div class="category-load-error" role="alert"><span>Categoriile nu sunt disponibile momentan.</span><button type="button" class="secondary" (click)="loadCategories()">Încearcă din nou</button></div>}@else{<div class="category-choice-grid">
@@ -206,9 +201,13 @@ export class RfqEditorComponent {
 
   constructor() {
     const navigationMessage = history.state?.message;
+    const initialDescription = this.route.snapshot.queryParamMap.get('description')?.trim() ?? '';
     if (typeof navigationMessage === 'string') this.message.set(navigationMessage);
     this.loadCategories();
-    if (this.constructionEntryMode()) this.loadProjectTemplates();
+    if (this.constructionEntryMode()) {
+      this.form.controls.needType.setValue('Project');
+      this.loadProjectTemplates();
+    }
     if (this.rfqId) {
       this.loading.set(true);
       this.service.get(this.rfqId).subscribe({
@@ -225,6 +224,7 @@ export class RfqEditorComponent {
         error:()=>{this.loading.set(false);this.fail('Draftul asistat nu a putut fi încărcat. Revino la cererea asistată și încearcă din nou.');}
       });
     } else {
+      if (initialDescription) this.form.patchValue({ description: initialDescription, title: initialDescription.slice(0, 180) });
       const identity=this.auth.identity();
       if(identity) this.profiles.getBuyer(identity.userId).subscribe({
         next:p=>this.form.patchValue({deliveryLocality:p.defaultCity,county:p.defaultCounty,supplierSearchRadiusKm:p.marketRadiusKm}),

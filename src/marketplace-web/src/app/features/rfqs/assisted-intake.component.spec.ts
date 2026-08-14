@@ -29,10 +29,12 @@ describe('AssistedIntakeComponent', () => {
     fixture = TestBed.createComponent(AssistedIntakeComponent);
   });
 
-  it('goes directly to the advanced form when AI is unavailable', async () => {
+  it('keeps the written request available with retry and manual choices when AI is unavailable', async () => {
     fixture.detectChanges();
     await fixture.whenStable();
-    expect(router.url).toBe('/rfqs/new/advanced');
+    expect(router.url).toBe('/');
+    expect(fixture.nativeElement.textContent).toContain('Asistentul este indisponibil momentan.');
+    expect(fixture.nativeElement.textContent).toContain('Continuă manual');
   });
 });
 
@@ -94,7 +96,7 @@ describe('AssistedIntakeComponent final confirmation', () => {
     const fixture = TestBed.createComponent(AssistedIntakeComponent);
     fixture.detectChanges();
     const publishButton = Array.from(fixture.nativeElement.querySelectorAll('button') as NodeListOf<HTMLButtonElement>)
-      .find(button => button.textContent?.includes('Confirmă și publică'))!;
+      .find(button => button.textContent?.includes('Trimite cererea'))!;
     publishButton.click();
     await fixture.whenStable();
 

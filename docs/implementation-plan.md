@@ -49,9 +49,9 @@ After approval only: **3A User-owned Procurement Foundation** makes the primary 
 
 Complete the generic procurement foundation without a new aggregate or a universal taxonomy. Reuse `Rfq`, `RfqItem`, `NeedCategory`, publication, matching, discovery, offers and outcome. The provisional compatibility category root adds only the reviewed categories needed to demonstrate alternator, timber, transport, excavator hire, specialist service and pellets/energy needs. General AI is intentionally commercial and conservative: it asks one clarification, never claims cross-industry expertise or web research, and may return a non-binding Construction suggestion without redirecting or converting the request. `NeedType.Project` remains generic; a construction template is explicit compatibility state, not its discriminator. Existing construction requests/templates remain intact. The dedicated Home and end-to-end UX redesign follows separately.
 
-## Task 5 — Supplier Discovery
+## Task 5 — General Procurement + Construction Entry UX / Easy Experience
 
-Reuse `SupplierCandidate`; add generic matching, `OpportunityMatch`, admin approval, dedupe and relevant-match history. No contact until invitation flow is ready.
+Rehabilitate the buyer journey around one dominant job per screen: standalone auth, a General Procurement-first Home, separate explicit Construction entry, conversational clarification, human review before sending, useful request/offers states and responsive critical paths. Account becomes user-first: personal data uses BuyerProfile only as compatibility storage, and represented companies are listed from active CompanyMembership records without a global company switch. Preserve existing routes, API and Construction compatibility; do not redesign Provider UX, Supplier Discovery or Best Value in this task.
 
 ## Task 6 — Invitation / Claim
 

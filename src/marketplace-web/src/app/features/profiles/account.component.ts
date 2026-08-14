@@ -1,26 +1,21 @@
 import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/core';
-import { ActivatedRoute, Router } from '@angular/router';
+import { Router } from '@angular/router';
 import { AuthService } from '../../core/auth/auth.service';
-import { AccountSwitcherComponent } from './account-switcher.component';
 import { ProfileEditorComponent } from './profile-editor.component';
-import { SupplierSettingsComponent } from './supplier-settings.component';
+import { RepresentedCompaniesComponent } from './represented-companies.component';
 import { TrustSummaryComponent } from './trust-summary.component';
 
 @Component({
   selector: 'app-account',
-  imports: [AccountSwitcherComponent, ProfileEditorComponent, SupplierSettingsComponent, TrustSummaryComponent],
+  imports: [ProfileEditorComponent, RepresentedCompaniesComponent, TrustSummaryComponent],
   template: `<section class="account-shell">
-    <header><div><p class="eyebrow">Cont</p><h1>Profil și preferințe</h1>
-      <p>Gestionează profilurile, zonele și categoriile care îți îmbunătățesc potrivirile.</p></div>
-      <div class="profile-switch"><span>Lucrezi ca</span><app-account-switcher (profileAdded)="openNewProfile($event)" /></div>
-    </header>
-    @if (returnUrl()) {
-      <section class="onboarding-callout" role="status"><strong>Poți completa aceste preferințe oricând.</strong>
-        <span>Folosim localitatea și raza de interes pentru livrare și potrivirea furnizorilor. După salvare, revenim automat la cerere.</span></section>
-    }
-    <app-profile-editor (profileSaved)="resumeAfterProfileSave($event)" />
-    <app-supplier-settings />
+    <header><div><p class="eyebrow">Contul meu</p><h1>Datele și relațiile tale în CompaSpot</h1>
+      <p>Contul tău este personal. Poți cumpăra oricând și poți reprezenta una sau mai multe firme.</p></div></header>
+    <app-profile-editor />
+    <app-represented-companies />
     <app-trust-summary [refreshVersion]="trustVersion()" />
+    <section class="profile-card security-card"><div class="section-heading"><div><p class="eyebrow">Securitate</p><h2>Accesul la cont</h2></div><p>Folosește verificarea e-mailului de mai sus, când este necesară.</p></div>
+      <button type="button" class="secondary" (click)="signOut()">Deconectare</button></section>
   </section>`,
   styleUrl: './account.component.scss',
   changeDetection: ChangeDetectionStrategy.OnPush
@@ -28,24 +23,6 @@ import { TrustSummaryComponent } from './trust-summary.component';
 export class AccountComponent {
   private readonly auth = inject(AuthService);
   private readonly router = inject(Router);
-  private readonly route = inject(ActivatedRoute);
-  readonly returnUrl = signal(this.safeReturnUrl(this.route.snapshot.queryParamMap.get('returnUrl')));
   readonly trustVersion = signal(0);
-
-  openNewProfile(accountType: 'Buyer' | 'Supplier'): void {
-    this.auth.switchProfile(accountType);
-    this.returnUrl.set(null);
-  }
-
-  resumeAfterProfileSave(accountType: 'Buyer' | 'Supplier'): void {
-    this.trustVersion.update(value => value + 1);
-    const destination = this.returnUrl();
-    if (destination && (accountType === 'Buyer' && destination === '/rfqs/new'
-      || accountType === 'Supplier' && destination.startsWith('/supplier-invitations/')))
-      void this.router.navigateByUrl(destination);
-  }
-
-  private safeReturnUrl(value: string | null): string | null {
-    return value === '/rfqs/new' || value?.startsWith('/supplier-invitations/') ? value : null;
-  }
+  signOut(): void { this.auth.logout().subscribe({ next: () => void this.router.navigateByUrl('/sign-in') }); }
 }

@@ -16,6 +16,15 @@ public sealed class ProfilesController(
     ICompanyAuthorizationService companyAuthorizationService) : ControllerBase
 {
     [Authorize]
+    [HttpGet("companies/mine")]
+    public async Task<IActionResult> GetMyCompanies(CancellationToken cancellationToken)
+    {
+        string? subject = User.FindFirstValue(JwtRegisteredClaimNames.Sub) ?? User.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (!Guid.TryParse(subject, out Guid userId)) return Unauthorized();
+        return Ok(await companyAuthorizationService.GetRepresentedCompaniesAsync(userId, cancellationToken));
+    }
+
+    [Authorize]
     [HttpGet("buyers/{buyerId:guid}")]
     public async Task<IActionResult> GetBuyer(Guid buyerId, CancellationToken cancellationToken)
     {

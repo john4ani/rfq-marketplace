@@ -112,7 +112,7 @@ export class BuyerRfqListComponent {
         this.scheduleNextDeadline(values);
         this.loading.set(false);
       },
-      error: () => { this.loading.set(false); this.error.set('Cererile nu au putut fi încărcate. Verifică dacă API-ul rulează și încearcă din nou.'); }
+      error: () => { this.loading.set(false); this.error.set('Nu am putut încărca cererile acum. Încearcă din nou.'); }
     });
   }
   private scheduleNextDeadline(rfqs: Rfq[]): void {

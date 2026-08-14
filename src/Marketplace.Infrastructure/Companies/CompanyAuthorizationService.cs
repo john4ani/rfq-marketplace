@@ -1,4 +1,5 @@
 using Marketplace.Application.Companies;
+using Marketplace.Domain.Profiles;
 using Marketplace.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 
@@ -45,5 +46,16 @@ public sealed class CompanyAuthorizationService(MarketplaceDbContext dbContext) 
             .Where(membership => membership.CompanyId == companyId && membership.RevokedAt == null)
             .Select(membership => membership.UserId)
             .Distinct()
+            .ToArrayAsync(cancellationToken);
+
+    public async Task<IReadOnlyCollection<RepresentedCompany>> GetRepresentedCompaniesAsync(Guid userId, CancellationToken cancellationToken) =>
+        await (from membership in dbContext.CompanyMemberships.AsNoTracking()
+               join company in dbContext.SupplierProfiles.AsNoTracking() on membership.CompanyId equals company.Id
+               where membership.UserId == userId && membership.RevokedAt == null
+               orderby company.TradingName
+               select new RepresentedCompany(
+                   company.Id,
+                   company.TradingName,
+                   membership.Role == CompanyMembershipRole.Owner ? "Proprietar" : "Reprezentant"))
             .ToArrayAsync(cancellationToken);
 }

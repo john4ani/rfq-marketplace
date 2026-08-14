@@ -15,9 +15,9 @@ import { HttpErrorResponse } from '@angular/common/http';
     @if (registrationSucceeded()) {
       <a class="button-link" routerLink="/sign-in" [queryParams]="returnUrl?{returnUrl}:null">Autentifică-te</a>
     } @else {
-      <button type="submit" [disabled]="form.invalid || submitting()">{{ submitting() ? 'Se creează contul…' : 'Înregistrare' }}</button>
+      <button type="submit" [disabled]="form.invalid || submitting()">{{ submitting() ? 'Se creează contul…' : 'Creează cont' }}</button>
     }
-  </form>@if (!registrationSucceeded()) { <a routerLink="/sign-in">Înapoi la autentificare</a> }</section>`,
+  </form>@if (!registrationSucceeded()) { <p>Ai deja cont? <a routerLink="/sign-in">Autentifică-te</a></p> }</section>`,
   changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class RegisterComponent {

@@ -16,6 +16,7 @@ export const routes: Routes = [
   { path: 'admin/trust', canActivate: [administratorGuard], loadComponent: () => import('./features/admin/trust-admin.component').then(m => m.TrustAdminComponent) },
   { path: 'admin/concierge', canActivate: [administratorGuard], loadComponent: () => import('./features/admin/concierge-admin.component').then(m => m.ConciergeAdminComponent) },
   { path: 'dashboard', canActivate: [authGuard], loadComponent: () => import('./features/dashboard/dashboard.component').then(m => m.DashboardComponent) },
+  { path: 'account/company/:companyId', canActivate: [authGuard], loadComponent: () => import('./features/profiles/company-details.component').then(m => m.CompanyDetailsComponent) },
   { path: 'account', canActivate: [authGuard], loadComponent: () => import('./features/profiles/account.component').then(m => m.AccountComponent) },
   { path: 'requests', canActivate: [buyerGuard], loadComponent: () => import('./features/rfqs/buyer-rfq-list.component').then(m => m.BuyerRfqListComponent) },
   { path: 'offers', canActivate: [buyerGuard], loadComponent: () => import('./features/offers/buyer-offer-inbox.component').then(m => m.BuyerOfferInboxComponent) },

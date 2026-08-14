@@ -18,16 +18,11 @@ import { TrustFactsComponent } from '../profiles/trust-facts.component';
         <p>Urmărește cererea, gestionează termenul și compară ofertele primite.</p></div>
         <div class="header-state"><span class="status">{{ request.fulfillmentStatus === 'Delivered' ? 'Livrată' : statusLabel(request.status) }}</span><span>{{ offers().length }} oferte eligibile</span></div></header>
       <section class="request-overview">
-        <div class="overview-heading"><div><p class="eyebrow">Cererea trimisă</p><h2>Stare și detalii</h2></div>
-          @if (canManage(request)) {
-            <div class="request-actions">
-              <button type="button" class="secondary" (click)="startDeadlineExtension(request.quotationDeadline)">Prelungește termenul</button>
-              <button type="button" class="danger-link" (click)="showCancel.set(true)">Anulează cererea</button>
-            </div>
-          }
-        </div>
+        <div class="overview-heading"><div><p class="eyebrow">Cererea trimisă</p><h2>Stare și detalii</h2></div></div>
         <dl class="request-facts">
-          <div><dt>Termen oferte</dt><dd>{{ request.quotationDeadline | date:'dd.MM.yyyy, HH:mm' }}</dd></div>
+          <div><dt>Termen oferte</dt><dd>{{ request.quotationDeadline | date:'dd.MM.yyyy, HH:mm' }}</dd>@if (canManage(request)) { <button type="button" class="contextual-action" (click)="startDeadlineExtension(request.quotationDeadline)">Prelungește termenul</button> }@if (canManage(request)) {
+            @if (showDeadline()) { <form class="management-form deadline-form" (submit)="extendDeadline($event)"><label>Termen nou<input type="datetime-local" [value]="newDeadline()" (input)="newDeadline.set($any($event.target).value)"></label>@if (managementError()) { <p class="error" role="alert">{{ managementError() }}</p> }<div class="management-actions"><button type="button" class="secondary" (click)="cancelManagement()">Renunță</button><button type="submit" [disabled]="busy() || !newDeadline()">{{ busy() ? 'Se salvează…' : 'Salvează termenul' }}</button></div></form> }
+          }</div>
           <div><dt>Livrare</dt><dd>{{ request.deliveryLocality }}, {{ request.county }}</dd></div>
           <div><dt>Transport în ofertă</dt><dd>{{ request.deliveryRequired ? 'Solicitat' : 'Opțional' }}</dd></div>
           <div><dt>Buget estimat</dt><dd>{{ request.estimatedBudget ? (request.estimatedBudget | currency:'RON':'symbol-narrow':'1.0-2':'ro') : 'Nespecificat' }}</dd></div>
@@ -72,26 +67,13 @@ import { TrustFactsComponent } from '../profiles/trust-facts.component';
             } @empty { <li><div><span>Istoricul nu este încă disponibil.</span></div></li> }
           </ol>
         </details>
-        @if (showDeadline()) {
-          <form class="management-form" (submit)="extendDeadline($event)">
-            <div><strong>Prelungește termenul pentru oferte</strong><small>Poți doar să alegi o dată ulterioară termenului curent.</small></div>
-            <label>Termen nou<input type="datetime-local" [value]="newDeadline()" (input)="newDeadline.set($any($event.target).value)"></label>
-            @if (managementError()) { <p class="error" role="alert">{{ managementError() }}</p> }
-            <div class="management-actions"><button type="button" class="secondary" (click)="cancelManagement()">Renunță</button>
-              <button type="submit" [disabled]="busy() || !newDeadline()">{{ busy() ? 'Se salvează…' : 'Salvează termenul' }}</button></div>
-          </form>
-        }
-        @if (showCancel()) {
-          <div class="cancel-confirmation" role="group" aria-label="Confirmă anularea cererii">
-            <div><strong>Anulezi această cerere?</strong><p>Furnizorii nu vor mai putea trimite oferte. Această acțiune nu poate fi anulată.</p></div>
-            @if (managementError()) { <p class="error" role="alert">{{ managementError() }}</p> }
-            <div class="management-actions"><button type="button" class="secondary" (click)="cancelManagement()">Păstrează cererea</button>
-              <button type="button" class="danger" (click)="cancelRequest()" [disabled]="busy()">{{ busy() ? 'Se anulează…' : 'Confirmă anularea' }}</button></div>
-          </div>
-        }
       </section>
       @if (!request.selectedOfferId) {
-        <app-procurement-outcome [request]="request" [offerCount]="offers().length" (recorded)="outcomeRecorded($event)" />
+        <section class="outcome-area"><app-procurement-outcome [request]="request" [offerCount]="offers().length" (recorded)="outcomeRecorded($event)" />
+          @if (canManage(request)) { <div class="cancel-prompt"><div><strong>Te-ai răzgândit?</strong><span>Poți opri această cerere dacă nu mai ai nevoie de oferte.</span></div><button type="button" class="danger-link" (click)="showCancel.set(true)">Anulează cererea</button></div>
+            @if (showCancel()) { <div class="cancel-confirmation" role="group" aria-label="Confirmă anularea cererii"><div><strong>Anulezi această cerere?</strong><p>Furnizorii nu vor mai putea trimite oferte. Această acțiune nu poate fi anulată.</p></div>@if (managementError()) { <p class="error" role="alert">{{ managementError() }}</p> }<div class="management-actions"><button type="button" class="secondary" (click)="cancelManagement()">Păstrează cererea</button><button type="button" class="danger" (click)="cancelRequest()" [disabled]="busy()">{{ busy() ? 'Se anulează…' : 'Confirmă anularea' }}</button></div></div> }
+          }
+        </section>
       }
       @if (request.selectedOfferId) {
         <section class="decision">
@@ -184,6 +166,18 @@ import { TrustFactsComponent } from '../profiles/trust-facts.component';
               @if (entry.offer.status === 'Selected') { <span class="recommend">Câștigătoare</span> }<h2>{{ entry.supplierName }}</h2><app-trust-facts [facts]="entry.trustFacts" role="Supplier" /></div>
               <div class="price"><small>{{ entry.offer.hasComparableTotal ? 'Total de plată' : 'Total fără transport' }}</small><strong>{{ entry.offer.total | currency:'RON':'symbol-narrow':'1.2-2':'ro' }}</strong></div></div>
             <p class="tradeoff">{{ tradeoff(entry) }}</p>
+            @if (entry.offer.status === 'Selected') {
+              <div class="selected">✓ Ofertă selectată</div>
+            } @else if (!request.selectedOfferId && pendingOffer()?.offer?.id === entry.offer.id) {
+              <div class="confirm-selection" role="group" aria-label="Confirmă selectarea ofertei">
+                <div><strong>Confirmă furnizorul</strong><p>{{ entry.supplierName }} · {{ entry.offer.total | currency:'RON':'symbol-narrow':'1.2-2':'ro' }}</p><small>După confirmare, cererea nu va mai primi oferte. {{ entry.offer.deliveryIncluded ? 'Furnizorul va declara livrarea, apoi vei confirma primirea.' : 'Transportul se organizează separat.' }}</small></div>
+                <div class="confirm-actions"><button class="secondary" type="button" (click)="cancelSelection()">Renunță</button><button type="button" (click)="confirmSelection()" [disabled]="busy()">{{ busy() ? 'Se confirmă…' : 'Confirmă și închide cererea' }}</button></div>
+              </div>
+            } @else if (!request.selectedOfferId && entry.offer.coverage === 'Full') {
+              <button class="select-offer" type="button" (click)="requestSelection(entry)" [disabled]="busy()">Selectează această ofertă</button>
+            } @else if (!request.selectedOfferId) {
+              <p class="partial-warning">Oferta nu poate închide singură cererea deoarece lipsesc poziții. Folosește mesajele pentru clarificare.</p>
+            }
             <dl>
               @if (entry.offer.pricingMode === 'Total' || request.items.length === 0) {
                 <div><dt>Tip ofertă</dt><dd>Preț total · întreaga cerere</dd></div>
@@ -202,27 +196,6 @@ import { TrustFactsComponent } from '../profiles/trust-facts.component';
             @if (entry.offer.paymentTerms) { <div class="terms"><small>Condiții de plată</small><p>{{ entry.offer.paymentTerms }}</p></div> }
             @if (entry.offer.notes) { <div class="terms"><small>Mesaj furnizor</small><p>{{ entry.offer.notes }}</p></div> }
             <a class="conversation-link" [routerLink]="['/offers', entry.offer.id, 'conversation']">Mesaje cu furnizorul →</a>
-            @if (entry.offer.status === 'Selected') {
-              <div class="selected">✓ Ofertă selectată</div>
-            } @else if (!request.selectedOfferId && pendingOffer()?.offer?.id === entry.offer.id) {
-              <div class="confirm-selection" role="group" aria-label="Confirmă selectarea ofertei">
-                <div><strong>Confirmă furnizorul</strong>
-                  <p>{{ entry.supplierName }} · {{ entry.offer.total | currency:'RON':'symbol-narrow':'1.2-2':'ro' }}</p>
-                  <small>După confirmare, cererea nu va mai primi oferte.
-                    {{ entry.offer.deliveryIncluded ? 'Furnizorul va declara livrarea, apoi vei confirma primirea.' : 'Transportul se organizează separat.' }}</small>
-                </div>
-                <div class="confirm-actions">
-                  <button class="secondary" type="button" (click)="cancelSelection()">Renunță</button>
-                  <button type="button" (click)="confirmSelection()" [disabled]="busy()">
-                    {{ busy() ? 'Se confirmă…' : 'Confirmă și închide cererea' }}
-                  </button>
-                </div>
-              </div>
-            } @else if (!request.selectedOfferId && entry.offer.coverage === 'Full') {
-              <button type="button" (click)="requestSelection(entry)" [disabled]="busy()">Selectează această ofertă</button>
-            } @else if (!request.selectedOfferId) {
-              <p class="partial-warning">Oferta nu poate închide singură cererea deoarece lipsesc poziții. Folosește mesajele pentru clarificare.</p>
-            }
           </article>
         }
       </div>

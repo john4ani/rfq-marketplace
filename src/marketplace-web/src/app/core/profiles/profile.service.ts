@@ -11,6 +11,7 @@ export interface SupplierProfile {
   address: string; city: string; county: string; latitude: number | null; longitude: number | null;
   description: string | null; approvalStatus: 'Pending' | 'Approved' | 'Suspended'; isActive: boolean;
 }
+export interface RepresentedCompany { id: string; name: string; role: 'Proprietar' | 'Reprezentant'; }
 export interface AccountTrustSummary {
   accountId: string; email: string; roles: string[]; emailVerified: boolean;
   phoneVerified: boolean; phoneVerifiedAt: string | null; companyVerified: boolean;
@@ -27,6 +28,7 @@ export class ProfileService {
   getBuyer(id: string) { return this.http.get<BuyerProfile>(`/api/v1/buyers/${id}`); }
   saveBuyer(id: string, profile: Omit<BuyerProfile, 'id'>) { return this.http.put<BuyerProfile>(`/api/v1/buyers/${id}`, profile); }
   getSupplier(id: string) { return this.http.get<SupplierProfile>(`/api/v1/suppliers/${id}`); }
+  getMyCompanies() { return this.http.get<RepresentedCompany[]>('/api/v1/companies/mine'); }
   saveSupplier(id: string, profile: Omit<SupplierProfile, 'id'|'approvalStatus'|'isActive'>) { return this.http.put<SupplierProfile>(`/api/v1/suppliers/${id}`, profile); }
   getTrustSummary() { return this.http.get<AccountTrustSummary>('/api/v1/trust/me'); }
   getTrustFacts() { return this.http.get<TrustFacts>('/api/v1/trust/me/facts'); }

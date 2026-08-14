@@ -14,17 +14,22 @@ import { unitLabel } from '../../shared/unit-label';
   imports: [FormsModule, RouterLink],
   template: `<main class="intake-shell">
     <a class="back" routerLink="/dashboard">← Înapoi acasă</a>
-    <header><div class="assistant-title"><span aria-hidden="true">✦</span><div><p class="eyebrow">Cerere asistată</p><h1>Spune-ne ce ai nevoie</h1></div></div>
-      <p>Scrie natural, ca într-un mesaj. Asistentul îți pune doar întrebările care mai contează.</p>
-      <ol class="stage-list" aria-label="Etapele cererii"><li class="active">Descriere</li><li [class.active]="!!result()?.clarification">Clarificare</li><li [class.active]="!!result() && !result()?.clarification">Verificare</li></ol></header>
+    <header><div class="assistant-title"><span aria-hidden="true">✦</span><div><p class="eyebrow">Cerere nouă</p><h1>Spune-ne ce ai nevoie</h1></div></div>
+      <p>Scrie natural, ca într-un mesaj. Te ajutăm să clarifici doar detaliile importante.</p></header>
     @if (checkingAvailability()) {
       <section class="start-card" aria-live="polite">Se pregătește asistentul…</section>
+    } @else if (aiUnavailable()) {
+      <section class="start-card" role="alert"><strong>Asistentul este indisponibil momentan.</strong>
+        <p>Descrierea ta a fost păstrată. Poți încerca din nou sau poți continua manual.</p>
+        <div class="actions"><a routerLink="/rfqs/new/advanced" [queryParams]="manualQueryParams()">Continuă manual</a>
+          <button type="button" (click)="retryAvailability()">Încearcă din nou</button></div>
+      </section>
     } @else if (!result()) {
-      <section class="start-card"><label for="need">Ce dorești să cumperi sau să construiești?</label>
+      <section class="start-card"><label for="need">Ce cauți?</label>
         <textarea id="need" [(ngModel)]="input" rows="7" maxlength="4000" placeholder="Exemplu: Am nevoie de 2 tone de peleți, livrare în Brașov, la sac..."></textarea>
         <div class="starter-note"><span aria-hidden="true">✦</span> Te ajutăm să structurăm cererea. Nu trimitem nimic fără acordul tău.</div>
-        <div class="actions"><a routerLink="/rfqs/new/advanced">Am deja lista — deschide formularul</a>
-          <button type="button" (click)="start()" [disabled]="busy() || input.trim().length < 10">{{ busy() ? 'Analizăm ce ai nevoie…' : 'Continuă cu AI →' }}</button></div>
+        <div class="actions"><a routerLink="/rfqs/new/advanced">Am deja o listă / prefer să completez manual</a>
+          <button type="button" (click)="start()" [disabled]="busy() || input.trim().length < 10">{{ busy() ? 'Analizăm cererea…' : 'Continuă' }}</button></div>
       </section>
     } @else {
       <div class="workspace" [class.reviewing]="!result()?.clarification">
@@ -33,6 +38,7 @@ import { unitLabel } from '../../shared/unit-label';
           @for (entry of result()?.answers; track $index) {
             <div class="history"><span>Clarificare {{ $index + 1 }}</span><p class="history-question">{{ entry.question }}</p><p><strong>Răspunsul tău:</strong> {{ entry.answer }}</p></div>
           }
+          @if (result()?.suggestedMode === 'ConstructionProjects' && !constructionSuggestionDismissed()) { <section class="construction-suggestion"><strong>Pare că este un proiect de construcții.</strong><p>Modul special pentru proiecte te poate ajuta să structurezi mai bine necesarul.</p><div><a routerLink="/rfqs/new/advanced" [queryParams]="{entryMode:'construction',description:input}">Folosește modul Construction Projects</a><button type="button" class="secondary" (click)="constructionSuggestionDismissed.set(true)">Continuă ca cerere simplă</button></div></section> }
           @if (result()?.clarification; as clarification) {
             <div class="question"><span>O clarificare importantă</span><h2>{{ clarification.question }}</h2>
               @if (clarification.choices.length) { <div class="choices">@for (choice of clarification.choices; track choice) { <button type="button" (click)="answer=choice; clarify()" [disabled]="busy()">{{ choice }}</button> }</div> }
@@ -68,7 +74,7 @@ import { unitLabel } from '../../shared/unit-label';
             @if(result()?.researchSources?.length){<details class="sources"><summary>Surse folosite pentru propunere</summary><ul>@for(source of result()?.researchSources;track source.url){<li><a [href]="source.url" target="_blank" rel="noopener noreferrer">{{source.title}}</a><p>{{source.finding}}</p></li>}</ul></details>}
             <div class="approval-actions">
               <button class="save-draft" type="button" (click)="approve(false)" [disabled]="busy()">Salvează ciorna</button>
-              <button class="approve" type="button" (click)="approve(true)" [disabled]="busy()">{{busy()?'Se publică…':'Confirmă și publică'}}</button>
+              <button class="approve" type="button" (click)="approve(true)" [disabled]="busy()">{{busy()?'Se trimite…':'Trimite cererea'}}</button>
             </div>
             <a class="advanced" routerLink="/rfqs/new/advanced" [queryParams]="{assistedSession: result()?.sessionId}">Prefer lista avansată? Continuă același draft</a>
           }
@@ -84,7 +90,7 @@ import { unitLabel } from '../../shared/unit-label';
 export class AssistedIntakeComponent {
   private readonly service=inject(AssistedIntakeService); private readonly rfqService=inject(RfqService); private readonly categoriesService=inject(SupplierSettingsService);
   private readonly route=inject(ActivatedRoute); private readonly router=inject(Router); private readonly host=inject(ElementRef<HTMLElement>);
-  readonly result=signal<AssistedIntakeResult|null>(null); readonly categories=signal<CategoryOption[]>([]); readonly busy=signal(false); readonly message=signal(''); readonly hasError=signal(false); readonly checkingAvailability=signal(true);
+  readonly result=signal<AssistedIntakeResult|null>(null); readonly categories=signal<CategoryOption[]>([]); readonly busy=signal(false); readonly message=signal(''); readonly hasError=signal(false); readonly checkingAvailability=signal(true); readonly aiUnavailable=signal(false); readonly constructionSuggestionDismissed=signal(false);
   input=''; answer=''; draft:AssistedDraft=this.emptyDraft();
   readonly units:UnitOfMeasure[]=['Piece','Pack','Bag','Kilogram','Tonne','Metre','SquareMetre','CubicMetre','Litre','Pallet','Other'];
   readonly unitLabel=unitLabel;
@@ -92,24 +98,26 @@ export class AssistedIntakeComponent {
     const id=this.route.snapshot.queryParamMap.get('session');
     const dashboardDescription=this.route.snapshot.queryParamMap.get('description')?.trim()??'';
     this.input=dashboardDescription;
-    this.service.availability().subscribe({next:value=>{
-      if(!value.enabled||!value.modelAvailable){this.fallbackToAdvanced(id);return;}
-      this.checkingAvailability.set(false);
-      this.categoriesService.getCategories().subscribe({next:v=>this.categories.set(v)});
-      if(id){this.busy.set(true);this.service.get(id).subscribe({next:v=>this.apply(v),error:e=>this.fail(e)});return;}
-      if(dashboardDescription.length>=10)this.start();
-    },error:()=>this.fallbackToAdvanced(id)});
+    this.checkAvailability(id, dashboardDescription);
   }
   leafCategories(){const all=this.categories(),parents=new Set(all.flatMap(x=>x.parentId?[x.parentId]:[]));return all.filter(x=>!parents.has(x.id));}
   categoryName(id:string|null){return this.categories().find(category=>category.id===id)?.name??(id?'Categorie selectată':'De stabilit');}
   start(){if(this.input.trim().length<10)return;this.busy.set(true);this.clear();this.service.start(this.input.trim()).subscribe({next:v=>{this.apply(v);void this.router.navigate([], {queryParams:{session:v.sessionId},replaceUrl:true});},error:e=>this.fail(e)});}
   clarify(){if(!this.answer.trim()||!this.result())return;this.busy.set(true);this.clear();this.service.clarify(this.result()!.sessionId,this.answer.trim()).subscribe({next:v=>{this.answer='';this.apply(v);},error:e=>this.fail(e)});}
   approve(publish=false){const invalid=this.validate();if(invalid){this.message.set(invalid);this.hasError.set(true);this.scrollError();return;}this.busy.set(true);this.clear();let draftSaved=false;this.service.approve(this.result()!.sessionId,this.toRfqDraft()).pipe(tap(()=>draftSaved=true),switchMap(rfq=>publish?this.rfqService.publish(rfq.id):of(rfq))).subscribe({next:rfq=>void this.router.navigate(publish?['/rfqs',rfq.id,'offers']:['/rfqs',rfq.id,'edit'],publish?undefined:{queryParams:{assisted:'saved'}}),error:e=>{if(publish&&draftSaved){this.busy.set(false);this.message.set('Ciorna a fost salvată, dar publicarea nu a reușit. Încearcă din nou; informațiile nu s-au pierdut.');this.hasError.set(true);this.scrollError();return;}this.fail(e);}});}
-  private apply(value:AssistedIntakeResult){this.result.set(value);this.input=value.initialInput;this.draft=structuredClone(value.draft);this.draft.county=this.canonicalCounty(this.draft.county);this.busy.set(false);}
+  private apply(value:AssistedIntakeResult){this.result.set(value);this.constructionSuggestionDismissed.set(false);this.input=value.initialInput;this.draft=structuredClone(value.draft);this.draft.county=this.canonicalCounty(this.draft.county);this.busy.set(false);}
   private validate(){if(!this.draft.title.trim())return'Titlul este obligatoriu.';if(!this.draft.primaryCategoryId)return'Selectează cel puțin o categorie.';if(!this.draft.deliveryAddress.trim())return'Completează adresa de livrare.';if(!this.draft.deliveryLocality.trim()||!this.draft.county.trim())return'Completează localitatea și județul.';if(this.draft.lines.some(x=>!x.name.trim()||!x.quantity||x.quantity<=0||!x.unit))return'Verifică denumirea, cantitatea și unitatea fiecărei poziții.';return'';}
   private toRfqDraft():RfqDraft{const categoryIds=Array.from(new Set([this.draft.primaryCategoryId,...this.draft.lines.map(line=>line.categoryId)].filter((id):id is string=>!!id)));const needType=this.draft.inputType==='ProjectDescription'?'Project':this.draft.inputType==='ShoppingList'?'ShoppingList':'DirectPurchase';return{source:'Assisted',inputType:this.draft.inputType,needType,projectTemplateId:null,categoryIds,title:this.draft.title,projectName:this.draft.projectName,description:this.draft.description,primaryCategoryId:this.draft.primaryCategoryId!,deliveryAddress:this.draft.deliveryAddress,deliveryLocality:this.draft.deliveryLocality,county:this.draft.county,supplierSearchRadiusKm:this.draft.supplierSearchRadiusKm,latitude:null,longitude:null,preferredDeliveryDate:this.draft.preferredDeliveryDate,quotationDeadline:this.draft.quotationDeadline,alternativeProductsAccepted:this.draft.alternativeProductsAccepted,estimatedBudget:this.draft.estimatedBudget,buyerNotes:this.draft.buyerNotes,allowSplit:this.draft.allowSplit,deliveryRequired:this.draft.deliveryRequired,items:this.draft.lines.map(x=>({productName:x.name,manufacturerOrBrand:null,specification:x.specification,quantity:x.quantity!,unit:x.unit!,alternativesAccepted:x.alternativesAccepted,buyerNotes:null,categoryId:x.categoryId,kind:x.kind}))};}
-  private fail(error:HttpErrorResponse){if(error.status===503){this.fallbackToAdvanced(this.result()?.sessionId??null);return;}this.busy.set(false);const detail=error.error?.errors?.intake?.[0]??error.error?.detail??'Nu am putut procesa cererea. Încearcă din nou.';this.message.set(detail);this.hasError.set(true);this.scrollError();}
-  private fallbackToAdvanced(sessionId:string|null){void this.router.navigate(['/rfqs/new/advanced'],{replaceUrl:true,queryParams:sessionId?{assistedSession:sessionId}:undefined,state:{message:'Asistentul AI este temporar indisponibil. Poți continua cu formularul complet.'}});}
+  retryAvailability(){this.checkingAvailability.set(true);this.aiUnavailable.set(false);this.checkAvailability(this.result()?.sessionId??this.route.snapshot.queryParamMap.get('session'),this.input);}
+  manualQueryParams(){return {...(this.result()?.sessionId?{assistedSession:this.result()!.sessionId}:{}),...(this.input.trim()?{description:this.input.trim()}: {})};}
+  private checkAvailability(sessionId:string|null,dashboardDescription:string){this.service.availability().subscribe({next:value=>{
+      this.checkingAvailability.set(false);
+      if(!value.enabled||!value.modelAvailable){this.aiUnavailable.set(true);return;}
+      this.categoriesService.getCategories().subscribe({next:v=>this.categories.set(v)});
+      if(sessionId){this.busy.set(true);this.service.get(sessionId).subscribe({next:v=>this.apply(v),error:e=>this.fail(e)});return;}
+      if(dashboardDescription.length>=10)this.start();
+    },error:()=>{this.checkingAvailability.set(false);this.aiUnavailable.set(true);}});}
+  private fail(error:HttpErrorResponse){this.busy.set(false);if(error.status===503){this.aiUnavailable.set(true);return;}const detail=error.error?.errors?.intake?.[0]??error.error?.detail??'Nu am putut procesa cererea. Încearcă din nou.';this.message.set(detail);this.hasError.set(true);this.scrollError();}
   private clear(){this.message.set('');this.hasError.set(false);}
   private scrollError(){setTimeout(()=>this.host.nativeElement.querySelector('[role="alert"]')?.scrollIntoView({behavior:'smooth',block:'center'}));}
   private canonicalCounty(value:string){const key=this.fold(value);return ROMANIAN_COUNTIES.find(county=>this.fold(county)===key)??value;}
