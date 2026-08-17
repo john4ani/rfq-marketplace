@@ -12,6 +12,8 @@ export const routes: Routes = [
   { path: 'supplier-invitations/:token', loadComponent: () => import('./features/supplier-discovery/supplier-invitation.component').then(m => m.SupplierInvitationComponent) },
   { path: 'admin/invitations-referrals', canActivate: [administratorGuard], loadComponent: () => import('./features/admin/invitations-referrals-admin.component').then(m => m.InvitationsReferralsAdminComponent) },
   { path: 'admin/supplier-discovery', canActivate: [administratorGuard], loadComponent: () => import('./features/supplier-discovery/supplier-discovery-admin.component').then(m => m.SupplierDiscoveryAdminComponent) },
+  { path: 'admin/supplier-discovery/needs/:rfqId', canActivate: [administratorGuard], loadComponent: () => import('./features/supplier-discovery/discovery-need-review.component').then(m => m.DiscoveryNeedReviewComponent) },
+  { path: 'admin/supplier-discovery/acquisition', canActivate: [administratorGuard], loadComponent: () => import('./features/supplier-discovery/acquisition-intelligence.component').then(m => m.AcquisitionIntelligenceComponent) },
   { path: 'admin/catalog', canActivate: [administratorGuard], loadComponent: () => import('./features/admin/category-catalog.component').then(m => m.CategoryCatalogComponent) },
   { path: 'admin/trust', canActivate: [administratorGuard], loadComponent: () => import('./features/admin/trust-admin.component').then(m => m.TrustAdminComponent) },
   { path: 'admin/concierge', canActivate: [administratorGuard], loadComponent: () => import('./features/admin/concierge-admin.component').then(m => m.ConciergeAdminComponent) },

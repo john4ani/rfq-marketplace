@@ -1,9 +1,16 @@
 <section class="discovery-page">
   <header><div><p class="eyebrow">Operațiuni controlate</p><h1>Supplier discovery asistat</h1>
-    <p>Înregistrează firme candidate, validează relevanța și pregătește invitații pentru cereri concrete.</p></div></header>
+    <p>Înregistrează firme candidate, validează relevanța și pregătește invitații pentru cereri concrete.</p><p><a routerLink="/admin/supplier-discovery/acquisition">Vezi firmele de contactat →</a></p></div></header>
 
   <aside class="integrity-note" role="note"><strong>Control uman obligatoriu</strong>
     <span>Datele descoperite nu sunt prezentate ca verificate. CompaSpot nu trimite automat invitații și nu contactează firme în masă.</span></aside>
+
+  <section class="opportunity-list" aria-labelledby="opportunities-heading">
+    <div class="section-heading"><div><p class="eyebrow">Cereri reale</p><h2 id="opportunities-heading">Potriviri de revizuit</h2></div><span>{{opportunities().length}}</span></div>
+    @for(opportunity of opportunities();track opportunity.id){
+      <a class="opportunity-link" [routerLink]="['/admin/supplier-discovery/needs',opportunity.id]"><span><strong>{{opportunity.title}}</strong><small>{{opportunity.deliveryLocality}}, {{opportunity.county}}</small></span><span>Vezi potrivirile →</span></a>
+    }@empty{<p class="empty">Nu există cereri deschise pentru discovery în acest moment.</p>}
+  </section>
 
   @if(error()){<p class="error" role="alert">{{error()}}</p>}
   @if(message()){<p class="success-message" role="status">{{message()}}</p>}

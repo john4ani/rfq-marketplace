@@ -132,6 +132,14 @@ public sealed class SupplierDiscoveryEndpointTests : IClassFixture<WebApplicatio
             (await adminClient.PostAsJsonAsync($"/api/v1/admin/supplier-candidates/{candidate.Id}/invitations",
                 new { rfqId = rfq.Id })).StatusCode);
 
+        DiscoveryNeedReviewResponse needReview = (await adminClient.GetFromJsonAsync<DiscoveryNeedReviewResponse>(
+            $"/api/v1/admin/supplier-discovery/needs/{rfq.Id}"))!;
+        OpportunityMatchResponse opportunityMatch = Assert.Single(needReview.Candidates, item => item.CandidateId == candidate.Id);
+        Assert.Equal("PendingReview", opportunityMatch.Status);
+        Assert.Equal(HttpStatusCode.OK, (await adminClient.PutAsJsonAsync(
+            $"/api/v1/admin/supplier-discovery/opportunity-matches/{opportunityMatch.Id}/review",
+            new { approved = true, note = "Relevantă pentru această oportunitate concretă." })).StatusCode);
+
         HttpResponseMessage reviewed = await adminClient.PutAsJsonAsync(
             $"/api/v1/admin/supplier-candidates/{candidate.Id}/review",
             new { approved = true, notes = "Categoria, zona și activitatea publică sunt relevante." });
@@ -237,6 +245,7 @@ public sealed class SupplierDiscoveryEndpointTests : IClassFixture<WebApplicatio
             .Where(candidate => candidate.CompanyName == candidateCompanyName)
             .Select(candidate => candidate.Id)
             .ToArrayAsync();
+        await db.OpportunityMatches.Where(item => item.SupplierCandidateId != null && candidateIds.Contains(item.SupplierCandidateId.Value)).ExecuteDeleteAsync();
         await db.SupplierDiscoveryAuditEvents.Where(item => candidateIds.Contains(item.CandidateId)).ExecuteDeleteAsync();
         await db.SupplierInvitations.Where(item => candidateIds.Contains(item.CandidateId)).ExecuteDeleteAsync();
         await db.SupplierCandidates.Where(item => candidateIds.Contains(item.Id)).ExecuteDeleteAsync();
@@ -244,6 +253,8 @@ public sealed class SupplierDiscoveryEndpointTests : IClassFixture<WebApplicatio
         await db.Categories.Where(item => item.Id == customCategoryId).ExecuteDeleteAsync();
         if (administrator is not null)
         {
+            Guid[] administratorRfqIds = await db.Rfqs.Where(rfq => rfq.BuyerId == administrator.Id).Select(rfq => rfq.Id).ToArrayAsync();
+            await db.OpportunityMatches.Where(item => administratorRfqIds.Contains(item.RfqId)).ExecuteDeleteAsync();
             await db.Rfqs.Where(rfq => rfq.BuyerId == administrator.Id).ExecuteDeleteAsync();
             await db.BuyerProfiles.Where(profile => profile.Id == administrator.Id).ExecuteDeleteAsync();
             await users.DeleteAsync(administrator);
@@ -261,6 +272,8 @@ public sealed class SupplierDiscoveryEndpointTests : IClassFixture<WebApplicatio
     private sealed record ProjectTemplateResponse(Guid Id, Guid[] CategoryIds);
     private sealed record RfqResponse(Guid Id);
     private sealed record DiscoveryOpportunityResponse(Guid Id, Guid[] RequirementCategoryIds);
+    private sealed record DiscoveryNeedReviewResponse(OpportunityMatchResponse[] Candidates);
+    private sealed record OpportunityMatchResponse(Guid Id, Guid? CandidateId, string Status);
     private sealed record CandidateResponse(
         Guid Id,
         string Status,

@@ -19,6 +19,7 @@ Domain does not depend on AWS, OpenAI, SMS/email implementation, Angular, EF Cor
 - Cache only stable reference data such as categories/templates/service-area lookups. Do not cache active offers, workflows, permissions, claims, notification preferences or user-specific AI responses.
 - Company representation is resolved through active `CompanyMembership`, not a global active-company claim. This foundation is additive: `SupplierProfile` and its shared-key compatibility constraint remain unchanged until a concrete future requirement justifies a broader migration.
 - A provider notification is never addressed to a company ID. The application resolves its active CompanyMembership users in the same write operation and creates one personal notification per distinct recipient. Conversations use the same membership check for company-side access; message authors remain User IDs.
+- Supplier Discovery persists `OpportunityMatch` as an auditable, per-need relation to exactly one registered company or unregistered candidate. Registered provider matching remains authoritative; candidate relevance is deterministic from category compatibility and county, then requires a separate Administrator decision for that exact opportunity. The decision never sends contact automatically.
 
 ## AI contracts and observability
 

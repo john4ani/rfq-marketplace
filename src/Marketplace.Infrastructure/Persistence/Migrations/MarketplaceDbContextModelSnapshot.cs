@@ -945,6 +945,75 @@ namespace Marketplace.Infrastructure.Persistence.Migrations
                         });
                 });
 
+            modelBuilder.Entity("Marketplace.Domain.SupplierDiscovery.OpportunityMatch", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("AdminReviewNote")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
+                    b.Property<DateTimeOffset?>("AdminReviewedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("AdminReviewedBy")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("MatchReason")
+                        .IsRequired()
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
+                    b.Property<DateTimeOffset>("MatchedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("RfqId")
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("Source")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("integer");
+
+                    b.Property<Guid?>("SupplierCandidateId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid?>("SupplierProfileId")
+                        .HasColumnType("uuid");
+
+                    b.Property<uint>("Version")
+                        .IsConcurrencyToken()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("xid")
+                        .HasColumnName("xmin");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("AdminReviewedBy");
+
+                    b.HasIndex("SupplierProfileId");
+
+                    b.HasIndex("RfqId", "Status");
+
+                    b.HasIndex("RfqId", "SupplierCandidateId")
+                        .IsUnique()
+                        .HasFilter("\"SupplierCandidateId\" IS NOT NULL");
+
+                    b.HasIndex("RfqId", "SupplierProfileId")
+                        .IsUnique()
+                        .HasFilter("\"SupplierProfileId\" IS NOT NULL");
+
+                    b.HasIndex("SupplierCandidateId", "Status", "MatchedAt");
+
+                    b.ToTable("OpportunityMatches", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_OpportunityMatches_ExactlyOneTarget", "(\"SupplierProfileId\" IS NOT NULL) <> (\"SupplierCandidateId\" IS NOT NULL)");
+                        });
+                });
+
             modelBuilder.Entity("Marketplace.Domain.SupplierDiscovery.SupplierCandidate", b =>
                 {
                     b.Property<Guid>("Id")
@@ -2010,6 +2079,30 @@ namespace Marketplace.Infrastructure.Persistence.Migrations
                         .IsRequired();
 
                     b.Navigation("NeedCategory");
+                });
+
+            modelBuilder.Entity("Marketplace.Domain.SupplierDiscovery.OpportunityMatch", b =>
+                {
+                    b.HasOne("Marketplace.Infrastructure.Identity.ApplicationUser", null)
+                        .WithMany()
+                        .HasForeignKey("AdminReviewedBy")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("Marketplace.Domain.Rfqs.Rfq", null)
+                        .WithMany()
+                        .HasForeignKey("RfqId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Marketplace.Domain.SupplierDiscovery.SupplierCandidate", null)
+                        .WithMany()
+                        .HasForeignKey("SupplierCandidateId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("Marketplace.Domain.Profiles.SupplierProfile", null)
+                        .WithMany()
+                        .HasForeignKey("SupplierProfileId")
+                        .OnDelete(DeleteBehavior.Restrict);
                 });
 
             modelBuilder.Entity("Marketplace.Domain.SupplierDiscovery.SupplierCandidate", b =>

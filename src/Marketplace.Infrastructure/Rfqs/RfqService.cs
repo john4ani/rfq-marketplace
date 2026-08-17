@@ -5,6 +5,7 @@ using Marketplace.Application.Operations;
 using Marketplace.Domain.Offers;
 using Marketplace.Domain.Notifications;
 using Marketplace.Domain.Rfqs;
+using Marketplace.Domain.SupplierDiscovery;
 using Marketplace.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 
@@ -298,8 +299,6 @@ public sealed class RfqService(
             .Where(profile => profile.IsActive && profile.Id != rfq.BuyerId)
             .Select(profile => new { profile.Id, profile.County })
             .ToArrayAsync(cancellationToken);
-        if (suppliers.Length == 0) return;
-
         Guid[] supplierIds = suppliers.Select(supplier => supplier.Id).ToArray();
         var categoryRows = await dbContext.SupplierCategories.AsNoTracking()
             .Where(category => supplierIds.Contains(category.SupplierId))
@@ -321,6 +320,13 @@ public sealed class RfqService(
         Dictionary<Guid, Guid[]> categoriesBySupplier = categoryRows.GroupBy(category => category.SupplierId)
             .ToDictionary(group => group.Key, group => group.Select(category => category.CategoryId).ToArray());
         HashSet<Guid> requiredCategories = rfq.RequiredCategoryIds.ToHashSet();
+        HashSet<Guid> alreadyMatchedSupplierIds = (await dbContext.OpportunityMatches.AsNoTracking()
+            .Where(match => match.RfqId == rfq.Id && match.SupplierProfileId != null)
+            .Select(match => match.SupplierProfileId!.Value)
+            .ToArrayAsync(cancellationToken)).ToHashSet();
+        Dictionary<Guid, string> categoryNames = await dbContext.Categories.AsNoTracking()
+            .Where(category => requiredCategories.Contains(category.Id))
+            .ToDictionaryAsync(category => category.Id, category => category.Name, cancellationToken);
 
         foreach (var supplier in suppliers)
         {
@@ -333,6 +339,16 @@ public sealed class RfqService(
             if (ProviderCoveragePolicy.Decide(rfq.AllowSplit, requiredCategories, compatibleCategories) == ProviderCoverageMatch.None)
                 continue;
 
+            if (!alreadyMatchedSupplierIds.Contains(supplier.Id))
+            {
+                Guid matchingCategory = requiredCategories.First(compatibleCategories.Contains);
+                dbContext.OpportunityMatches.Add(OpportunityMatch.ForCompany(
+                    rfq.Id,
+                    supplier.Id,
+                    $"Categorie compatibilă: {categoryNames.GetValueOrDefault(matchingCategory, "categorie selectată")} · județ: {rfq.County}",
+                    now));
+            }
+
             foreach (Guid recipientId in await companyAuthorizationService.GetActiveMemberUserIdsAsync(supplier.Id, cancellationToken))
                 dbContext.Notifications.Add(Notification.Create(
                     recipientId,
@@ -342,6 +358,26 @@ public sealed class RfqService(
                     $"/opportunities/{rfq.Id}?companyId={supplier.Id}",
                     $"rfq:{rfq.Id}:published:{supplier.Id}:recipient:{recipientId}",
                     now));
+        }
+
+        var candidates = await dbContext.SupplierCandidates.AsNoTracking().Include(candidate => candidate.Categories)
+            .Where(candidate => candidate.Status != SupplierCandidateStatus.Claimed
+                && candidate.Status != SupplierCandidateStatus.Rejected
+                && candidate.County == rfq.County)
+            .ToArrayAsync(cancellationToken);
+        HashSet<Guid> alreadyMatchedCandidateIds = (await dbContext.OpportunityMatches.AsNoTracking()
+            .Where(match => match.RfqId == rfq.Id && match.SupplierCandidateId != null)
+            .Select(match => match.SupplierCandidateId!.Value)
+            .ToArrayAsync(cancellationToken)).ToHashSet();
+        foreach (SupplierCandidate candidate in candidates)
+        {
+            if (alreadyMatchedCandidateIds.Contains(candidate.Id)) continue;
+            HashSet<Guid> compatibleCategories = CategoryCompatibilityPolicy.Expand(candidate.CategoryIds, categoryParents);
+            Guid? matchingCategory = requiredCategories.FirstOrDefault(compatibleCategories.Contains);
+            if (!matchingCategory.HasValue || matchingCategory == Guid.Empty) continue;
+            dbContext.OpportunityMatches.Add(OpportunityMatch.ForCandidate(
+                rfq.Id, candidate.Id, OpportunityMatchSource.ExistingCandidateMatching,
+                $"Categorie compatibilă: {categoryNames.GetValueOrDefault(matchingCategory.Value, "categorie selectată")} · județ: {rfq.County}", now));
         }
     }
 

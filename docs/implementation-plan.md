@@ -65,6 +65,10 @@ Provider Easy Experience implementation uses explicit route-scoped company conte
 
 Task 6B closes the zero-company entry gap with one reusable **Adaugă firma** flow. It uses the current SupplierProfile save contract, which creates the active Owner CompanyMembership transactionally, and composes the existing supplier category and delivery-area settings before linking back to company opportunities. It adds no Supplier account/login, role switch, onboarding wizard, Trust redesign or parallel Claim Company flow.
 
+## Task 7A — Supplier Discovery v2 + OpportunityMatch + Admin Acquisition Intelligence
+
+Reuse the existing `SupplierCandidate` and claim/invitation compatibility flow. Add additive `OpportunityMatch` history for each published need and exactly one target (registered `SupplierProfile` company or candidate), with filtered database uniqueness per target type. Registered provider matching remains authoritative and is persisted for explanation; candidate matching is deterministic from central-category compatibility and county and starts `PendingReview`. An Administrator approves or rejects candidates per opportunity; approval makes a manual secured invitation eligible but never sends or contacts anyone automatically. Provide an Admin need-centric review screen and a company-centric unclaimed-candidate acquisition view with historical and active opportunity counts. Preserve General Procurement and Construction because both use the same central categories and matching semantics. No external web discovery, email/outreach, CRM, automatic contact, ranking automation or new taxonomy belongs to this task.
+
 ## Task 8 — Best Value comparison
 
 Decision-first comparison of total, coverage, delivery, condition, warranty, transport, trust, alternatives and explainable AI assistance—never cheapest-only.

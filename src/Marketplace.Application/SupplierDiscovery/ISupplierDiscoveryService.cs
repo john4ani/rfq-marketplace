@@ -27,6 +27,9 @@ public interface ISupplierDiscoveryService
         Guid companyId,
         string token,
         CancellationToken cancellationToken);
+    Task<DiscoveryNeedReview?> GetNeedReviewAsync(Guid rfqId, CancellationToken cancellationToken);
+    Task<IReadOnlyCollection<AcquisitionCandidate>> GetAcquisitionCandidatesAsync(string? county, Guid? categoryId, CancellationToken cancellationToken);
+    Task<OpportunityMatchView?> ReviewOpportunityMatchAsync(Guid administratorId, Guid matchId, bool approved, string? note, CancellationToken cancellationToken);
 }
 
 public sealed record SupplierCandidateInput(
@@ -80,6 +83,10 @@ public sealed record DiscoveryOpportunity(
     DateTimeOffset QuotationDeadline,
     Guid PrimaryCategoryId,
     IReadOnlyCollection<Guid> RequirementCategoryIds);
+
+public sealed record OpportunityMatchView(Guid Id, Guid RfqId, Guid? CompanyId, Guid? CandidateId, string CompanyName, string? City, string? County, string MatchReason, OpportunityMatchStatus Status, DateTimeOffset MatchedAt, string? ReviewNote, int RelevantOpportunityCount, int ActiveOpportunityCount, int ApprovedOpportunityCount, int RejectedOpportunityCount, DateTimeOffset? LastOpportunityAt, bool Claimed, int InvitationCount, int RecentOpportunityCount, string? ContactEmail, string? PhoneNumber, string? Website);
+public sealed record DiscoveryNeedReview(Guid RfqId, string Title, string DeliveryLocality, string County, DateTimeOffset QuotationDeadline, IReadOnlyCollection<OpportunityMatchView> RegisteredCompanies, IReadOnlyCollection<OpportunityMatchView> Candidates);
+public sealed record AcquisitionCandidate(Guid CandidateId, string CompanyName, string City, string County, IReadOnlyCollection<SupplierCandidateCategoryView> Categories, int RelevantOpportunityCount, int ActiveOpportunityCount, int ApprovedOpportunityCount, int RejectedOpportunityCount, DateTimeOffset? LastOpportunityAt, int InvitationCount, bool Claimed, int RecentOpportunityCount);
 
 public sealed record SupplierInvitationView(
     Guid InvitationId,

@@ -27,6 +27,25 @@ public sealed class SupplierDiscoveryController(
         Ok(await discoveryService.GetOpenOpportunitiesAsync(cancellationToken));
 
     [Authorize(Roles = MarketplaceRoles.Administrator)]
+    [HttpGet("admin/supplier-discovery/needs/{rfqId:guid}")]
+    public async Task<IActionResult> NeedReview(Guid rfqId, CancellationToken cancellationToken) =>
+        (await discoveryService.GetNeedReviewAsync(rfqId, cancellationToken)) is { } review ? Ok(review) : NotFound();
+
+    [Authorize(Roles = MarketplaceRoles.Administrator)]
+    [HttpGet("admin/supplier-discovery/acquisition")]
+    public async Task<IActionResult> Acquisition([FromQuery] string? county, [FromQuery] Guid? categoryId, CancellationToken cancellationToken) =>
+        Ok(await discoveryService.GetAcquisitionCandidatesAsync(county, categoryId, cancellationToken));
+
+    [Authorize(Roles = MarketplaceRoles.Administrator)]
+    [HttpPut("admin/supplier-discovery/opportunity-matches/{matchId:guid}/review")]
+    public async Task<IActionResult> ReviewMatch(Guid matchId, OpportunityMatchReviewRequest request, CancellationToken cancellationToken)
+    {
+        if (!CurrentUserId(out Guid administratorId)) return Unauthorized();
+        try { return (await discoveryService.ReviewOpportunityMatchAsync(administratorId, matchId, request.Approved, request.Note, cancellationToken)) is { } match ? Ok(match) : NotFound(); }
+        catch (SupplierDiscoveryRuleException exception) { return ValidationProblem(Errors("review", exception.Message)); }
+    }
+
+    [Authorize(Roles = MarketplaceRoles.Administrator)]
     [HttpPost("admin/supplier-candidates")]
     public async Task<IActionResult> Create(
         SupplierCandidateRequest request,
@@ -182,3 +201,4 @@ public sealed record SupplierCandidateRequest(
     [MaxLength(1000)] string? Notes);
 public sealed record SupplierCandidateReviewRequest(bool Approved, [Required, MinLength(5), MaxLength(1000)] string Notes);
 public sealed record SupplierInvitationRequest(Guid RfqId);
+public sealed record OpportunityMatchReviewRequest(bool Approved, [MaxLength(1000)] string? Note);
