@@ -20,6 +20,8 @@ public interface IOfferService
 public sealed record OfferSummary(
     Offer Offer,
     string RfqTitle,
+    string DeliveryLocality,
+    string County,
     DateTimeOffset QuotationDeadline,
     FulfillmentStatus FulfillmentStatus);
 public sealed record OfferCoverageDetails(

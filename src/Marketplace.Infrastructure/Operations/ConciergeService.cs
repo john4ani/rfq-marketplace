@@ -93,7 +93,7 @@ internal sealed class ConciergeService(
         dbContext.ConciergeMatchOverrides.Add(ConciergeMatchOverride.Create(rfqId, supplierId, administratorId, reason, now));
         await AddCompanyNotificationsAsync(supplierId, NotificationType.ConciergeManualMatch,
             "Oportunitate potrivită manual", "Un administrator a verificat că poți răspunde la această cerere.",
-            $"/open-requests/{rfqId}", $"concierge-match:{rfqId}:{supplierId}", now, cancellationToken);
+            $"/opportunities/{rfqId}?companyId={supplierId}", $"concierge-match:{rfqId}:{supplierId}", now, cancellationToken);
         productEvents.Record("ConciergeMatchOverrideCreated", "ProcurementNeed", rfqId, administratorId, $"SupplierId={supplierId}", now);
         await dbContext.SaveChangesAsync(cancellationToken);
     }
@@ -117,7 +117,7 @@ internal sealed class ConciergeService(
         DateTimeOffset now = timeProvider.GetUtcNow();
         await AddCompanyNotificationsAsync(offer.SupplierId, NotificationType.ConciergeOfferNormalizationRequested,
             "Te rugăm să clarifici oferta", $"Un administrator a cerut clarificarea ofertei: {CleanNote(note)}",
-            $"/open-requests/{offer.RfqId}", $"concierge-normalize:{offerId}:{now.ToUnixTimeMilliseconds()}", now, cancellationToken);
+            $"/opportunities/{offer.RfqId}?companyId={offer.SupplierId}", $"concierge-normalize:{offerId}:{now.ToUnixTimeMilliseconds()}", now, cancellationToken);
         productEvents.Record("ConciergeOfferNormalizationRequested", "Offer", offerId, administratorId, null, now);
         await dbContext.SaveChangesAsync(cancellationToken);
     }

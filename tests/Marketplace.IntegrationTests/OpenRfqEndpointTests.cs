@@ -77,7 +77,7 @@ public sealed class OpenRfqEndpointTests : IClassFixture<WebApplicationFactory<P
         Authorize(supplier.AccessToken);
         NotificationResponse[] notifications = (await _client.GetFromJsonAsync<NotificationResponse[]>("/api/v1/notifications"))!;
         Assert.Contains(notifications, notification => notification.Type == "RequestPublished"
-            && notification.Link == $"/open-requests/{notifiedRfq.Id}");
+            && notification.Link == $"/opportunities/{notifiedRfq.Id}?companyId={supplierId}");
     }
 
     [Fact]

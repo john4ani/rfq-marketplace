@@ -1,5 +1,6 @@
 import { CurrencyPipe } from '@angular/common';
 import { ChangeDetectionStrategy, Component, effect, inject, input, signal } from '@angular/core';
+import { RouterLink } from '@angular/router';
 import { FormsModule } from '@angular/forms';
 import { Offer, OfferDeliveryTerms, OfferDraft, OfferPricingMode, OfferService, OfferTaxTreatment } from '../../core/offers/offer.service';
 import { OpenRfq } from '../../core/rfqs/open-rfq.service';
@@ -8,19 +9,31 @@ import { unitLabel } from '../../shared/unit-label';
 
 @Component({
   selector: 'app-offer-editor',
-  imports: [FormsModule, CurrencyPipe],
+  imports: [FormsModule, CurrencyPipe, RouterLink],
   template: `
     <section class="offer-box">
       <header>
-        <div><p class="eyebrow">Oferta ta</p><h2>{{ offer() ? 'Actualizează oferta' : 'Trimite o ofertă' }}</h2></div>
+        <div><p class="eyebrow">Oferta ta</p><h2>{{ submittedResting() ? 'Oferta trimisă' : offer() ? 'Actualizează oferta' : 'Trimite o ofertă' }}</h2></div>
         @if (offer(); as currentOffer) { <span class="badge">{{ label(currentOffer.status) }}</span> }
       </header>
 
       @if (offer()?.status === 'Selected') { <p class="success">Oferta ta a fost selectată.</p> }
       @if (offer()?.status === 'NotSelected') { <p class="notice">Cumpărătorul a selectat o altă ofertă.</p> }
 
-      @if (editable()) {
-        @if (hasPricingModeChoice()) {
+      @if (submittedResting()) {
+        <section class="submitted-state" role="status">
+          <strong>Oferta a fost trimisă cumpărătorului.</strong>
+          <p>Cumpărătorul poate vedea acum oferta și detaliile comerciale.</p>
+          <div class="submitted-actions">
+            <a class="offer-success-link" [routerLink]="'/company/offers'" [queryParams]="companyId() ? { companyId: companyId() } : null">Vezi oferta</a>
+            <button type="button" class="secondary" (click)="editSubmittedOffer()">Modifică oferta</button>
+            <button type="button" class="danger" (click)="withdraw()" [disabled]="busy()">Retrage oferta</button>
+          </div>
+        </section>
+      } @else if (editable()) {
+        @if (!confirmingSubmission()) {
+        @if (request().items.length > 0 && hasPricingModeChoice()) { <fieldset class="coverage-choice"><legend>Ce poate furniza firma?</legend><div><button type="button" [class.selected-choice]="draft().pricingMode === 'Total'" (click)="setPricingMode('Total')">Pot oferi tot necesarul</button><button type="button" class="secondary" [class.selected-choice]="draft().pricingMode === 'Itemized'" (click)="startPartialOffer()">Pot oferi doar o parte</button></div></fieldset> }
+        @if (hasPricingModeChoice() && request().items.length === 0) {
           <fieldset class="pricing-mode">
             <legend>Cum vrei să prezinți prețul?</legend>
             <label [class.selected]="draft().pricingMode === 'Total'">
@@ -121,39 +134,57 @@ import { unitLabel } from '../../shared/unit-label';
         @if (message()) { <p class="success" role="status">{{ message() }}</p> }
         <div class="actions">
           <button class="secondary" (click)="save()" [disabled]="busy()">Salvează ciorna</button>
-          <button (click)="confirmingSubmission.set(true)" [disabled]="busy()">Verifică înainte de trimitere</button>
+          <button (click)="review()" [disabled]="busy()">Verifică oferta</button>
           @if (offer()?.status === 'Submitted' || offer()?.status === 'Revised') {
-            <button class="danger" (click)="withdraw()" [disabled]="busy()">Retrage</button>
+            <button class="danger" (click)="withdraw()" [disabled]="busy()">Retrage oferta</button>
           }
         </div>
-        @if (confirmingSubmission()) { <section class="submit-confirmation" role="group" aria-label="Confirmă trimiterea ofertei"><strong>Trimiți această ofertă cumpărătorului?</strong><span>Oferta poate fi actualizată cât timp cererea este deschisă.</span><div><button type="button" class="secondary" (click)="confirmingSubmission.set(false)">Mai verific</button><button type="button" (click)="submit()" [disabled]="busy()">{{ busy() ? 'Se trimite…' : 'Trimite oferta' }}</button></div></section> }
+        } @else {
+          <section class="review-state" role="region" aria-label="Verifică oferta">
+            <p class="eyebrow">Înainte de trimitere</p>
+            <h3>Verifică oferta</h3>
+            <dl>
+              <div><dt>Acoperire</dt><dd>{{ coverage() === 'Full' ? 'Întregul necesar' : 'O parte din necesar' }}</dd></div>
+              <div><dt>Total</dt><dd>{{ total() | currency:'RON':'symbol-narrow':'1.2-2':'ro' }}</dd></div>
+              <div><dt>Livrare</dt><dd>{{ draft().deliveryDays }} zile</dd></div>
+              <div><dt>Valabilitate</dt><dd>{{ draft().validUntil }}</dd></div>
+              <div><dt>Disponibilitate</dt><dd>{{ availabilitySummary() }}</dd></div>
+            </dl>
+            @if (draft().notes) { <div class="review-note"><strong>Mesaj pentru cumpărător</strong><p>{{ draft().notes }}</p></div> }
+            @if (error()) { <p class="error" role="alert">{{ error() }}</p> }
+            <div class="review-actions"><button type="button" class="secondary" (click)="confirmingSubmission.set(false)">Modifică</button><button type="button" (click)="submit()" [disabled]="busy()">{{ busy() ? 'Se trimite…' : 'Trimite oferta' }}</button></div>
+          </section>
+        }
       }
     </section>`,
   styles: [`
     :host{display:block;min-width:0;margin-top:2rem;container-type:inline-size}.offer-box{min-width:0;background:#fff;border:1px solid #dfe5e1;border-radius:18px;padding:1.25rem}
     header,.actions,.total{display:flex;justify-content:space-between;gap:1rem;align-items:center}.badge{background:#e9f4ec;color:#185c32;padding:.4rem .7rem;border-radius:99px}
-    .pricing-mode{display:grid;grid-template-columns:minmax(0,1fr);gap:.75rem;margin:1rem 0;padding:0;border:0}.pricing-mode legend{grid-column:1/-1;font-weight:800;margin-bottom:.25rem}
+    .coverage-choice,.pricing-mode{display:grid;grid-template-columns:minmax(0,1fr);gap:.75rem;margin:1rem 0;padding:0;border:0}.coverage-choice legend,.pricing-mode legend{grid-column:1/-1;font-weight:800;margin-bottom:.25rem}.coverage-choice div{display:flex;flex-wrap:wrap;gap:.5rem}.coverage-choice button.selected-choice{outline:3px solid #b8d7c2}
     .pricing-mode label{display:flex;align-items:flex-start;gap:.65rem;padding:1rem;border:1px solid #d6dfda;border-radius:12px;background:#fff;cursor:pointer}
     .pricing-mode label.selected{border-color:#176b3a;background:#edf7f1}.pricing-mode label.unavailable{cursor:not-allowed;opacity:.62}.pricing-mode input{width:auto;margin-top:.2rem}.pricing-mode span{display:grid;gap:.25rem}.pricing-mode small{color:#56645d}
     .quick-quote{display:grid;grid-template-columns:minmax(0,1fr);gap:1rem;align-items:end;margin:1rem 0;padding:1rem;background:#f3f8f5;border-radius:12px}.quick-quote p{margin:0}
     .lines{display:grid;gap:.75rem;margin:1rem 0}.line{display:grid;grid-template-columns:minmax(0,1fr);gap:.75rem;align-items:end;padding:1rem;background:#f7faf8;border-radius:12px}.line small{display:block}.line-total{margin-top:.35rem;color:#185c32;font-weight:800}
     .terms,.commercial-grid{display:grid;grid-template-columns:minmax(0,1fr);gap:.75rem;margin:1rem 0}label{min-width:0;display:grid;gap:.35rem;font-size:.88rem}input,select,textarea{box-sizing:border-box;min-width:0;width:100%;padding:.7rem;border:1px solid #bdc9c1;border-radius:8px;background:#fff}
     .available{display:flex;align-items:center}.available input{width:auto}.description{grid-column:1/-1}.excluded{color:#7a4b16}.coverage{display:flex;justify-content:space-between;gap:.75rem;padding:.8rem 1rem;border-radius:.7rem;color:#185c32;background:#e9f4ec}.coverage.partial{color:#704d0d;background:#fff6dc}.total{margin:1rem 0;padding-top:1rem;border-top:1px solid #ddd}.total span{display:grid}.total small{color:#56645d;font-weight:500}.actions{justify-content:flex-end;flex-wrap:wrap}
-    button{border:0;border-radius:9px;padding:.75rem 1rem;background:#176b3a;color:white;font-weight:700}.secondary{background:#eaf1ec;color:#16462b}.danger{background:#a93838}.error{color:#a32626}.success{color:#176b3a}.submit-confirmation{display:grid;gap:.5rem;margin-top:1rem;padding:1rem;border:1px solid #d6a84c;border-radius:.75rem;background:#fff9e9}.submit-confirmation span{color:#655b42;font-size:.88rem}.submit-confirmation div{display:flex;justify-content:flex-end;gap:.5rem}
+    button,.offer-success-link{border:0;border-radius:9px;padding:.75rem 1rem;background:#176b3a;color:white;font-weight:700;text-align:center;text-decoration:none}.secondary{background:#eaf1ec;color:#16462b}.danger{background:#a93838}.error{color:#a32626}.success{color:#176b3a}
+    .submitted-state,.review-state{display:grid;gap:1rem;margin-top:1rem;padding:1.2rem;border:1px solid #cfe1d6;border-radius:.85rem;background:#f3f8f5}.submitted-state>strong{color:#176b3a;font-size:1.05rem}.submitted-state p,.review-note p{margin:0;color:#526158;line-height:1.55}.submitted-actions,.review-actions{display:flex;justify-content:flex-end;flex-wrap:wrap;gap:.6rem}.review-state h3{margin:0}.review-state dl{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:.7rem;margin:0}.review-state dl div{padding:.8rem;border-radius:.65rem;background:#fff}.review-state dt{color:#617068;font-size:.78rem}.review-state dd{margin:.2rem 0 0;font-weight:800}.review-note{display:grid;gap:.35rem;padding:.85rem;border-left:3px solid #d6a84c;background:#fff}
     @container (min-width:34rem){.pricing-mode,.quick-quote{grid-template-columns:repeat(2,minmax(0,1fr))}.line{grid-template-columns:repeat(2,minmax(0,1fr))}.line>div{grid-column:1/-1}.terms,.commercial-grid{grid-template-columns:repeat(3,minmax(0,1fr))}}
     @container (min-width:50rem){.line{grid-template-columns:minmax(180px,1fr) 140px 150px 110px}.line>div{grid-column:auto}}
-    @media(max-width:460px){.actions{align-items:stretch;flex-direction:column}.actions button{width:100%}}
+    @media(max-width:460px){.actions,.submitted-actions,.review-actions{align-items:stretch;flex-direction:column}.actions button,.submitted-actions>*,.review-actions button{width:100%;box-sizing:border-box}.review-state dl{grid-template-columns:1fr}}
   `],
   changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class OfferEditorComponent {
   readonly request = input.required<OpenRfq>();
+  readonly companyId = input('');
   private readonly service = inject(OfferService);
   readonly offer = signal<Offer | null>(null);
   readonly busy = signal(false);
   readonly error = signal('');
   readonly message = signal('');
   readonly confirmingSubmission = signal(false);
+  readonly editing = signal(true);
   readonly unitLabel = unitLabel;
   readonly draft = signal<OfferDraft>({
     pricingMode: 'Total',
@@ -171,6 +202,7 @@ export class OfferEditorComponent {
     deliveryTerms: 'IncludedInPrice'
   });
   private initialized = false;
+  private lastTotalPrice: number | null = null;
 
   constructor() {
     effect(() => {
@@ -185,11 +217,13 @@ export class OfferEditorComponent {
         deliveryTerms: request.isPartialMatch ? 'AddedToTotal' : 'IncludedInPrice',
         items: this.requestItems()
       }));
-      this.service.getForRequest(request.id).subscribe(value => {
+      this.service.getForRequest(request.id, this.companyId()).subscribe(value => {
         if (!value) return;
         const normalizeSimpleOffer = this.mustUseTotalPricing(request)
           && value.pricingMode === 'Itemized';
         this.offer.set(value);
+        this.editing.set(!['Submitted', 'Revised'].includes(value.status));
+        this.lastTotalPrice = normalizeSimpleOffer ? value.total : value.totalPrice;
         this.draft.set({
           pricingMode: normalizeSimpleOffer ? 'Total' : value.pricingMode,
           totalPrice: normalizeSimpleOffer ? value.total : value.totalPrice,
@@ -213,17 +247,40 @@ export class OfferEditorComponent {
     return !['Withdrawn', 'Selected', 'NotSelected'].includes(this.offer()?.status ?? '');
   }
 
+  submittedResting(): boolean {
+    return ['Submitted', 'Revised'].includes(this.offer()?.status ?? '') && !this.editing();
+  }
+
+  editSubmittedOffer(): void {
+    this.editing.set(true);
+    this.confirmingSubmission.set(false);
+    this.error.set('');
+    this.message.set('');
+  }
+
   setPricingMode(mode: OfferPricingMode): void {
     if (mode === 'Itemized' && this.mustUseTotalPricing()) return;
+    const current = this.draft();
+    if (mode === 'Itemized' && current.pricingMode === 'Total') this.lastTotalPrice = current.totalPrice;
     this.draft.update(value => ({
       ...value,
       pricingMode: mode,
-      totalPrice: mode === 'Total' ? value.totalPrice : null,
+      totalPrice: mode === 'Total' ? (value.totalPrice ?? this.lastTotalPrice) : null,
       coverage: mode === 'Total' ? 'Full' : value.coverage,
       deliveryTerms: mode === 'Total' ? 'IncludedInPrice' : value.deliveryTerms,
       deliveryIncluded: mode === 'Total' || value.deliveryTerms === 'AddedToTotal',
       deliveryCost: mode === 'Total' ? 0 : value.deliveryCost,
       items: mode === 'Itemized' && value.items.length === 0 ? this.requestItems() : value.items
+    }));
+  }
+
+  startPartialOffer(): void {
+    if (this.request().isPartialMatch) { this.setPricingMode('Itemized'); return; }
+    this.setPricingMode('Itemized');
+    this.draft.update(value => ({
+      ...value,
+      coverage: 'Partial',
+      items: value.items.map(item => ({ ...item, available: false, unitPrice: 0, productDescription: null }))
     }));
   }
 
@@ -254,6 +311,28 @@ export class OfferEditorComponent {
   coverage(): 'Full' | 'Partial' {
     if (this.request().isPartialMatch) return 'Partial';
     return this.draft().pricingMode === 'Total' || this.coveredCount() === this.request().items.length ? 'Full' : 'Partial';
+  }
+
+  availabilitySummary(): string {
+    if (this.draft().pricingMode === 'Total') return 'Disponibilitate: confirmată pentru întreaga cerere.';
+    const available = this.draft().items.filter(item => item.available).length;
+    return `Disponibilitate: ${available} din ${this.draft().items.length} poziții.`;
+  }
+
+  review(): void {
+    this.error.set('');
+    const value = this.draft();
+    if (value.pricingMode === 'Total' && (!value.totalPrice || value.totalPrice <= 0)) {
+      this.error.set('Introdu prețul total al ofertei înainte de verificare.');
+      return;
+    }
+    const availableItems = value.items.filter(item => item.available);
+    if (value.pricingMode === 'Itemized' && (availableItems.length === 0
+      || availableItems.some(item => item.quantity <= 0 || item.unitPrice <= 0))) {
+      this.error.set('Pentru fiecare poziție disponibilă, completează cantitatea și un preț unitar mai mare decât zero.');
+      return;
+    }
+    this.confirmingSubmission.set(true);
   }
 
   total(): number {
@@ -301,7 +380,7 @@ export class OfferEditorComponent {
       coverage: this.coverage(),
       items: value.pricingMode === 'Total' ? [] : value.items
     };
-    this.service.save(this.request().id, payload).subscribe({
+    this.service.save(this.request().id, payload, this.companyId()).subscribe({
       next: offer => {
         this.offer.set(offer);
         this.busy.set(false);
@@ -319,9 +398,10 @@ export class OfferEditorComponent {
     if (this.busy()) return;
     this.save(() => {
       this.busy.set(true);
-      this.service.submit(this.request().id).subscribe({
+      this.service.submit(this.request().id, this.companyId()).subscribe({
         next: offer => {
           this.offer.set(offer);
+          this.editing.set(false);
           this.confirmingSubmission.set(false);
           this.busy.set(false);
           this.message.set('Oferta a fost trimisă cumpărătorului.');
@@ -338,7 +418,7 @@ export class OfferEditorComponent {
     const offer = this.offer();
     if (!offer || !confirm('Retragi această ofertă?')) return;
     this.busy.set(true);
-    this.service.withdraw(offer.id).subscribe({
+    this.service.withdraw(offer.id, this.companyId()).subscribe({
       next: value => {
         this.offer.set(value);
         this.busy.set(false);

@@ -27,6 +27,10 @@ After successful registration, the user is asked to sign in and returns to a saf
 
 Provider Home begins with relevant opportunities, not KPIs. Request detail immediately answers what is needed, where, when and what to complete, with `Trimite ofertă`, partial response, and decline actions. Claim follows opportunity → claim/confirm company → verify account/contact → offer with minimum friction.
 
+Provider work is always contextual to a represented company. One active company may be resolved for the current workflow; with multiple companies, CompaSpot asks which company should see opportunities and never stores a global active-company mode. Opportunity and offer screens use plain Romanian, preserve company context in their routes, and show useful loading, empty, error and submitted states.
+
+A User with no represented company is never left in a selling dead end. Account, Home and Opportunities expose the same **Adaugă firma** entry. The compact flow captures required company identity/contact and one-or-more **Categorii de produse** in the same initial form, then continues to delivery-area settings with an explicit return to company opportunities. Company location is labelled **Localitate**, not city, and accepts a village, commune, town or municipality; county is separate. Optional company data is progressively disclosed. Company registration remains distinct from Claim Company, which preserves a Supplier Discovery invitation and its original opportunity.
+
 ## Offers and integrity
 
 Comparison emphasises total, coverage, delivery, condition, warranty, transport and trust. It does not label the cheapest offer as best without an explanation. Avoid fake urgency, scarcity, hidden ranking, misleading AI, referral spam, or manipulative prompts.

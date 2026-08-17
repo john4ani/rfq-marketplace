@@ -24,7 +24,7 @@
         }
       </section>
     }@else if(item.claimed){
-      <section class="claimed" role="status"><strong>Firma este asociată contului de furnizor.</strong><span>Completează categoriile și zona de livrare pentru a putea răspunde cererilor potrivite.</span><a routerLink="/dashboard" [queryParams]="{section:'settings'}">Completează profilul de furnizor →</a></section>
+      <section class="claimed" role="status"><strong>Firma este asociată contului tău.</strong><span>Deschide cererea care a generat invitația pentru a pregăti oferta.</span><a [routerLink]="['/opportunities', item.rfqId]">Vezi oportunitatea →</a></section>
     }
   }
 </section>

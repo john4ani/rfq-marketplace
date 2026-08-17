@@ -1,7 +1,8 @@
 import { CurrencyPipe, DatePipe } from '@angular/common';
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
-import { RouterLink } from '@angular/router';
+import { ActivatedRoute, RouterLink } from '@angular/router';
 import { OfferService, OfferStatus, OfferSummary } from '../../core/offers/offer.service';
+import { ProfileService } from '../../core/profiles/profile.service';
 
 type OfferFilter = 'All' | 'Active' | 'Selected' | 'NotSelected' | 'Draft' | 'Withdrawn';
 
@@ -10,7 +11,7 @@ type OfferFilter = 'All' | 'Active' | 'Selected' | 'NotSelected' | 'Draft' | 'Wi
   imports: [RouterLink, CurrencyPipe, DatePipe],
   template: `<section class="offers-card">
     <header>
-      <div><p class="eyebrow">Furnizor</p><h2>Ofertele mele</h2>
+      <div><p class="eyebrow">Firma ta</p><h2>Ofertele {{ companyName() || 'firmei' }}</h2>
         <p>Urmărește răspunsurile trimise și decizia cumpărătorului.</p></div>
       <span class="count">{{ offers().length }} în total</span>
     </header>
@@ -22,7 +23,7 @@ type OfferFilter = 'All' | 'Active' | 'Selected' | 'NotSelected' | 'Draft' | 'Wi
     } @else if (offers().length === 0) {
       <div class="empty"><span aria-hidden="true">↗</span><div><strong>Nu ai trimis încă nicio ofertă.</strong>
         <small>Explorează cererile potrivite și răspunde oportunităților relevante.</small></div>
-        <a routerLink="/open-requests">Vezi cererile deschise</a></div>
+        <a [routerLink]="'/opportunities'" [queryParams]="companyId ? { companyId } : null">Vezi oportunitățile</a></div>
     } @else {
       <nav class="filters" aria-label="Filtre oferte">
         @for (option of filterOptions; track option.value) {
@@ -38,11 +39,12 @@ type OfferFilter = 'All' | 'Active' | 'Selected' | 'NotSelected' | 'Draft' | 'Wi
             <div class="offer-main"><span class="status" [class]="offer.status.toLowerCase()">{{ statusLabel(offer.status) }}</span>
               <span class="status coverage">{{ offer.coverage === 'Full' ? 'Completă' : 'Parțială' }}</span>
               <h3>{{ offer.rfqTitle }}</h3>
+              <p>{{ offer.deliveryLocality }}, {{ offer.county }}</p>
               <p>Actualizată {{ offer.updatedAt | date:'dd.MM.yyyy, HH:mm' }}</p></div>
             <div class="offer-value"><small>{{ offer.hasComparableTotal ? 'Total de plată' : 'Total incomplet' }}</small><strong>{{ offer.total | currency:'RON':'symbol-narrow':'1.2-2':'ro' }}</strong></div>
             <div class="offer-deadline"><small>Termen cerere</small><strong>{{ offer.quotationDeadline | date:'dd.MM.yyyy, HH:mm' }}</strong></div>
             <div class="offer-actions">
-              <a [routerLink]="['/open-requests', offer.rfqId]">{{ actionLabel(offer.status) }} →</a>
+              <a [routerLink]="['/opportunities', offer.rfqId]" [queryParams]="companyId ? { companyId } : null">{{ actionLabel(offer.status) }} →</a>
               @if (offer.status !== 'Draft') {
                 <a class="message-link" [routerLink]="['/offers', offer.id, 'conversation']">Mesaje</a>
               }
@@ -71,7 +73,10 @@ type OfferFilter = 'All' | 'Active' | 'Selected' | 'NotSelected' | 'Draft' | 'Wi
 })
 export class SupplierOfferListComponent {
   private readonly service = inject(OfferService);
+  private readonly profiles = inject(ProfileService);
+  readonly companyId = inject(ActivatedRoute).snapshot.queryParamMap.get('companyId') ?? '';
   readonly offers = signal<OfferSummary[]>([]);
+  readonly companyName = signal('');
   readonly loading = signal(true);
   readonly error = signal('');
   readonly deliveryBusy = signal(false);
@@ -92,12 +97,17 @@ export class SupplierOfferListComponent {
       : offer.status === filter));
   });
 
-  constructor() { this.load(); }
+  constructor() {
+    this.profiles.getMyCompanies().subscribe({
+      next: companies => this.companyName.set(companies.find(company => company.id === this.companyId)?.name ?? (companies.length === 1 ? companies[0].name : ''))
+    });
+    this.load();
+  }
 
   load(): void {
     this.loading.set(true);
     this.error.set('');
-    this.service.getMine().subscribe({
+    this.service.getMine(this.companyId).subscribe({
       next: offers => { this.offers.set(offers); this.loading.set(false); },
       error: () => { this.loading.set(false); this.error.set('Ofertele nu au putut fi încărcate. Încearcă din nou.'); }
     });
@@ -113,11 +123,11 @@ export class SupplierOfferListComponent {
   statusLabel(status: OfferStatus): string {
     return ({
       Draft: 'Ciornă',
-      Submitted: 'Trimisă',
-      Revised: 'Revizuită',
-      Withdrawn: 'Retrasă',
-      Selected: 'Acceptată',
-      NotSelected: 'Neselectată'
+      Submitted: 'Așteptăm răspunsul cumpărătorului',
+      Revised: 'Așteptăm răspunsul cumpărătorului',
+      Withdrawn: 'Oferta a fost retrasă',
+      Selected: 'Oferta ta a fost selectată',
+      NotSelected: 'Cererea s-a încheiat cu altă ofertă'
     })[status];
   }
 
@@ -138,7 +148,7 @@ export class SupplierOfferListComponent {
     if (this.deliveryBusy()) return;
     this.deliveryBusy.set(true);
     this.error.set('');
-    this.service.reportDelivered(offer.rfqId).subscribe({
+    this.service.reportDelivered(offer.rfqId, this.companyId).subscribe({
       next: () => {
         this.offers.update(items => items.map(item => item.id === offer.id
           ? { ...item, fulfillmentStatus: 'DeliveryReported' }

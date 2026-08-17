@@ -1,12 +1,11 @@
-import { ChangeDetectionStrategy, Component, computed, inject } from '@angular/core';
+import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/core';
 import { Router, RouterLink } from '@angular/router';
 import { FormsModule } from '@angular/forms';
-import { AuthService } from '../../core/auth/auth.service';
-import { SupplierOfferListComponent } from '../offers/supplier-offer-list.component';
+import { ProfileService, RepresentedCompany } from '../../core/profiles/profile.service';
 
 @Component({
   selector: 'app-dashboard',
-  imports: [RouterLink, FormsModule, SupplierOfferListComponent],
+  imports: [RouterLink, FormsModule],
   template: `<section class="need-starter" aria-labelledby="need-starter-title">
       <header><h1 id="need-starter-title">De ce ai nevoie?</h1>
         <p>Descrie ce cauți. Te ajutăm să găsești furnizori relevanți și să compari ofertele.</p></header>
@@ -18,38 +17,42 @@ import { SupplierOfferListComponent } from '../offers/supplier-offer-list.compon
       </section>
       <section class="construction-entry"><div><h2>Am un proiect de construcții</h2><p>Te ajutăm să structurezi proiectul și achizițiile necesare.</p></div><a routerLink="/rfqs/new/advanced" [queryParams]="{entryMode:'construction'}">Începe proiectul</a></section>
     </section>
-    @if(!isBuyer()) {
-      <section class="supplier-intro">
-        <div><p class="eyebrow">Spațiul furnizorului</p><h1>Transformă cererile potrivite în colaborări.</h1>
-          <p>Vezi oportunitățile relevante, răspunde simplu și urmărește fiecare ofertă dintr-un singur loc.</p></div>
-        <a routerLink="/open-requests">Explorează cererile <span aria-hidden="true">→</span></a>
-      </section>
-    }
 
-  <section class="dashboard-content">
-      @if(!isBuyer()){<div class="quick-actions">
-          <a class="action-card primary" routerLink="/open-requests"><span>↗</span><div><strong>Vezi cererile potrivite</strong><small>Răspunde rapid oportunităților relevante.</small></div><b aria-hidden="true">›</b></a>
-          <a class="action-card" routerLink="/account"><span>✓</span><div><strong>Verifică preferințele</strong><small>Categoriile și zonele influențează potrivirile.</small></div><b aria-hidden="true">›</b></a>
-      </div>}
-      @if(auth.profiles().some(profile => profile.accountType === 'Supplier')){
-        <div id="supplier-offers"><app-supplier-offer-list /></div>
-        <section class="activity-card"><div><p class="eyebrow">Următorul pas</p><h2>Ține profilul relevant pentru potriviri mai bune</h2>
-          <p>Categoriile și zonele de livrare determină cererile pe care le vezi. Semnalele verificate ajută cumpărătorii să decidă cu încredere.</p></div>
-          <a routerLink="/account" class="secondary-action">Verifică profilul și preferințele</a></section>
-      }
-  </section>`,
+    @if(companyLoading()) {
+      <section class="supplier-intro" role="status"><div><p class="eyebrow">Firma ta</p><h2>Încărcăm contextul firmei…</h2></div></section>
+    } @else if(companyLoadError()) {
+      <section class="supplier-intro" role="alert"><div><p class="eyebrow">Firma ta</p><h2>Contextul firmei nu este disponibil momentan.</h2><p>Poți continua să cumperi și poți reîncerca din Cont.</p></div><a routerLink="/account">Deschide contul <span aria-hidden="true">→</span></a></section>
+    } @else if(companies().length === 1) {
+      <section class="supplier-intro">
+        <div><p class="eyebrow">Firma ta</p><h2>Oportunități pentru {{ companies()[0].name }}</h2><p>Vezi cererile potrivite și urmărește ofertele trimise de firmă.</p></div>
+        <div class="supplier-links"><a [routerLink]="'/opportunities'" [queryParams]="{ companyId: companies()[0].id }">Vezi oportunitățile <span aria-hidden="true">→</span></a>
+          <a class="secondary-action" [routerLink]="'/company/offers'" [queryParams]="{ companyId: companies()[0].id }">Ofertele firmei</a></div>
+      </section>
+    } @else if (companies().length > 1) {
+      <section class="supplier-intro"><div><p class="eyebrow">Firmele tale</p><h2>Alege firma pentru oportunități</h2><p>Contextul firmei se alege doar când ai nevoie de el.</p></div><a routerLink="/account">Alege firma <span aria-hidden="true">→</span></a></section>
+    } @else {
+      <section class="supplier-intro"><div><p class="eyebrow">Vrei să vinzi prin CompaSpot?</p><h2>Adaugă firma</h2><p>Înregistrează datele esențiale, ce oferă firma și zona în care lucrează. Contul tău personal rămâne disponibil pentru achiziții.</p></div><a routerLink="/account/company/new">Adaugă firma <span aria-hidden="true">→</span></a></section>
+    }`,
   styleUrl: './dashboard.component.scss',
   changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class DashboardComponent {
-  readonly auth = inject(AuthService);
   private readonly router = inject(Router);
-  readonly isBuyer = computed(() => this.auth.isAuthenticated());
+  private readonly profiles = inject(ProfileService);
+  readonly companies = signal<RepresentedCompany[]>([]);
+  readonly companyLoading = signal(true);
+  readonly companyLoadError = signal(false);
   needText = '';
+
+  constructor() {
+    this.profiles.getMyCompanies().subscribe({
+      next: companies => { this.companies.set(companies); this.companyLoading.set(false); },
+      error: () => { this.companyLoadError.set(true); this.companyLoading.set(false); }
+    });
+  }
 
   startNeed(): void {
     const description = this.needText.trim();
     void this.router.navigate(['/rfqs/new'], { queryParams: description ? { description } : undefined });
   }
-
 }

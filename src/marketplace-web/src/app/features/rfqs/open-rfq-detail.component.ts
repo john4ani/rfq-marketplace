@@ -10,14 +10,14 @@ import { TrustFactsComponent } from '../profiles/trust-facts.component';
   selector: 'app-open-rfq-detail',
   imports: [RouterLink, DatePipe, OfferEditorComponent, TrustFactsComponent],
   template: `<section class="detail-shell">
-    <a class="back" routerLink="/open-requests">← Cereri deschise</a>
+    <a class="back" routerLink="/opportunities" [queryParams]="companyId ? { companyId } : null">← Oportunități</a>
     @if (loading()) {
-      <div class="loading" role="status"><span></span><span></span><span></span></div>
+      <div class="loading" role="status"><strong>Încărcăm oportunitatea…</strong><span></span><span></span></div>
     } @else if (error()) {
-      <section class="error" role="alert"><div><strong>Cererea nu este disponibilă momentan.</strong><span>{{ error() }}</span></div><div class="error-actions"><a routerLink="/open-requests">Înapoi la cereri</a>@if (notRelevant()) { <a routerLink="/account">Verifică preferințele firmei</a> }<button type="button" (click)="load()">Încearcă din nou</button></div></section>
+      <section class="error" role="alert"><div><strong>Cererea nu este disponibilă momentan.</strong><span>{{ error() }}</span></div><div class="error-actions"><a routerLink="/opportunities" [queryParams]="companyId ? { companyId } : null">Înapoi la oportunități</a>@if (notRelevant()) { <a [routerLink]="companySettingsLink">Verifică preferințele firmei</a> }<button type="button" (click)="load()">Încearcă din nou</button></div></section>
     } @else if (request(); as rfq) {
       <header><div><p class="eyebrow">{{ rfq.isPartialMatch ? 'Partea relevantă pentru specializarea ta' : rfq.categoryName }}</p><h1>{{ rfq.title }}</h1>
-        <p>{{ rfq.projectName || 'Cerere publicată în Piața Live' }}</p></div>
+        <p>{{ rfq.projectName || 'Cerere activă' }}</p></div>
         <div class="deadline"><small>Termen pentru ofertă</small><strong>{{ rfq.quotationDeadline | date:'dd.MM.yyyy, HH:mm' }}</strong></div></header>
       <section class="summary">
         <div><small>Cumpărător</small><strong>{{ rfq.buyerDisplayName }}</strong></div>
@@ -29,7 +29,6 @@ import { TrustFactsComponent } from '../profiles/trust-facts.component';
         <p>{{ rfq.isPartialMatch ? 'Vezi numai pozițiile din categoriile pe care le acoperi.' : 'Categoria și zona de livrare corespund preferințelor tale.' }}</p></div></section>
       <div class="detail-layout">
         <div class="request-column">
-          <section class="panel trust-panel"><div><p class="panel-label">Încredere</p><h2>Despre cumpărător</h2></div><app-trust-facts [facts]="rfq.buyerTrustFacts" role="Buyer" /></section>
           @if (rfq.description) { <section class="panel"><p class="panel-label">Context</p><h2>Descrierea cererii</h2><p>{{ rfq.description }}</p></section> }
           <section class="panel"><p class="panel-label">Necesar</p><h2>{{rfq.isPartialMatch?'Pozițiile potrivite pentru tine':'Poziții solicitate'}}</h2>
             @if(rfq.isPartialMatch){<p class="match-note">Proiectul a fost împărțit deoarece nu există momentan un furnizor eligibil care să acopere toate categoriile.</p>}
@@ -40,8 +39,9 @@ import { TrustFactsComponent } from '../profiles/trust-facts.component';
                 <span>{{ item.quantity }} {{ unitLabel(item.unit) }}</span></article>
             }
           </section>
+          <section class="panel trust-panel"><div><p class="panel-label">Încredere</p><h2>Despre cumpărător</h2></div><app-trust-facts [facts]="rfq.buyerTrustFacts" role="Buyer" /></section>
         </div>
-        <aside class="offer-column"><div class="offer-guidance"><span aria-hidden="true">i</span><p><strong>Răspunde simplu și clar.</strong> Poți salva o ciornă și reveni înainte de termen.</p></div><app-offer-editor [request]="rfq" /></aside>
+        <aside class="offer-column"><div class="offer-guidance"><span aria-hidden="true">i</span><p><strong>Răspunde simplu și clar.</strong> Poți salva o ciornă și reveni înainte de termen.</p></div><app-offer-editor [request]="rfq" [companyId]="companyId" /></aside>
       </div>
     }
   </section>`,
@@ -56,6 +56,8 @@ export class OpenRfqDetailComponent {
   readonly notRelevant = signal(false);
   readonly unitLabel = unitLabel;
   private readonly requestId = inject(ActivatedRoute).snapshot.paramMap.get('rfqId') ?? '';
+  readonly companyId = inject(ActivatedRoute).snapshot.queryParamMap.get('companyId') ?? '';
+  readonly companySettingsLink = this.companyId ? ['/account/company', this.companyId] : ['/account'];
 
   constructor() {
     this.load();
@@ -66,7 +68,7 @@ export class OpenRfqDetailComponent {
     this.error.set('');
     this.notRelevant.set(false);
     this.request.set(null);
-    this.service.get(this.requestId).subscribe({
+    this.service.get(this.requestId, this.companyId).subscribe({
       next: value => { this.request.set(value); this.loading.set(false); },
       error: error => {
         this.loading.set(false);

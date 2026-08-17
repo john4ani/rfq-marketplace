@@ -148,7 +148,7 @@ public sealed class OfferEndpointTests : IClassFixture<WebApplicationFactory<Pro
         _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", supplierLogin.AccessToken);
         notifications = (await _client.GetFromJsonAsync<NotificationResponse[]>("/api/v1/notifications"))!;
         NotificationResponse reopenedNotification = Assert.Single(
-            notifications, item => item.Type == "RequestReopened" && item.Link == $"/open-requests/{rfq.Id}");
+            notifications, item => item.Type == "RequestReopened" && item.Link == $"/opportunities/{rfq.Id}?companyId={supplierId}");
         Assert.Contains(reopenReason, reopenedNotification.Message);
         _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", supplierLogin.AccessToken);
 
@@ -191,7 +191,7 @@ public sealed class OfferEndpointTests : IClassFixture<WebApplicationFactory<Pro
         Assert.Equal("Delivered", delivered.FulfillmentStatus);
         _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", supplierLogin.AccessToken);
         notifications = (await _client.GetFromJsonAsync<NotificationResponse[]>("/api/v1/notifications"))!;
-        Assert.Single(notifications, item => item.Type == "DeliveryConfirmed" && item.Link == $"/open-requests/{rfq.Id}");
+        Assert.Single(notifications, item => item.Type == "DeliveryConfirmed" && item.Link == $"/opportunities/{rfq.Id}?companyId={supplierId}");
 
         _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", buyerLogin.AccessToken);
         HttpResponseMessage generalCreated = await _client.PostAsJsonAsync("/api/v1/rfqs", new {

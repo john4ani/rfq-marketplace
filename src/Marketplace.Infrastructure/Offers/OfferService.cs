@@ -27,10 +27,10 @@ public sealed class OfferService(
         var rows = await dbContext.Offers.AsNoTracking().Include(offer => offer.Items)
             .Where(offer => offer.SupplierId == supplierId)
             .Join(dbContext.Rfqs, offer => offer.RfqId, rfq => rfq.Id,
-                (offer, rfq) => new { offer, rfq.Title, rfq.QuotationDeadline, rfq.FulfillmentStatus })
+                (offer, rfq) => new { offer, rfq.Title, rfq.DeliveryLocality, rfq.County, rfq.QuotationDeadline, rfq.FulfillmentStatus })
             .OrderByDescending(row => row.offer.UpdatedAt).ToArrayAsync(cancellationToken);
         return rows.Select(row => new OfferSummary(
-            row.offer, row.Title, row.QuotationDeadline, row.FulfillmentStatus)).ToArray();
+            row.offer, row.Title, row.DeliveryLocality, row.County, row.QuotationDeadline, row.FulfillmentStatus)).ToArray();
     }
 
     public async Task<Offer> SaveDraftAsync(Guid actorId, Guid supplierId, Guid rfqId, OfferDraft draft, CancellationToken cancellationToken)
@@ -191,7 +191,7 @@ public sealed class OfferService(
             previousStatus, rfq.NeedStatus, $"Outcome={rfq.Outcome}", now.Add(TimeSpan.FromMicroseconds(1)));
         await AddCompanyNotificationsAsync(selected.SupplierId, NotificationType.DeliveryConfirmed,
             "Livrare confirmată", $"Cumpărătorul a confirmat primirea pentru cererea „{rfq.Title}”.",
-            $"/open-requests/{rfq.Id}", $"rfq:{rfq.Id}:delivery-confirmed", now, cancellationToken);
+            $"/opportunities/{rfq.Id}?companyId={selected.SupplierId}", $"rfq:{rfq.Id}:delivery-confirmed", now, cancellationToken);
         await SaveRfqChangesAsync(cancellationToken);
         return rfq;
     }
@@ -220,7 +220,7 @@ public sealed class OfferService(
         foreach (Guid supplierId in offers.Select(offer => offer.SupplierId).Distinct())
             await AddCompanyNotificationsAsync(supplierId, NotificationType.RequestReopened,
                 "Cerere redeschisă", $"Cererea „{rfq.Title}” a fost redeschisă. Motiv: {cleanReason}",
-                $"/open-requests/{rfq.Id}", $"rfq:{rfq.Id}:reopened:{now.ToUnixTimeMilliseconds()}", now, cancellationToken);
+                $"/opportunities/{rfq.Id}?companyId={supplierId}", $"rfq:{rfq.Id}:reopened:{now.ToUnixTimeMilliseconds()}", now, cancellationToken);
 
         await SaveRfqChangesAsync(cancellationToken);
         return rfq;

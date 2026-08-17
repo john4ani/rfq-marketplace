@@ -61,6 +61,10 @@ Email/SMS, transactional outbox, suppression, rate limiting, preferences and min
 
 Opportunities Home, request detail, offer creation, partial offer, decline, claim-to-offer continuity; test with a small established supplier scenario.
 
+Provider Easy Experience implementation uses explicit route-scoped company context: no company shows a buying-safe explanation, one company resolves only for the current flow, and multiple companies require an explicit choice. The provider journey is Company → Opportunities → Request → Offer review → Submit → Company offers. Final MVP testing must cover zero/one/multiple company memberships, self-offer exclusion, full/partial offer, draft/resume, submission, selection/not-selected status, messaging and mobile layouts.
+
+Task 6B closes the zero-company entry gap with one reusable **Adaugă firma** flow. It uses the current SupplierProfile save contract, which creates the active Owner CompanyMembership transactionally, and composes the existing supplier category and delivery-area settings before linking back to company opportunities. It adds no Supplier account/login, role switch, onboarding wizard, Trust redesign or parallel Claim Company flow.
+
 ## Task 8 — Best Value comparison
 
 Decision-first comparison of total, coverage, delivery, condition, warranty, transport, trust, alternatives and explainable AI assistance—never cheapest-only.

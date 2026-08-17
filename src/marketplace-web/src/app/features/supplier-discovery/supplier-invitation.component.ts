@@ -3,6 +3,7 @@ import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@a
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { AuthService } from '../../core/auth/auth.service';
 import { SupplierDiscoveryService, SupplierInvitation } from '../../core/supplier-discovery/supplier-discovery.service';
+import { ProfileService } from '../../core/profiles/profile.service';
 
 @Component({
   selector:'app-supplier-invitation',
@@ -15,6 +16,7 @@ export class SupplierInvitationComponent {
   readonly auth=inject(AuthService);
   private readonly discovery=inject(SupplierDiscoveryService);
   private readonly router=inject(Router);
+  private readonly profiles=inject(ProfileService);
   private readonly token=inject(ActivatedRoute).snapshot.paramMap.get('token')??'';
   readonly invitation=signal<SupplierInvitation|null>(null);
   readonly loading=signal(true);
@@ -37,7 +39,7 @@ export class SupplierInvitationComponent {
     if(this.claiming())return;
     this.claiming.set(true);this.error.set('');
     this.discovery.claim(this.token).subscribe({
-      next:value=>{this.invitation.set(value);this.claiming.set(false);},
+      next:value=>{this.invitation.set(value);this.claiming.set(false);this.profiles.getMyCompanies().subscribe({next:companies=>{const companyId=companies.length===1?companies[0].id:undefined;void this.router.navigate(['/opportunities',value.rfqId],{queryParams:companyId?{companyId}:undefined});}});},
       error:error=>{this.claiming.set(false);const messages=error.error?.errors?Object.values(error.error.errors as Record<string,string[]>).flat():[];this.error.set(messages[0]??error.error?.detail??'Firma nu a putut fi revendicată. Verifică profilul de furnizor.');}
     });
   }
@@ -46,7 +48,7 @@ export class SupplierInvitationComponent {
     if(this.claiming())return;
     this.claiming.set(true);this.error.set('');
     this.auth.addProfile('Supplier').subscribe({
-      next:()=>void this.router.navigate(['/dashboard'],{queryParams:{section:'settings',returnUrl:this.currentPath}}),
+      next:()=>void this.router.navigateByUrl(this.currentPath),
       error:()=>{this.claiming.set(false);this.error.set('Profilul de furnizor nu a putut fi adăugat. Încearcă din Contul meu.');}
     });
   }

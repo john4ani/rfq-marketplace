@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, computed, effect, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, effect, inject, input, output, signal } from '@angular/core';
 import { FormControl, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
 import { AuthService } from '../../core/auth/auth.service';
 import { CategoryOption, SupplierSettingsService } from '../../core/suppliers/supplier-settings.service';
@@ -7,7 +7,7 @@ import { ROMANIAN_COUNTIES } from '../../shared/romanian-counties';
 @Component({
   selector: 'app-supplier-settings',
   imports: [ReactiveFormsModule],
-  template: `@if (auth.session()?.accountType === 'Supplier') {
+  template: `@if (companyId() || auth.session()?.accountType === 'Supplier') {
     <section class="profile-card settings-card">
       <div class="section-heading"><div><p class="eyebrow">Ce livrezi</p><h2>Categorii de produse</h2></div>
         <p>Alege produsele și serviciile pentru care vrei să primești cereri de ofertă.</p></div>
@@ -63,6 +63,9 @@ import { ROMANIAN_COUNTIES } from '../../shared/romanian-counties';
   changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class SupplierSettingsComponent {
+  readonly companyId = input('');
+  readonly categoriesSaved = output<void>();
+  readonly deliverySaved = output<void>();
   readonly auth = inject(AuthService);
   private readonly settings = inject(SupplierSettingsService);
   readonly counties = ROMANIAN_COUNTIES;
@@ -92,9 +95,9 @@ export class SupplierSettingsComponent {
   constructor() {
     this.loadCategories();
     effect(() => {
-      const session = this.auth.session();
-      if (!session || session.accountType !== 'Supplier') return;
-      this.loadSupplierSettings(session.userId);
+      const id = this.companyId() || this.auth.session()?.userId;
+      if (!id) return;
+      this.loadSupplierSettings(id);
     });
   }
 
@@ -115,18 +118,18 @@ export class SupplierSettingsComponent {
     this.selectedCounties.set(values.includes(county) ? values.filter(value => value !== county) : [...values, county]);
   }
   saveCategories(): void {
-    const session = this.auth.session();
-    if (!session || this.selectedCategoryIds().length === 0) return;
+    const id = this.companyId() || this.auth.session()?.userId;
+    if (!id || this.selectedCategoryIds().length === 0) return;
     this.savingCategories.set(true); this.categoryMessage.set('');
-    this.settings.saveSupplierCategories(session.userId, this.selectedCategoryIds()).subscribe({
-      next: result => { this.selectedCategoryIds.set(result.categoryIds); this.savingCategories.set(false); this.categoryError.set(false); this.categoryMessage.set('Categoriile au fost salvate.'); },
+    this.settings.saveSupplierCategories(id, this.selectedCategoryIds()).subscribe({
+      next: result => { this.selectedCategoryIds.set(result.categoryIds); this.savingCategories.set(false); this.categoryError.set(false); this.categoryMessage.set('Categoriile au fost salvate.'); this.categoriesSaved.emit(); },
       error: error => { this.savingCategories.set(false); this.categoryError.set(true); this.categoryMessage.set(error.status === 404 ? 'Completează și salvează mai întâi profilul companiei.' : 'Categoriile nu au putut fi salvate. Verifică selecția și încearcă din nou.'); }
     });
   }
   saveDelivery(): void {
-    const session = this.auth.session();
+    const id = this.companyId() || this.auth.session()?.userId;
     const form = this.deliveryForm.getRawValue();
-    if (!session || this.deliveryForm.invalid) return;
+    if (!id || this.deliveryForm.invalid) return;
     if (form.maximumDeliveryRadiusKm < form.normalDeliveryRadiusKm) {
       this.deliveryError.set(true); this.deliveryMessage.set('Raza maximă trebuie să fie cel puțin egală cu raza normală.'); return;
     }
@@ -134,8 +137,8 @@ export class SupplierSettingsComponent {
       this.deliveryError.set(true); this.deliveryMessage.set('Alege cel puțin un județ sau livrarea în toată România.'); return;
     }
     this.savingDelivery.set(true); this.deliveryMessage.set('');
-    this.settings.saveDeliverySettings(session.userId, { ...form, counties: form.nationwideDelivery ? [] : this.selectedCounties() }).subscribe({
-      next: result => { this.deliveryForm.patchValue(result); this.selectedCounties.set(result.counties); this.savingDelivery.set(false); this.deliveryError.set(false); this.deliveryMessage.set('Zona de livrare a fost salvată.'); },
+    this.settings.saveDeliverySettings(id, { ...form, counties: form.nationwideDelivery ? [] : this.selectedCounties() }).subscribe({
+      next: result => { this.deliveryForm.patchValue(result); this.selectedCounties.set(result.counties); this.savingDelivery.set(false); this.deliveryError.set(false); this.deliveryMessage.set('Zona de livrare a fost salvată.'); this.deliverySaved.emit(); },
       error: error => { this.savingDelivery.set(false); this.deliveryError.set(true); this.deliveryMessage.set(error.status === 404 ? 'Completează și salvează mai întâi profilul companiei.' : 'Zona de livrare nu a putut fi salvată. Verifică razele și județele selectate.'); }
     });
   }

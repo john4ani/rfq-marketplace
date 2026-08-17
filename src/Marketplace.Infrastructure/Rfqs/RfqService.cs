@@ -339,7 +339,7 @@ public sealed class RfqService(
                     NotificationType.RequestPublished,
                     "Cerere nouă relevantă",
                     $"O cerere nouă, „{rfq.Title}”, se potrivește categoriilor și zonei tale.",
-                    $"/open-requests/{rfq.Id}",
+                    $"/opportunities/{rfq.Id}?companyId={supplier.Id}",
                     $"rfq:{rfq.Id}:published:{supplier.Id}:recipient:{recipientId}",
                     now));
         }

@@ -53,6 +53,8 @@ A registered user can start a Procurement Need directly. Where the current backe
 
 Selling capabilities become available incrementally when the user creates or registers a company, claims an existing `SupplierCandidate`, or is added as a company member or representative. Company setup must not block unrelated buying activity.
 
+An authenticated User with no active `CompanyMembership` must receive a direct **Adaugă firma** path from Account, Home and the selling entry. Voluntary company registration reuses the existing `SupplierProfile` compatibility record, creates the User's active `Owner` membership, and captures one or more central **Categorii de produse** plus one or more **Județe deservite** (or nationwide operation) in the registration form before returning to company opportunities. The location input is **Localitate** (village, commune, town or municipality), with county recorded separately; the registered location never limits the company's activation area. It does not create a separate Supplier login, require role switching, or merge with the invitation-driven Claim Company flow; optional company fields never block continuation.
+
 For a real supplier opportunity, the invitation and claim flow is:
 
 ```text

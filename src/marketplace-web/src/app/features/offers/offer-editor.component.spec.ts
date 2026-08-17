@@ -128,6 +128,30 @@ describe('OfferEditorComponent', () => {
     expect(fixture.componentInstance.hasPricingModeChoice()).toBe(true);
   });
 
+  it('preserves the total when exploring a partial offer and blocks an empty review', async () => {
+    await TestBed.configureTestingModule({
+      imports: [OfferEditorComponent],
+      providers: [{ provide: OfferService, useValue: { getForRequest: () => of(null) } }]
+    }).compileComponents();
+    const fixture = TestBed.createComponent(OfferEditorComponent);
+    fixture.componentRef.setInput('request', {
+      ...itemizedRequest,
+      isPartialMatch: false,
+      items: itemizedRequest.items.map(item => ({ ...item, kind: 'Product' as const }))
+    });
+    fixture.detectChanges();
+
+    fixture.componentInstance.draft.update(value => ({ ...value, totalPrice: 2_100 }));
+    fixture.componentInstance.startPartialOffer();
+    fixture.componentInstance.setPricingMode('Total');
+    expect(fixture.componentInstance.draft().totalPrice).toBe(2_100);
+
+    fixture.componentInstance.draft.update(value => ({ ...value, totalPrice: null }));
+    fixture.componentInstance.review();
+    expect(fixture.componentInstance.confirmingSubmission()).toBe(false);
+    expect(fixture.componentInstance.error()).toContain('prețul total');
+  });
+
   it('normalizes a legacy general offer stored as delivery cost', async () => {
     await TestBed.configureTestingModule({
       imports: [OfferEditorComponent],

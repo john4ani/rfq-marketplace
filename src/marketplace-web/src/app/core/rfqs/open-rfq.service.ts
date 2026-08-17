@@ -32,14 +32,16 @@ export interface OpenRfq {
 export class OpenRfqService {
   private readonly http = inject(HttpClient);
 
-  list(search = '', categoryId = '') {
+  list(search = '', categoryId = '', companyId = '') {
     let params = new HttpParams();
     if (search.trim()) params = params.set('search', search.trim());
     if (categoryId) params = params.set('categoryId', categoryId);
+    if (companyId) params = params.set('companyId', companyId);
     return this.http.get<OpenRfq[]>('/api/v1/open-rfqs', { params });
   }
 
-  get(id: string) {
-    return this.http.get<OpenRfq>(`/api/v1/open-rfqs/${id}`);
+  get(id: string, companyId = '') {
+    const params = companyId ? new HttpParams().set('companyId', companyId) : undefined;
+    return this.http.get<OpenRfq>(`/api/v1/open-rfqs/${id}`, { params });
   }
 }
