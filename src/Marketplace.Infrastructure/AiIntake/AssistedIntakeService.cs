@@ -6,6 +6,7 @@ using Marketplace.Application.Operations;
 using Marketplace.Domain.AiIntake;
 using Marketplace.Domain.Rfqs;
 using Marketplace.Infrastructure.Persistence;
+using Marketplace.Infrastructure.Persistence.Configurations;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -55,7 +56,7 @@ internal sealed partial class AssistedIntakeService(
     {
         EnsureEnabled();
         AiIntakeSession? session = await dbContext.AiIntakeSessions.AsNoTracking()
-            .SingleOrDefaultAsync(item => item.Id == sessionId && item.BuyerId == buyerId, cancellationToken);
+            .SingleOrDefaultAsync(item => item.Id == sessionId && item.BuyerId == buyerId && item.Kind == AiIntakeKind.General, cancellationToken);
         return session is null ? null : ToResult(session, DeserializeOutcome(session.ExtractionJson));
     }
 
@@ -69,7 +70,7 @@ internal sealed partial class AssistedIntakeService(
             throw new AiIntakeRuleException("Răspunsul trebuie să aibă între 1 și 1.000 de caractere.");
 
         AiIntakeSession? session = await dbContext.AiIntakeSessions
-            .SingleOrDefaultAsync(item => item.Id == sessionId && item.BuyerId == buyerId, cancellationToken);
+            .SingleOrDefaultAsync(item => item.Id == sessionId && item.BuyerId == buyerId && item.Kind == AiIntakeKind.General, cancellationToken);
         if (session is null) return null;
         GeneralNeedInterpretation previous = DeserializeOutcome(session.ExtractionJson);
         if (previous.Clarification is null)
@@ -106,7 +107,7 @@ internal sealed partial class AssistedIntakeService(
         {
             await using var transaction = await dbContext.Database.BeginTransactionAsync(cancellationToken);
             AiIntakeSession? session = await dbContext.AiIntakeSessions
-                .SingleOrDefaultAsync(item => item.Id == sessionId && item.BuyerId == buyerId, cancellationToken);
+                .SingleOrDefaultAsync(item => item.Id == sessionId && item.BuyerId == buyerId && item.Kind == AiIntakeKind.General, cancellationToken);
             if (session is null) return;
             if (session.ApprovedRfqId is Guid existingId)
             {
@@ -138,8 +139,12 @@ internal sealed partial class AssistedIntakeService(
     {
         var buyer = await dbContext.BuyerProfiles.AsNoTracking()
             .SingleOrDefaultAsync(item => item.Id == session.BuyerId, cancellationToken);
+        // General Procurement is breadth: keep Construction (depth) vocabulary out of the general interpreter so it
+        // never proposes Construction categories. Construction categories reach the flow only through the explicit
+        // Construction entry, never the shared General prompt (ADR-002 boundary).
         IntakeCategory[] categories = await dbContext.Categories.AsNoTracking()
-            .Where(item => item.IsActive).OrderBy(item => item.SortOrder).ThenBy(item => item.Name)
+            .Where(item => item.IsActive && item.VerticalId == VerticalConfiguration.GeneralProcurementCompatibilityId)
+            .OrderBy(item => item.SortOrder).ThenBy(item => item.Name)
             .Select(item => new IntakeCategory(item.Id, item.Name, item.Slug)).ToArrayAsync(cancellationToken);
         return new(session.BuyerId, session.InitialInput, buyer?.DefaultCity ?? string.Empty, buyer?.DefaultCounty ?? string.Empty,
             buyer?.MarketRadiusKm ?? 30, categories, turns, previous, now);

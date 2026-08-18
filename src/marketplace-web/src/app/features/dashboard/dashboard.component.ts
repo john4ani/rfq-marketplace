@@ -15,7 +15,7 @@ import { ProfileService, RepresentedCompany } from '../../core/profiles/profile.
         <small>Te ajutăm să clarifici detaliile. Nimic nu este trimis fără confirmarea ta.</small>
         <a class="manual-entry" routerLink="/rfqs/new/advanced">Am deja o listă / prefer să completez manual</a>
       </section>
-      <section class="construction-entry"><div><h2>Am un proiect de construcții</h2><p>Te ajutăm să structurezi proiectul și achizițiile necesare.</p></div><a routerLink="/rfqs/new/advanced" [queryParams]="{entryMode:'construction'}">Începe proiectul</a></section>
+      <section class="construction-entry"><div><h2>Am un proiect de construcții</h2><p>Te ajutăm să structurezi proiectul și achizițiile necesare.</p></div><a routerLink="/rfqs/new/construction">Începe proiectul</a></section>
     </section>
 
     @if(companyLoading()) {

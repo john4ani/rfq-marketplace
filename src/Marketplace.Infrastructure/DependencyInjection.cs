@@ -85,14 +85,15 @@ public static class DependencyInjection
         services.AddScoped<IRfqService, RfqService>();
         services.AddScoped<IProjectTemplateService, ProjectTemplateService>();
         services.Configure<AiIntakeOptions>(configuration.GetSection(AiIntakeOptions.SectionName));
-        services.AddHttpClient<OpenAiNeedExtractionProvider>((provider, client) =>
+        services.AddHttpClient<OpenAiResponsesTransport>((provider, client) =>
         {
             AiIntakeOptions options = provider.GetRequiredService<Microsoft.Extensions.Options.IOptions<AiIntakeOptions>>().Value;
             client.Timeout = TimeSpan.FromSeconds(Math.Clamp(options.RequestTimeoutSeconds, 5, 120));
         });
-        services.AddScoped<IGeneralNeedInterpreter>(provider => provider.GetRequiredService<OpenAiNeedExtractionProvider>());
-        services.AddScoped<IConstructionProjectInterpreter, ConstructionProjectInterpreter>();
+        services.AddScoped<IGeneralNeedInterpreter, OpenAiNeedExtractionProvider>();
+        services.AddScoped<IConstructionProjectInterpreter, OpenAiConstructionProjectInterpreter>();
         services.AddScoped<IAssistedIntakeService, AssistedIntakeService>();
+        services.AddScoped<IConstructionIntakeService, ConstructionIntakeService>();
         services.AddScoped<IProcurementNeedAuditTrail, ProcurementNeedAuditTrail>();
         services.AddScoped<IOfferService, OfferService>();
         services.AddScoped<ProcurementOutcomeReminderService>();

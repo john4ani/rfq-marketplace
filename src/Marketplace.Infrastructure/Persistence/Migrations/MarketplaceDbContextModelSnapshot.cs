@@ -49,6 +49,13 @@ namespace Marketplace.Infrastructure.Persistence.Migrations
                     b.Property<int>("InputTokens")
                         .HasColumnType("integer");
 
+                    b.Property<string>("Kind")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasDefaultValue("General");
+
                     b.Property<string>("Model")
                         .IsRequired()
                         .HasMaxLength(120)

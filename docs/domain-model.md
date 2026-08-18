@@ -50,6 +50,18 @@ Until Task 9, the current compatible Construction state remains stored and handl
 
 `ConstructionProject` owns construction-specific facts, terminology, assumptions, systems/work packages and safe decompositions. It may generate one or more `ProcurementNeed`s. Procurement does not know about roof pitch, airtightness, passive-house systems, or engineering rules.
 
+### Construction alignment — current MVP state
+
+The distinction is locked as: **General Procurement = breadth, Construction Projects = depth, Procurement Core = shared commercial infrastructure.** Construction is a distinct specialised entry mode, never a General Procurement category and never a separate marketplace.
+
+As built today (no `ConstructionProject` aggregate exists yet):
+
+- **Two distinct intake workflows, one shared Core.** General (`/rfqs/new`, `IGeneralNeedInterpreter`) and Construction (`/rfqs/new/construction`, `IConstructionProjectInterpreter`) are separate interpretation workflows — separate routes, controllers (`assisted-intakes` / `construction-intakes`), prompts, JSON schemas and clarification semantics. They are **not** one universal workflow with a swapped prompt. Construction understands the project first (a human-readable `projectSummary` plus visible, non-certified assumptions) and then derives the need; General does domain-light commercial extraction. Both reuse the generic `AiIntakeSession` storage (discriminated by `AiIntakeSession.Kind` = General/Construction) and the same OpenAI Responses transport (`OpenAiResponsesTransport`), so neither the HTTP client, config nor telemetry is duplicated.
+- One Construction entry produces **exactly one** shared `Rfq` / Procurement Need on approve, through the same publication, matching, discovery, offers, comparison and outcome as General. There is no separate persisted Project entity and no multi-Need decomposition engine. Multi-Need generation (`House → timber + roofing + insulation + …`) remains a documented future capability and must not be built for architectural purity alone.
+- `NeedType.Project` is **not** the discriminator and no shared code infers Construction from it. Construction origin is carried by the `AiIntakeSession` (its `Kind` and its `ApprovedRfqId` link) — an observability seam that never forks the commercial pipeline. The manual editor's optional `Rfq.ProjectTemplateId` remains a separate compatibility marker.
+- Construction (depth) and General (breadth) use parallel central-category subsets under separate `Vertical`s. Every intake surface scopes categories to its vertical — the General interpreter and its correction UI use General-vertical categories, the Construction interpreter and manual Construction editor use Construction-vertical categories — so neither vertical's vocabulary leaks into the other. Already-selected categories always stay visible so editing never drops a selection.
+- The General interpreter may still return a non-binding `SuggestedProcurementMode.ConstructionProjects`; choosing it routes to `/rfqs/new/construction` and **transfers the original text** (no re-typing). If the Construction interpreter is unavailable, the flow preserves the text and falls back to the manual Construction editor. Construction estimates are procurement assistance only — no engineering certification, no Passive House, no structural/thermal calculation.
+
 ## Supplier discovery
 
 `OpportunityMatch` is explicit operational state between a `ProcurementNeed` and a registered Provider or `SupplierCandidate`:

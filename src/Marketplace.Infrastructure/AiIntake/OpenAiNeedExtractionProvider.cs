@@ -1,97 +1,26 @@
-using System.Net;
-using System.Net.Http.Headers;
-using System.Net.Http.Json;
-using System.Diagnostics;
 using System.Globalization;
-using System.Security.Cryptography;
-using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using Marketplace.Application.AiIntake;
 using Marketplace.Domain.Rfqs;
-using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Options;
 
 namespace Marketplace.Infrastructure.AiIntake;
 
-internal sealed partial class OpenAiNeedExtractionProvider(
-    HttpClient httpClient,
-    IOptions<AiIntakeOptions> options,
-    ILogger<OpenAiNeedExtractionProvider> logger) : IGeneralNeedInterpreter
+// General Procurement interpreter: domain-light commercial extraction. It owns its prompt, JSON schema and mapping,
+// and reuses the shared OpenAI Responses transport. It never carries Construction depth (ADR-002).
+internal sealed class OpenAiNeedExtractionProvider(OpenAiResponsesTransport transport) : IGeneralNeedInterpreter
 {
-    private readonly AiIntakeOptions settings = options.Value;
-    public bool IsAvailable => settings.Enabled
-        && !string.IsNullOrWhiteSpace(settings.ApiKey)
-        && !string.IsNullOrWhiteSpace(settings.Model)
-        && Uri.TryCreate(settings.Endpoint, UriKind.Absolute, out _);
+    public bool IsAvailable => transport.IsAvailable;
 
     public async Task<GeneralNeedInterpretation> InterpretAsync(GeneralNeedInterpretationRequest context, CancellationToken cancellationToken)
     {
-        Stopwatch stopwatch = Stopwatch.StartNew();
-        int? statusCode = null;
-        using var request = new HttpRequestMessage(HttpMethod.Post, settings.Endpoint);
-        request.Version = HttpVersion.Version20;
-        request.VersionPolicy = HttpVersionPolicy.RequestVersionOrHigher;
-        if (settings.Provider == AiIntakeProvider.AzureOpenAi)
-            request.Headers.Add("api-key", settings.ApiKey);
-        else
-            request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", settings.ApiKey);
-        request.Content = JsonContent.Create(BuildRequest(context));
-        try
-        {
-            using HttpResponseMessage response = await httpClient.SendAsync(
-                request, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
-            statusCode = (int)response.StatusCode;
-            string responseBody = await response.Content.ReadAsStringAsync(cancellationToken);
-            if (!response.IsSuccessStatusCode)
-                throw new HttpRequestException($"AI intake provider returned {statusCode}.");
-
-            using JsonDocument document = JsonDocument.Parse(responseBody);
-            string outputText = document.RootElement.GetProperty("output").EnumerateArray()
-                .SelectMany(item => item.TryGetProperty("content", out JsonElement content) ? content.EnumerateArray() : [])
-                .Where(item => item.TryGetProperty("type", out JsonElement type) && type.GetString() == "output_text")
-                .Select(item => item.GetProperty("text").GetString()).FirstOrDefault()
-                ?? throw new InvalidOperationException("AI intake provider did not return structured output.");
-            AiExtraction extraction = JsonSerializer.Deserialize<AiExtraction>(outputText, JsonOptions)
-                ?? throw new InvalidOperationException("AI intake structured output is empty.");
-            GeneralNeedInterpretation outcome = Map(context, extraction, document.RootElement);
-            if (logger.IsEnabled(LogLevel.Information))
-            {
-                string providerName = ProviderName();
-                string endpointHost = EndpointHost();
-                long durationMs = stopwatch.ElapsedMilliseconds;
-                LogProviderCompleted(logger, providerName, settings.Model, endpointHost, statusCode.Value,
-                    durationMs, outcome.InputTokens, outcome.OutputTokens);
-            }
-            return outcome;
-        }
-        catch (OperationCanceledException exception) when (cancellationToken.IsCancellationRequested)
-        {
-            if (logger.IsEnabled(LogLevel.Warning))
-            {
-                string providerName = ProviderName();
-                string endpointHost = EndpointHost();
-                long durationMs = stopwatch.ElapsedMilliseconds;
-                LogProviderCancelled(logger, providerName, settings.Model, endpointHost, statusCode,
-                    durationMs, exception);
-            }
-            throw;
-        }
-        catch (Exception exception)
-        {
-            if (logger.IsEnabled(LogLevel.Warning))
-            {
-                string providerName = ProviderName();
-                string endpointHost = EndpointHost();
-                long durationMs = stopwatch.ElapsedMilliseconds;
-                LogProviderFailed(logger, providerName, settings.Model, endpointHost, statusCode,
-                    durationMs, exception);
-            }
-            throw;
-        }
+        OpenAiStructuredResponse response = await transport.SendAsync(BuildRequest(context), cancellationToken);
+        AiExtraction extraction = JsonSerializer.Deserialize<AiExtraction>(response.OutputText, JsonOptions)
+            ?? throw new InvalidOperationException("AI intake structured output is empty.");
+        return Map(context, extraction, response.InputTokens, response.OutputTokens);
     }
 
-    private object BuildRequest(GeneralNeedInterpretationRequest context)
+    private static OpenAiStructuredRequest BuildRequest(GeneralNeedInterpretationRequest context)
     {
         string categories = string.Join("\n", context.Categories.Select(item => $"- {item.Slug}: {item.Name}"));
         string turns = context.Turns.Count == 0 ? "Nicio clarificare încă." : string.Join("\n",
@@ -132,19 +61,10 @@ internal sealed partial class OpenAiNeedExtractionProvider(
             Clarificări anterioare:
             {turns}
             """;
-        return new
-        {
-            model = settings.Model,
-            store = false,
-            reasoning = new { effort = settings.ReasoningEffort },
-            safety_identifier = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(context.BuyerId.ToString()))).ToLowerInvariant(),
-            input = new[] { new { role = "system", content = instructions }, new { role = "user", content = input } },
-            text = new { verbosity = settings.TextVerbosity, format = new { type = "json_schema", name = "procurement_need", strict = true, schema = Schema } },
-            max_output_tokens = 2500
-        };
+        return new OpenAiStructuredRequest(instructions, input, "procurement_need", Schema, context.BuyerId);
     }
 
-    private GeneralNeedInterpretation Map(GeneralNeedInterpretationRequest context, AiExtraction extraction, JsonElement root)
+    private GeneralNeedInterpretation Map(GeneralNeedInterpretationRequest context, AiExtraction extraction, int inputTokens, int outputTokens)
     {
         Dictionary<string, IntakeCategory> categories = context.Categories.ToDictionary(item => item.Slug, StringComparer.OrdinalIgnoreCase);
         IntakeCategory? primary = Resolve(extraction.PrimaryCategorySlug, categories);
@@ -172,42 +92,14 @@ internal sealed partial class OpenAiNeedExtractionProvider(
             extraction.AlternativeProductsAccepted, extraction.AllowSplit, extraction.DeliveryRequired,
             extraction.EstimatedBudget is > 0 ? extraction.EstimatedBudget : null,
             CleanNullable(extraction.BuyerNotes, 1000), lines);
-        int inputTokens = ReadUsage(root, "input_tokens");
-        int outputTokens = ReadUsage(root, "output_tokens");
         SuggestedProcurementMode? suggestedMode = Enum.TryParse(extraction.SuggestedMode, true,
             out SuggestedProcurementMode parsedSuggestedMode) ? parsedSuggestedMode : null;
-        return new(AssistedIntakeMode.OpenAi, ProviderName(), settings.Model, settings.PromptVersion, draft,
+        return new(AssistedIntakeMode.OpenAi, transport.ProviderName, transport.Model, transport.PromptVersion, draft,
             extraction.Assumptions.Where(NotBlank).Take(20).ToArray(),
             extraction.Uncertainties.Where(NotBlank).Take(20).ToArray(), [], clarification, inputTokens, outputTokens,
             suggestedMode);
     }
 
-    private string ProviderName() => settings.Provider == AiIntakeProvider.AzureOpenAi
-        ? "Azure OpenAI"
-        : "OpenAI";
-
-    private string EndpointHost() => Uri.TryCreate(settings.Endpoint, UriKind.Absolute, out Uri? endpoint)
-        ? endpoint.Host
-        : "invalid-endpoint";
-
-    [LoggerMessage(EventId = 4201, Level = LogLevel.Information,
-        Message = "AI intake provider call completed. Provider: {Provider}; model: {Model}; endpoint host: {EndpointHost}; status: {StatusCode}; duration: {DurationMs}ms; input tokens: {InputTokens}; output tokens: {OutputTokens}.")]
-    private static partial void LogProviderCompleted(ILogger logger, string provider, string model, string endpointHost,
-        int statusCode, long durationMs, int inputTokens, int outputTokens);
-
-    [LoggerMessage(EventId = 4202, Level = LogLevel.Warning,
-        Message = "AI intake provider call was cancelled. Provider: {Provider}; model: {Model}; endpoint host: {EndpointHost}; status: {StatusCode}; duration: {DurationMs}ms.")]
-    private static partial void LogProviderCancelled(ILogger logger, string provider, string model, string endpointHost,
-        int? statusCode, long durationMs, Exception exception);
-
-    [LoggerMessage(EventId = 4203, Level = LogLevel.Warning,
-        Message = "AI intake provider call failed. Provider: {Provider}; model: {Model}; endpoint host: {EndpointHost}; status: {StatusCode}; duration: {DurationMs}ms.")]
-    private static partial void LogProviderFailed(ILogger logger, string provider, string model, string endpointHost,
-        int? statusCode, long durationMs, Exception exception);
-
-    private static int ReadUsage(JsonElement root, string property) =>
-        root.TryGetProperty("usage", out JsonElement usage) && usage.TryGetProperty(property, out JsonElement value)
-            ? value.GetInt32() : 0;
     private static IntakeCategory? Resolve(string? slug, Dictionary<string, IntakeCategory> categories) =>
         slug is not null && categories.TryGetValue(slug, out IntakeCategory? value) ? value : null;
     private static string Clean(string? value, int length, string fallback) =>

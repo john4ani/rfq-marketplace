@@ -40,15 +40,26 @@ public interface IGeneralNeedInterpreter
     Task<GeneralNeedInterpretation> InterpretAsync(GeneralNeedInterpretationRequest request, CancellationToken cancellationToken);
 }
 
-// A routing boundary only until Task 9 owns a ConstructionProject aggregate and specialised facts.
+// Construction Projects intake: a distinct interpretation workflow (its own prompt, schema and clarification
+// semantics) that understands a construction PROJECT first and then derives the shared Procurement Need
+// representation. It must not share one universal workflow with the general interpreter, but it reuses the same
+// OpenAI transport and the same AssistedNeedDraft shape so the derived need flows through the shared Procurement Core.
 public sealed record ConstructionProjectInterpretationRequest(
     Guid UserId,
-    string Description,
+    string InitialInput,
+    string BuyerCity,
+    string BuyerCounty,
+    int BuyerRadiusKm,
     IReadOnlyCollection<IntakeCategory> Categories,
+    IReadOnlyCollection<ClarificationTurn> Turns,
+    AssistedNeedDraft? PreviousDraft,
     DateTimeOffset Now);
 
 public sealed record ConstructionProjectInterpretation(
-    string Summary,
+    string ProjectSummary,
+    AssistedNeedDraft Draft,
+    IReadOnlyCollection<string> Assumptions,
+    IReadOnlyCollection<string> Uncertainties,
     AssistedClarification? Clarification,
     string Provider,
     string Model,

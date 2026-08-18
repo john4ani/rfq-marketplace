@@ -31,6 +31,7 @@ export const routes: Routes = [
   { path: 'opportunities/:rfqId', canActivate: [authGuard], loadComponent: () => import('./features/rfqs/open-rfq-detail.component').then(m => m.OpenRfqDetailComponent) },
   { path: 'company/offers', canActivate: [authGuard], loadComponent: () => import('./features/offers/supplier-offer-list.component').then(m => m.SupplierOfferListComponent) },
   { path: 'rfqs/new/advanced', canActivate: [authGuard], loadComponent: () => import('./features/rfqs/rfq-editor.component').then(m => m.RfqEditorComponent) },
+  { path: 'rfqs/new/construction', canActivate: [authGuard], loadComponent: () => import('./features/rfqs/construction-intake.component').then(m => m.ConstructionIntakeComponent) },
   { path: 'rfqs/new', canActivate: [authGuard], loadComponent: () => import('./features/rfqs/assisted-intake.component').then(m => m.AssistedIntakeComponent) },
   { path: 'rfqs/:rfqId/edit', canActivate: [authGuard], loadComponent: () => import('./features/rfqs/rfq-editor.component').then(m => m.RfqEditorComponent) },
   { path: 'rfqs/:rfqId/offers', canActivate: [authGuard], loadComponent: () => import('./features/offers/buyer-offer-comparison.component').then(m => m.BuyerOfferComparisonComponent) },

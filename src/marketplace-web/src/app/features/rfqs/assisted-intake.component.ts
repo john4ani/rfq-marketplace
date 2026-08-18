@@ -8,6 +8,7 @@ import { RfqDraft, RfqService, UnitOfMeasure } from '../../core/rfqs/rfq.service
 import { CategoryOption, SupplierSettingsService } from '../../core/suppliers/supplier-settings.service';
 import { ROMANIAN_COUNTIES } from '../../shared/romanian-counties';
 import { unitLabel } from '../../shared/unit-label';
+import { GENERAL_PROCUREMENT_VERTICAL_ID } from '../../shared/verticals';
 
 @Component({
   selector: 'app-assisted-intake',
@@ -38,7 +39,7 @@ import { unitLabel } from '../../shared/unit-label';
           @for (entry of result()?.answers; track $index) {
             <div class="history"><span>Clarificare {{ $index + 1 }}</span><p class="history-question">{{ entry.question }}</p><p><strong>Răspunsul tău:</strong> {{ entry.answer }}</p></div>
           }
-          @if (result()?.suggestedMode === 'ConstructionProjects' && !constructionSuggestionDismissed()) { <section class="construction-suggestion"><strong>Pare că este un proiect de construcții.</strong><p>Modul special pentru proiecte te poate ajuta să structurezi mai bine necesarul.</p><div><a routerLink="/rfqs/new/advanced" [queryParams]="{entryMode:'construction',description:input}">Folosește modul Construction Projects</a><button type="button" class="secondary" (click)="constructionSuggestionDismissed.set(true)">Continuă ca cerere simplă</button></div></section> }
+          @if (result()?.suggestedMode === 'ConstructionProjects' && !constructionSuggestionDismissed()) { <section class="construction-suggestion"><strong>Pare că este un proiect de construcții.</strong><p>Modul special pentru proiecte te poate ajuta să structurezi mai bine necesarul.</p><div><a routerLink="/rfqs/new/construction" [queryParams]="{description:input}">Folosește modul Proiect de construcții</a><button type="button" class="secondary" (click)="constructionSuggestionDismissed.set(true)">Continuă ca cerere simplă</button></div></section> }
           @if (result()?.clarification; as clarification) {
             <div class="question"><span>O clarificare importantă</span><h2>{{ clarification.question }}</h2>
               @if (clarification.choices.length) { <div class="choices">@for (choice of clarification.choices; track choice) { <button type="button" (click)="answer=choice; clarify()" [disabled]="busy()">{{ choice }}</button> }</div> }
@@ -100,7 +101,7 @@ export class AssistedIntakeComponent {
     this.input=dashboardDescription;
     this.checkAvailability(id, dashboardDescription);
   }
-  leafCategories(){const all=this.categories(),parents=new Set(all.flatMap(x=>x.parentId?[x.parentId]:[]));return all.filter(x=>!parents.has(x.id));}
+  leafCategories(){const all=this.categories(),parents=new Set(all.flatMap(x=>x.parentId?[x.parentId]:[]));const selected=new Set([this.draft.primaryCategoryId,...this.draft.lines.map(line=>line.categoryId)].filter((id):id is string=>!!id));return all.filter(x=>!parents.has(x.id)&&(x.verticalId===GENERAL_PROCUREMENT_VERTICAL_ID||selected.has(x.id)));}
   categoryName(id:string|null){return this.categories().find(category=>category.id===id)?.name??(id?'Categorie selectată':'De stabilit');}
   start(){if(this.input.trim().length<10)return;this.busy.set(true);this.clear();this.service.start(this.input.trim()).subscribe({next:v=>{this.apply(v);void this.router.navigate([], {queryParams:{session:v.sessionId},replaceUrl:true});},error:e=>this.fail(e)});}
   clarify(){if(!this.answer.trim()||!this.result())return;this.busy.set(true);this.clear();this.service.clarify(this.result()!.sessionId,this.answer.trim()).subscribe({next:v=>{this.answer='';this.apply(v);},error:e=>this.fail(e)});}

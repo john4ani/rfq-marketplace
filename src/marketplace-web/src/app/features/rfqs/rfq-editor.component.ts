@@ -9,6 +9,7 @@ import { AssistedIntakeResult, AssistedIntakeService } from '../../core/rfqs/ass
 import { ProcurementInputType, ProcurementNeedSource, ProcurementNeedType, RequirementKind, Rfq, RfqDraft, RfqService, UnitOfMeasure } from '../../core/rfqs/rfq.service';
 import { CategoryOption, ProjectTemplateOption, SupplierSettingsService } from '../../core/suppliers/supplier-settings.service';
 import { ROMANIAN_COUNTIES } from '../../shared/romanian-counties';
+import { CONSTRUCTION_VERTICAL_ID, GENERAL_PROCUREMENT_VERTICAL_ID } from '../../shared/verticals';
 
 @Component({
   selector: 'app-rfq-editor',
@@ -196,7 +197,11 @@ export class RfqEditorComponent {
   get items(): FormArray<FormGroup> { return this.form.controls.items; }
   selectableCategories(): CategoryOption[] {
     const values=this.categories(); const parents=new Set(values.flatMap(value=>value.parentId?[value.parentId]:[]));
-    return values.filter(value=>!parents.has(value.id));
+    // Scope by entry mode so Construction (depth) and General (breadth) do not leak each other's categories.
+    // Already-selected categories always stay visible so editing an existing request never drops a selection.
+    const activeVertical=this.constructionEntryMode()?CONSTRUCTION_VERTICAL_ID:GENERAL_PROCUREMENT_VERTICAL_ID;
+    const selected=new Set(this.selectedCategoryIds());
+    return values.filter(value=>!parents.has(value.id)&&(value.verticalId===activeVertical||selected.has(value.id)));
   }
 
   constructor() {

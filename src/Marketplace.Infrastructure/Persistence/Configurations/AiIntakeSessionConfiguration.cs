@@ -11,6 +11,7 @@ public sealed class AiIntakeSessionConfiguration : IEntityTypeConfiguration<AiIn
     {
         builder.ToTable("AiIntakeSessions");
         builder.HasKey(session => session.Id);
+        builder.Property(session => session.Kind).HasConversion<string>().HasMaxLength(20).HasDefaultValue(AiIntakeKind.General);
         builder.Property(session => session.InitialInput).HasMaxLength(4000);
         builder.Property(session => session.TranscriptJson).HasColumnType("jsonb");
         builder.Property(session => session.ExtractionJson).HasColumnType("jsonb");

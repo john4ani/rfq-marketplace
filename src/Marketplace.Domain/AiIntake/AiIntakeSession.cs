@@ -2,12 +2,17 @@ namespace Marketplace.Domain.AiIntake;
 
 public enum AiIntakeSessionStatus { InProgress, ReadyForApproval, Approved }
 
+// Which distinct intake workflow produced this session. General and Construction reuse the same session storage but
+// never the same interpretation workflow, so the kind keeps their persisted extractions from being read as each other.
+public enum AiIntakeKind { General, Construction }
+
 public sealed class AiIntakeSession
 {
     private AiIntakeSession() { }
 
     public Guid Id { get; private set; }
     public Guid BuyerId { get; private set; }
+    public AiIntakeKind Kind { get; private set; }
     public string InitialInput { get; private set; } = string.Empty;
     public string TranscriptJson { get; private set; } = "[]";
     public string ExtractionJson { get; private set; } = "{}";
@@ -22,7 +27,8 @@ public sealed class AiIntakeSession
     public DateTimeOffset UpdatedAt { get; private set; }
     public uint Version { get; private set; }
 
-    public static AiIntakeSession Create(Guid id, Guid buyerId, string initialInput, DateTimeOffset now)
+    public static AiIntakeSession Create(Guid id, Guid buyerId, string initialInput, DateTimeOffset now,
+        AiIntakeKind kind = AiIntakeKind.General)
     {
         string cleanInput = initialInput?.Trim() ?? string.Empty;
         if (id == Guid.Empty || buyerId == Guid.Empty)
@@ -34,6 +40,7 @@ public sealed class AiIntakeSession
         {
             Id = id,
             BuyerId = buyerId,
+            Kind = kind,
             InitialInput = cleanInput,
             Status = AiIntakeSessionStatus.InProgress,
             CreatedAt = now,

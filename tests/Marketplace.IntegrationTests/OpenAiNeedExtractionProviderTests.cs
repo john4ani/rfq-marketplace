@@ -2,6 +2,7 @@ using System.Net;
 using System.Text;
 using System.Text.Json;
 using Marketplace.Application.AiIntake;
+using Marketplace.Domain.Rfqs;
 using Marketplace.Infrastructure.AiIntake;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -23,7 +24,7 @@ public sealed class OpenAiNeedExtractionProviderTests
             ApiKey = "openai-test-key",
             Model = "gpt-5.6-luna"
         });
-        var provider = new OpenAiNeedExtractionProvider(client, settings, logger);
+        var provider = new OpenAiNeedExtractionProvider(new OpenAiResponsesTransport(client, settings, logger));
 
         GeneralNeedInterpretation outcome = await provider.InterpretAsync(Context(), CancellationToken.None);
 
@@ -37,6 +38,7 @@ public sealed class OpenAiNeedExtractionProviderTests
         Assert.Equal("gpt-5.6-luna", request.RootElement.GetProperty("model").GetString());
         Assert.Equal("none", request.RootElement.GetProperty("reasoning").GetProperty("effort").GetString());
         Assert.Equal("low", request.RootElement.GetProperty("text").GetProperty("verbosity").GetString());
+        Assert.Equal("procurement_need", request.RootElement.GetProperty("text").GetProperty("format").GetProperty("name").GetString());
         Assert.False(request.RootElement.TryGetProperty("tools", out _));
         Assert.Equal(HttpVersion.Version20, handler.RequestVersion);
         Assert.DoesNotContain("researchSources", handler.RequestBody, StringComparison.Ordinal);
@@ -57,13 +59,13 @@ public sealed class OpenAiNeedExtractionProviderTests
     {
         var handler = new RecordingHandler(ResponseBody());
         using var client = new HttpClient(handler);
-        var provider = new OpenAiNeedExtractionProvider(client, Options.Create(new AiIntakeOptions
+        var provider = new OpenAiNeedExtractionProvider(new OpenAiResponsesTransport(client, Options.Create(new AiIntakeOptions
         {
             Provider = AiIntakeProvider.AzureOpenAi,
             ApiKey = "azure-test-key",
             Endpoint = "https://example.openai.azure.com/openai/v1/responses",
             Model = "gpt-5.6-luna"
-        }), NullLogger<OpenAiNeedExtractionProvider>.Instance);
+        }), NullLogger<OpenAiResponsesTransport>.Instance));
 
         GeneralNeedInterpretation outcome = await provider.InterpretAsync(Context(), CancellationToken.None);
 
@@ -77,31 +79,40 @@ public sealed class OpenAiNeedExtractionProviderTests
     [InlineData("configured", "not-an-endpoint")]
     public void IsUnavailableWithoutCompleteConfiguration(string apiKey, string endpoint)
     {
-        var provider = new OpenAiNeedExtractionProvider(new HttpClient(new RecordingHandler("{}")),
+        var provider = new OpenAiNeedExtractionProvider(new OpenAiResponsesTransport(
+            new HttpClient(new RecordingHandler("{}")),
             Options.Create(new AiIntakeOptions { ApiKey = apiKey, Endpoint = endpoint }),
-            NullLogger<OpenAiNeedExtractionProvider>.Instance);
+            NullLogger<OpenAiResponsesTransport>.Instance));
 
         Assert.False(provider.IsAvailable);
     }
 
     [Fact]
-    public async Task ConstructionBoundaryReusesTheConfiguredGeneralInterpreterWithoutAddingConstructionFacts()
+    public async Task ConstructionInterpreterUsesItsOwnProjectWorkflowOverTheSharedTransport()
     {
-        var handler = new RecordingHandler(ResponseBody());
+        var handler = new RecordingHandler(ConstructionResponseBody());
         using var client = new HttpClient(handler);
-        var general = new OpenAiNeedExtractionProvider(client, Options.Create(new AiIntakeOptions
+        var transport = new OpenAiResponsesTransport(client, Options.Create(new AiIntakeOptions
         {
             ApiKey = "openai-test-key", Model = "gpt-5.6-luna"
-        }), NullLogger<OpenAiNeedExtractionProvider>.Instance);
-        var construction = new ConstructionProjectInterpreter(general);
+        }), NullLogger<OpenAiResponsesTransport>.Instance);
+        var construction = new OpenAiConstructionProjectInterpreter(transport);
 
         ConstructionProjectInterpretation result = await construction.InterpretAsync(new(
-            Guid.NewGuid(), "O anexă mică pentru curte", [new IntakeCategory(Guid.NewGuid(), "Materiale", "materiale")],
+            Guid.NewGuid(), "Vreau un acoperiș pentru o casă 10×12.", "Iasi", "Iasi", 50,
+            [new IntakeCategory(Guid.NewGuid(), "Acoperișuri", "acoperisuri")], [], null,
             new DateTimeOffset(2026, 8, 4, 12, 0, 0, TimeSpan.Zero)), CancellationToken.None);
 
         Assert.True(construction.IsAvailable);
-        Assert.Equal("Trei usi din lemn", result.Summary);
+        Assert.Equal("Acoperiș pentru casă 10×12.", result.ProjectSummary);
+        Assert.Equal(ProcurementInputType.ProjectDescription, result.Draft.InputType);
         Assert.Equal("Bearer", handler.AuthorizationScheme);
+        // Its own construction workflow — not the general commercial prompt, and never Passive House depth.
+        // (The request body is JSON with non-ASCII escaped, so assert on ASCII-safe, prompt-distinctive markers.)
+        Assert.Contains("PROIECTUL", handler.RequestBody, StringComparison.Ordinal);
+        Assert.Contains("construction_project", handler.RequestBody, StringComparison.Ordinal);
+        Assert.Contains("projectSummary", handler.RequestBody, StringComparison.Ordinal);
+        Assert.DoesNotContain("web search", handler.RequestBody, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("Passive House", handler.RequestBody, StringComparison.OrdinalIgnoreCase);
     }
 
@@ -126,16 +137,37 @@ public sealed class OpenAiNeedExtractionProviderTests
             clarification = (object?)null,
             suggestedMode = "GeneralProcurement"
         });
-        return JsonSerializer.Serialize(new
-        {
-            output = new object[]
-            {
-                new { type = "message", content = new[] { new { type = "output_text", text = extraction,
-                    annotations = Array.Empty<object>() } } }
-            },
-            usage = new { input_tokens = 120, output_tokens = 80 }
-        });
+        return Envelope(extraction);
     }
+
+    private static string ConstructionResponseBody()
+    {
+        string extraction = JsonSerializer.Serialize(new
+        {
+            projectSummary = "Acoperiș pentru casă 10×12.", title = "Acoperiș casă 10×12",
+            projectName = "Casă 10×12", description = "Necesar derivat din proiect, de confirmat.",
+            primaryCategorySlug = "acoperisuri", deliveryAddress = "", deliveryLocality = "Iasi", county = "Iasi",
+            preferredDeliveryDate = (string?)null, quotationDeadline = "2026-08-10 12:00",
+            alternativeProductsAccepted = true, allowSplit = true, deliveryRequired = true,
+            estimatedBudget = (decimal?)null,
+            lines = new[] { new { kind = "Product", name = "Țiglă metalică", specification = "Suprafață estimată",
+                quantity = 132, unit = "SquareMetre", alternativesAccepted = true, categorySlug = "acoperisuri" } },
+            assumptions = new List<string> { "Formă presupusă în două ape.", "Adaos de 10% pentru pierderi." },
+            uncertainties = new List<string> { "Panta acoperișului se confirmă." },
+            clarification = (object?)null
+        });
+        return Envelope(extraction);
+    }
+
+    private static string Envelope(string extraction) => JsonSerializer.Serialize(new
+    {
+        output = new object[]
+        {
+            new { type = "message", content = new[] { new { type = "output_text", text = extraction,
+                annotations = Array.Empty<object>() } } }
+        },
+        usage = new { input_tokens = 120, output_tokens = 80 }
+    });
 
     private sealed class RecordingHandler(string responseBody) : HttpMessageHandler
     {
@@ -162,7 +194,7 @@ public sealed class OpenAiNeedExtractionProviderTests
         }
     }
 
-    private sealed class RecordingLogger : ILogger<OpenAiNeedExtractionProvider>
+    private sealed class RecordingLogger : ILogger<OpenAiResponsesTransport>
     {
         public List<LoggedEntry> Entries { get; } = [];
 
