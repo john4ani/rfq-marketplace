@@ -1,6 +1,7 @@
 import { registerLocaleData } from '@angular/common';
 import localeRo from '@angular/common/locales/ro';
 import { TestBed } from '@angular/core/testing';
+import { provideRouter } from '@angular/router';
 import { of, Subject } from 'rxjs';
 import { OfferService } from '../../core/offers/offer.service';
 import { OpenRfq } from '../../core/rfqs/open-rfq.service';
@@ -155,7 +156,7 @@ describe('OfferEditorComponent', () => {
   it('normalizes a legacy general offer stored as delivery cost', async () => {
     await TestBed.configureTestingModule({
       imports: [OfferEditorComponent],
-      providers: [{
+      providers: [provideRouter([]), {
         provide: OfferService,
         useValue: {
           getForRequest: () => of({
@@ -240,7 +241,7 @@ describe('OfferEditorComponent', () => {
   it('keeps saved prices associated by request item id when API line order differs', async () => {
     await TestBed.configureTestingModule({
       imports: [OfferEditorComponent],
-      providers: [{
+      providers: [provideRouter([]), {
         provide: OfferService,
         useValue: {
           getForRequest: () => of({
@@ -265,6 +266,8 @@ describe('OfferEditorComponent', () => {
 
     expect(fixture.componentInstance.requestedItem('item-2')?.productName).toBe('Montaj');
     expect(fixture.componentInstance.coveredCount()).toBe(2);
+    fixture.componentInstance.editSubmittedOffer();
+    fixture.detectChanges();
     const text = (fixture.nativeElement as HTMLElement).textContent ?? '';
     expect(text.indexOf('Ciment')).toBeLessThan(text.indexOf('Montaj'));
     expect(text).not.toContain('Cantitate parțială');

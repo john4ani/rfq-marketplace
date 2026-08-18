@@ -13,6 +13,7 @@ import { TrustFactsComponent } from '../profiles/trust-facts.component';
   imports: [RouterLink, CurrencyPipe, DatePipe, ProcurementOutcomeComponent, TrustFactsComponent],
   template: `<section class="compare">
     <a class="back" routerLink="/dashboard">← Cererile mele</a>
+    @if (loading() && !rfq()) { <div class="loading" role="status" aria-label="Încărcăm ofertele…"><span></span><span></span></div> }
     @if (rfq(); as request) {
       <header><div><p class="eyebrow">Gestionare cerere</p><h1>{{ request.title }}</h1>
         <p>Urmărește cererea, gestionează termenul și compară ofertele primite.</p></div>
@@ -129,32 +130,38 @@ import { TrustFactsComponent } from '../profiles/trust-facts.component';
           }
         </section>
       }
-      @if (offers().length > 0) {
+      @if (offers().length > 1) {
         <section class="summary" aria-label="Rezumat oferte">
-          <div><small>Cel mai mic total comparabil</small><strong>{{ lowestComparableTotal() === null ? '—' : (lowestComparableTotal() | currency:'RON':'symbol-narrow':'1.2-2':'ro') }}</strong></div>
+          <div><small>Cel mai mic total (acoperire completă)</small><strong>{{ lowestComparableTotal() === null ? '—' : (lowestComparableTotal() | currency:'RON':'symbol-narrow':'1.2-2':'ro') }}</strong></div>
           <div><small>Cel mai scurt termen declarat</small><strong>{{ fastestDelivery() === null ? '—' : fastestDelivery() + ' zile' }}</strong></div>
           <div><small>Oferte complete</small><strong>{{ completeOffers() }} din {{ offers().length }}</strong></div>
         </section>
+        @if (importantDifferences().length > 0) {
+          <section class="differences" aria-label="Diferențe importante între oferte">
+            <h2>Diferențe importante</h2>
+            <ul>@for (line of importantDifferences(); track line) { <li>{{ line }}</li> }</ul>
+          </section>
+        }
         @if (request.items.length > 0) {
           <section class="line-comparison"><div><p class="eyebrow">Comparație poziție cu poziție</p><h2>Ce include fiecare ofertă</h2></div>
             <div class="table-scroll"><table><thead><tr><th>Poziție cerută</th>@for (entry of offers(); track entry.offer.id) { <th>{{ entry.supplierName }}</th> }</tr></thead>
               <tbody>@for (item of request.items; track item.id) { <tr><th><strong>{{ item.productName }}</strong><small>{{ item.quantity }} {{ unitLabel(item.unit) }}</small></th>
                 @for (entry of offers(); track entry.offer.id) { @if (offeredLine(entry, item.id!); as line) {
-                  <td [class.missing]="!line.available"><strong>{{ line.available ? (line.lineTotal | currency:'RON':'symbol-narrow':'1.2-2':'ro') : 'Lipsește' }}</strong>
+                  <td [class.missing]="!line.available"><strong>{{ line.available ? (line.lineTotal | currency:'RON':'symbol-narrow':'1.2-2':'ro') : 'Nu este inclus' }}</strong>
                     @if (line.available) { <small>{{ line.quantity }} × {{ line.unitPrice | currency:'RON':'symbol-narrow':'1.2-2':'ro' }}</small> }
                     @if (line.isAlternative) { <span class="alternative-badge">Alternativă</span> }
                     @if (line.productDescription) { <small>{{ line.productDescription }}</small> }</td>
                 } @else if (entry.offer.pricingMode === 'Total') { <td><strong>Inclus</strong><small>în prețul total</small></td>
-                } @else { <td class="missing"><strong>Lipsește</strong></td> } }
+                } @else { <td class="missing"><strong>Nu este inclus</strong></td> } }
               </tr> }</tbody></table></div>
           </section>
         }
       }
-      @if (loading()) { <div class="loading" role="status"><span></span><span></span></div> }
+      @if (loading()) { <div class="loading" role="status" aria-label="Încărcăm ofertele…"><span></span><span></span></div> }
       @if (!loading() && offers().length === 0) {
-        <div class="empty"><span aria-hidden="true">◇</span><div><strong>Nu ai primit încă oferte.</strong>
+        <div class="empty"><span aria-hidden="true">◇</span><div><strong>Nu ai primit încă nicio ofertă.</strong>
           @if (canManage(request)) {
-            <small>Te vom anunța când un furnizor răspunde. Poți prelungi termenul sau anula cererea din secțiunea de mai sus.</small>
+            <small>Te vom anunța când apare o ofertă nouă. Poți prelungi termenul sau anula cererea din secțiunea de mai sus.</small>
           } @else {
             <small>Cererea nu mai primește oferte.</small>
           }</div></div>
@@ -162,19 +169,26 @@ import { TrustFactsComponent } from '../profiles/trust-facts.component';
       <div class="cards">
         @for (entry of offers(); track entry.offer.id) {
           <article [class.winner]="entry.offer.status === 'Selected'">
-            <div class="top"><div><span class="recommend" [class.partial]="entry.offer.coverage === 'Partial'">{{ entry.offer.coverage === 'Full' ? 'Acoperire completă' : 'Acoperire parțială' }}</span>
-              @if (entry.offer.status === 'Selected') { <span class="recommend">Câștigătoare</span> }<h2>{{ entry.supplierName }}</h2><app-trust-facts [facts]="entry.trustFacts" role="Supplier" /></div>
-              <div class="price"><small>{{ entry.offer.hasComparableTotal ? 'Total de plată' : 'Total fără transport' }}</small><strong>{{ entry.offer.total | currency:'RON':'symbol-narrow':'1.2-2':'ro' }}</strong></div></div>
+            <div class="top"><div><span class="recommend" [class.partial]="entry.offer.coverage === 'Partial'">{{ entry.offer.coverage === 'Full' ? 'Acoperire completă' : 'Acoperă ' + entry.coverageDetails.coveredPositionCount + ' din ' + entry.coverageDetails.requestedPositionCount + ' poziții' }}</span>
+              @if (cheapestFullCoverageIds().has(entry.offer.id)) { <span class="recommend">Cel mai mic total (acoperire completă)</span> }
+              @if (fastestOfferIds().has(entry.offer.id)) { <span class="recommend">Livrare cea mai rapidă</span> }
+              @if (entry.offer.deliveryTerms === 'IncludedInPrice') { <span class="recommend">Transport inclus</span> }
+              @if (hasAlternative(entry)) { <span class="recommend">Include alternativă</span> }
+              <h2>{{ entry.supplierName }}</h2><app-trust-facts [facts]="entry.trustFacts" role="Supplier" /></div>
+              <div class="price"><small>{{ entry.offer.hasComparableTotal ? 'Total de plată' : 'Total fără transport' }}</small><strong>{{ entry.offer.total | currency:'RON':'symbol-narrow':'1.2-2':'ro' }}</strong>
+                @if (entry.offer.coverage === 'Partial') { <small>pentru {{ entry.coverageDetails.coveredPositionCount }}/{{ entry.coverageDetails.requestedPositionCount || request.items.length }} poziții</small> }</div></div>
             <p class="tradeoff">{{ tradeoff(entry) }}</p>
             @if (entry.offer.status === 'Selected') {
               <div class="selected">✓ Ofertă selectată</div>
             } @else if (!request.selectedOfferId && pendingOffer()?.offer?.id === entry.offer.id) {
               <div class="confirm-selection" role="group" aria-label="Confirmă selectarea ofertei">
-                <div><strong>Confirmă furnizorul</strong><p>{{ entry.supplierName }} · {{ entry.offer.total | currency:'RON':'symbol-narrow':'1.2-2':'ro' }}</p><small>După confirmare, cererea nu va mai primi oferte. {{ entry.offer.deliveryIncluded ? 'Furnizorul va declara livrarea, apoi vei confirma primirea.' : 'Transportul se organizează separat.' }}</small></div>
-                <div class="confirm-actions"><button class="secondary" type="button" (click)="cancelSelection()">Renunță</button><button type="button" (click)="confirmSelection()" [disabled]="busy()">{{ busy() ? 'Se confirmă…' : 'Confirmă și închide cererea' }}</button></div>
+                <div><strong>Alegi oferta de la {{ entry.supplierName }}</strong>
+                  <p>{{ entry.offer.total | currency:'RON':'symbol-narrow':'1.2-2':'ro' }} · Acoperire completă · Livrare în {{ entry.offer.deliveryDays }} zile · {{ entry.offer.deliveryTerms === 'IncludedInPrice' ? 'Transport inclus' : entry.offer.deliveryTerms === 'AddedToTotal' ? ('Transport ' + (entry.offer.deliveryCost | currency:'RON':'symbol-narrow':'1.2-2':'ro')) : 'Transport se organizează separat' }}</p>
+                  <small>După confirmare, cererea nu va mai primi oferte. {{ entry.offer.deliveryIncluded ? 'Furnizorul va declara livrarea, apoi vei confirma primirea.' : 'Transportul se organizează separat.' }}</small></div>
+                <div class="confirm-actions"><button class="secondary" type="button" (click)="cancelSelection()">Înapoi</button><button type="button" (click)="confirmSelection()" [disabled]="busy()">{{ busy() ? 'Se confirmă…' : 'Confirmă alegerea' }}</button></div>
               </div>
             } @else if (!request.selectedOfferId && entry.offer.coverage === 'Full') {
-              <button class="select-offer" type="button" (click)="requestSelection(entry)" [disabled]="busy()">Selectează această ofertă</button>
+              <button class="select-offer" type="button" (click)="requestSelection(entry)" [disabled]="busy()">Alege oferta</button>
             } @else if (!request.selectedOfferId) {
               <p class="partial-warning">Oferta nu poate închide singură cererea deoarece lipsesc poziții. Folosește mesajele pentru clarificare.</p>
             }
@@ -236,6 +250,55 @@ export class BuyerOfferComparisonComponent {
     const days = this.offers().filter(entry => entry.offer.deliveryTerms !== 'ArrangedSeparately').map(entry => entry.offer.deliveryDays);
     return days.length === 0 ? null : Math.min(...days);
   });
+  // Only surfaced as a factual differentiator when offers actually differ - a shared minimum isn't a trade-off.
+  readonly cheapestFullCoverageIds = computed(() => {
+    const eligible = this.offers().filter(entry => entry.offer.coverage === 'Full' && entry.offer.hasComparableTotal);
+    const total = this.lowestComparableTotal();
+    if (total === null || eligible.length < 2 || new Set(eligible.map(entry => entry.offer.total)).size < 2) return new Set<string>();
+    return new Set(eligible.filter(entry => entry.offer.total === total).map(entry => entry.offer.id));
+  });
+  readonly fastestOfferIds = computed(() => {
+    const eligible = this.offers().filter(entry => entry.offer.deliveryTerms !== 'ArrangedSeparately');
+    const days = this.fastestDelivery();
+    if (days === null || eligible.length < 2 || new Set(eligible.map(entry => entry.offer.deliveryDays)).size < 2) return new Set<string>();
+    return new Set(eligible.filter(entry => entry.offer.deliveryDays === days).map(entry => entry.offer.id));
+  });
+  readonly importantDifferences = computed(() => {
+    const list = this.offers();
+    if (list.length < 2) return [];
+    const lines: string[] = [];
+    const full = list.filter(entry => entry.offer.coverage === 'Full');
+    const partial = list.filter(entry => entry.offer.coverage === 'Partial');
+    if (full.length > 0 && partial.length > 0) {
+      lines.push(`${this.names(full)} ${full.length === 1 ? 'acoperă' : 'acoperă'} toate pozițiile cerute.`);
+      for (const entry of partial) {
+        const missing = entry.coverageDetails.requestedPositionCount - entry.coverageDetails.coveredPositionCount;
+        lines.push(`Oferta ${entry.supplierName} nu include ${missing} ${missing === 1 ? 'poziție' : 'poziții'}.`);
+      }
+    }
+    const cheapestIds = this.cheapestFullCoverageIds();
+    if (cheapestIds.size > 0) {
+      const winners = full.filter(entry => cheapestIds.has(entry.offer.id));
+      lines.push(`${this.names(winners)} ${winners.length === 1 ? 'are' : 'au'} cel mai mic total dintre ofertele cu acoperire completă.`);
+    }
+    const fastestIds = this.fastestOfferIds();
+    if (fastestIds.size > 0) {
+      const winners = list.filter(entry => fastestIds.has(entry.offer.id));
+      const days = this.fastestDelivery();
+      lines.push(`${this.names(winners)} livrează cel mai repede: ${days} ${days === 1 ? 'zi' : 'zile'}.`);
+    }
+    const included = list.filter(entry => entry.offer.deliveryTerms === 'IncludedInPrice');
+    const extra = list.filter(entry => entry.offer.deliveryTerms === 'AddedToTotal' && entry.offer.deliveryCost > 0);
+    if (included.length > 0 && extra.length > 0) {
+      lines.push(`Transportul este inclus la ${this.names(included)} și se adaugă separat la ${this.names(extra)}.`);
+    }
+    for (const entry of list) {
+      const altNames = entry.offer.items.filter(item => item.isAlternative).map(item => this.itemName(item.rfqItemId));
+      if (altNames.length === 1) lines.push(`${entry.supplierName} propune o alternativă pentru ${altNames[0]}.`);
+      else if (altNames.length > 1) lines.push(`${entry.supplierName} propune alternative pentru: ${altNames.join(', ')}.`);
+    }
+    return lines;
+  });
 
   constructor() { this.load(); }
 
@@ -289,6 +352,18 @@ export class BuyerOfferComparisonComponent {
 
   offeredLine(entry: BuyerOffer, rfqItemId: string): OfferItem | undefined {
     return entry.offer.items.find(item => item.rfqItemId === rfqItemId);
+  }
+
+  hasAlternative(entry: BuyerOffer): boolean {
+    return entry.offer.items.some(item => item.isAlternative);
+  }
+
+  private names(entries: BuyerOffer[]): string {
+    return entries.map(entry => entry.supplierName).join(' și ');
+  }
+
+  private itemName(rfqItemId: string): string {
+    return this.rfq()?.items.find(item => item.id === rfqItemId)?.productName ?? 'o poziție';
   }
 
   taxLabel(treatment: OfferTaxTreatment, rate: number | null): string {

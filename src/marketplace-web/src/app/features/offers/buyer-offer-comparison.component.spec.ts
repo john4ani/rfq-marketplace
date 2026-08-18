@@ -54,7 +54,7 @@ describe('BuyerOfferComparisonComponent', () => {
     expect(page.querySelector('h1')?.textContent).toContain('Materiale renovare');
     expect(page.querySelector('.request-facts')?.textContent).toContain('Iași');
     expect(page.querySelector('.request-details summary')?.textContent).toContain('1 poziție');
-    expect(page.querySelector('.empty')?.textContent).toContain('Nu ai primit încă oferte');
+    expect(page.querySelector('.empty')?.textContent).toContain('Nu ai primit încă nicio ofertă');
     expect(Array.from(page.querySelectorAll('button')).map(button=>button.textContent)).toEqual(
       expect.arrayContaining([expect.stringContaining('Prelungește termenul'),expect.stringContaining('Anulează cererea')]));
   });
@@ -63,11 +63,11 @@ describe('BuyerOfferComparisonComponent', () => {
     const fixture=TestBed.createComponent(BuyerOfferComparisonComponent);
     fixture.detectChanges();
 
-    (fixture.nativeElement as HTMLElement).querySelector<HTMLButtonElement>('.request-actions .secondary')?.click();
+    (fixture.nativeElement as HTMLElement).querySelector<HTMLButtonElement>('.contextual-action')?.click();
     fixture.detectChanges();
 
     expect((fixture.nativeElement as HTMLElement).querySelector('.management-form')?.textContent)
-      .toContain('Prelungește termenul pentru oferte');
+      .toContain('Termen nou');
   });
 
   it('asks for the real outcome after the quotation deadline', () => {
@@ -181,9 +181,66 @@ describe('BuyerOfferComparisonComponent', () => {
 
     expect(page.querySelector('.line-comparison')?.textContent).toContain('Ciment');
     expect(page.querySelector('.line-comparison')?.textContent).toContain('Alternativă');
-    expect(page.querySelector('.line-comparison')?.textContent).toContain('Lipsește');
+    expect(page.querySelector('.line-comparison')?.textContent).toContain('Nu este inclus');
     expect(page.textContent).toContain('Acoperă 0 din 1 poziții');
     expect(page.textContent).not.toContain('Cea mai bună ofertă');
     expect(page.querySelectorAll('.cards button').length).toBe(1);
+  });
+
+  it('shows a plain offer detail view instead of comparison UI when only one offer exists', async () => {
+    const singleOffer = {
+      id:'offer-1',rfqId:request.id,supplierId:'supplier-1',status:'Submitted',pricingMode:'Total',
+      coverage:'Full',taxTreatment:'VatIncluded',vatRate:19,deliveryTerms:'IncludedInPrice',currency:'RON',
+      totalPrice:1000,deliveryIncluded:true,deliveryCost:0,deliveryDays:2,validUntil:'2026-08-01',
+      paymentTerms:null,notes:null,itemsTotal:0,netTotal:840.34,vatAmount:159.66,total:1000,
+      hasComparableTotal:true,createdAt:'2026-07-25T10:00:00.000Z',updatedAt:'2026-07-25T10:00:00.000Z',
+      submittedAt:'2026-07-25T10:00:00.000Z',items:[]
+    };
+    TestBed.overrideProvider(OfferService, { useValue: { forBuyer: () => of([
+      {supplierName:'Furnizor Unic',offer:singleOffer,coverageDetails:{requestedPositionCount:1,coveredPositionCount:1,missingRfqItemIds:[]}}
+    ]) } });
+    const fixture=TestBed.createComponent(BuyerOfferComparisonComponent);
+    fixture.detectChanges();
+    await fixture.whenStable();
+    fixture.detectChanges();
+    const page=fixture.nativeElement as HTMLElement;
+
+    expect(page.querySelector('.summary')).toBeNull();
+    expect(page.querySelector('.differences')).toBeNull();
+    expect(page.querySelector('.line-comparison')).toBeNull();
+    expect(page.textContent).toContain('Furnizor Unic');
+    expect(page.textContent).toContain('Alege oferta');
+  });
+
+  it('explains factual differences between full-coverage offers without declaring a winner', async () => {
+    const fast = {
+      id:'offer-1',rfqId:request.id,supplierId:'supplier-1',status:'Submitted',pricingMode:'Total',
+      coverage:'Full',taxTreatment:'VatIncluded',vatRate:19,deliveryTerms:'IncludedInPrice',currency:'RON',
+      totalPrice:1000,deliveryIncluded:true,deliveryCost:0,deliveryDays:2,validUntil:'2026-08-01',
+      paymentTerms:null,notes:null,itemsTotal:0,netTotal:840.34,vatAmount:159.66,total:1000,
+      hasComparableTotal:true,createdAt:'2026-07-25T10:00:00.000Z',updatedAt:'2026-07-25T10:00:00.000Z',
+      submittedAt:'2026-07-25T10:00:00.000Z',items:[]
+    };
+    const slowerAndCheaper = {
+      ...fast,id:'offer-2',supplierId:'supplier-2',deliveryTerms:'AddedToTotal',deliveryCost:100,
+      deliveryDays:5,totalPrice:900,total:900
+    };
+    TestBed.overrideProvider(OfferService, { useValue: { forBuyer: () => of([
+      {supplierName:'ABC Materiale', offer:fast, coverageDetails:{requestedPositionCount:1,coveredPositionCount:1,missingRfqItemIds:[]}},
+      {supplierName:'XYZ Construct', offer:slowerAndCheaper, coverageDetails:{requestedPositionCount:1,coveredPositionCount:1,missingRfqItemIds:[]}}
+    ]) } });
+    const fixture=TestBed.createComponent(BuyerOfferComparisonComponent);
+    fixture.detectChanges();
+    await fixture.whenStable();
+    fixture.detectChanges();
+    const page=fixture.nativeElement as HTMLElement;
+    const differences = page.querySelector('.differences')?.textContent ?? '';
+
+    expect(differences).toContain('ABC Materiale livrează cel mai repede');
+    expect(differences).toContain('XYZ Construct are cel mai mic total');
+    expect(differences).toContain('Transportul este inclus la ABC Materiale');
+    expect(page.textContent).not.toContain('Câștigătoare');
+    expect(page.textContent).not.toContain('BEST');
+    expect(page.textContent).not.toContain('Recomandat');
   });
 });
