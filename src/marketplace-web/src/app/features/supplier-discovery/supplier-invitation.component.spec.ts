@@ -36,7 +36,7 @@ describe('SupplierInvitationComponent',()=>{
     expect(page.querySelector('h1')?.textContent).toContain('cerere relevantă');
     expect(page.textContent).toContain('Cherestea pentru proiect');
     expect(page.textContent).toContain('neverificate de companie');
-    expect(page.textContent).toContain('Creează cont de furnizor');
+    expect(page.textContent).toContain('Creează cont');
     expect(page.textContent).not.toContain('Adresă privată');
   });
 

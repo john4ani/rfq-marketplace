@@ -45,12 +45,8 @@ export class SupplierInvitationComponent {
   }
 
   addSupplierProfile():void{
-    if(this.claiming())return;
-    this.claiming.set(true);this.error.set('');
-    this.auth.addProfile('Supplier').subscribe({
-      next:()=>void this.router.navigateByUrl(this.currentPath),
-      error:()=>{this.claiming.set(false);this.error.set('Profilul de furnizor nu a putut fi adăugat. Încearcă din Contul meu.');}
-    });
+    const companyName=this.invitation()?.companyName;
+    void this.router.navigate(['/account/company/new'],{queryParams:companyName?{returnUrl:this.currentPath,companyName}:{returnUrl:this.currentPath}});
   }
 
   statusMessage(invitation:SupplierInvitation):string{

@@ -18,6 +18,8 @@ The expected Google Workspace relay authentication method is the deployment serv
 
 For a local real-send test, Google Workspace must separately authorize the local machine's current public IP, or the local process must use an approved SMTP-authenticated relay configuration. A relay configured only for the deployment server will reject a home/office IP; this is expected and should not be solved by committing credentials.
 
-The existing password-reset and email-verification deliveries use this shared transport. In-app notifications and supplier invitation issuance remain in-app/admin workflows until a separate notification-policy slice explicitly enables outbound notification or invitation email.
+The existing password-reset and email-verification deliveries use this shared transport. Task 8 supplier invitation email uses this same sender after an Administrator explicitly selects **Trimite invitație email** for an approved opportunity; it never derives a recipient from a Company ID or User ID.
+
+`SupplierOutreach__EmailCooldownHours` defaults to 72 and prevents duplicate successful outreach. `SupplierOutreach__PublicApplicationUrl` supplies the public invitation and opaque opt-out links. Each attempt is persisted before SMTP, then marked sent or failed after SMTP returns; failure is visible to the Administrator and can be retried. Contact suppression is checked for every future attempt, including a later rediscovery of the candidate. No token or email body is logged.
 
 When email is enabled, `EmailVerification__ConfirmationPageUrl` must be an HTTPS URL on the configured frontend origin. Production compose derives it from `FRONTEND_ORIGIN` as `/verify-email`.

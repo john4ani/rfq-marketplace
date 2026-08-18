@@ -46,6 +46,41 @@ public sealed class SupplierDiscoveryController(
     }
 
     [Authorize(Roles = MarketplaceRoles.Administrator)]
+    [HttpPost("admin/supplier-discovery/needs/{rfqId:guid}/candidates/{candidateId:guid}/match")]
+    public async Task<IActionResult> CreateCandidateMatch(Guid rfqId, Guid candidateId, CancellationToken cancellationToken)
+    {
+        if (!CurrentUserId(out Guid administratorId)) return Unauthorized();
+        try { return (await discoveryService.CreateCandidateMatchAsync(administratorId, rfqId, candidateId, cancellationToken)) is { } match ? Ok(match) : NotFound(); }
+        catch (SupplierDiscoveryRuleException exception) { return ValidationProblem(Errors("match", exception.Message)); }
+    }
+
+    [Authorize(Roles = MarketplaceRoles.Administrator)]
+    [HttpPost("admin/supplier-candidates/{candidateId:guid}/outreach/email")]
+    public async Task<IActionResult> SendEmail(Guid candidateId, SupplierOutreachRequest request, CancellationToken cancellationToken)
+    {
+        if (!CurrentUserId(out Guid administratorId)) return Unauthorized();
+        try { return (await discoveryService.SendEmailInvitationAsync(administratorId, candidateId, request.OpportunityMatchId, cancellationToken)) is { } result ? Ok(result) : NotFound(); }
+        catch (SupplierDiscoveryRuleException exception) { return ValidationProblem(Errors("outreach", exception.Message)); }
+    }
+
+    [Authorize(Roles = MarketplaceRoles.Administrator)]
+    [HttpPost("admin/supplier-candidates/{candidateId:guid}/outreach/manual")]
+    public async Task<IActionResult> RecordManualContact(Guid candidateId, SupplierManualContactRequest request, CancellationToken cancellationToken)
+    {
+        if (!CurrentUserId(out Guid administratorId)) return Unauthorized();
+        try { return (await discoveryService.RecordManualContactAsync(administratorId, candidateId, request.OpportunityMatchId, request.Channel, request.Note, cancellationToken)) is { } result ? Ok(result) : NotFound(); }
+        catch (SupplierDiscoveryRuleException exception) { return ValidationProblem(Errors("outreach", exception.Message)); }
+    }
+
+    [Authorize(Roles = MarketplaceRoles.Administrator)]
+    [HttpPost("admin/supplier-candidates/{candidateId:guid}/suppress-contact")]
+    public async Task<IActionResult> SuppressContact(Guid candidateId, SupplierContactSuppressionRequest request, CancellationToken cancellationToken)
+    {
+        if (!CurrentUserId(out Guid administratorId)) return Unauthorized();
+        return (await discoveryService.SuppressContactAsync(administratorId, candidateId, request.Reason, cancellationToken)) is { } result ? Ok(result) : NotFound();
+    }
+
+    [Authorize(Roles = MarketplaceRoles.Administrator)]
     [HttpPost("admin/supplier-candidates")]
     public async Task<IActionResult> Create(
         SupplierCandidateRequest request,
@@ -143,6 +178,11 @@ public sealed class SupplierDiscoveryController(
         return invitation is null ? NotFound(Problem(title: "Invitația nu există.")) : Ok(invitation);
     }
 
+    [AllowAnonymous]
+    [HttpPost("supplier-outreach/opt-out/{token}")]
+    public async Task<IActionResult> OptOut(string token, CancellationToken cancellationToken) =>
+        await discoveryService.OptOutEmailAsync(token, cancellationToken) ? NoContent() : NotFound();
+
     [Authorize]
     [HttpPost("supplier-invitations/{token}/claim")]
     public async Task<IActionResult> Claim(string token, [FromQuery] Guid? companyId, CancellationToken cancellationToken)
@@ -202,3 +242,6 @@ public sealed record SupplierCandidateRequest(
 public sealed record SupplierCandidateReviewRequest(bool Approved, [Required, MinLength(5), MaxLength(1000)] string Notes);
 public sealed record SupplierInvitationRequest(Guid RfqId);
 public sealed record OpportunityMatchReviewRequest(bool Approved, [MaxLength(1000)] string? Note);
+public sealed record SupplierOutreachRequest(Guid OpportunityMatchId);
+public sealed record SupplierManualContactRequest(Guid OpportunityMatchId, SupplierOutreachChannel Channel, [MaxLength(1000)] string? Note);
+public sealed record SupplierContactSuppressionRequest([MaxLength(500)] string? Reason);

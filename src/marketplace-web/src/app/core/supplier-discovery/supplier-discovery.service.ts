@@ -32,9 +32,11 @@ export interface SupplierInvitation {
   requirementCount:number; claimed:boolean;
 }
 export type OpportunityMatchStatus='RegisteredCompany'|'PendingReview'|'Approved'|'Rejected';
-export interface OpportunityMatch { id:string;rfqId:string;companyId:string|null;candidateId:string|null;companyName:string;city:string|null;county:string|null;matchReason:string;status:OpportunityMatchStatus;matchedAt:string;reviewNote:string|null;relevantOpportunityCount:number;activeOpportunityCount:number;approvedOpportunityCount:number;rejectedOpportunityCount:number;lastOpportunityAt:string|null;claimed:boolean;invitationCount:number;recentOpportunityCount:number;contactEmail:string|null;phoneNumber:string|null;website:string|null; }
+export interface OpportunityMatch { id:string;rfqId:string;companyId:string|null;candidateId:string|null;companyName:string;city:string|null;county:string|null;matchReason:string;status:OpportunityMatchStatus;matchedAt:string;reviewNote:string|null;relevantOpportunityCount:number;activeOpportunityCount:number;approvedOpportunityCount:number;rejectedOpportunityCount:number;lastOpportunityAt:string|null;claimed:boolean;invitationCount:number;recentOpportunityCount:number;contactEmail:string|null;phoneNumber:string|null;website:string|null;lastContactAt:string|null;lastContactStatus:string|null;contactSuppressed:boolean;emailEligible:boolean;emailUnavailableReason:string|null; }
 export interface DiscoveryNeedReview { rfqId:string;title:string;deliveryLocality:string;county:string;quotationDeadline:string;registeredCompanies:OpportunityMatch[];candidates:OpportunityMatch[]; }
 export interface AcquisitionCandidate { candidateId:string;companyName:string;city:string;county:string;categories:{id:string;name:string}[];relevantOpportunityCount:number;activeOpportunityCount:number;approvedOpportunityCount:number;rejectedOpportunityCount:number;lastOpportunityAt:string|null;invitationCount:number;claimed:boolean;recentOpportunityCount:number; }
+export type SupplierOutreachChannel='Email'|'Phone'|'InPerson'|'Sms';
+export interface SupplierOutreachResult {candidateId:string;opportunityMatchId:string;channel:SupplierOutreachChannel;status:'Pending'|'Sent'|'Failed'|'Recorded';eligible:boolean;message:string;cooldownUntil:string|null;invitationId:string|null;}
 
 @Injectable({providedIn:'root'})
 export class SupplierDiscoveryService {
@@ -49,4 +51,9 @@ export class SupplierDiscoveryService {
   needReview(rfqId:string){return this.http.get<DiscoveryNeedReview>(`/api/v1/admin/supplier-discovery/needs/${rfqId}`);}
   acquisition(county?:string,categoryId?:string){return this.http.get<AcquisitionCandidate[]>('/api/v1/admin/supplier-discovery/acquisition',{params:{...(county?{county}:{}),...(categoryId?{categoryId}:{})}});}
   reviewMatch(id:string,approved:boolean,note?:string){return this.http.put<OpportunityMatch>(`/api/v1/admin/supplier-discovery/opportunity-matches/${id}/review`,{approved,note:note||null});}
+  createCandidateMatch(rfqId:string,candidateId:string){return this.http.post<OpportunityMatch>(`/api/v1/admin/supplier-discovery/needs/${rfqId}/candidates/${candidateId}/match`,{});}
+  sendEmail(candidateId:string,opportunityMatchId:string){return this.http.post<SupplierOutreachResult>(`/api/v1/admin/supplier-candidates/${candidateId}/outreach/email`,{opportunityMatchId});}
+  recordManualContact(candidateId:string,opportunityMatchId:string,channel:'Phone'|'InPerson',note?:string){return this.http.post<SupplierOutreachResult>(`/api/v1/admin/supplier-candidates/${candidateId}/outreach/manual`,{opportunityMatchId,channel,note:note||null});}
+  suppressContact(candidateId:string,reason?:string){return this.http.post<SupplierOutreachResult>(`/api/v1/admin/supplier-candidates/${candidateId}/suppress-contact`,{reason:reason||null});}
+  optOut(token:string){return this.http.post<void>(`/api/v1/supplier-outreach/opt-out/${encodeURIComponent(token)}`,{});}
 }

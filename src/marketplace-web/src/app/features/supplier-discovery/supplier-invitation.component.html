@@ -16,9 +16,9 @@
       <section class="next-step"><div><p class="eyebrow">Pasul următor</p><h2>Revendică firma înainte de a răspunde</h2>
         <p>Nu publicăm profilul ca verificat și nu preluăm automat datele drept capabilități confirmate.</p></div>
         @if(!auth.isAuthenticated()){
-          <div class="actions"><a class="primary-link" [routerLink]="['/register']" [queryParams]="{supplierInvite:currentPath}">Creează cont de furnizor</a><a [routerLink]="['/sign-in']" [queryParams]="{returnUrl:currentPath}">Am deja cont</a></div>
+          <div class="actions"><a class="primary-link" [routerLink]="['/register']" [queryParams]="{supplierInvite:currentPath}">Creează cont</a><a [routerLink]="['/sign-in']" [queryParams]="{returnUrl:currentPath}">Am deja cont</a></div>
         }@else if(!hasSupplierRole()){
-          <button type="button" (click)="addSupplierProfile()" [disabled]="claiming()">{{claiming()?'Se adaugă…':'Adaugă profilul de furnizor'}}</button>
+          <button type="button" (click)="addSupplierProfile()">Adaugă firma</button>
         }@else{
           <button type="button" (click)="claim()" [disabled]="claiming()">{{claiming()?'Se revendică…':'Revendică firma'}}</button>
         }

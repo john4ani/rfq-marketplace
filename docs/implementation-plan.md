@@ -69,9 +69,9 @@ Task 6B closes the zero-company entry gap with one reusable **Adaugă firma** fl
 
 Reuse the existing `SupplierCandidate` and claim/invitation compatibility flow. Add additive `OpportunityMatch` history for each published need and exactly one target (registered `SupplierProfile` company or candidate), with filtered database uniqueness per target type. Registered provider matching remains authoritative and is persisted for explanation; candidate matching is deterministic from central-category compatibility and county and starts `PendingReview`. An Administrator approves or rejects candidates per opportunity; approval makes a manual secured invitation eligible but never sends or contacts anyone automatically. Provide an Admin need-centric review screen and a company-centric unclaimed-candidate acquisition view with historical and active opportunity counts. Preserve General Procurement and Construction because both use the same central categories and matching semantics. No external web discovery, email/outreach, CRM, automatic contact, ranking automation or new taxonomy belongs to this task.
 
-## Task 8 — Best Value comparison
+## Task 8 — Outreach, Contact Policy, Invitation & Claim Continuity
 
-Decision-first comparison of total, coverage, delivery, condition, warranty, transport, trust, alternatives and explainable AI assistance—never cheapest-only.
+Build on the approved `OpportunityMatch`: contact remains explicitly Administrator-initiated and opportunity-specific. Persist email, phone and direct-contact history; centralize eligibility, suppression and a conservative email cooldown; use the existing `IEmailSender` for invitation delivery; and expose a public, privacy-safe invitation preview and opaque opt-out route. A candidate can be associated with an existing open request through the same OpportunityMatch model. Preserve the original opportunity through User registration, company creation, claim and offer preparation. No bulk outreach, SMS provider, CRM, tracking, or automatic contact belongs to this MVP slice.
 
 ## Task 9 — Construction repositioning
 

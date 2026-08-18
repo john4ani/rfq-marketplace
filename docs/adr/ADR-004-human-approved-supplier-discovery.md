@@ -6,4 +6,4 @@ Supplier discovery is a core MVP capability, but no new candidate may be contact
 
 ## Consequences
 
-Persist explicit opportunity matching, candidate review, invitation history, contact suppression and delivery controls. Use real opportunities only, deduplicate contact, respect permanent opt-out, and rate-limit outreach. An approval records eligibility only; an Administrator must separately choose to create and send any invitation.
+Persist explicit opportunity matching, candidate review, invitation history, contact suppression and delivery controls. Use real opportunities only, deduplicate contact, respect permanent opt-out, and rate-limit outreach. An approval records eligibility only; an Administrator must separately choose to create and send any invitation. Supplier invitations may link to their approved OpportunityMatch while keeping existing request-linked invitations compatible.

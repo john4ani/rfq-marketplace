@@ -1123,6 +1123,48 @@ namespace Marketplace.Infrastructure.Persistence.Migrations
                     b.ToTable("SupplierCandidateCategories", (string)null);
                 });
 
+            modelBuilder.Entity("Marketplace.Domain.SupplierDiscovery.SupplierContactSuppression", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("CandidateId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("CreatedBy")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("NormalizedEmail")
+                        .HasMaxLength(254)
+                        .HasColumnType("character varying(254)");
+
+                    b.Property<string>("Reason")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<int>("Scope")
+                        .HasColumnType("integer");
+
+                    b.Property<uint>("Version")
+                        .IsConcurrencyToken()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("xid")
+                        .HasColumnName("xmin");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CandidateId", "Scope")
+                        .IsUnique();
+
+                    b.HasIndex("NormalizedEmail", "Scope");
+
+                    b.ToTable("SupplierContactSuppressions", (string)null);
+                });
+
             modelBuilder.Entity("Marketplace.Domain.SupplierDiscovery.SupplierDiscoveryAuditEvent", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1188,6 +1230,9 @@ namespace Marketplace.Infrastructure.Persistence.Migrations
                     b.Property<DateTimeOffset>("ExpiresAt")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<Guid?>("OpportunityMatchId")
+                        .HasColumnType("uuid");
+
                     b.Property<DateTimeOffset?>("RevokedAt")
                         .HasColumnType("timestamp with time zone");
 
@@ -1211,6 +1256,8 @@ namespace Marketplace.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("CreatedBy");
 
+                    b.HasIndex("OpportunityMatchId");
+
                     b.HasIndex("RfqId");
 
                     b.HasIndex("TokenHash")
@@ -1219,6 +1266,72 @@ namespace Marketplace.Infrastructure.Persistence.Migrations
                     b.HasIndex("CandidateId", "RfqId");
 
                     b.ToTable("SupplierInvitations", (string)null);
+                });
+
+            modelBuilder.Entity("Marketplace.Domain.SupplierDiscovery.SupplierOutreachContact", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset?>("AttemptedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("CandidateId")
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("Channel")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTimeOffset?>("CompletedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("CreatedBy")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("FailureReason")
+                        .HasMaxLength(300)
+                        .HasColumnType("character varying(300)");
+
+                    b.Property<Guid?>("InvitationId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Note")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
+                    b.Property<Guid>("OpportunityMatchId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("OptOutTokenHash")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("integer");
+
+                    b.Property<uint>("Version")
+                        .IsConcurrencyToken()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("xid")
+                        .HasColumnName("xmin");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("InvitationId");
+
+                    b.HasIndex("OptOutTokenHash")
+                        .IsUnique()
+                        .HasFilter("\"OptOutTokenHash\" IS NOT NULL");
+
+                    b.HasIndex("CandidateId", "CreatedAt");
+
+                    b.HasIndex("OpportunityMatchId", "Channel");
+
+                    b.ToTable("SupplierOutreachContacts", (string)null);
                 });
 
             modelBuilder.Entity("Marketplace.Domain.Suppliers.Category", b =>
@@ -2139,6 +2252,15 @@ namespace Marketplace.Infrastructure.Persistence.Migrations
                         .IsRequired();
                 });
 
+            modelBuilder.Entity("Marketplace.Domain.SupplierDiscovery.SupplierContactSuppression", b =>
+                {
+                    b.HasOne("Marketplace.Domain.SupplierDiscovery.SupplierCandidate", null)
+                        .WithMany()
+                        .HasForeignKey("CandidateId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("Marketplace.Domain.SupplierDiscovery.SupplierDiscoveryAuditEvent", b =>
                 {
                     b.HasOne("Marketplace.Infrastructure.Identity.ApplicationUser", null)
@@ -2183,9 +2305,34 @@ namespace Marketplace.Infrastructure.Persistence.Migrations
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
+                    b.HasOne("Marketplace.Domain.SupplierDiscovery.OpportunityMatch", null)
+                        .WithMany()
+                        .HasForeignKey("OpportunityMatchId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
                     b.HasOne("Marketplace.Domain.Rfqs.Rfq", null)
                         .WithMany()
                         .HasForeignKey("RfqId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Marketplace.Domain.SupplierDiscovery.SupplierOutreachContact", b =>
+                {
+                    b.HasOne("Marketplace.Domain.SupplierDiscovery.SupplierCandidate", null)
+                        .WithMany()
+                        .HasForeignKey("CandidateId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Marketplace.Domain.SupplierDiscovery.SupplierInvitation", null)
+                        .WithMany()
+                        .HasForeignKey("InvitationId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.HasOne("Marketplace.Domain.SupplierDiscovery.OpportunityMatch", null)
+                        .WithMany()
+                        .HasForeignKey("OpportunityMatchId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
                 });

@@ -20,6 +20,7 @@ Domain does not depend on AWS, OpenAI, SMS/email implementation, Angular, EF Cor
 - Company representation is resolved through active `CompanyMembership`, not a global active-company claim. This foundation is additive: `SupplierProfile` and its shared-key compatibility constraint remain unchanged until a concrete future requirement justifies a broader migration.
 - A provider notification is never addressed to a company ID. The application resolves its active CompanyMembership users in the same write operation and creates one personal notification per distinct recipient. Conversations use the same membership check for company-side access; message authors remain User IDs.
 - Supplier Discovery persists `OpportunityMatch` as an auditable, per-need relation to exactly one registered company or unregistered candidate. Registered provider matching remains authoritative; candidate relevance is deterministic from category compatibility and county, then requires a separate Administrator decision for that exact opportunity. The decision never sends contact automatically.
+- Outreach is an additive Supplier Discovery concern: `SupplierOutreachContact` records manual or email contact attempts, `SupplierContactSuppression` prevents later contact (including rediscovery), and email links are invitation- and opportunity-specific. SMTP is called only after the attempt/invitation is persisted, then delivery is recorded without holding the database transaction across the network call.
 
 ## AI contracts and observability
 

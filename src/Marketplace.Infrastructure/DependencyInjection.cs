@@ -64,6 +64,7 @@ public static class DependencyInjection
         services.Configure<PasswordResetEmailOptions>(configuration.GetSection(PasswordResetEmailOptions.SectionName));
         services.Configure<EmailVerificationOptions>(configuration.GetSection(EmailVerificationOptions.SectionName));
         services.Configure<EmailOptions>(configuration.GetSection(EmailOptions.SectionName));
+        services.Configure<SupplierOutreachOptions>(configuration.GetSection(SupplierOutreachOptions.SectionName));
         JwtOptions jwt = configuration.GetRequiredSection(JwtOptions.SectionName).Get<JwtOptions>()
             ?? throw new InvalidOperationException("JWT configuration is required.");
         if (Encoding.UTF8.GetByteCount(jwt.SigningKey) < 32) throw new InvalidOperationException("JWT signing key must contain at least 32 bytes.");

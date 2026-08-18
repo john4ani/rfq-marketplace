@@ -16,8 +16,10 @@ public sealed class SupplierInvitationConfiguration : IEntityTypeConfiguration<S
         builder.Property(invitation => invitation.Version).IsRowVersion();
         builder.HasIndex(invitation => invitation.TokenHash).IsUnique();
         builder.HasIndex(invitation => new { invitation.CandidateId, invitation.RfqId });
+        builder.HasIndex(invitation => invitation.OpportunityMatchId);
         builder.HasOne<SupplierCandidate>().WithMany().HasForeignKey(invitation => invitation.CandidateId).OnDelete(DeleteBehavior.Cascade);
         builder.HasOne<Rfq>().WithMany().HasForeignKey(invitation => invitation.RfqId).OnDelete(DeleteBehavior.Restrict);
+        builder.HasOne<OpportunityMatch>().WithMany().HasForeignKey(invitation => invitation.OpportunityMatchId).OnDelete(DeleteBehavior.SetNull);
         builder.HasOne<ApplicationUser>().WithMany().HasForeignKey(invitation => invitation.CreatedBy).OnDelete(DeleteBehavior.Restrict);
         builder.HasOne<ApplicationUser>().WithMany().HasForeignKey(invitation => invitation.ClaimedBySupplierId).OnDelete(DeleteBehavior.Restrict);
     }

@@ -15,6 +15,7 @@ public sealed class SupplierInvitation
     public Guid Id { get; private set; }
     public Guid CandidateId { get; private set; }
     public Guid RfqId { get; private set; }
+    public Guid? OpportunityMatchId { get; private set; }
     public string TokenHash { get; private set; } = string.Empty;
     public Guid CreatedBy { get; private set; }
     public DateTimeOffset CreatedAt { get; private set; }
@@ -31,6 +32,17 @@ public sealed class SupplierInvitation
         string tokenHash,
         Guid createdBy,
         DateTimeOffset now,
+        DateTimeOffset expiresAt) =>
+        Create(id, candidateId, rfqId, null, tokenHash, createdBy, now, expiresAt);
+
+    public static SupplierInvitation Create(
+        Guid id,
+        Guid candidateId,
+        Guid rfqId,
+        Guid? opportunityMatchId,
+        string tokenHash,
+        Guid createdBy,
+        DateTimeOffset now,
         DateTimeOffset expiresAt)
     {
         if (expiresAt <= now)
@@ -40,6 +52,7 @@ public sealed class SupplierInvitation
             Id = id,
             CandidateId = candidateId,
             RfqId = rfqId,
+            OpportunityMatchId = opportunityMatchId,
             TokenHash = tokenHash,
             CreatedBy = createdBy,
             CreatedAt = now,

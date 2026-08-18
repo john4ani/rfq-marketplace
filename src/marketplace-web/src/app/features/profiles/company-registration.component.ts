@@ -1,7 +1,7 @@
 import { HttpErrorResponse } from '@angular/common/http';
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { FormControl, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
-import { RouterLink } from '@angular/router';
+import { ActivatedRoute, RouterLink } from '@angular/router';
 import { AuthService } from '../../core/auth/auth.service';
 import { ProfileService, SupplierProfile } from '../../core/profiles/profile.service';
 import { CategoryOption, SupplierSettingsService } from '../../core/suppliers/supplier-settings.service';
@@ -76,7 +76,7 @@ import { SupplierSettingsComponent } from './supplier-settings.component';
       <section class="setup-progress" aria-label="Progres configurare firmă"><div class="complete"><span>✓</span><strong>Firma și contactul</strong></div><div [class.complete]="categoriesConfigured()"><span>{{ categoriesConfigured() ? '✓' : '2' }}</span><strong>Produse și servicii</strong></div><div [class.complete]="deliveryConfigured()"><span>{{ deliveryConfigured() ? '✓' : '3' }}</span><strong>Zonă de lucru</strong></div></section>
       <app-supplier-settings [companyId]="createdCompany()!.id" (categoriesSaved)="categoriesConfigured.set(true)" (deliverySaved)="deliveryConfigured.set(true)" />
       <section class="continue-card"><div><strong>{{ matchingReady() ? 'Firma este pregătită pentru potriviri.' : 'Poți continua și completa setările mai târziu.' }}</strong>
-        <p>Oportunitățile relevante depind de categoriile și zona salvate.</p></div><a [routerLink]="'/opportunities'" [queryParams]="{ companyId: createdCompany()!.id }">Vezi oportunitățile →</a></section>
+        <p>Oportunitățile relevante depind de categoriile și zona salvate.</p></div>@if(returnUrl){<a [routerLink]="returnUrl">Revino la invitație →</a>}@else{<a [routerLink]="'/opportunities'" [queryParams]="{ companyId: createdCompany()!.id }">Vezi oportunitățile →</a>}</section>
     }
   </section>`,
   styleUrl: './company-registration.component.scss',
@@ -86,6 +86,8 @@ export class CompanyRegistrationComponent {
   private readonly auth = inject(AuthService);
   private readonly profiles = inject(ProfileService);
   private readonly supplierSettings = inject(SupplierSettingsService);
+  readonly returnUrl = inject(ActivatedRoute).snapshot.queryParamMap.get('returnUrl')?.startsWith('/supplier-invitations/') ? inject(ActivatedRoute).snapshot.queryParamMap.get('returnUrl') : null;
+  private readonly prefillCompanyName = inject(ActivatedRoute).snapshot.queryParamMap.get('companyName');
   readonly counties = ROMANIAN_COUNTIES;
   readonly saving = signal(false);
   readonly error = signal('');
@@ -105,7 +107,7 @@ export class CompanyRegistrationComponent {
     return categories.filter(category => !parentIds.has(category.id));
   });
   readonly form = new FormGroup({
-    tradingName: new FormControl('', { nonNullable: true, validators: Validators.required }),
+    tradingName: new FormControl(this.prefillCompanyName ?? '', { nonNullable: true, validators: Validators.required }),
     companyRegistrationNumber: new FormControl('', { nonNullable: true, validators: Validators.required }),
     taxIdentifier: new FormControl<string | null>(null),
     contactPerson: new FormControl('', { nonNullable: true, validators: Validators.required }),
