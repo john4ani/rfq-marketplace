@@ -14,6 +14,7 @@ using Microsoft.Extensions.DependencyInjection.Extensions;
 
 namespace Marketplace.IntegrationTests;
 
+[Collection(IntegrationTestGroup.Name)]
 public sealed class AssistedIntakeEndpointTests : IClassFixture<WebApplicationFactory<Program>>
 {
     private readonly WebApplicationFactory<Program> factory;

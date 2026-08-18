@@ -11,6 +11,7 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace Marketplace.IntegrationTests;
 
+[Collection(IntegrationTestGroup.Name)]
 public sealed class SupplierDiscoveryEndpointTests : IClassFixture<WebApplicationFactory<Program>>
 {
     private static readonly string[] BuyerOnly = ["Buyer"];

@@ -6,6 +6,7 @@ using Microsoft.AspNetCore.Mvc.Testing;
 
 namespace Marketplace.IntegrationTests;
 
+[Collection(IntegrationTestGroup.Name)]
 public sealed class SmallWoodSupplierBusinessScenarioTests : IClassFixture<WebApplicationFactory<Program>>
 {
     private static readonly string[] SuceavaCounty = ["Suceava"];

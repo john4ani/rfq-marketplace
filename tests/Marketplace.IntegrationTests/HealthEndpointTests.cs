@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Mvc.Testing;
 
 namespace Marketplace.IntegrationTests;
 
+[Collection(IntegrationTestGroup.Name)]
 public sealed class HealthEndpointTests : IClassFixture<WebApplicationFactory<Program>>
 {
     private readonly HttpClient _client;

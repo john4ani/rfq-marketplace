@@ -5,6 +5,7 @@ using Microsoft.AspNetCore.Mvc.Testing;
 
 namespace Marketplace.IntegrationTests;
 
+[Collection(IntegrationTestGroup.Name)]
 public sealed class LiveMarketEndpointTests : IClassFixture<WebApplicationFactory<Program>>
 {
     private static readonly string[] BuyerAndSupplierRoles = ["Buyer", "Supplier"];

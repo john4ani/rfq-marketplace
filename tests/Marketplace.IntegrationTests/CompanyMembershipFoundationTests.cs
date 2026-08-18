@@ -10,6 +10,7 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace Marketplace.IntegrationTests;
 
+[Collection(IntegrationTestGroup.Name)]
 public sealed class CompanyMembershipFoundationTests : IClassFixture<WebApplicationFactory<Program>>
 {
     private readonly WebApplicationFactory<Program> factory;

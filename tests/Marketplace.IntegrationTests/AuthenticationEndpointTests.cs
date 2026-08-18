@@ -8,6 +8,7 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace Marketplace.IntegrationTests;
 
+[Collection(IntegrationTestGroup.Name)]
 public sealed class AuthenticationEndpointTests : IClassFixture<WebApplicationFactory<Program>>
 {
     private static readonly string[] BuyerAndSupplierRoles = ["Buyer", "Supplier"];
