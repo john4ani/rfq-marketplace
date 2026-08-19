@@ -434,13 +434,13 @@ export class RfqEditorComponent {
     return this.categories().find(category => category.id === value)?.name ?? 'Categorie';
   }
   private apiError(error:HttpErrorResponse):string {
-    if(error.status===0)return 'API-ul nu poate fi contactat. Pornește Marketplace.Api și încearcă din nou.';
+    if(error.status===0)return 'Serviciul nu poate fi contactat momentan. Verifică conexiunea și încearcă din nou.';
     const messages=error.error?.errors?Object.values(error.error.errors as Record<string,string[]>).flat():[];
     if(messages.length)return messages.join(' ');
     if(error.error?.detail)return error.error.detail;
     if(error.status===401)return 'Sesiunea a expirat. Autentifică-te din nou.';
     if(error.status===403)return 'Nu ai permisiunea să salvezi această cerere. Reautentifică-te și încearcă din nou.';
-    return `Cererea nu a putut fi salvată (HTTP ${error.status}).`;
+    return 'Cererea nu a putut fi salvată. Încearcă din nou.';
   }
   private collectValidationErrors():string[] {
     const errors:string[]=[];
