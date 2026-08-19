@@ -5,10 +5,11 @@ import { filter } from 'rxjs';
 import { AuthService } from './core/auth/auth.service';
 import { BackendAvailabilityService } from './core/connectivity/backend-availability.service';
 import { NotificationMenuComponent } from './features/notifications/notification-menu.component';
+import { MessagesMenuComponent } from './features/messaging/messages-menu.component';
 
 type NavContext = 'buyer' | 'company' | 'admin';
 
-@Component({ selector: 'app-root', imports: [RouterLink, RouterLinkActive, RouterOutlet, NotificationMenuComponent], templateUrl: './app.html', styleUrl: './app.scss', changeDetection: ChangeDetectionStrategy.OnPush })
+@Component({ selector: 'app-root', imports: [RouterLink, RouterLinkActive, RouterOutlet, NotificationMenuComponent, MessagesMenuComponent], templateUrl: './app.html', styleUrl: './app.scss', changeDetection: ChangeDetectionStrategy.OnPush })
 export class App {
   readonly auth = inject(AuthService);
   readonly backend = inject(BackendAvailabilityService);

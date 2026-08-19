@@ -18,9 +18,23 @@ export interface Conversation {
   messages: ConversationMessage[];
 }
 
+export interface ConversationSummary {
+  offerId: string;
+  rfqId: string;
+  rfqTitle: string;
+  otherPartyName: string;
+  viewerRole: 'Buyer' | 'Supplier';
+  viewerCompanyName: string | null;
+  lastMessagePreview: string;
+  lastActivityAt: string;
+  unreadCount: number;
+}
+
 @Injectable({ providedIn: 'root' })
 export class MessagingService {
   private readonly http = inject(HttpClient);
+
+  list() { return this.http.get<ConversationSummary[]>('/api/v1/conversations'); }
 
   get(offerId: string, after?: string) {
     const options = after ? { params: new HttpParams().set('after', after) } : {};

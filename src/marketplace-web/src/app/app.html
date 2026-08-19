@@ -49,6 +49,7 @@
           }
         }
       </nav>
+      @if (navContext() !== 'admin') { <div class="messages-slot"><app-messages-menu /></div> }
       <div class="notification-slot"><app-notification-menu /></div>
       <div class="side-nav-footer">
         <button class="side-sign-out" type="button" (click)="signOut()" [disabled]="signingOut()"><span aria-hidden="true">↪</span>{{ signingOut() ? 'Se închide sesiunea…' : 'Deconectare' }}</button>

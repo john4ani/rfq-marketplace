@@ -90,6 +90,66 @@ public sealed class MessagingService(
         return true;
     }
 
+    public async Task<IReadOnlyCollection<ConversationSummaryView>> ListConversationsAsync(
+        Guid userId, CancellationToken cancellationToken)
+    {
+        IReadOnlyCollection<Marketplace.Application.Companies.RepresentedCompany> companies =
+            await companyAuthorizationService.GetRepresentedCompaniesAsync(userId, cancellationToken);
+        Dictionary<Guid, string> companyNames = companies.ToDictionary(item => item.Id, item => item.Name);
+        Guid[] companyIds = companies.Select(item => item.Id).ToArray();
+
+        ConversationRow[] rows = await (from conversation in dbContext.Conversations.AsNoTracking()
+            join offer in dbContext.Offers.AsNoTracking() on conversation.OfferId equals offer.Id
+            join rfq in dbContext.Rfqs.AsNoTracking() on offer.RfqId equals rfq.Id
+            where offer.SubmittedAt != null && (rfq.BuyerId == userId || companyIds.Contains(offer.SupplierId))
+            select new ConversationRow(conversation.OfferId, rfq.Id, rfq.Title, rfq.BuyerId, offer.SupplierId,
+                conversation.UpdatedAt, conversation.BuyerLastReadAt, conversation.SupplierLastReadAt))
+            .ToArrayAsync(cancellationToken);
+        if (rows.Length == 0) return [];
+
+        Guid[] conversationIds = rows.Select(row => row.OfferId).ToArray();
+        var messages = await dbContext.Messages.AsNoTracking()
+            .Where(item => conversationIds.Contains(item.ConversationId))
+            .Select(item => new { item.ConversationId, item.Body, item.CreatedAt, item.SenderId })
+            .ToArrayAsync(cancellationToken);
+        var messagesByConversation = messages.GroupBy(item => item.ConversationId)
+            .ToDictionary(group => group.Key, group => group.OrderBy(item => item.CreatedAt).ToArray());
+
+        Guid[] supplierIds = rows.Where(row => row.BuyerId == userId).Select(row => row.SupplierId).Distinct().ToArray();
+        Guid[] buyerIds = rows.Where(row => row.BuyerId != userId).Select(row => row.BuyerId).Distinct().ToArray();
+        Dictionary<Guid, string> supplierNames = await dbContext.SupplierProfiles.AsNoTracking()
+            .Where(item => supplierIds.Contains(item.Id))
+            .ToDictionaryAsync(item => item.Id, item => item.TradingName, cancellationToken);
+        Dictionary<Guid, string> buyerNames = await dbContext.BuyerProfiles.AsNoTracking()
+            .Where(item => buyerIds.Contains(item.Id))
+            .ToDictionaryAsync(item => item.Id, item => item.CompanyName ?? item.DisplayName, cancellationToken);
+
+        var summaries = new List<ConversationSummaryView>(rows.Length);
+        foreach (ConversationRow row in rows)
+        {
+            bool isBuyer = row.BuyerId == userId;
+            var conversationMessages = messagesByConversation.GetValueOrDefault(row.OfferId) ?? [];
+            var lastMessage = conversationMessages.LastOrDefault();
+            DateTimeOffset? readAt = isBuyer ? row.BuyerLastReadAt : row.SupplierLastReadAt;
+            int unread = conversationMessages.Count(item =>
+                item.SenderId != userId && (!readAt.HasValue || item.CreatedAt > readAt.Value));
+            string otherParty = isBuyer
+                ? supplierNames.GetValueOrDefault(row.SupplierId, "Furnizor")
+                : buyerNames.GetValueOrDefault(row.BuyerId, "Cumpărător");
+            string preview = lastMessage?.Body is { Length: > 0 } body
+                ? (body.Length > 140 ? body[..140] : body)
+                : string.Empty;
+            summaries.Add(new ConversationSummaryView(
+                row.OfferId, row.RfqId, row.RfqTitle, otherParty, isBuyer ? "Buyer" : "Supplier",
+                isBuyer ? null : companyNames.GetValueOrDefault(row.SupplierId),
+                preview, lastMessage?.CreatedAt ?? row.UpdatedAt, unread));
+        }
+        return summaries.OrderByDescending(item => item.LastActivityAt).ToArray();
+    }
+
+    private sealed record ConversationRow(Guid OfferId, Guid RfqId, string RfqTitle, Guid BuyerId, Guid SupplierId,
+        DateTimeOffset UpdatedAt, DateTimeOffset? BuyerLastReadAt, DateTimeOffset? SupplierLastReadAt);
+
     private async Task<ParticipantContext?> Participant(Guid offerId, CancellationToken cancellationToken) =>
         await (from offer in dbContext.Offers.AsNoTracking()
                join rfq in dbContext.Rfqs.AsNoTracking() on offer.RfqId equals rfq.Id
