@@ -55,6 +55,9 @@ jobs:
       - name: Build .NET
         run: dotnet build Marketplace.slnx --configuration Release --no-restore
 
+      - name: Verify migrations cover the model
+        run: dotnet ef migrations has-pending-model-changes --project src/Marketplace.Infrastructure --startup-project src/Marketplace.Api --no-build --configuration Release
+
       - name: Apply database migrations
         run: dotnet ef database update --project src/Marketplace.Infrastructure --startup-project src/Marketplace.Api --configuration Release
 
