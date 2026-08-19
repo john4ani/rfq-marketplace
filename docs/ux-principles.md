@@ -13,7 +13,13 @@ These principles govern all new user-facing work.
 
 ## Primary navigation
 
-Every authenticated User sees one small, user-first rail — **Acasă, Cererile mele, Oferte, Cont** — plus the notifications bell. There is no Buyer/Provider switch, no ActiveProfile, and no permanent seller mode: selling is reached contextually from Home's company card, not a separate nav mode. Legacy surfaces that are not part of MVP v2 (Piața Live, the Furnizori directory) stay reachable by route but are not primary navigation. Administrators additionally see an **Administrare** section; those operational screens may keep operational terminology. Error copy never reintroduces "switch to your buyer/supplier profile" language.
+Navigation is **contextual, never a permanent mode** (no Buyer/Provider switch, no ActiveProfile, no global active company). The rail follows the current route:
+
+- **Normal user** (default): **Acasă, Cererile mele, Oferte, Cont** + notifications bell.
+- **Company selling context** (selling routes): **Oportunități, Ofertele firmei, Firma** + bell, with an **Înapoi în CompaSpot** link back to the user home. Company identity flows through the route's `companyId`; it is never stored as a global active company.
+- **Administrare CompaSpot** (`/admin` routes): the operational admin screens (Cereri, Achiziție furnizori, Invitații și recomandări, Firme și verificări, Catalog categorii, Operațiuni) under a clear admin header with an **Înapoi în CompaSpot** button. Admin screens may keep operational terminology.
+
+The brand logo always returns to the user home, so every context has an exit. Administrators reach the admin context through a single **Administrare** entry in the normal-user rail. Legacy surfaces not in MVP v2 (Piața Live, the Furnizori directory) remain reachable by route but are not primary navigation. Error copy never reintroduces "switch to your buyer/supplier profile" language. A dedicated **Mesaje** list is not yet backed by a route (messaging is reached from the offer/opportunity conversation); it is intentionally omitted rather than stubbed.
 
 ## General Procurement
 
