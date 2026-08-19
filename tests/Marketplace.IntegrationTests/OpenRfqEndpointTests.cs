@@ -91,7 +91,7 @@ public sealed class OpenRfqEndpointTests : IClassFixture<WebApplicationFactory<P
         var examples = new[]
         {
             ("Piese auto", "Alternator pentru autoturism"),
-            ("Lemn și produse din lemn", "Cherestea uscată"),
+            ("Lemn și plăci", "Cherestea uscată"),
             ("Transport și logistică", "Transport marfă paletizată"),
             ("Închiriere utilaje", "Închiriere excavator"),
             ("Servicii specializate", "Serviciu de excavare")
