@@ -41,7 +41,7 @@ The analysis traced:
 | Concern | Current implementation | Assessment |
 |---|---|---|
 | Need aggregate | `Rfq`, explicitly documented as the compatible internal implementation of `ProcurementNeed` | Reuse |
-| Requirement groups | `NeedCategory` persisted in `ProcurementNeedCategories`, one or many per need | Reuse |
+| Requirement groups | `NeedCategory` persisted in `ProcurementNeedCategories`, exactly one primary category per need | Reuse as compatibility storage |
 | Requirement lines | `RfqItem`, associated with a `NeedCategory`; supports `Product` and `Service` | Reuse; internal names may remain |
 | Classification | `Vertical` → `Category`, with parent/child compatibility | Reuse pragmatically; General Procurement is an entry mode, not a permanent Vertical |
 | Need shape | `DirectPurchase`, `ShoppingList`, or `Project`; category cardinality is independent of type | Reuse |

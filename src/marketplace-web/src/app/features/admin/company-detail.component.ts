@@ -1,0 +1,5 @@
+import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/core';
+import { ActivatedRoute } from '@angular/router';
+import { CompanyRegistryEntry, CompanyRegistryService } from '../../core/companies/company-registry.service';
+@Component({selector:'app-company-detail',changeDetection:ChangeDetectionStrategy.OnPush,template:''})
+export class CompanyDetailComponent{private readonly api=inject(CompanyRegistryService);private readonly route=inject(ActivatedRoute);readonly company=signal<CompanyRegistryEntry|null>(null);readonly loading=signal(true);constructor(){const id=this.route.snapshot.paramMap.get('id');const kind=this.route.snapshot.paramMap.get('kind');this.api.list().subscribe({next:items=>{this.company.set(items.find(item=>item.id===id&&item.kind===kind)||null);this.loading.set(false);},error:()=>this.loading.set(false)});}status(item:CompanyRegistryEntry){return item.kind==='Registered'?'Firmă înregistrată':item.claimed?'Firmă descoperită · revendicată':'Firmă descoperită · nerevendicată';}}

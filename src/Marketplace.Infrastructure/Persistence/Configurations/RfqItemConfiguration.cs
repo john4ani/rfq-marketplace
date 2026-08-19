@@ -10,9 +10,9 @@ public sealed class RfqItemConfiguration : IEntityTypeConfiguration<RfqItem>
     {
         builder.ToTable("RfqItems", table => table.HasCheckConstraint("CK_RfqItems_Quantity", "\"Quantity\" > 0"));
         builder.HasKey(item => item.Id);
-        builder.Ignore(item => item.CategoryId);
-        builder.HasIndex(item => item.NeedCategoryId);
-        builder.HasOne(item => item.NeedCategory).WithMany().HasForeignKey(item => item.NeedCategoryId).OnDelete(DeleteBehavior.Restrict);
+        builder.Property<Guid>("_needCategoryId").HasColumnName("NeedCategoryId");
+        builder.HasIndex("_needCategoryId");
+        builder.HasOne<NeedCategory>().WithMany().HasForeignKey("_needCategoryId").OnDelete(DeleteBehavior.Restrict);
         builder.Property(item => item.ProductName).HasMaxLength(240).IsRequired();
         builder.Property(item => item.Kind).HasDefaultValue(RequirementKind.Product);
         builder.Property(item => item.ManufacturerOrBrand).HasMaxLength(160);

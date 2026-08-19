@@ -82,7 +82,6 @@ classDiagram
     }
     class RfqItem {
       +UUID Id
-      +UUID NeedCategoryId
       +int ItemNumber
       +string ProductName
       +decimal Quantity
@@ -212,7 +211,7 @@ classDiagram
 | `SupplierProfile` | Categories, delivery areas, preferences | Approved and active to participate; valid radii |
 | `Vertical` | Market boundary and active state | Construction is the only active MVP vertical |
 | `Category` | Central category identity, vertical, and optional parent link | One taxonomy is reused by needs, Providers, templates, and discovery; unique slug; no parent cycle |
-| `Rfq` / `ProcurementNeed` | Need type, one or more `NeedCategory` groups, optional requirement lines, optional project template, and supplier-search radius | Need type never controls category count; every line belongs to a need-category group; publication requires a future deadline; published needs are immutable |
+| `Rfq` / `ProcurementNeed` | Need type, exactly one primary `NeedCategory`, optional requirement lines, optional project template, and supplier-search radius | Need type never controls category; requirement lines have no category association; publication requires a future deadline; published needs are immutable |
 | `ProjectTemplate` | Editable starting set of central categories for a project | A template is not a category and references at least one category in its vertical |
 | `Offer` | Offer items and revision snapshots | One per supplier/RFQ; server-calculated money and completeness |
 | `Conversation` | Messages and participant read state | Exactly the RFQ buyer and offer supplier may participate |

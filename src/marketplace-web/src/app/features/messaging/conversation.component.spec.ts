@@ -5,7 +5,7 @@ import { MessagingService } from '../../core/messaging/messaging.service';
 import { ConversationComponent } from './conversation.component';
 
 describe('ConversationComponent', () => {
-  it('labels both Buyer and Provider messages explicitly', async () => {
+  it('keeps the buying conversation context clear without treating it as an account role', async () => {
     await TestBed.configureTestingModule({
       imports: [ConversationComponent],
       providers: [
@@ -33,13 +33,13 @@ describe('ConversationComponent', () => {
     fixture.detectChanges();
     const text = (fixture.nativeElement as HTMLElement).textContent ?? '';
 
-    expect(text).toContain('Tu ești Cumpărător');
-    expect(text).toContain('Depozitul de Lemn este Furnizor');
-    expect(text).toContain('Tu · Cumpărător');
-    expect(text).toContain('Depozitul de Lemn · Furnizor');
+    expect(text).toContain('Discuți despre o achiziție inițiată de tine.');
+    expect(text).toContain('Cerere:');
+    expect(text).toContain('Tu');
+    expect(text).toContain('Depozitul de Lemn');
   });
 
-  it('reverses the role labels for the Provider view', async () => {
+  it('explains company representation in the selling conversation context', async () => {
     await TestBed.configureTestingModule({
       imports: [ConversationComponent],
       providers: [
@@ -67,7 +67,7 @@ describe('ConversationComponent', () => {
     fixture.detectChanges();
     const text = (fixture.nativeElement as HTMLElement).textContent ?? '';
 
-    expect(text).toContain('Tu · Furnizor');
-    expect(text).toContain('Client Cherestea · Cumpărător');
+    expect(text).toContain('Discuți în numele firmei pe care o reprezinți.');
+    expect(text).toContain('Client Cherestea');
   });
 });

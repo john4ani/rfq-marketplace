@@ -172,7 +172,7 @@ public sealed class SupplierDiscoveryService(
         SupplierCandidate? candidate = await dbContext.SupplierCandidates.Include(item => item.Categories)
             .SingleOrDefaultAsync(item => item.Id == candidateId, cancellationToken);
         if (candidate is null) return null;
-        Rfq? rfq = await dbContext.Rfqs.Include(item => item.NeedCategories).Include(item => item.Items).ThenInclude(item => item.NeedCategory)
+        Rfq? rfq = await dbContext.Rfqs.Include(item => item.NeedCategories).Include(item => item.Items)
             .SingleOrDefaultAsync(item => item.Id == rfqId, cancellationToken);
         DateTimeOffset now = timeProvider.GetUtcNow();
         if (rfq is null || rfq.Status is not (RfqStatus.Published or RfqStatus.ReceivingOffers)
@@ -262,11 +262,31 @@ public sealed class SupplierDiscoveryService(
 
     public async Task<DiscoveryNeedReview?> GetNeedReviewAsync(Guid rfqId, CancellationToken cancellationToken)
     {
-        var need = await dbContext.Rfqs.AsNoTracking().Where(r => r.Id == rfqId)
-            .Select(r => new { r.Id, r.Title, r.DeliveryLocality, r.County, r.QuotationDeadline }).SingleOrDefaultAsync(cancellationToken);
+        Rfq? need = await dbContext.Rfqs.AsNoTracking()
+            .Include(r => r.NeedCategories)
+            .Include(r => r.Items)
+            .SingleOrDefaultAsync(r => r.Id == rfqId, cancellationToken);
         if (need is null) return null;
+        BuyerProfile? buyer = await dbContext.BuyerProfiles.AsNoTracking()
+            .SingleOrDefaultAsync(profile => profile.Id == need.BuyerId, cancellationToken);
+        string? buyerEmail = await dbContext.Users.AsNoTracking()
+            .Where(user => user.Id == need.BuyerId)
+            .Select(user => user.Email)
+            .SingleOrDefaultAsync(cancellationToken);
+        string categoryName = await dbContext.Categories.AsNoTracking()
+            .Where(category => category.Id == need.PrimaryCategoryId)
+            .Select(category => category.Name)
+            .SingleOrDefaultAsync(cancellationToken) ?? "Categorie indisponibilă";
         OpportunityMatch[] matches = await dbContext.OpportunityMatches.AsNoTracking().Where(m => m.RfqId == rfqId).OrderBy(m => m.MatchedAt).ToArrayAsync(cancellationToken);
         return new(need.Id, need.Title, need.DeliveryLocality, need.County, need.QuotationDeadline,
+            new DiscoveryNeedRequestContext(
+                need.Description, categoryName, need.DeliveryAddress, need.PreferredDeliveryDate,
+                need.DeliveryRequired, need.EstimatedBudget, need.AlternativeProductsAccepted, need.BuyerNotes,
+                need.Items.OrderBy(item => item.ItemNumber)
+                    .Select(item => new DiscoveryNeedLine(item.ProductName, item.Specification, item.Quantity, item.Unit, item.Kind)).ToArray()),
+            new DiscoveryNeedBuyerContext(
+                buyer?.DisplayName ?? "Cumpărător indisponibil", buyer?.CompanyName, buyerEmail,
+                buyer?.PhoneNumber, buyer?.DefaultCity ?? need.DeliveryLocality, buyer?.DefaultCounty ?? need.County),
             await ToOpportunityViewsAsync(matches.Where(m => m.SupplierProfileId != null).ToArray(), cancellationToken),
             await ToOpportunityViewsAsync(matches.Where(m => m.SupplierCandidateId != null).ToArray(), cancellationToken));
     }
@@ -284,6 +304,37 @@ public sealed class SupplierDiscoveryService(
         Dictionary<Guid, int> invitations = await dbContext.SupplierInvitations.AsNoTracking().Where(i => ids.Contains(i.CandidateId)).GroupBy(i => i.CandidateId).ToDictionaryAsync(g => g.Key, g => g.Count(), cancellationToken);
         DateTimeOffset recentThreshold = now.AddDays(-30);
         return candidates.Select(c => { var values = rows.Where(x => x.m.SupplierCandidateId == c.Id).ToArray(); return new AcquisitionCandidate(c.Id,c.CompanyName,c.City,c.County,c.CategoryIds.Select(id=>new SupplierCandidateCategoryView(id,names.GetValueOrDefault(id,"Categorie indisponibilă"))).ToArray(),values.Length,values.Count(x=>(x.Status==RfqStatus.Published||x.Status==RfqStatus.ReceivingOffers)&&x.QuotationDeadline>now),values.Count(x=>x.m.Status==OpportunityMatchStatus.Approved),values.Count(x=>x.m.Status==OpportunityMatchStatus.Rejected),values.Select(x=>(DateTimeOffset?)x.m.MatchedAt).Max(),invitations.GetValueOrDefault(c.Id),false,values.Count(x=>x.m.MatchedAt>=recentThreshold)); }).OrderByDescending(x=>x.ActiveOpportunityCount).ThenByDescending(x=>x.RelevantOpportunityCount).ToArray();
+    }
+
+    public async Task<IReadOnlyCollection<OutreachOpportunity>> GetApprovedOutreachOpportunitiesAsync(
+        Guid? candidateId,
+        Guid? rfqId,
+        CancellationToken cancellationToken)
+    {
+        DateTimeOffset now = timeProvider.GetUtcNow();
+        IQueryable<OpportunityMatch> query = dbContext.OpportunityMatches.AsNoTracking()
+            .Where(match => match.SupplierCandidateId != null && match.Status == OpportunityMatchStatus.Approved);
+        if (candidateId.HasValue) query = query.Where(match => match.SupplierCandidateId == candidateId.Value);
+        if (rfqId.HasValue) query = query.Where(match => match.RfqId == rfqId.Value);
+
+        OpportunityMatch[] matches = await query.OrderByDescending(match => match.MatchedAt).ToArrayAsync(cancellationToken);
+        Guid[] matchedNeedIds = matches.Select(match => match.RfqId).Distinct().ToArray();
+        Guid[] openNeedIds = await dbContext.Rfqs.AsNoTracking()
+            .Where(rfq => matchedNeedIds.Contains(rfq.Id)
+                && (rfq.Status == RfqStatus.Published || rfq.Status == RfqStatus.ReceivingOffers)
+                && rfq.QuotationDeadline > now)
+            .Select(rfq => rfq.Id)
+            .ToArrayAsync(cancellationToken);
+        matches = matches.Where(match => openNeedIds.Contains(match.RfqId)).ToArray();
+        OpportunityMatchView[] views = (await ToOpportunityViewsAsync(matches, cancellationToken)).ToArray();
+        Dictionary<Guid, (string Title, string Locality, string County, DateTimeOffset Deadline)> needs = await dbContext.Rfqs.AsNoTracking()
+            .Where(rfq => openNeedIds.Contains(rfq.Id))
+            .ToDictionaryAsync(rfq => rfq.Id, rfq => (rfq.Title, rfq.DeliveryLocality, rfq.County, rfq.QuotationDeadline), cancellationToken);
+        return views.Select(view =>
+        {
+            var need = needs[view.RfqId];
+            return new OutreachOpportunity(view, need.Title, need.Locality, need.County, need.Deadline);
+        }).ToArray();
     }
 
     public async Task<OpportunityMatchView?> ReviewOpportunityMatchAsync(Guid administratorId, Guid matchId, bool approved, string? note, CancellationToken cancellationToken)

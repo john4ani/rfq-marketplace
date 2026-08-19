@@ -8,7 +8,7 @@ import { ProfileService, RepresentedCompany } from '../../core/profiles/profile.
   imports: [RouterLink, FormsModule],
   template: `<section class="need-starter" aria-labelledby="need-starter-title">
       <header><h1 id="need-starter-title">De ce ai nevoie?</h1>
-        <p>Descrie ce cauți. Te ajutăm să găsești furnizori relevanți și să compari ofertele.</p></header>
+        <p>Spune ce ai nevoie. Primește oferte relevante din zona ta.</p></header>
       <section class="general-entry" aria-labelledby="general-entry-title"><div><p class="eyebrow">Începe simplu</p><h2 id="general-entry-title">Caut ceva</h2><p>Produs, material, piesă, serviciu sau echipament.</p></div>
         <label class="sr-only" for="dashboard-need">Descrie pe scurt ce ai nevoie</label><textarea id="dashboard-need" [(ngModel)]="needText" rows="3" placeholder="Ex: Am nevoie de un alternator pentru VW Passat 2018, în Suceava."></textarea>
         <button type="button" (click)="startNeed()" [disabled]="needText.trim().length < 10">Continuă</button>

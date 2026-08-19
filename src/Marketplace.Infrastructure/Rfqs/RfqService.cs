@@ -20,12 +20,12 @@ public sealed class RfqService(
 {
     public async Task<IReadOnlyCollection<Rfq>> GetMineAsync(Guid buyerId, CancellationToken cancellationToken) =>
         await dbContext.Rfqs.AsNoTracking().Include(rfq => rfq.NeedCategories)
-            .Include(rfq => rfq.Items).ThenInclude(item => item.NeedCategory).Where(rfq => rfq.BuyerId == buyerId)
+            .Include(rfq => rfq.Items).Where(rfq => rfq.BuyerId == buyerId)
             .OrderByDescending(rfq => rfq.UpdatedAt).ToListAsync(cancellationToken);
 
     public Task<Rfq?> GetAsync(Guid buyerId, Guid rfqId, CancellationToken cancellationToken) =>
         dbContext.Rfqs.AsNoTracking().Include(rfq => rfq.NeedCategories)
-            .Include(rfq => rfq.Items).ThenInclude(item => item.NeedCategory)
+            .Include(rfq => rfq.Items)
             .SingleOrDefaultAsync(rfq => rfq.Id == rfqId && rfq.BuyerId == buyerId, cancellationToken);
 
     public async Task<IReadOnlyCollection<ProcurementNeedAuditEvent>?> GetHistoryAsync(
@@ -148,11 +148,20 @@ public sealed class RfqService(
         DateTimeOffset now = timeProvider.GetUtcNow();
         Guid[] manuallyMatchedRequestIds = await dbContext.ConciergeMatchOverrides.AsNoTracking()
             .Where(item => item.SupplierId == supplierId).Select(item => item.RfqId).ToArrayAsync(cancellationToken);
+        // A registered-company OpportunityMatch is persisted matching history, not merely an
+        // explanation. Preserve access to that exact opportunity even after category-model
+        // consolidation; new matching still uses the need's one primary category below.
+        Guid[] opportunityMatchedRequestIds = await dbContext.OpportunityMatches.AsNoTracking()
+            .Where(item => item.SupplierProfileId == supplierId)
+            .Select(item => item.RfqId)
+            .ToArrayAsync(cancellationToken);
+        HashSet<Guid> explicitlyMatchedRequestIds = manuallyMatchedRequestIds
+            .Concat(opportunityMatchedRequestIds).ToHashSet();
         Guid[] supplierCategoryIds = await dbContext.SupplierCategories.AsNoTracking()
             .Where(selection => selection.SupplierId == supplierId)
             .Select(selection => selection.CategoryId)
             .ToArrayAsync(cancellationToken);
-        if (supplierCategoryIds.Length == 0 && manuallyMatchedRequestIds.Length == 0) return [];
+        if (supplierCategoryIds.Length == 0 && explicitlyMatchedRequestIds.Count == 0) return [];
         Dictionary<Guid, Guid?> categoryParents = await dbContext.Categories.AsNoTracking()
             .Where(category => category.IsActive)
             .ToDictionaryAsync(category => category.Id, category => category.ParentId, cancellationToken);
@@ -176,11 +185,11 @@ public sealed class RfqService(
         string[] deliveryCounties = configuredCounties.Length > 0 ? configuredCounties : [supplierCounty];
 
         IQueryable<Rfq> query = dbContext.Rfqs.AsNoTracking().Include(rfq => rfq.NeedCategories)
-            .Include(rfq => rfq.Items).ThenInclude(item => item.NeedCategory)
+            .Include(rfq => rfq.Items)
             .Where(rfq => (rfq.Status == RfqStatus.Published || rfq.Status == RfqStatus.ReceivingOffers)
                 && rfq.QuotationDeadline > now
                 && rfq.BuyerId != actorId
-                && (manuallyMatchedRequestIds.Contains(rfq.Id)
+                && (explicitlyMatchedRequestIds.Contains(rfq.Id)
                     || (rfq.NeedCategories.Any(category => compatibleSupplierCategoryIds.Contains(category.CategoryId))
                         && (nationwide || deliveryCounties.Contains(rfq.County)))));
         if (categoryId.HasValue)
@@ -201,7 +210,7 @@ public sealed class RfqService(
                 .ToArray();
 
         Dictionary<Guid, HashSet<Guid>> matchingItems = [];
-        rfqs = ApplyCoverage(rfqs, compatibleSupplierCategories, manuallyMatchedRequestIds.ToHashSet(), matchingItems);
+        rfqs = ApplyCoverage(rfqs, compatibleSupplierCategories, explicitlyMatchedRequestIds, matchingItems);
 
         Guid[] categoryIds = rfqs.SelectMany(rfq => rfq.RequiredCategoryIds).Distinct().ToArray();
         Guid[] buyerIds = rfqs.Select(rfq => rfq.BuyerId).Distinct().ToArray();
@@ -235,7 +244,7 @@ public sealed class RfqService(
             return null;
 
         Rfq? rfq = await dbContext.Rfqs.AsNoTracking().Include(item => item.NeedCategories)
-            .Include(item => item.Items).ThenInclude(item => item.NeedCategory)
+            .Include(item => item.Items)
             .SingleOrDefaultAsync(item => item.Id == rfqId, cancellationToken);
         if (rfq is null) return null;
         if (rfq.BuyerId == actorId) return null;
@@ -252,7 +261,7 @@ public sealed class RfqService(
     }
 
     private Task<Rfq?> Find(Guid buyerId, Guid rfqId, CancellationToken cancellationToken) =>
-        dbContext.Rfqs.Include(rfq => rfq.NeedCategories).Include(rfq => rfq.Items).ThenInclude(item => item.NeedCategory)
+        dbContext.Rfqs.Include(rfq => rfq.NeedCategories).Include(rfq => rfq.Items)
             .SingleOrDefaultAsync(rfq => rfq.Id == rfqId && rfq.BuyerId == buyerId, cancellationToken);
 
     private async Task RejectOpenOffers(Guid rfqId, DateTimeOffset now, CancellationToken cancellationToken)
@@ -277,9 +286,7 @@ public sealed class RfqService(
 
     private async Task ValidateReferences(Guid buyerId, RfqDraft draft, CancellationToken cancellationToken)
     {
-        Guid[] categoryIds = (draft.CategoryIds ?? []).Concat(
-                draft.Items.Where(item => item.CategoryId.HasValue).Select(item => item.CategoryId!.Value))
-            .Append(draft.PrimaryCategoryId).Where(id => id != Guid.Empty).Distinct().ToArray();
+        Guid[] categoryIds = [draft.PrimaryCategoryId];
         int validCategories = await dbContext.Categories.CountAsync(
             category => categoryIds.Contains(category.Id) && category.IsActive, cancellationToken);
         if (validCategories != categoryIds.Length)
@@ -396,10 +403,7 @@ public sealed class RfqService(
                 : ProviderCoveragePolicy.Decide(rfq.AllowSplit, requiredCategories, providerCategories);
             if (coverage == ProviderCoverageMatch.None) continue;
 
-            HashSet<Guid> itemIds = coverage == ProviderCoverageMatch.Full
-                ? rfq.Items.Select(item => item.Id).ToHashSet()
-                : rfq.Items.Where(item => providerCategories.Contains(item.CategoryId))
-                    .Select(item => item.Id).ToHashSet();
+            HashSet<Guid> itemIds = rfq.Items.Select(item => item.Id).ToHashSet();
             matchingItems[rfq.Id] = itemIds;
             visible.Add(rfq);
         }

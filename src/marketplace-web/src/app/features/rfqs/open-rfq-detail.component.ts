@@ -20,7 +20,7 @@ import { TrustFactsComponent } from '../profiles/trust-facts.component';
         <p>{{ rfq.projectName || 'Cerere activă' }}</p></div>
         <div class="deadline"><small>Termen pentru ofertă</small><strong>{{ rfq.quotationDeadline | date:'dd.MM.yyyy, HH:mm' }}</strong></div></header>
       <section class="summary">
-        <div><small>Cumpărător</small><strong>{{ rfq.buyerDisplayName }}</strong></div>
+        <div><small>Autorul cererii</small><strong>{{ rfq.buyerDisplayName }}</strong></div>
         <div><small>Livrare</small><strong>{{ rfq.deliveryLocality }}, {{ rfq.county }}</strong></div>
         @if (rfq.preferredDeliveryDate) { <div><small>Data preferată</small><strong>{{ rfq.preferredDeliveryDate | date:'dd.MM.yyyy' }}</strong></div> }
         @if (rfq.estimatedBudget !== null) { <div><small>Buget estimat</small><strong>{{ rfq.estimatedBudget }} lei</strong></div> }
@@ -32,14 +32,14 @@ import { TrustFactsComponent } from '../profiles/trust-facts.component';
           @if (rfq.description) { <section class="panel"><p class="panel-label">Context</p><h2>Descrierea cererii</h2><p>{{ rfq.description }}</p></section> }
           <section class="panel"><p class="panel-label">Necesar</p><h2>{{rfq.isPartialMatch?'Pozițiile potrivite pentru tine':'Poziții solicitate'}}</h2>
             @if(rfq.isPartialMatch){<p class="match-note">Proiectul a fost împărțit deoarece nu există momentan un furnizor eligibil care să acopere toate categoriile.</p>}
-            @if (rfq.items.length === 0) { <div class="general-request"><strong>Cerere generală</strong><p>Cumpărătorul nu a introdus poziții individuale. Poți răspunde cu un preț total și condițiile comerciale.</p></div> }
+            @if (rfq.items.length === 0) { <div class="general-request"><strong>Cerere generală</strong><p>Autorul cererii nu a introdus poziții individuale. Poți răspunde cu un preț total și condițiile comerciale.</p></div> }
             @for (item of rfq.items; track item.id) {
               <article class="material"><span class="item-number">{{ $index + 1 }}</span><div><strong>{{ item.productName }}</strong>
                 <small>{{ item.kind === 'Service' ? 'Serviciu' : 'Produs' }} · {{ item.specification || item.manufacturerOrBrand || 'Fără specificație suplimentară' }}</small></div>
                 <span>{{ item.quantity }} {{ unitLabel(item.unit) }}</span></article>
             }
           </section>
-          <section class="panel trust-panel"><div><p class="panel-label">Încredere</p><h2>Despre cumpărător</h2></div><app-trust-facts [facts]="rfq.buyerTrustFacts" role="Buyer" /></section>
+          <section class="panel trust-panel"><div><p class="panel-label">Încredere</p><h2>Despre autorul cererii</h2></div><app-trust-facts [facts]="rfq.buyerTrustFacts" role="Buyer" /></section>
         </div>
         <aside class="offer-column"><div class="offer-guidance"><span aria-hidden="true">i</span><p><strong>Răspunde simplu și clar.</strong> Poți salva o ciornă și reveni înainte de termen.</p></div><app-offer-editor [request]="rfq" [companyId]="companyId" /></aside>
       </div>

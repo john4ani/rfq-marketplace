@@ -71,7 +71,7 @@ describe('RfqEditorComponent material positions', () => {
     fixture.detectChanges();
     const component = fixture.componentInstance;
     component.categories.set([{id:'category-id',verticalId:'vertical-id',parentId:'root-id',name:'Ciment și mortare',slug:'ciment'}]);
-    component.toggleNeedCategory('category-id');
+    component.selectPrimaryCategory('category-id');
 
     (fixture.nativeElement as HTMLElement).querySelector<HTMLButtonElement>('.add-item')?.click();
     fixture.detectChanges();
@@ -126,7 +126,7 @@ describe('RfqEditorComponent material positions', () => {
     await new Promise(resolve => setTimeout(resolve));
 
     expect(component.validationErrors()).toContain('Completează titlul cererii.');
-    expect(component.validationErrors()).toContain('Selectează cel puțin o categorie pentru necesar.');
+    expect(component.validationErrors()).toContain('Selectează categoria principală a necesarului.');
     const title = (fixture.nativeElement as HTMLElement).querySelector<HTMLInputElement>('input[formControlName="title"]');
     expect(title?.classList.contains('ng-invalid')).toBe(true);
     expect(title?.classList.contains('ng-touched')).toBe(true);
@@ -146,7 +146,6 @@ describe('RfqEditorComponent material positions', () => {
       title: 'Peleți pentru iarnă', primaryCategoryId: 'category-id', deliveryAddress: 'Strada Test 1',
       deliveryLocality: 'Iași', county: 'Iași'
     });
-    component.selectedCategoryIds.set(['category-id']);
     component.openPreview();
     fixture.detectChanges();
 
@@ -166,7 +165,6 @@ describe('RfqEditorComponent material positions', () => {
       deliveryLocality: 'Iași',
       county: 'Iași'
     });
-    component.selectedCategoryIds.set(['category-id']);
     component.addItem();
     component.expandedItemIndex.set(null);
     component.save(false);

@@ -12,7 +12,7 @@ type OfferFilter = 'All' | 'Active' | 'Selected' | 'NotSelected' | 'Draft' | 'Wi
   template: `<section class="offers-card">
     <header>
       <div><p class="eyebrow">Firma ta</p><h2>Ofertele {{ companyName() || 'firmei' }}</h2>
-        <p>Urmărește răspunsurile trimise și decizia cumpărătorului.</p></div>
+        <p>Urmărește răspunsurile trimise și decizia pentru fiecare cerere.</p></div>
       <span class="count">{{ offers().length }} în total</span>
     </header>
 
@@ -55,7 +55,7 @@ type OfferFilter = 'All' | 'Active' | 'Selected' | 'NotSelected' | 'Draft' | 'Wi
                 @if (offer.fulfillmentStatus === 'AwaitingDelivery' && pendingDeliveryId() !== offer.id) {
                   <button type="button" (click)="pendingDeliveryId.set(offer.id)">Marchează ca livrată</button>
                 } @else if (offer.fulfillmentStatus === 'AwaitingDelivery') {
-                  <p>Confirmi că produsele au fost livrate cumpărătorului? Acesta va fi notificat să confirme primirea.</p>
+                  <p>Confirmi că produsele au fost livrate? Autorul cererii va fi notificat să confirme primirea.</p>
                   <div><button type="button" class="secondary" (click)="pendingDeliveryId.set(null)">Renunță</button>
                     <button type="button" (click)="reportDelivered(offer)" [disabled]="deliveryBusy()">Confirmă livrarea</button></div>
                 }
@@ -123,8 +123,8 @@ export class SupplierOfferListComponent {
   statusLabel(status: OfferStatus): string {
     return ({
       Draft: 'Ciornă',
-      Submitted: 'Așteptăm răspunsul cumpărătorului',
-      Revised: 'Așteptăm răspunsul cumpărătorului',
+      Submitted: 'Așteptăm răspunsul la ofertă',
+      Revised: 'Așteptăm răspunsul la ofertă',
       Withdrawn: 'Oferta a fost retrasă',
       Selected: 'Oferta ta a fost selectată',
       NotSelected: 'Cererea s-a încheiat cu altă ofertă'
@@ -139,7 +139,7 @@ export class SupplierOfferListComponent {
     return ({
       NotApplicable: 'Transport neinclus',
       AwaitingDelivery: 'Livrare de efectuat',
-      DeliveryReported: 'Livrare declarată · așteaptă confirmarea cumpărătorului',
+      DeliveryReported: 'Livrare declarată · așteaptă confirmarea autorului cererii',
       Delivered: 'Livrare confirmată'
     })[status];
   }

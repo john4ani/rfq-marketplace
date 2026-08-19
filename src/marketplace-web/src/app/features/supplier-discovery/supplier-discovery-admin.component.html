@@ -1,12 +1,12 @@
 <section class="discovery-page">
-  <header><div><p class="eyebrow">Operațiuni controlate</p><h1>Supplier discovery asistat</h1>
-    <p>Înregistrează firme candidate, validează relevanța și pregătește invitații pentru cereri concrete.</p><p><a routerLink="/admin/supplier-discovery/acquisition">Vezi firmele de contactat →</a> · <a routerLink="/admin/supplier-discovery/outreach">Asociază și contactează o firmă →</a></p></div></header>
+  <header><div><p class="eyebrow">Operațiuni controlate</p><h1>Descoperire asistată de firme</h1>
+    <p>Înregistrează firme candidate și revizuiește potrivirile lor cu cereri concrete. Contactarea începe numai după aprobarea unei potriviri.</p><p><a routerLink="/admin/supplier-discovery/acquisition">Vezi firmele de contactat →</a> · <a routerLink="/admin/supplier-discovery/outreach">Vezi oportunitățile aprobate pentru contact →</a></p></div></header>
 
   <aside class="integrity-note" role="note"><strong>Control uman obligatoriu</strong>
     <span>Datele descoperite nu sunt prezentate ca verificate. CompaSpot nu trimite automat invitații și nu contactează firme în masă.</span></aside>
 
   <section class="opportunity-list" aria-labelledby="opportunities-heading">
-    <div class="section-heading"><div><p class="eyebrow">Cereri reale</p><h2 id="opportunities-heading">Potriviri de revizuit</h2></div><span>{{opportunities().length}}</span></div>
+    <div class="section-heading"><div><p class="eyebrow">Oportunități active</p><h2 id="opportunities-heading">Cereri deschise pentru Supplier Discovery</h2></div><span>{{opportunities().length}}</span></div>
     @for(opportunity of opportunities();track opportunity.id){
       <a class="opportunity-link" [routerLink]="['/admin/supplier-discovery/needs',opportunity.id]"><span><strong>{{opportunity.title}}</strong><small>{{opportunity.deliveryLocality}}, {{opportunity.county}}</small></span><span>Vezi potrivirile →</span></a>
     }@empty{<p class="empty">Nu există cereri deschise pentru discovery în acest moment.</p>}

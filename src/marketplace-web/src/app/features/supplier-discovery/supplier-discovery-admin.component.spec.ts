@@ -1,6 +1,7 @@
 import { TestBed } from '@angular/core/testing';
-import { provideRouter } from '@angular/router';
-import { of, throwError } from 'rxjs';
+import { provideRouter, Router } from '@angular/router';
+import { of } from 'rxjs';
+import { vi } from 'vitest';
 import { SupplierDiscoveryService } from '../../core/supplier-discovery/supplier-discovery.service';
 import { SupplierSettingsService } from '../../core/suppliers/supplier-settings.service';
 import { SupplierDiscoveryAdminComponent } from './supplier-discovery-admin.component';
@@ -34,79 +35,11 @@ describe('SupplierDiscoveryAdminComponent',()=>{
     expect(page.textContent).not.toContain('Trimite automat');
   });
 
-  it('shows invitation failures beside the action that failed and focuses the request field',async()=>{
-    const eligible={...candidate,status:'EligibleForInvitation' as const};
-    TestBed.overrideProvider(SupplierDiscoveryService,{useValue:{
-      candidates:()=>of([eligible]),
-      opportunities:()=>of([{id:'rfq-1',title:'Cherestea',deliveryLocality:'Marginea',county:'Suceava',quotationDeadline:'2026-08-19T10:00:00Z',primaryCategoryId:'category-1'}]),
-      createInvitation:()=>throwError(()=>({status:409,error:{detail:'Există deja o invitație activă pentru această firmă și cerere.'}}))
-    }});
+  it('sends a reviewed candidate to its approved opportunity acquisition context',()=>{
     const fixture=TestBed.createComponent(SupplierDiscoveryAdminComponent);
     fixture.detectChanges();
-    fixture.componentInstance.startInvitation(eligible.id);
-    fixture.componentInstance.opportunityId.setValue('rfq-1');
-    fixture.componentInstance.createInvitation(eligible);
-    fixture.detectChanges();
-
-    await new Promise(resolve=>setTimeout(resolve));
-    const page=fixture.nativeElement as HTMLElement;
-    const actionError=page.querySelector('#invitation-action-error');
-    const requestField=page.querySelector('#invitation-opportunity-candidate-1');
-    expect(actionError?.textContent).toContain('Există deja o invitație activă');
-    expect(requestField?.getAttribute('aria-invalid')).toBe('true');
-    expect(document.activeElement).toBe(requestField);
-  });
-
-  it('renders the generated secure link in a focused result panel',()=>{
-    const eligible={...candidate,status:'EligibleForInvitation' as const};
-    TestBed.overrideProvider(SupplierDiscoveryService,{useValue:{
-      candidates:()=>of([eligible]),
-      opportunities:()=>of([{id:'rfq-1',title:'Cherestea',deliveryLocality:'Marginea',county:'Suceava',quotationDeadline:'2026-08-19T10:00:00Z',primaryCategoryId:'category-1',requirementCategoryIds:['category-1']}]),
-      createInvitation:()=>of({invitationId:'inv-1',token:'secure-token',expiresAt:'2026-08-19T10:00:00Z'})
-    }});
-    const fixture=TestBed.createComponent(SupplierDiscoveryAdminComponent);
-    fixture.detectChanges();
-    fixture.componentInstance.startInvitation(eligible.id);
-    fixture.componentInstance.opportunityId.setValue('rfq-1');
-    fixture.componentInstance.createInvitation(eligible);
-    fixture.detectChanges();
-
-    const result=(fixture.nativeElement as HTMLElement).querySelector('#created-invitation');
-    const link=result?.querySelector('input') as HTMLInputElement|null;
-    expect(link?.value).toContain('/supplier-invitations/secure-token');
-  });
-
-  it('offers any open request regardless of the candidate category (category comes from registration)',()=>{
-    const eligible={...candidate,status:'EligibleForInvitation' as const};
-    TestBed.overrideProvider(SupplierDiscoveryService,{useValue:{
-      candidates:()=>of([eligible]),
-      opportunities:()=>of([{id:'rfq-2',title:'Transport local',deliveryLocality:'Marginea',county:'Suceava',quotationDeadline:'2026-08-19T10:00:00Z',primaryCategoryId:'category-2',requirementCategoryIds:['category-2']}])
-    }});
-    const fixture=TestBed.createComponent(SupplierDiscoveryAdminComponent);
-    fixture.detectChanges();
-    fixture.componentInstance.startInvitation(eligible.id);
-    fixture.detectChanges();
-
-    const page=fixture.nativeElement as HTMLElement;
-    // Category no longer gates the picker: the request appears despite not matching the candidate category.
-    expect(page.querySelectorAll('#invitation-opportunity-candidate-1 option')).toHaveLength(2);
-    expect(page.textContent).toContain('Transport local');
-    expect(page.textContent).not.toContain('Nu există nicio cerere deschisă');
-  });
-
-  it('shows a clear empty state when there is no open request to associate',()=>{
-    const eligible={...candidate,status:'EligibleForInvitation' as const};
-    TestBed.overrideProvider(SupplierDiscoveryService,{useValue:{
-      candidates:()=>of([eligible]),
-      opportunities:()=>of([])
-    }});
-    const fixture=TestBed.createComponent(SupplierDiscoveryAdminComponent);
-    fixture.detectChanges();
-    fixture.componentInstance.startInvitation(eligible.id);
-    fixture.detectChanges();
-
-    const page=fixture.nativeElement as HTMLElement;
-    expect(page.querySelectorAll('#invitation-opportunity-candidate-1 option')).toHaveLength(1);
-    expect(page.textContent).toContain('Nu există nicio cerere deschisă momentan');
+    const navigate=vi.spyOn(TestBed.inject(Router),'navigate').mockResolvedValue(true);
+    fixture.componentInstance.startInvitation(candidate.id);
+    expect(navigate).toHaveBeenCalledWith(['/admin/supplier-discovery/acquisition'],{queryParams:{candidateId:candidate.id}});
   });
 });

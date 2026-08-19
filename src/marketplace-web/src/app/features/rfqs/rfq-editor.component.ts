@@ -9,7 +9,6 @@ import { AssistedIntakeResult, AssistedIntakeService } from '../../core/rfqs/ass
 import { ProcurementInputType, ProcurementNeedSource, ProcurementNeedType, RequirementKind, Rfq, RfqDraft, RfqService, UnitOfMeasure } from '../../core/rfqs/rfq.service';
 import { CategoryOption, ProjectTemplateOption, SupplierSettingsService } from '../../core/suppliers/supplier-settings.service';
 import { ROMANIAN_COUNTIES } from '../../shared/romanian-counties';
-import { CONSTRUCTION_VERTICAL_ID, GENERAL_PROCUREMENT_VERTICAL_ID } from '../../shared/verticals';
 
 @Component({
   selector: 'app-rfq-editor',
@@ -27,14 +26,14 @@ import { CONSTRUCTION_VERTICAL_ID, GENERAL_PROCUREMENT_VERTICAL_ID } from '../..
           @if (form.controls.title.touched && form.controls.title.invalid) { <small class="field-error">Completează titlul cererii.</small> }</label>
         <div class="two"><label>Nume proiect<input formControlName="projectName" placeholder="Opțional"></label>
           @if(constructionEntryMode()){<label>Șablon de construcții<select formControlName="projectTemplateId" (change)="applyProjectTemplate()"><option value="">Fără șablon</option>@for(template of projectTemplates();track template.id){<option [value]="template.id">{{template.name}}</option>}</select><small>Folosește-l numai pentru un proiect de construcții; categoriile rămân editabile.</small></label>}</div>
-        <fieldset><legend>Categoriile necesarului *</legend><p class="help">Alege una sau mai multe categorii, indiferent de tipul necesarului.</p>@if(categoryLoadFailed()){<div class="category-load-error" role="alert"><span>Categoriile nu sunt disponibile momentan.</span><button type="button" class="secondary" (click)="loadCategories()">Încearcă din nou</button></div>}@else{<div class="category-choice-grid">
-          @for(category of selectableCategories();track category.id){<label [class.selected]="selectedCategoryIds().includes(category.id)"><input type="checkbox" [checked]="selectedCategoryIds().includes(category.id)" (change)="toggleNeedCategory(category.id)">{{category.name}}</label>}
-        </div>}@if(!selectedCategoryIds().length&&!categoryLoadFailed()){<small class="field-error">Selectează cel puțin o categorie.</small>}</fieldset>
+        <fieldset><legend>Categoria principală *</legend><p class="help">Alege categoria comercială care descrie cel mai bine întreaga cerere.</p>@if(categoryLoadFailed()){<div class="category-load-error" role="alert"><span>Categoriile nu sunt disponibile momentan.</span><button type="button" class="secondary" (click)="loadCategories()">Încearcă din nou</button></div>}@else{<div class="category-choice-grid">
+          @for(category of selectableCategories();track category.id){<label [class.selected]="form.controls.primaryCategoryId.value===category.id"><input type="radio" name="primaryCategory" [checked]="form.controls.primaryCategoryId.value===category.id" (change)="selectPrimaryCategory(category.id)">{{category.name}}</label>}
+        </div>}@if(!form.controls.primaryCategoryId.value&&!categoryLoadFailed()){<small class="field-error">Selectează categoria principală.</small>}</fieldset>
         <label>Descriere<textarea formControlName="description" rows="3" placeholder="Contextul proiectului sau cerințe generale"></textarea></label>
       </section>
 
       <section><div class="section-title"><div><h2>2. Produse sau servicii individuale <span class="optional">Opțional</span></h2>
-        <p>Adaugă fiecare nevoie separat. Categoria poziției o direcționează către furnizorii specializați, dacă există.</p></div></div>
+        <p>Adaugă fiecare nevoie separat. Întreaga cerere este direcționată prin categoria principală aleasă mai sus.</p></div></div>
         <fieldset class="split-choice"><legend>Cum poate fi îndeplinită cererea?</legend>
           <label [class.selected]="!form.controls.allowSplit.value"><input type="radio" formControlName="allowSplit" [value]="false">
             <span><strong>Un singur furnizor</strong><small>Un furnizor trebuie să poată acoperi întreaga listă.</small></span></label>
@@ -57,16 +56,12 @@ import { CONSTRUCTION_VERTICAL_ID, GENERAL_PROCUREMENT_VERTICAL_ID } from '../..
                 (toggle)="onItemToggle(index, $event)">
                 <summary><span class="item-index">{{ index + 1 }}</span><span class="item-summary">
                   <strong>{{ item.controls['productName'].value || 'Poziție nouă' }}</strong>
-                  <small>{{ kindLabel(item.controls['kind'].value) }} · {{ item.controls['quantity'].value }} {{ unitLabel(item.controls['unit'].value) }}
-                    · {{ categoryName(item.controls['categoryId'].value) }}</small></span><span class="collapse-hint">Detalii</span></summary>
+                  <small>{{ kindLabel(item.controls['kind'].value) }} · {{ item.controls['quantity'].value }} {{ unitLabel(item.controls['unit'].value) }}</small></span><span class="collapse-hint">Detalii</span></summary>
                 <div class="item-fields">
                   <button class="remove" type="button" (click)="removeItem(index)" aria-label="Șterge poziția">Șterge</button>
                   <div class="two"><label>Tip poziție *<select formControlName="kind"><option value="Product">Produs</option><option value="Service">Serviciu</option></select></label>
                     <label>Denumire produs / serviciu *<input #productNameInput formControlName="productName" placeholder="Exemplu: Ciment 40 kg sau montaj">
-                    @if (item.controls['productName'].touched && item.controls['productName'].invalid) { <small class="field-error">Completează denumirea poziției {{ index + 1 }}.</small> }</label>
-                    <label>Categoria poziției *<select formControlName="categoryId"><option value="">Alege categoria</option>
-                      @for (category of selectedCategories(); track category.id) { <option [value]="category.id">{{ category.name }}</option> }</select>
-                      <small>Poziția rămâne grupată în categoria relevantă a necesarului.</small></label></div>
+                    @if (item.controls['productName'].touched && item.controls['productName'].invalid) { <small class="field-error">Completează denumirea poziției {{ index + 1 }}.</small> }</label></div>
                   <div class="three"><label>Cantitate *<input type="number" min="0.01" step="0.01" formControlName="quantity">
                     @if (item.controls['quantity'].touched && item.controls['quantity'].invalid) { <small class="field-error">Introdu o cantitate mai mare decât 0.</small> }</label>
                     <label>Unitate *<select formControlName="unit">@for (unit of units; track unit.value) { <option [value]="unit.value">{{ unit.label }}</option> }</select></label>
@@ -128,9 +123,9 @@ import { CONSTRUCTION_VERTICAL_ID, GENERAL_PROCUREMENT_VERTICAL_ID } from '../..
             <header><span class="preview-check" aria-hidden="true">✓</span><div><p class="eyebrow">Verificare finală</p><h2 id="preview-title">Așa vor vedea furnizorii cererea</h2><p>Recitește informațiile esențiale. Publicarea are loc numai după confirmarea ta.</p></div></header>
             <section class="preview-need"><span class="preview-label">Cerere</span><h3>{{ form.controls.title.value }}</h3>
               @if(form.controls.description.value){<p>{{ form.controls.description.value }}</p>}</section>
-            <dl><div><dt>Categorii</dt><dd>{{ selectedCategories().length }} selectate</dd></div><div><dt>Livrare</dt><dd>{{ form.controls.deliveryLocality.value }}, {{ form.controls.county.value }}</dd></div><div><dt>Necesar</dt><dd>{{ items.length ? items.length + ' poziții' : 'Cerere generală' }}</dd></div><div><dt>Oferte până la</dt><dd>{{ form.controls.quotationDeadline.value }}</dd></div></dl>
+            <dl><div><dt>Categorie</dt><dd>{{ categoryName(form.controls.primaryCategoryId.value) }}</dd></div><div><dt>Livrare</dt><dd>{{ form.controls.deliveryLocality.value }}, {{ form.controls.county.value }}</dd></div><div><dt>Necesar</dt><dd>{{ items.length ? items.length + ' poziții' : 'Cerere generală' }}</dd></div><div><dt>Oferte până la</dt><dd>{{ form.controls.quotationDeadline.value }}</dd></div></dl>
             @if(items.length){<div class="preview-lines"><h3>Produse sau servicii</h3><ul>@for (item of items.controls; track $index) { <li><span>{{ $index + 1 }}</span><strong>{{ item.controls['productName'].value }}</strong><small>{{ item.controls['quantity'].value }} {{ unitLabel(item.controls['unit'].value) }}</small></li> }</ul></div>}
-            <div class="publish-note"><span aria-hidden="true">i</span><p><strong>Ce se întâmplă după publicare?</strong> Furnizorii potriviți pot vedea cererea și îți pot trimite oferte. Vei primi o notificare pentru fiecare ofertă nouă.</p></div>
+            <div class="publish-note"><span aria-hidden="true">i</span><p><strong>Ce se întâmplă după publicare?</strong> Firmele potrivite pot vedea cererea și îți pot trimite oferte. Vei primi o notificare pentru fiecare ofertă nouă.</p></div>
             <div class="preview-actions"><button type="button" class="secondary" (click)="previewing.set(false)">Înapoi la modificări</button><button type="button" (click)="save(true)" [disabled]="saving()">{{ saving() ? 'Se publică…' : 'Confirmă și publică' }}</button></div>
           </div>
         </section>
@@ -161,7 +156,6 @@ export class RfqEditorComponent {
   readonly categories = signal<CategoryOption[]>([]); readonly categoryLoadFailed = signal(false);
   readonly projectTemplates = signal<ProjectTemplateOption[]>([]);
   readonly constructionEntryMode = signal(this.route.snapshot.queryParamMap.get('entryMode') === 'construction');
-  readonly selectedCategoryIds = signal<string[]>([]);
   readonly loading = signal(false); readonly saving = signal(false);
   readonly message = signal(''); readonly hasError = signal(false);
   readonly importMessage = signal(''); readonly importError = signal(false);
@@ -197,11 +191,7 @@ export class RfqEditorComponent {
   get items(): FormArray<FormGroup> { return this.form.controls.items; }
   selectableCategories(): CategoryOption[] {
     const values=this.categories(); const parents=new Set(values.flatMap(value=>value.parentId?[value.parentId]:[]));
-    // Scope by entry mode so Construction (depth) and General (breadth) do not leak each other's categories.
-    // Already-selected categories always stay visible so editing an existing request never drops a selection.
-    const activeVertical=this.constructionEntryMode()?CONSTRUCTION_VERTICAL_ID:GENERAL_PROCUREMENT_VERTICAL_ID;
-    const selected=new Set(this.selectedCategoryIds());
-    return values.filter(value=>!parents.has(value.id)&&(value.verticalId===activeVertical||selected.has(value.id)));
+    return values.filter(value=>!parents.has(value.id));
   }
 
   constructor() {
@@ -242,11 +232,6 @@ export class RfqEditorComponent {
     }
   }
 
-  selectedCategories():CategoryOption[]{
-    const ids=new Set(this.selectedCategoryIds());
-    return this.selectableCategories().filter(category=>ids.has(category.id));
-  }
-
   loadCategories(): void {
     this.categoryLoadFailed.set(false);
     this.categoriesService.getCategories().subscribe({
@@ -260,29 +245,12 @@ export class RfqEditorComponent {
       error: () => this.projectTemplates.set([])
     });
   }
-  toggleNeedCategory(id:string):void{
-    const current=this.selectedCategoryIds();
-    if(current.includes(id)){
-      if(this.items.controls.some(item=>item.controls['categoryId'].value===id)){
-        this.fail('Categoria este folosită de o poziție. Mută poziția într-o altă categorie înainte să o elimini.');
-        return;
-      }
-      const next=current.filter(value=>value!==id);
-      this.selectedCategoryIds.set(next);this.form.controls.primaryCategoryId.setValue(next[0]??'');
-    }else{
-      const next=[...current,id];
-      this.selectedCategoryIds.set(next);this.form.controls.primaryCategoryId.setValue(next[0]);
-    }
-  }
+  selectPrimaryCategory(id:string):void { this.form.controls.primaryCategoryId.setValue(id); }
   applyProjectTemplate():void{
     const template=this.projectTemplates().find(value=>value.id===this.form.controls.projectTemplateId.value);
     if(!template)return;
-    const categoriesAlreadyUsedByLines=this.items.controls
-      .map(item=>item.controls['categoryId'].value)
-      .filter((id):id is string=>!!id);
-    const proposedCategoryIds=Array.from(new Set([...template.categoryIds,...categoriesAlreadyUsedByLines]));
-    this.selectedCategoryIds.set(proposedCategoryIds);
-    this.form.controls.primaryCategoryId.setValue(proposedCategoryIds[0]??'');
+    if (!this.form.controls.primaryCategoryId.value && template.categoryIds.length === 1)
+      this.form.controls.primaryCategoryId.setValue(template.categoryIds[0]);
   }
 
   addItem(value?: Partial<Rfq['items'][number]>, activate = true): void {
@@ -303,8 +271,7 @@ export class RfqEditorComponent {
       quantity:new FormControl(value?.quantity??1,{nonNullable:true,validators:[Validators.required,Validators.min(.01)]}),
       unit:new FormControl<UnitOfMeasure>(value?.unit??'Piece',{nonNullable:true}),
       alternativesAccepted:new FormControl(value?.alternativesAccepted??true,{nonNullable:true}),
-      buyerNotes:new FormControl(value?.buyerNotes??null),
-      categoryId:new FormControl<string|null>((value?.categoryId??this.selectedCategoryIds()[0])||null,{validators:Validators.required})
+      buyerNotes:new FormControl(value?.buyerNotes??null)
     }));
     this.itemMessage.set('');
     if (activate) {
@@ -378,7 +345,6 @@ export class RfqEditorComponent {
     this.source=rfq.source;this.inputType=rfq.inputType;
     if(rfq.projectTemplateId){this.constructionEntryMode.set(true);this.loadProjectTemplates();}
     this.form.patchValue({...rfq,quotationDeadline:this.localDateTime(rfq.quotationDeadline)});
-    this.selectedCategoryIds.set(rfq.categoryIds?.length?rfq.categoryIds:[rfq.primaryCategoryId]);
     this.items.clear();rfq.items.forEach(item=>this.addItem(item,false));
     this.expandedItemIndex.set(null);
   }
@@ -394,12 +360,10 @@ export class RfqEditorComponent {
       allowSplit:draft.allowSplit,deliveryRequired:draft.deliveryRequired,estimatedBudget:draft.estimatedBudget,
       buyerNotes:this.assistedNotes(draft.buyerNotes,result)
     });
-    const assistedCategoryIds=Array.from(new Set([draft.primaryCategoryId,...draft.lines.map(line=>line.categoryId)].filter((id):id is string=>!!id)));
-    this.selectedCategoryIds.set(assistedCategoryIds);
     this.items.clear();
     draft.lines.forEach(line=>this.addItem({productName:line.name,kind:line.kind,manufacturerOrBrand:null,
       specification:line.specification,quantity:line.quantity??0,unit:line.unit??'Other',
-      alternativesAccepted:line.alternativesAccepted,buyerNotes:null,categoryId:line.categoryId},false));
+      alternativesAccepted:line.alternativesAccepted,buyerNotes:null},false));
     this.expandedItemIndex.set(null);
   }
   private clearNavigationMessage():void {
@@ -419,7 +383,7 @@ export class RfqEditorComponent {
   }
   private toDraft():RfqDraft {
     const value=this.form.getRawValue();
-    return {...value,categoryIds:this.selectedCategoryIds(),projectTemplateId:this.constructionEntryMode()?value.projectTemplateId:null,
+    return {...value,categoryIds:[value.primaryCategoryId],projectTemplateId:this.constructionEntryMode()?value.projectTemplateId:null,
       source:this.source,inputType:this.inputType,latitude:null,longitude:null,quotationDeadline:new Date(value.quotationDeadline).toISOString(),items:value.items} as RfqDraft;
   }
   private parseUnit(value:string):UnitOfMeasure|null {
@@ -445,11 +409,10 @@ export class RfqEditorComponent {
   private collectValidationErrors():string[] {
     const errors:string[]=[];
     if(this.form.controls.title.invalid) errors.push('Completează titlul cererii.');
-    if(this.form.controls.primaryCategoryId.invalid||!this.selectedCategoryIds().length) errors.push('Selectează cel puțin o categorie pentru necesar.');
+    if(this.form.controls.primaryCategoryId.invalid) errors.push('Selectează categoria principală a necesarului.');
     this.items.controls.forEach((item,index)=>{
       if(item.controls['productName'].invalid) errors.push(`Poziția ${index+1}: completează denumirea.`);
       if(item.controls['quantity'].invalid) errors.push(`Poziția ${index+1}: cantitatea trebuie să fie mai mare decât 0.`);
-      if(item.controls['categoryId'].invalid) errors.push(`Poziția ${index+1}: selectează categoria relevantă.`);
     });
     if(this.form.controls.deliveryAddress.invalid) errors.push('Completează adresa de livrare.');
     if(this.form.controls.deliveryLocality.invalid) errors.push('Completează localitatea.');

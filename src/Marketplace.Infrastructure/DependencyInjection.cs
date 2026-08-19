@@ -80,6 +80,7 @@ public static class DependencyInjection
         services.AddScoped<IEmailVerificationDelivery, SmtpEmailVerificationDelivery>();
         services.AddScoped<IProfileService, ProfileService>();
         services.AddScoped<ICompanyAuthorizationService, CompanyAuthorizationService>();
+        services.AddScoped<ICompanyRegistryService, CompanyRegistryService>();
         services.AddScoped<ISupplierSettingsService, SupplierSettingsService>();
         services.AddScoped<ILiveMarketService, LiveMarketService>();
         services.AddScoped<IRfqService, RfqService>();

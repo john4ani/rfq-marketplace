@@ -44,8 +44,10 @@ describe('SupplierInvitationComponent',()=>{
     const router=TestBed.inject(Router);
     const navigate=vi.spyOn(router,'navigate').mockResolvedValue(true);
     const fixture=TestBed.createComponent(SupplierInvitationComponent);
+    fixture.componentInstance.selectedCompanyId='company-1';
     fixture.componentInstance.claim();
 
     expect(navigate).toHaveBeenCalledWith(['/opportunities','rfq-1'],{queryParams:{companyId:'company-1'}});
   });
+
 });

@@ -139,11 +139,9 @@ internal sealed partial class AssistedIntakeService(
     {
         var buyer = await dbContext.BuyerProfiles.AsNoTracking()
             .SingleOrDefaultAsync(item => item.Id == session.BuyerId, cancellationToken);
-        // General Procurement is breadth: keep Construction (depth) vocabulary out of the general interpreter so it
-        // never proposes Construction categories. Construction categories reach the flow only through the explicit
-        // Construction entry, never the shared General prompt (ADR-002 boundary).
+        // Both entry modes route commercial needs through the same shared catalog.
         IntakeCategory[] categories = await dbContext.Categories.AsNoTracking()
-            .Where(item => item.IsActive && item.VerticalId == VerticalConfiguration.GeneralProcurementCompatibilityId)
+            .Where(item => item.IsActive)
             .OrderBy(item => item.SortOrder).ThenBy(item => item.Name)
             .Select(item => new IntakeCategory(item.Id, item.Name, item.Slug)).ToArrayAsync(cancellationToken);
         return new(session.BuyerId, session.InitialInput, buyer?.DefaultCity ?? string.Empty, buyer?.DefaultCounty ?? string.Empty,

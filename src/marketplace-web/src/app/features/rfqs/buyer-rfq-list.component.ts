@@ -8,7 +8,7 @@ import { ProcurementOutcome, Rfq, RfqService, RfqStatus } from '../../core/rfqs/
   selector: 'app-buyer-rfq-list',
   imports: [RouterLink, DatePipe],
   template: `<section class="rfq-card">
-      <header><div><p class="eyebrow">Cumpărător</p><h2>Cererile mele</h2>
+      <header><div><p class="eyebrow">Achizițiile tale</p><h2>Cererile mele</h2>
         <p>Pregătește cererea și public-o atunci când ai toate informațiile importante.</p></div>
         <a class="primary-link" routerLink="/rfqs/new">Cerere nouă</a>
       </header>

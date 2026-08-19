@@ -183,7 +183,7 @@ public sealed class RfqTests
     [InlineData(ProcurementNeedType.DirectPurchase)]
     [InlineData(ProcurementNeedType.ShoppingList)]
     [InlineData(ProcurementNeedType.Project)]
-    public void NeedTypeDoesNotDetermineCategoryCardinality(ProcurementNeedType needType)
+    public void NeedTypeDoesNotChangeTheSingleCommercialCategory(ProcurementNeedType needType)
     {
         Guid firstCategory = Guid.NewGuid();
         Guid secondCategory = Guid.NewGuid();
@@ -195,21 +195,20 @@ public sealed class RfqTests
         Rfq rfq = Rfq.Create(Guid.NewGuid(), Guid.NewGuid(), draft, Now);
 
         Assert.Equal(needType, rfq.NeedType);
-        Assert.Equal([firstCategory, secondCategory], rfq.RequiredCategoryIds);
-        Assert.Equal(firstCategory, rfq.Items.Single(item => item.ProductName == "Ciment").CategoryId);
-        Assert.Equal(secondCategory, rfq.Items.Single(item => item.ProductName == "Cherestea").CategoryId);
+        Assert.Equal([firstCategory], rfq.RequiredCategoryIds);
+        Assert.Single(rfq.NeedCategories);
     }
 
     [Fact]
-    public void RequirementWithoutExplicitCategoryUsesFirstNeedCategory()
+    public void RequirementLinesUseTheNeedCommercialCategoryOnly()
     {
         Guid category = Guid.NewGuid();
         Rfq rfq = Rfq.Create(Guid.NewGuid(), Guid.NewGuid(),
             Draft([new("Transport", null, null, 1, UnitOfMeasure.Other, true, null)]) with
             { PrimaryCategoryId = category, CategoryIds = [category] }, Now);
 
-        Assert.Equal(category, rfq.Items.Single().CategoryId);
-        Assert.Equal(rfq.NeedCategories.Single().Id, rfq.Items.Single().NeedCategoryId);
+        Assert.Equal(category, rfq.PrimaryCategoryId);
+        Assert.Single(rfq.NeedCategories);
     }
 
     private static RfqDraft Draft(IReadOnlyCollection<RfqItemDraft> items) => new(

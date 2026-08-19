@@ -544,7 +544,7 @@ export class BuyerOfferComparisonComponent {
         this.busy.set(false);
         this.rfq.set(null);
         this.error.set(error.status === 404
-          ? 'Cererea nu există sau nu aparține contului de cumpărător activ.'
+          ? 'Cererea nu există sau nu aparține contului tău.'
           : 'Cererea și ofertele nu au putut fi încărcate. Încearcă din nou.');
       }
     });

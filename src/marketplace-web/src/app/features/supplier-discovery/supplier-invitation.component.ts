@@ -1,13 +1,14 @@
 import { DatePipe } from '@angular/common';
-import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/core';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
+import { FormsModule } from '@angular/forms';
 import { AuthService } from '../../core/auth/auth.service';
 import { SupplierDiscoveryService, SupplierInvitation } from '../../core/supplier-discovery/supplier-discovery.service';
-import { ProfileService } from '../../core/profiles/profile.service';
+import { ProfileService, RepresentedCompany } from '../../core/profiles/profile.service';
 
 @Component({
   selector:'app-supplier-invitation',
-  imports:[DatePipe,RouterLink],
+  imports:[DatePipe,RouterLink,FormsModule],
   templateUrl:'./supplier-invitation.component.html',
   styleUrl:'./supplier-invitation.component.scss',
   changeDetection:ChangeDetectionStrategy.OnPush
@@ -23,9 +24,13 @@ export class SupplierInvitationComponent {
   readonly claiming=signal(false);
   readonly error=signal('');
   readonly currentPath=`/supplier-invitations/${encodeURIComponent(this.token)}`;
-  readonly hasSupplierRole=computed(()=>this.auth.profiles().some(profile=>profile.accountType==='Supplier'));
+  readonly companies=signal<RepresentedCompany[]>([]);
+  readonly companiesLoading=signal(false);
+  selectedCompanyId='';
 
-  constructor(){this.loadInvitation();}
+  constructor(){this.loadInvitation();if(this.auth.isAuthenticated())this.loadCompanies();}
+
+  loadCompanies():void{this.companiesLoading.set(true);this.profiles.getMyCompanies().subscribe({next:companies=>{this.companies.set(companies);if(companies.length===1)this.selectedCompanyId=companies[0].id;this.companiesLoading.set(false);},error:()=>this.companiesLoading.set(false)});}
 
   loadInvitation():void{
     this.loading.set(true);this.error.set('');
@@ -36,10 +41,10 @@ export class SupplierInvitationComponent {
   }
 
   claim():void{
-    if(this.claiming())return;
+    if(this.claiming()||!this.selectedCompanyId)return;
     this.claiming.set(true);this.error.set('');
-    this.discovery.claim(this.token).subscribe({
-      next:value=>{this.invitation.set(value);this.claiming.set(false);this.profiles.getMyCompanies().subscribe({next:companies=>{const companyId=companies.length===1?companies[0].id:undefined;void this.router.navigate(['/opportunities',value.rfqId],{queryParams:companyId?{companyId}:undefined});}});},
+    this.discovery.claim(this.token,this.selectedCompanyId).subscribe({
+      next:value=>{this.invitation.set(value);this.claiming.set(false);void this.router.navigate(['/opportunities',value.rfqId],{queryParams:{companyId:this.selectedCompanyId}});},
       error:error=>{this.claiming.set(false);const messages=error.error?.errors?Object.values(error.error.errors as Record<string,string[]>).flat():[];this.error.set(messages[0]??error.error?.detail??'Firma nu a putut fi revendicată. Verifică datele firmei și încearcă din nou.');}
     });
   }

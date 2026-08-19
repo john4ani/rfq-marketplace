@@ -7,7 +7,7 @@ import { Rfq, RfqService } from '../../core/rfqs/rfq.service';
   selector: 'app-buyer-offer-inbox',
   imports: [DatePipe, RouterLink],
   template: `<section class="offers-inbox">
-    <header><div><p class="eyebrow">Cumpărător</p><h1>Oferte primite</h1>
+    <header><div><p class="eyebrow">Achizițiile tale</p><h1>Oferte primite</h1>
       <p>Compară răspunsurile primite pentru cererile tale și alege când ești pregătit.</p></div>
       <a routerLink="/rfqs/new" class="primary-link">Cerere nouă</a></header>
     @if (loading()) {

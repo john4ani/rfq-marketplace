@@ -51,7 +51,7 @@ export class RegisterComponent {
     if (typeof response.error === 'string' &&
         (response.error.trimStart().startsWith('<!DOCTYPE html') ||
          response.error.trimStart().startsWith('<html')))
-      return 'Cererea a ajuns la serverul web, nu la API. Reporniți serverul Angular pentru a încărca configurația proxy.';
+      return 'Contul nu poate fi creat momentan. Încearcă din nou peste câteva minute.';
 
     const problem = this.problemDetails(response.error);
     const validationMessages = problem?.errors

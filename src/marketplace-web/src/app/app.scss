@@ -16,6 +16,8 @@
 .side-nav .nav-link:focus-visible,
 .side-nav .nav-link.active { color: #fff; background: rgb(255 255 255 / 14%); }
 .notification-slot { margin-top: .22rem; }
+.side-rail .messages-slot ::ng-deep .trigger,
+.side-rail .notification-slot ::ng-deep .bell { min-height: 2.25rem; font-size: .82rem; font-weight: 650; }
 .side-sign-out { display: inline-flex; align-items: center; gap: .7rem; width: 100%; min-height: 2.5rem; padding: 0 .65rem; border: 0; border-radius: .7rem; color: rgb(255 255 255 / 78%); background: transparent; font: inherit; font-size: .8rem; font-weight: 650; cursor: pointer; }
 .side-sign-out:hover, .side-sign-out:focus-visible { color: #fff; background: rgb(255 255 255 / 12%); }
 .side-sign-out:disabled { opacity: .6; cursor: wait; }

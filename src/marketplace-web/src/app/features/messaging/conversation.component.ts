@@ -12,10 +12,10 @@ import { Conversation, ConversationMessage, MessagingService } from '../../core/
     @if (conversation(); as chat) {
       <header>
         <a [routerLink]="chat.viewerRole === 'Buyer' ? ['/rfqs', chat.rfqId, 'offers'] : ['/open-requests', chat.rfqId]">
-          ← Înapoi la ofertă
+          ← {{ chat.viewerRole === 'Buyer' ? 'Vezi ofertele' : 'Vezi cererea' }}
         </a>
-        <div><p class="eyebrow">Conversație privată</p><h1>{{ chat.otherPartyName }}</h1><p>{{ chat.rfqTitle }}</p>
-          <p class="participants">Tu ești <strong>{{ roleLabel(chat.viewerRole) }}</strong> · {{ chat.otherPartyName }} este <strong>{{ otherRoleLabel(chat.viewerRole) }}</strong></p></div>
+        <div><p class="eyebrow">Conversație privată</p><h1>{{ chat.otherPartyName }}</h1><p><strong>Cerere:</strong> {{ chat.rfqTitle }}</p>
+          <p class="participants">{{ conversationContext(chat.viewerRole) }}</p></div>
         <span class="privacy">Doar participanții ofertei</span>
       </header>
 
@@ -113,20 +113,16 @@ export class ConversationComponent {
     });
   }
 
-  roleLabel(role: Conversation['viewerRole']): string {
-    return role === 'Buyer' ? 'Cumpărător' : 'Furnizor';
-  }
-
-  otherRoleLabel(role: Conversation['viewerRole']): string {
-    return role === 'Buyer' ? 'Furnizor' : 'Cumpărător';
+  conversationContext(role: Conversation['viewerRole']): string {
+    return role === 'Buyer'
+      ? 'Discuți despre o achiziție inițiată de tine.'
+      : 'Discuți în numele firmei pe care o reprezinți.';
   }
 
   senderLabel(message: ConversationMessage): string {
     const chat = this.conversation();
     if (!chat) return message.isMine ? 'Tu' : 'Participant';
-    return message.isMine
-      ? `Tu · ${this.roleLabel(chat.viewerRole)}`
-      : `${chat.otherPartyName} · ${this.otherRoleLabel(chat.viewerRole)}`;
+    return message.isMine ? 'Tu' : chat.otherPartyName;
   }
 
   loadInitial(): void {

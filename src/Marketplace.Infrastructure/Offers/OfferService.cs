@@ -93,7 +93,7 @@ public sealed class OfferService(
     public async Task<IReadOnlyCollection<BuyerOffer>> GetForBuyerAsync(Guid buyerId, Guid rfqId, CancellationToken cancellationToken)
     {
         Rfq? rfq = await dbContext.Rfqs.AsNoTracking().Include(item => item.NeedCategories)
-            .Include(item => item.Items).ThenInclude(item => item.NeedCategory)
+            .Include(item => item.Items)
             .SingleOrDefaultAsync(item => item.Id == rfqId && item.BuyerId == buyerId, cancellationToken);
         if (rfq is null)
             return [];
@@ -234,7 +234,7 @@ public sealed class OfferService(
         CancellationToken cancellationToken)
     {
         Rfq? rfq = await dbContext.Rfqs.Include(item => item.NeedCategories)
-            .Include(item => item.Items).ThenInclude(item => item.NeedCategory).SingleOrDefaultAsync(item =>
+            .Include(item => item.Items).SingleOrDefaultAsync(item =>
             item.Id == rfqId && (item.Status == RfqStatus.Published || item.Status == RfqStatus.ReceivingOffers)
             && item.QuotationDeadline > now, cancellationToken);
         if (rfq is null) throw new OfferRuleException("Cererea nu mai primește oferte.");
@@ -287,10 +287,7 @@ public sealed class OfferService(
         if (coverage == ProviderCoverageMatch.None)
             throw new OfferRuleException("Cererea nu este disponibilă pentru profilul și zona configurate.");
 
-        HashSet<Guid> itemIds = coverage == ProviderCoverageMatch.Full
-            ? rfq.Items.Select(item => item.Id).ToHashSet()
-            : rfq.Items.Where(item => currentCategories.Contains(item.CategoryId))
-                .Select(item => item.Id).ToHashSet();
+        HashSet<Guid> itemIds = rfq.Items.Select(item => item.Id).ToHashSet();
         return new(rfq, coverage, itemIds);
     }
 
@@ -298,7 +295,7 @@ public sealed class OfferService(
         System.Linq.Expressions.Expression<Func<Rfq, bool>> predicate,
         CancellationToken cancellationToken) =>
         dbContext.Rfqs.Include(rfq => rfq.NeedCategories)
-            .Include(rfq => rfq.Items).ThenInclude(item => item.NeedCategory)
+            .Include(rfq => rfq.Items)
             .SingleOrDefaultAsync(predicate, cancellationToken);
 
     private async Task SaveRfqChangesAsync(CancellationToken cancellationToken)

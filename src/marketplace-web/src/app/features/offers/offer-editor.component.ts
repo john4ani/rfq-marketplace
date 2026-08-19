@@ -18,12 +18,12 @@ import { unitLabel } from '../../shared/unit-label';
       </header>
 
       @if (offer()?.status === 'Selected') { <p class="success">Oferta ta a fost selectată.</p> }
-      @if (offer()?.status === 'NotSelected') { <p class="notice">Cumpărătorul a selectat o altă ofertă.</p> }
+      @if (offer()?.status === 'NotSelected') { <p class="notice">Autorul cererii a selectat o altă ofertă.</p> }
 
       @if (submittedResting()) {
         <section class="submitted-state" role="status">
-          <strong>Oferta a fost trimisă cumpărătorului.</strong>
-          <p>Cumpărătorul poate vedea acum oferta și detaliile comerciale.</p>
+          <strong>Oferta a fost trimisă.</strong>
+          <p>Autorul cererii poate vedea acum oferta și detaliile comerciale.</p>
           <div class="submitted-actions">
             <a class="offer-success-link" [routerLink]="'/company/offers'" [queryParams]="companyId() ? { companyId: companyId() } : null">Vezi oferta</a>
             <button type="button" class="secondary" (click)="editSubmittedOffer()">Modifică oferta</button>
@@ -99,7 +99,7 @@ import { unitLabel } from '../../shared/unit-label';
               <option value="BuyerPickup">Ridicare de către cumpărător</option>
               <option value="ArrangedSeparately">Se stabilește separat</option>
             }
-          </select><small>{{ request().deliveryRequired ? 'Cumpărătorul a solicitat transport.' : 'Spune clar cum se organizează transportul.' }}</small></label>
+          </select><small>{{ request().deliveryRequired ? 'Cererea include transport.' : 'Spune clar cum se organizează transportul.' }}</small></label>
           <label>TVA *<select [ngModel]="draft().taxTreatment" (ngModelChange)="setTaxTreatment($event)">
             <option value="VatIncluded">TVA inclus în prețuri</option>
             <option value="VatExcluded">TVA se adaugă la prețuri</option>

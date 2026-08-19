@@ -11,6 +11,7 @@ public sealed class NeedCategoryConfiguration : IEntityTypeConfiguration<NeedCat
     {
         builder.ToTable("ProcurementNeedCategories");
         builder.HasKey(needCategory => needCategory.Id);
+        builder.HasIndex(needCategory => needCategory.ProcurementNeedId).IsUnique();
         builder.HasIndex(needCategory => new { needCategory.ProcurementNeedId, needCategory.CategoryId }).IsUnique();
         builder.HasIndex(needCategory => new { needCategory.ProcurementNeedId, needCategory.SortOrder }).IsUnique();
         builder.HasOne<Category>().WithMany().HasForeignKey(needCategory => needCategory.CategoryId).OnDelete(DeleteBehavior.Restrict);

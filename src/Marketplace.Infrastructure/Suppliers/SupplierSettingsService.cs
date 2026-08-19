@@ -18,7 +18,7 @@ public sealed class SupplierSettingsService(MarketplaceDbContext dbContext, Time
     public async Task<CategoryCreationResult> AddCategoryAsync(string name, bool confirmSimilar, CancellationToken cancellationToken)
     {
         string cleanName = name.Trim();
-        string slug = Slug(cleanName);
+        string slug = CanonicalSlug(Slug(cleanName));
         Category? existing = await dbContext.Categories.SingleOrDefaultAsync(category => category.Slug == slug, cancellationToken);
         if (existing is not null) return new(existing, true, []);
 
@@ -146,6 +146,14 @@ public sealed class SupplierSettingsService(MarketplaceDbContext dbContext, Time
         if (Math.Abs(left.Length - right.Length) > allowedDistance) return false;
         return EditDistance(left, right) <= allowedDistance;
     }
+
+    // Curated aliases protect known commercial synonyms. We do not attempt to
+    // infer arbitrary semantic equivalence and silently merge user categories.
+    private static string CanonicalSlug(string slug) => slug switch
+    {
+        "lemn-produse-din-lemn" => "lemn-placi",
+        _ => slug
+    };
 
     private static int EditDistance(string left, string right)
     {

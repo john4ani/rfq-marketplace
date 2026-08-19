@@ -28,6 +28,7 @@ public interface ISupplierDiscoveryService
         string token,
         CancellationToken cancellationToken);
     Task<DiscoveryNeedReview?> GetNeedReviewAsync(Guid rfqId, CancellationToken cancellationToken);
+    Task<IReadOnlyCollection<OutreachOpportunity>> GetApprovedOutreachOpportunitiesAsync(Guid? candidateId, Guid? rfqId, CancellationToken cancellationToken);
     Task<IReadOnlyCollection<AcquisitionCandidate>> GetAcquisitionCandidatesAsync(string? county, Guid? categoryId, CancellationToken cancellationToken);
     Task<OpportunityMatchView?> ReviewOpportunityMatchAsync(Guid administratorId, Guid matchId, bool approved, string? note, CancellationToken cancellationToken);
     Task<OpportunityMatchView?> CreateCandidateMatchAsync(Guid administratorId, Guid rfqId, Guid candidateId, CancellationToken cancellationToken);
@@ -90,7 +91,29 @@ public sealed record DiscoveryOpportunity(
     IReadOnlyCollection<Guid> RequirementCategoryIds);
 
 public sealed record OpportunityMatchView(Guid Id, Guid RfqId, Guid? CompanyId, Guid? CandidateId, string CompanyName, string? City, string? County, string MatchReason, OpportunityMatchStatus Status, DateTimeOffset MatchedAt, string? ReviewNote, int RelevantOpportunityCount, int ActiveOpportunityCount, int ApprovedOpportunityCount, int RejectedOpportunityCount, DateTimeOffset? LastOpportunityAt, bool Claimed, int InvitationCount, int RecentOpportunityCount, string? ContactEmail, string? PhoneNumber, string? Website, DateTimeOffset? LastContactAt, SupplierOutreachStatus? LastContactStatus, bool ContactSuppressed, bool EmailEligible, string? EmailUnavailableReason);
-public sealed record DiscoveryNeedReview(Guid RfqId, string Title, string DeliveryLocality, string County, DateTimeOffset QuotationDeadline, IReadOnlyCollection<OpportunityMatchView> RegisteredCompanies, IReadOnlyCollection<OpportunityMatchView> Candidates);
+public sealed record DiscoveryNeedReview(
+    Guid RfqId,
+    string Title,
+    string DeliveryLocality,
+    string County,
+    DateTimeOffset QuotationDeadline,
+    DiscoveryNeedRequestContext Request,
+    DiscoveryNeedBuyerContext Buyer,
+    IReadOnlyCollection<OpportunityMatchView> RegisteredCompanies,
+    IReadOnlyCollection<OpportunityMatchView> Candidates);
+public sealed record DiscoveryNeedRequestContext(
+    string? Description,
+    string CategoryName,
+    string DeliveryAddress,
+    DateOnly? PreferredDeliveryDate,
+    bool DeliveryRequired,
+    decimal? EstimatedBudget,
+    bool AlternativeProductsAccepted,
+    string? BuyerNotes,
+    IReadOnlyCollection<DiscoveryNeedLine> Lines);
+public sealed record DiscoveryNeedLine(string Name, string? Specification, decimal Quantity, Marketplace.Domain.Rfqs.UnitOfMeasure Unit, Marketplace.Domain.Rfqs.RequirementKind Kind);
+public sealed record DiscoveryNeedBuyerContext(string DisplayName, string? CompanyName, string? Email, string? PhoneNumber, string Locality, string County);
+public sealed record OutreachOpportunity(OpportunityMatchView Match, string RfqTitle, string DeliveryLocality, string County, DateTimeOffset QuotationDeadline);
 public sealed record AcquisitionCandidate(Guid CandidateId, string CompanyName, string City, string County, IReadOnlyCollection<SupplierCandidateCategoryView> Categories, int RelevantOpportunityCount, int ActiveOpportunityCount, int ApprovedOpportunityCount, int RejectedOpportunityCount, DateTimeOffset? LastOpportunityAt, int InvitationCount, bool Claimed, int RecentOpportunityCount);
 
 public sealed record SupplierOutreachResult(

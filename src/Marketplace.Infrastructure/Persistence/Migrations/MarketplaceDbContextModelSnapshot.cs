@@ -633,6 +633,9 @@ namespace Marketplace.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("CategoryId");
 
+                    b.HasIndex("ProcurementNeedId")
+                        .IsUnique();
+
                     b.HasIndex("ProcurementNeedId", "CategoryId")
                         .IsUnique();
 
@@ -917,9 +920,6 @@ namespace Marketplace.Infrastructure.Persistence.Migrations
                         .HasMaxLength(160)
                         .HasColumnType("character varying(160)");
 
-                    b.Property<Guid>("NeedCategoryId")
-                        .HasColumnType("uuid");
-
                     b.Property<string>("ProductName")
                         .IsRequired()
                         .HasMaxLength(240)
@@ -939,9 +939,13 @@ namespace Marketplace.Infrastructure.Persistence.Migrations
                     b.Property<int>("Unit")
                         .HasColumnType("integer");
 
+                    b.Property<Guid>("_needCategoryId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("NeedCategoryId");
+
                     b.HasKey("Id");
 
-                    b.HasIndex("NeedCategoryId");
+                    b.HasIndex("_needCategoryId");
 
                     b.HasIndex("RfqId", "ItemNumber")
                         .IsUnique();
@@ -1497,16 +1501,6 @@ namespace Marketplace.Infrastructure.Persistence.Migrations
                             ParentId = new Guid("10000000-0000-0000-0000-000000000011"),
                             Slug = "piese-auto",
                             SortOrder = 10,
-                            VerticalId = new Guid("20000000-0000-0000-0000-000000000002")
-                        },
-                        new
-                        {
-                            Id = new Guid("10000000-0000-0000-0000-000000000013"),
-                            IsActive = true,
-                            Name = "Lemn și produse din lemn",
-                            ParentId = new Guid("10000000-0000-0000-0000-000000000011"),
-                            Slug = "lemn-produse-din-lemn",
-                            SortOrder = 20,
                             VerticalId = new Guid("20000000-0000-0000-0000-000000000002")
                         },
                         new
@@ -2186,19 +2180,17 @@ namespace Marketplace.Infrastructure.Persistence.Migrations
 
             modelBuilder.Entity("Marketplace.Domain.Rfqs.RfqItem", b =>
                 {
-                    b.HasOne("Marketplace.Domain.Rfqs.NeedCategory", "NeedCategory")
-                        .WithMany()
-                        .HasForeignKey("NeedCategoryId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
                     b.HasOne("Marketplace.Domain.Rfqs.Rfq", null)
                         .WithMany("Items")
                         .HasForeignKey("RfqId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
-                    b.Navigation("NeedCategory");
+                    b.HasOne("Marketplace.Domain.Rfqs.NeedCategory", null)
+                        .WithMany()
+                        .HasForeignKey("_needCategoryId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
                 });
 
             modelBuilder.Entity("Marketplace.Domain.SupplierDiscovery.OpportunityMatch", b =>

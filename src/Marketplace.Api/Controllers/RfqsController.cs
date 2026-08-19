@@ -188,7 +188,7 @@ public sealed record RfqItemResponse(
 {
     public static RfqItemResponse From(RfqItem item) => new(
         item.Id, item.ItemNumber, item.ProductName, item.ManufacturerOrBrand, item.Specification,
-        item.Quantity, item.Unit, item.AlternativesAccepted, item.BuyerNotes, item.CategoryId, item.Kind);
+        item.Quantity, item.Unit, item.AlternativesAccepted, item.BuyerNotes, null, item.Kind);
 }
 
 public sealed record ProjectContextResponse(string? Name, string? Description)

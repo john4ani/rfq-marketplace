@@ -32,6 +32,11 @@ public sealed class SupplierDiscoveryController(
         (await discoveryService.GetNeedReviewAsync(rfqId, cancellationToken)) is { } review ? Ok(review) : NotFound();
 
     [Authorize(Roles = MarketplaceRoles.Administrator)]
+    [HttpGet("admin/supplier-discovery/outreach-opportunities")]
+    public async Task<IActionResult> OutreachOpportunities([FromQuery] Guid? candidateId, [FromQuery] Guid? rfqId, CancellationToken cancellationToken) =>
+        Ok(await discoveryService.GetApprovedOutreachOpportunitiesAsync(candidateId, rfqId, cancellationToken));
+
+    [Authorize(Roles = MarketplaceRoles.Administrator)]
     [HttpGet("admin/supplier-discovery/acquisition")]
     public async Task<IActionResult> Acquisition([FromQuery] string? county, [FromQuery] Guid? categoryId, CancellationToken cancellationToken) =>
         Ok(await discoveryService.GetAcquisitionCandidatesAsync(county, categoryId, cancellationToken));

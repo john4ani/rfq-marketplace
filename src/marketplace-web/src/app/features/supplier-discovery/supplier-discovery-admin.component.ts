@@ -1,9 +1,9 @@
 import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/core';
 import { DatePipe, DOCUMENT } from '@angular/common';
 import { FormControl, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
-import { RouterLink } from '@angular/router';
+import { Router, RouterLink } from '@angular/router';
 import { forkJoin } from 'rxjs';
-import { SupplierDiscoveryService, SupplierCandidate, DiscoveryOpportunity } from '../../core/supplier-discovery/supplier-discovery.service';
+import { SupplierDiscoveryService, SupplierCandidate, DiscoveryOpportunity, OutreachOpportunity } from '../../core/supplier-discovery/supplier-discovery.service';
 import { CategoryOption, SupplierSettingsService } from '../../core/suppliers/supplier-settings.service';
 import { ROMANIAN_COUNTIES } from '../../shared/romanian-counties';
 
@@ -18,9 +18,11 @@ export class SupplierDiscoveryAdminComponent {
   private readonly discovery=inject(SupplierDiscoveryService);
   private readonly settings=inject(SupplierSettingsService);
   private readonly document=inject(DOCUMENT);
+  private readonly router=inject(Router);
   readonly counties=ROMANIAN_COUNTIES;
   readonly candidates=signal<SupplierCandidate[]>([]);
   readonly opportunities=signal<DiscoveryOpportunity[]>([]);
+  readonly approvedOutreachOpportunities=signal<OutreachOpportunity[]>([]);
   readonly categories=signal<CategoryOption[]>([]);
   readonly selectedCategoryIds=signal<string[]>([]);
   readonly loading=signal(true);
@@ -74,12 +76,10 @@ export class SupplierDiscoveryAdminComponent {
     });
   }
 
-  startInvitation(id:string):void{this.invitingId.set(id);this.reviewingId.set(null);this.opportunityId.reset();this.error.set('');this.invitationError.set(null);}
-  cancelInvitation():void{this.invitingId.set(null);this.opportunityId.reset();this.invitationError.set(null);}
-  // Invitations are not category-bound; the company's categories come from the Registration process. Any open
-  // request may be selected for an invitation, so the picker lists every request that is currently receiving offers.
+  startInvitation(id:string):void{void this.router.navigate(['/admin/supplier-discovery/acquisition'],{queryParams:{candidateId:id}});}
+  cancelInvitation():void{this.invitingId.set(null);this.opportunityId.reset();this.invitationError.set(null);this.approvedOutreachOpportunities.set([]);}
   compatibleOpportunities(_candidate:SupplierCandidate):DiscoveryOpportunity[]{
-    return this.opportunities();
+    return this.approvedOutreachOpportunities().map(item=>({id:item.match.rfqId,title:item.rfqTitle,deliveryLocality:item.deliveryLocality,county:item.county,quotationDeadline:item.quotationDeadline,primaryCategoryId:'',requirementCategoryIds:[]}));
   }
   toggleCategory(id:string):void{const values=this.selectedCategoryIds();this.selectedCategoryIds.set(values.includes(id)?values.filter(value=>value!==id):[...values,id]);}
   candidateCategoryNames(candidate:SupplierCandidate):string{return candidate.categories.map(category=>category.name).join(', ');}

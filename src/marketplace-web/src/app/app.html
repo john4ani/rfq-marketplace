@@ -27,17 +27,16 @@
             <span class="nav-section-label">Firma ta</span>
             <a class="nav-link" routerLink="/opportunities" [queryParams]="companyContextParams()" routerLinkActive="active" ariaCurrentWhenActive="page" (click)="closeMobileNavigation()"><span aria-hidden="true">⌕</span> Oportunități</a>
             <a class="nav-link" routerLink="/company/offers" [queryParams]="companyContextParams()" routerLinkActive="active" ariaCurrentWhenActive="page" (click)="closeMobileNavigation()"><span aria-hidden="true">◌</span> Ofertele firmei</a>
+            <app-messages-menu />
             <a class="nav-link" [routerLink]="companyLink()" routerLinkActive="active" ariaCurrentWhenActive="page" (click)="closeMobileNavigation()"><span aria-hidden="true">♧</span> Firma</a>
             <a class="nav-link back-to-app" routerLink="/dashboard" (click)="closeMobileNavigation()"><span aria-hidden="true">←</span> Înapoi în CompaSpot</a>
           }
           @case ('admin') {
             <span class="nav-section-label">Administrare CompaSpot</span>
-            <a class="nav-link admin-link" routerLink="/admin/supplier-discovery" routerLinkActive="active" [routerLinkActiveOptions]="{ exact: true }" ariaCurrentWhenActive="page" (click)="closeMobileNavigation()"><span aria-hidden="true">☷</span> Cereri</a>
-            <a class="nav-link admin-link" routerLink="/admin/supplier-discovery/acquisition" routerLinkActive="active" ariaCurrentWhenActive="page" (click)="closeMobileNavigation()"><span aria-hidden="true">⌕</span> Achiziție furnizori</a>
-            <a class="nav-link admin-link" routerLink="/admin/invitations-referrals" routerLinkActive="active" ariaCurrentWhenActive="page" (click)="closeMobileNavigation()"><span aria-hidden="true">✉</span> Invitații și recomandări</a>
-            <a class="nav-link admin-link" routerLink="/admin/trust" routerLinkActive="active" ariaCurrentWhenActive="page" (click)="closeMobileNavigation()"><span aria-hidden="true">✓</span> Firme și verificări</a>
-            <a class="nav-link admin-link" routerLink="/admin/catalog" routerLinkActive="active" ariaCurrentWhenActive="page" (click)="closeMobileNavigation()"><span aria-hidden="true">▦</span> Catalog categorii</a>
-            <a class="nav-link admin-link" routerLink="/admin/concierge" routerLinkActive="active" ariaCurrentWhenActive="page" (click)="closeMobileNavigation()"><span aria-hidden="true">⌁</span> Operațiuni</a>
+            <a class="nav-link admin-link" routerLink="/admin/concierge" routerLinkActive="active" ariaCurrentWhenActive="page" (click)="closeMobileNavigation()"><span aria-hidden="true">☷</span> Intervenții</a>
+            <a class="nav-link admin-link" routerLink="/admin/supplier-discovery" routerLinkActive="active" [routerLinkActiveOptions]="{ exact: true }" ariaCurrentWhenActive="page" (click)="closeMobileNavigation()"><span aria-hidden="true">⌕</span> Supplier Discovery</a>
+            <a class="nav-link admin-link" routerLink="/admin/supplier-discovery/acquisition" routerLinkActive="active" ariaCurrentWhenActive="page" (click)="closeMobileNavigation()"><span aria-hidden="true">↗</span> Achiziție furnizori</a>
+            <a class="nav-link admin-link" routerLink="/admin/companies" routerLinkActive="active" ariaCurrentWhenActive="page" (click)="closeMobileNavigation()"><span aria-hidden="true">✓</span> Firme</a>
             <a class="nav-link back-to-app" routerLink="/dashboard" (click)="closeMobileNavigation()"><span aria-hidden="true">←</span> Înapoi în CompaSpot</a>
           }
           @default {
@@ -49,7 +48,7 @@
           }
         }
       </nav>
-      @if (navContext() !== 'admin') { <div class="messages-slot"><app-messages-menu /></div> }
+      @if (navContext() === 'buyer') { <div class="messages-slot"><app-messages-menu /></div> }
       <div class="notification-slot"><app-notification-menu /></div>
       <div class="side-nav-footer">
         <button class="side-sign-out" type="button" (click)="signOut()" [disabled]="signingOut()"><span aria-hidden="true">↪</span>{{ signingOut() ? 'Se închide sesiunea…' : 'Deconectare' }}</button>

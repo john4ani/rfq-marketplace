@@ -17,10 +17,13 @@
         <p>Nu publicăm profilul ca verificat și nu preluăm automat datele drept capabilități confirmate.</p></div>
         @if(!auth.isAuthenticated()){
           <div class="actions"><a class="primary-link" [routerLink]="['/register']" [queryParams]="{supplierInvite:currentPath}">Creează cont</a><a [routerLink]="['/sign-in']" [queryParams]="{returnUrl:currentPath}">Am deja cont</a></div>
-        }@else if(!hasSupplierRole()){
+        }@else if(companiesLoading()){
+          <p role="status">Încărcăm firmele pe care le reprezinți…</p>
+        }@else if(!companies().length){
           <button type="button" (click)="addSupplierProfile()">Adaugă firma</button>
         }@else{
-          <button type="button" (click)="claim()" [disabled]="claiming()">{{claiming()?'Se revendică…':'Revendică firma'}}</button>
+          @if(companies().length>1){<label>Alege firma care revendică invitația<select [(ngModel)]="selectedCompanyId"><option value="">Alege firma</option>@for(company of companies();track company.id){<option [value]="company.id">{{company.name}}</option>}</select></label>}
+          <button type="button" (click)="claim()" [disabled]="claiming()||!selectedCompanyId">{{claiming()?'Se revendică…':'Revendică firma'}}</button>
         }
       </section>
     }@else if(item.claimed){

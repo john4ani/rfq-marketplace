@@ -33,10 +33,10 @@ ProcurementNeed (current Rfq)
 ├── publication + lifecycle
 ├── supplier matching
 ├── offers + outcome
-└── NeedCategories 1..N
+└── NeedCategory 1..1
 ```
 
-It must support a car alternator, timber, transport, excavator hire, electrical materials, or a construction-generated need without construction-only assumptions. A need can have one or many categories regardless of whether it is a direct purchase, list, or project. Each requirement line belongs to the relevant need category grouping.
+It must support a car alternator, timber, transport, excavator hire, electrical materials, or a construction-generated need without construction-only assumptions. Each need has exactly one primary shared commercial `NeedCategory`, regardless of whether it is a direct purchase, list, or project. Requirement lines carry no category association in MVP; the need category is the only commercial routing category.
 
 General Procurement is a generic entry mode into this Core, not a permanent domain Vertical. The current `Vertical`/`Category` model may be reused for compatibility. If a general placeholder Vertical is temporarily necessary, it must be explicitly provisional and must not carry domain rules or determine matching semantics.
 
@@ -59,7 +59,7 @@ As built today (no `ConstructionProject` aggregate exists yet):
 - **Two distinct intake workflows, one shared Core.** General (`/rfqs/new`, `IGeneralNeedInterpreter`) and Construction (`/rfqs/new/construction`, `IConstructionProjectInterpreter`) are separate interpretation workflows — separate routes, controllers (`assisted-intakes` / `construction-intakes`), prompts, JSON schemas and clarification semantics. They are **not** one universal workflow with a swapped prompt. Construction understands the project first (a human-readable `projectSummary` plus visible, non-certified assumptions) and then derives the need; General does domain-light commercial extraction. Both reuse the generic `AiIntakeSession` storage (discriminated by `AiIntakeSession.Kind` = General/Construction) and the same OpenAI Responses transport (`OpenAiResponsesTransport`), so neither the HTTP client, config nor telemetry is duplicated.
 - One Construction entry produces **exactly one** shared `Rfq` / Procurement Need on approve, through the same publication, matching, discovery, offers, comparison and outcome as General. There is no separate persisted Project entity and no multi-Need decomposition engine. Multi-Need generation (`House → timber + roofing + insulation + …`) remains a documented future capability and must not be built for architectural purity alone.
 - `NeedType.Project` is **not** the discriminator and no shared code infers Construction from it. Construction origin is carried by the `AiIntakeSession` (its `Kind` and its `ApprovedRfqId` link) — an observability seam that never forks the commercial pipeline. The manual editor's optional `Rfq.ProjectTemplateId` remains a separate compatibility marker.
-- Construction (depth) and General (breadth) use parallel central-category subsets under separate `Vertical`s. Every intake surface scopes categories to its vertical — the General interpreter and its correction UI use General-vertical categories, the Construction interpreter and manual Construction editor use Construction-vertical categories — so neither vertical's vocabulary leaks into the other. Already-selected categories always stay visible so editing never drops a selection.
+- Construction may retain its own domain taxonomy, templates and attributes, but any commercial need it produces uses the same shared `NeedCategory` catalog as General Procurement. General Procurement is an entry mode, not a category or permanent vertical. The provisional compatibility vertical is not a matching rule or a second taxonomy.
 - The General interpreter may still return a non-binding `SuggestedProcurementMode.ConstructionProjects`; choosing it routes to `/rfqs/new/construction` and **transfers the original text** (no re-typing). If the Construction interpreter is unavailable, the flow preserves the text and falls back to the manual Construction editor. Construction estimates are procurement assistance only — no engineering certification, no Passive House, no structural/thermal calculation.
 
 ## Supplier discovery

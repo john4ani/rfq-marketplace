@@ -46,8 +46,9 @@ public sealed class Rfq
     public DateTimeOffset? OutcomeRecordedAt { get; private set; }
     public IReadOnlyCollection<RfqItem> Items => _items;
     public IReadOnlyCollection<NeedCategory> NeedCategories => _needCategories;
-    public IReadOnlyCollection<Guid> RequiredCategoryIds => _needCategories
-        .OrderBy(category => category.SortOrder).Select(category => category.CategoryId).ToArray();
+    // A procurement need has one commercial category in MVP. The collection is
+    // retained only for persistence compatibility with pre-v2 need records.
+    public IReadOnlyCollection<Guid> RequiredCategoryIds => [PrimaryCategoryId];
     public ProcurementNeedStatus NeedStatus => Status switch
     {
         RfqStatus.Draft => ProcurementNeedStatus.Draft,
@@ -264,34 +265,29 @@ public sealed class Rfq
         DeliveryRequired = draft.DeliveryRequired;
         EstimatedBudget = draft.EstimatedBudget;
         BuyerNotes = Clean(draft.BuyerNotes);
-        Guid[] requiredCategoryIds = ResolveCategoryIds(draft);
-        Dictionary<Guid, NeedCategory> existingCategories = _needCategories.ToDictionary(category => category.CategoryId);
+        Guid primaryCategoryId = ResolvePrimaryCategoryId(draft);
+        NeedCategory? existingCategory = _needCategories.OrderBy(category => category.SortOrder).FirstOrDefault();
         _needCategories.Clear();
-        for (int index = 0; index < requiredCategoryIds.Length; index++)
-        {
-            Guid categoryId = requiredCategoryIds[index];
-            NeedCategory needCategory = existingCategories.GetValueOrDefault(categoryId)
-                ?? NeedCategory.Create(Id, categoryId, index);
-            needCategory.Reorder(index);
-            _needCategories.Add(needCategory);
-        }
+        NeedCategory needCategory = existingCategory is not null && existingCategory.CategoryId == primaryCategoryId
+            ? existingCategory
+            : NeedCategory.Create(Id, primaryCategoryId, 0);
+        needCategory.Reorder(0);
+        _needCategories.Add(needCategory);
 
         RfqItem[] existingItems = _items.OrderBy(item => item.ItemNumber).ToArray();
         _items.Clear();
         int itemNumber = 1;
         foreach (RfqItemDraft item in draft.Items)
         {
-            Guid itemCategoryId = item.CategoryId ?? requiredCategoryIds[0];
-            NeedCategory itemCategory = _needCategories.Single(category => category.CategoryId == itemCategoryId);
             if (itemNumber <= existingItems.Length)
             {
                 RfqItem existingItem = existingItems[itemNumber - 1];
-                existingItem.Update(itemNumber++, item, itemCategory);
+                existingItem.Update(itemNumber++, item, needCategory.Id);
                 _items.Add(existingItem);
             }
             else
             {
-                _items.Add(RfqItem.Create(Guid.NewGuid(), Id, itemNumber++, item, itemCategory));
+                _items.Add(RfqItem.Create(Guid.NewGuid(), Id, itemNumber++, item, needCategory.Id));
             }
         }
         UpdatedAt = now;
@@ -301,7 +297,7 @@ public sealed class Rfq
     {
         if (string.IsNullOrWhiteSpace(draft.Title)) throw new RfqRuleException("Titlul cererii este obligatoriu.");
         if (draft.Title.Trim().Length > 180) throw new RfqRuleException("Titlul poate avea cel mult 180 de caractere.");
-        if (ResolveCategoryIds(draft).Length == 0) throw new RfqRuleException("Selectați cel puțin o categorie pentru necesar.");
+        if (ResolvePrimaryCategoryId(draft) == Guid.Empty) throw new RfqRuleException("Selectați categoria principală a necesarului.");
         if (string.IsNullOrWhiteSpace(draft.DeliveryAddress) || string.IsNullOrWhiteSpace(draft.DeliveryLocality) || string.IsNullOrWhiteSpace(draft.County))
             throw new RfqRuleException("Adresa, localitatea și județul de livrare sunt obligatorii.");
         if (draft.SupplierSearchRadiusKm is < 1 or > 1000) throw new RfqRuleException("Raza de căutare a furnizorilor trebuie să fie între 1 și 1.000 km.");
@@ -312,13 +308,10 @@ public sealed class Rfq
             throw new RfqRuleException("Tipul necesarului nu este valid.");
     }
 
-    private static Guid[] ResolveCategoryIds(RfqDraft draft) =>
-        (draft.CategoryIds ?? [])
-        .Concat(draft.Items.Where(item => item.CategoryId.HasValue).Select(item => item.CategoryId!.Value))
-        .Prepend(draft.PrimaryCategoryId)
-        .Where(categoryId => categoryId != Guid.Empty)
-        .Distinct()
-        .ToArray();
+    private static Guid ResolvePrimaryCategoryId(RfqDraft draft) =>
+        draft.PrimaryCategoryId != Guid.Empty
+            ? draft.PrimaryCategoryId
+            : (draft.CategoryIds ?? []).FirstOrDefault(categoryId => categoryId != Guid.Empty);
 
     private static string? Clean(string? value) => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
 }
