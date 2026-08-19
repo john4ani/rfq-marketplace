@@ -66,6 +66,28 @@ public sealed class CompanyMembershipFoundationTests : IClassFixture<WebApplicat
         }
     }
 
+    [Fact]
+    public async Task ConcurrentFirstTimeCompanyRegistrationDoesNotFailWithADuplicateMembership()
+    {
+        const string password = "password";
+        string email = $"legacy-owner-{Guid.NewGuid():N}@example.test";
+        Guid ownerId = await RegisterAndGetId(email, password, "/api/v1/auth/register/supplier");
+        using HttpClient ownerClient = await AuthenticatedClient(email, password);
+
+        // Two simultaneous submissions of the same first-time registration (e.g. a double-click):
+        // both see the profile as absent and race to create the shared-key company + Owner membership.
+        Task<HttpResponseMessage>[] submissions = Enumerable.Range(0, 4)
+            .Select(_ => ownerClient.PutAsJsonAsync($"/api/v1/suppliers/{ownerId}", SupplierProfileRequest(email)))
+            .ToArray();
+        HttpResponseMessage[] responses = await Task.WhenAll(submissions);
+
+        Assert.All(responses, response => Assert.Equal(HttpStatusCode.OK, response.StatusCode));
+        using IServiceScope scope = factory.Services.CreateScope();
+        MarketplaceDbContext verify = scope.ServiceProvider.GetRequiredService<MarketplaceDbContext>();
+        Assert.Equal(1, await verify.SupplierProfiles.CountAsync(profile => profile.Id == ownerId));
+        Assert.Equal(1, await verify.CompanyMemberships.CountAsync(item => item.CompanyId == ownerId && item.UserId == ownerId));
+    }
+
     private async Task<Guid> RegisterAndGetId(string email, string password, string route)
     {
         using HttpClient client = factory.CreateClient(new() { BaseAddress = new Uri("https://localhost") });

@@ -33,6 +33,7 @@ public sealed class ProfileService(MarketplaceDbContext dbContext, TimeProvider 
     {
         SupplierProfile? profile = await dbContext.SupplierProfiles.SingleOrDefaultAsync(item => item.Id == id, cancellationToken);
         DateTimeOffset now = timeProvider.GetUtcNow();
+        bool creating = profile is null;
         if (profile is null)
         {
             profile = SupplierProfile.Create(id, input.TradingName, input.CompanyRegistrationNumber, input.TaxIdentifier, input.ContactPerson, input.ContactEmail, input.PhoneNumber, input.Website, input.Address, input.City, input.County, input.Latitude, input.Longitude, input.Description, now);
@@ -41,7 +42,21 @@ public sealed class ProfileService(MarketplaceDbContext dbContext, TimeProvider 
         }
         else profile.Update(input.TradingName, input.CompanyRegistrationNumber, input.TaxIdentifier, input.ContactPerson, input.ContactEmail, input.PhoneNumber, input.Website, input.Address, input.City, input.County, input.Latitude, input.Longitude, input.Description, now);
         dbContext.AccountAuditEvents.Add(AccountAuditEvent.Create(id, id, AccountAuditEventType.ProfileSaved, "Profil de furnizor salvat.", now));
-        await dbContext.SaveChangesAsync(cancellationToken);
+        try
+        {
+            await dbContext.SaveChangesAsync(cancellationToken);
+        }
+        catch (DbUpdateException exception) when (creating && IsUniqueViolation(exception))
+        {
+            // A concurrent first-time registration already created this legacy self-company
+            // (its key is shared with the owner's user id). Treat the duplicate as idempotent
+            // success instead of surfacing a PK_SupplierProfiles/PK_CompanyMemberships 500.
+            dbContext.ChangeTracker.Clear();
+            return await dbContext.SupplierProfiles.AsNoTracking().SingleAsync(item => item.Id == id, cancellationToken);
+        }
         return profile;
     }
+
+    private static bool IsUniqueViolation(DbUpdateException exception) =>
+        exception.InnerException is Npgsql.PostgresException { SqlState: "23505" };
 }
