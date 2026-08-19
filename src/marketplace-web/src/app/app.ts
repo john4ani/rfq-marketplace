@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/core';
 import { Router, RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
 import { AuthService } from './core/auth/auth.service';
 import { BackendAvailabilityService } from './core/connectivity/backend-availability.service';
@@ -10,10 +10,6 @@ export class App {
   private readonly router = inject(Router);
   readonly signingOut = signal(false);
   readonly mobileNavigationOpen = signal(false);
-  readonly hasSupplierProfile = computed(() =>
-    this.auth.profiles().some(profile => profile.accountType === 'Supplier'));
-  readonly isBuyer = computed(() => this.auth.isAuthenticated());
-  readonly profileInitial = computed(() => this.auth.identity()?.email?.trim().charAt(0).toLocaleUpperCase('ro-RO') || 'C');
 
   isAuthRoute(): boolean {
     return ['/sign-in', '/register', '/forgot-password', '/reset-password', '/verify-email']

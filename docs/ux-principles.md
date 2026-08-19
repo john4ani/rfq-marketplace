@@ -11,6 +11,10 @@ These principles govern all new user-facing work.
 - Every operation has loading, success, empty, error and recovery feedback. No unexplained blank screens.
 - The critical flow is comfortable on mobile.
 
+## Primary navigation
+
+Every authenticated User sees one small, user-first rail — **Acasă, Cererile mele, Oferte, Cont** — plus the notifications bell. There is no Buyer/Provider switch, no ActiveProfile, and no permanent seller mode: selling is reached contextually from Home's company card, not a separate nav mode. Legacy surfaces that are not part of MVP v2 (Piața Live, the Furnizori directory) stay reachable by route but are not primary navigation. Administrators additionally see an **Administrare** section; those operational screens may keep operational terminology. Error copy never reintroduces "switch to your buyer/supplier profile" language.
+
 ## General Procurement
 
 Home is led by **Caut ceva**: a natural-language description, `Continuă`, reassurance that AI helps clarify, and a manual alternative. **Am un proiect de construcții** is secondary and distinct. Do not force category, need type, or other internal choices before AI can infer them.

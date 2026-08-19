@@ -40,7 +40,7 @@ export class SupplierInvitationComponent {
     this.claiming.set(true);this.error.set('');
     this.discovery.claim(this.token).subscribe({
       next:value=>{this.invitation.set(value);this.claiming.set(false);this.profiles.getMyCompanies().subscribe({next:companies=>{const companyId=companies.length===1?companies[0].id:undefined;void this.router.navigate(['/opportunities',value.rfqId],{queryParams:companyId?{companyId}:undefined});}});},
-      error:error=>{this.claiming.set(false);const messages=error.error?.errors?Object.values(error.error.errors as Record<string,string[]>).flat():[];this.error.set(messages[0]??error.error?.detail??'Firma nu a putut fi revendicată. Verifică profilul de furnizor.');}
+      error:error=>{this.claiming.set(false);const messages=error.error?.errors?Object.values(error.error.errors as Record<string,string[]>).flat():[];this.error.set(messages[0]??error.error?.detail??'Firma nu a putut fi revendicată. Verifică datele firmei și încearcă din nou.');}
     });
   }
 

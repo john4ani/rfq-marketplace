@@ -22,29 +22,21 @@
     <aside id="primary-navigation" class="side-rail" [class.mobile-open]="mobileNavigationOpen()" aria-label="Navigare principală">
       <div class="side-nav" [class.has-admin-navigation]="auth.isAdministrator()">
       <nav aria-label="Meniu principal">
-        @if (isBuyer()) {
-          <a class="nav-link" routerLink="/dashboard" routerLinkActive="active" [routerLinkActiveOptions]="{ exact: true }" ariaCurrentWhenActive="page" (click)="closeMobileNavigation()"><span aria-hidden="true">⌂</span> Acasă</a>
-          <a class="nav-link" routerLink="/requests" routerLinkActive="active" ariaCurrentWhenActive="page" (click)="closeMobileNavigation()"><span aria-hidden="true">☷</span> Cererile mele</a>
-          <a class="nav-link" routerLink="/offers" routerLinkActive="active" ariaCurrentWhenActive="page" (click)="closeMobileNavigation()"><span aria-hidden="true">◌</span> Oferte</a>
-          <a class="nav-link" routerLink="/account" routerLinkActive="active" ariaCurrentWhenActive="page" (click)="closeMobileNavigation()"><span aria-hidden="true">◉</span> Cont</a>
-        } @else {
-          <a class="nav-link" routerLink="/dashboard" routerLinkActive="active" [routerLinkActiveOptions]="{ exact: true }" ariaCurrentWhenActive="page" (click)="closeMobileNavigation()"><span aria-hidden="true">⌂</span> Acasă</a>
-          <a class="nav-link" routerLink="/" routerLinkActive="active" [routerLinkActiveOptions]="{ exact: true }" ariaCurrentWhenActive="page" (click)="closeMobileNavigation()"><span aria-hidden="true">◉</span> Piața Live</a>
-          @if (hasSupplierProfile()) { <a class="nav-link" routerLink="/open-requests" routerLinkActive="active" ariaCurrentWhenActive="page" (click)="closeMobileNavigation()"><span aria-hidden="true">⌕</span> Cereri deschise</a> }
-          <a class="nav-link" routerLink="/participants" routerLinkActive="active" ariaCurrentWhenActive="page" (click)="closeMobileNavigation()"><span aria-hidden="true">♧</span> Furnizori</a>
-          @if (auth.isAdministrator()) {
+        <a class="nav-link" routerLink="/dashboard" routerLinkActive="active" [routerLinkActiveOptions]="{ exact: true }" ariaCurrentWhenActive="page" (click)="closeMobileNavigation()"><span aria-hidden="true">⌂</span> Acasă</a>
+        <a class="nav-link" routerLink="/requests" routerLinkActive="active" ariaCurrentWhenActive="page" (click)="closeMobileNavigation()"><span aria-hidden="true">☷</span> Cererile mele</a>
+        <a class="nav-link" routerLink="/offers" routerLinkActive="active" ariaCurrentWhenActive="page" (click)="closeMobileNavigation()"><span aria-hidden="true">◌</span> Oferte</a>
+        <a class="nav-link" routerLink="/account" routerLinkActive="active" ariaCurrentWhenActive="page" (click)="closeMobileNavigation()"><span aria-hidden="true">◉</span> Cont</a>
+        @if (auth.isAdministrator()) {
           <span class="nav-section-label">Administrare</span>
-          <a class="nav-link admin-link" routerLink="/admin/invitations-referrals" routerLinkActive="active" ariaCurrentWhenActive="page"><span aria-hidden="true">✉</span> Invitații și recomandări</a>
-          <a class="nav-link admin-link" routerLink="/admin/supplier-discovery" routerLinkActive="active" ariaCurrentWhenActive="page"><span aria-hidden="true">⌕</span> Supplier discovery asistat</a>
-          <a class="nav-link admin-link" routerLink="/admin/catalog" routerLinkActive="active" ariaCurrentWhenActive="page"><span aria-hidden="true">▦</span> Catalog categorii</a>
-          <a class="nav-link admin-link" routerLink="/admin/trust" routerLinkActive="active" ariaCurrentWhenActive="page"><span aria-hidden="true">✓</span> Verificări cont</a>
-          <a class="nav-link admin-link" routerLink="/admin/concierge" routerLinkActive="active" ariaCurrentWhenActive="page"><span aria-hidden="true">⌁</span> Analytics și operațiuni</a>
-          }
+          <a class="nav-link admin-link" routerLink="/admin/invitations-referrals" routerLinkActive="active" ariaCurrentWhenActive="page" (click)="closeMobileNavigation()"><span aria-hidden="true">✉</span> Invitații și recomandări</a>
+          <a class="nav-link admin-link" routerLink="/admin/supplier-discovery" routerLinkActive="active" ariaCurrentWhenActive="page" (click)="closeMobileNavigation()"><span aria-hidden="true">⌕</span> Supplier discovery asistat</a>
+          <a class="nav-link admin-link" routerLink="/admin/catalog" routerLinkActive="active" ariaCurrentWhenActive="page" (click)="closeMobileNavigation()"><span aria-hidden="true">▦</span> Catalog categorii</a>
+          <a class="nav-link admin-link" routerLink="/admin/trust" routerLinkActive="active" ariaCurrentWhenActive="page" (click)="closeMobileNavigation()"><span aria-hidden="true">✓</span> Verificări cont</a>
+          <a class="nav-link admin-link" routerLink="/admin/concierge" routerLinkActive="active" ariaCurrentWhenActive="page" (click)="closeMobileNavigation()"><span aria-hidden="true">⌁</span> Analytics și operațiuni</a>
         }
       </nav>
-      @if (!isBuyer()) { <div class="notification-slot"><app-notification-menu /></div> }
+      <div class="notification-slot"><app-notification-menu /></div>
       <div class="side-nav-footer">
-        @if (!isBuyer()) { <a class="profile-link" routerLink="/account" routerLinkActive="active" ariaCurrentWhenActive="page" (click)="closeMobileNavigation()"><span class="profile-avatar" aria-hidden="true">{{ profileInitial() }}</span><span><strong>Contul meu</strong><small>Profil, încredere și preferințe</small></span><span aria-hidden="true">›</span></a> }
         <button class="side-sign-out" type="button" (click)="signOut()" [disabled]="signingOut()"><span aria-hidden="true">↪</span>{{ signingOut() ? 'Se închide sesiunea…' : 'Deconectare' }}</button>
       </div>
       </div>

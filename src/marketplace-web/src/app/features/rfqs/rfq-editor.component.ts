@@ -235,7 +235,7 @@ export class RfqEditorComponent {
         next:p=>this.form.patchValue({deliveryLocality:p.defaultCity,county:p.defaultCounty,supplierSearchRadiusKm:p.marketRadiusKm}),
         error:error=>{
           if(error.status!==404) {
-            this.fail('Profilul de cumpărător nu a putut fi verificat. Reîncarcă pagina și încearcă din nou.');
+            this.fail('Nu am putut încărca datele tale de livrare implicite. Reîncarcă pagina și încearcă din nou.');
           }
         }
       });
@@ -439,7 +439,7 @@ export class RfqEditorComponent {
     if(messages.length)return messages.join(' ');
     if(error.error?.detail)return error.error.detail;
     if(error.status===401)return 'Sesiunea a expirat. Autentifică-te din nou.';
-    if(error.status===403)return 'Comută pe profilul de cumpărător pentru a salva o cerere.';
+    if(error.status===403)return 'Nu ai permisiunea să salvezi această cerere. Reautentifică-te și încearcă din nou.';
     return `Cererea nu a putut fi salvată (HTTP ${error.status}).`;
   }
   private collectValidationErrors():string[] {

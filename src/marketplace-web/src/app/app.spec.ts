@@ -54,7 +54,7 @@ describe('App', () => {
     expect(rail?.textContent).toContain('Cont');
     expect(rail?.textContent).not.toContain('Piața Live');
     expect(rail?.textContent).not.toContain('Furnizori');
-    expect(rail?.textContent).not.toContain('Notificări');
+    expect(rail?.textContent).toContain('Notificări');
     expect(rail?.textContent).toContain('Deconectare');
 
     (fixture.nativeElement as HTMLElement).querySelector<HTMLButtonElement>('.navigation-scrim')!.click();
