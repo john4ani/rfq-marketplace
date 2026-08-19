@@ -56,3 +56,7 @@ variable "acme_email" {
 variable "smtp_from_address" {
   type = string
 }
+
+variable "smtp_reply_to_address" {
+  type = string
+}

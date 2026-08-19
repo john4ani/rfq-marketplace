@@ -3,6 +3,7 @@ root_domain       = "example.com"
 hosted_zone_id    = "Z0123456789EXAMPLE"
 acme_email        = "operations@example.com"
 smtp_from_address = "no-reply@example.com"
+smtp_reply_to_address = "support@example.com"
 
 # For DNS hosted outside Route 53, omit hosted_zone_id, validate the ACM
 # certificate in the external DNS provider, then set these values.

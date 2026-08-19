@@ -18,5 +18,6 @@ module "environment" {
   frontend_certificate_arn       = var.frontend_certificate_arn
   acme_email                     = var.acme_email
   smtp_from_address              = var.smtp_from_address
+  smtp_reply_to_address          = var.smtp_reply_to_address
   create_ses_identity            = var.create_ses_identity
 }
