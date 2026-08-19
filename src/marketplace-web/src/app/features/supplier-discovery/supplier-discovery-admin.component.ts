@@ -76,11 +76,10 @@ export class SupplierDiscoveryAdminComponent {
 
   startInvitation(id:string):void{this.invitingId.set(id);this.reviewingId.set(null);this.opportunityId.reset();this.error.set('');this.invitationError.set(null);}
   cancelInvitation():void{this.invitingId.set(null);this.opportunityId.reset();this.invitationError.set(null);}
-  compatibleOpportunities(candidate:SupplierCandidate):DiscoveryOpportunity[]{
-    const compatible=new Set(candidate.categories.flatMap(category=>[...this.compatibleCategoryIds(category.id)]));
-    return this.opportunities().filter(opportunity=>(opportunity.requirementCategoryIds?.length
-      ? opportunity.requirementCategoryIds
-      : [opportunity.primaryCategoryId]).some(categoryId=>compatible.has(categoryId)));
+  // Invitations are not category-bound; the company's categories come from the Registration process. Any open
+  // request may be selected for an invitation, so the picker lists every request that is currently receiving offers.
+  compatibleOpportunities(_candidate:SupplierCandidate):DiscoveryOpportunity[]{
+    return this.opportunities();
   }
   toggleCategory(id:string):void{const values=this.selectedCategoryIds();this.selectedCategoryIds.set(values.includes(id)?values.filter(value=>value!==id):[...values,id]);}
   candidateCategoryNames(candidate:SupplierCandidate):string{return candidate.categories.map(category=>category.name).join(', ');}
@@ -126,28 +125,6 @@ export class SupplierDiscoveryAdminComponent {
   }
   private loadCandidates():void{this.discovery.candidates().subscribe({next:values=>this.candidates.set(values)});}
   private replace(updated:SupplierCandidate):void{this.candidates.update(values=>values.map(value=>value.id===updated.id?updated:value));}
-  private compatibleCategoryIds(categoryId:string):Set<string>{
-    const parents=new Map(this.categories().map(category=>[category.id,category.parentId]));
-    const selected=new Set<string>([categoryId]);
-    const compatible=new Set(selected);
-    let current:string|null=categoryId;
-    while(current&&parents.has(current)){
-      current=parents.get(current)??null;
-      if(current)compatible.add(current);
-    }
-    for(const category of this.categories()){
-      current=category.id;
-      const visited=new Set<string>();
-      while(current&&!visited.has(current)){
-        visited.add(current);
-        const parentId:string|null=parents.get(current)??null;
-        if(!parentId)break;
-        if(selected.has(parentId)){compatible.add(category.id);break;}
-        current=parentId;
-      }
-    }
-    return compatible;
-  }
   private focusFeedback(id:string):void{
     setTimeout(()=>{
       const feedback=this.document.getElementById(id);

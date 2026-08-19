@@ -178,7 +178,6 @@ public sealed class SupplierDiscoveryService(
         if (rfq is null || rfq.Status is not (RfqStatus.Published or RfqStatus.ReceivingOffers)
             || rfq.QuotationDeadline <= now)
             throw new SupplierDiscoveryRuleException("Invitația poate fi asociată doar unei cereri care primește oferte.");
-        await EnsureCategoryRelevance(candidate, rfq, cancellationToken);
 
         OpportunityMatch? opportunityMatch = await dbContext.OpportunityMatches
             .SingleOrDefaultAsync(match => match.RfqId == rfqId && match.SupplierCandidateId == candidateId, cancellationToken);
@@ -305,7 +304,6 @@ public sealed class SupplierDiscoveryService(
         if (!IsOpen(rfq, now)) throw new SupplierDiscoveryRuleException("Poți asocia firme doar cererilor care primesc oferte.");
         if (candidate.Status is SupplierCandidateStatus.Claimed or SupplierCandidateStatus.Rejected) throw new SupplierDiscoveryRuleException("Firma candidată nu mai poate fi asociată unei oportunități.");
         if (!string.Equals(candidate.County, rfq.County, StringComparison.OrdinalIgnoreCase)) throw new SupplierDiscoveryRuleException("Firma trebuie să opereze în județul cererii.");
-        await EnsureCategoryRelevance(candidate, rfq, cancellationToken);
         OpportunityMatch? existing = await dbContext.OpportunityMatches.SingleOrDefaultAsync(item => item.RfqId == rfqId && item.SupplierCandidateId == candidateId, cancellationToken);
         if (existing is not null) return (await ToOpportunityViewsAsync([existing], cancellationToken)).Single();
         OpportunityMatch match = OpportunityMatch.ForCandidate(rfqId, candidateId, OpportunityMatchSource.ExistingCandidateMatching, "Asociere manuală a administratorului pentru cererea existentă.", now);
@@ -462,21 +460,6 @@ public sealed class SupplierDiscoveryService(
             }
         }
         return new(candidate.Id, match.Id, channel, SupplierOutreachStatus.Pending, true, "Eligibil pentru contact aprobat manual.");
-    }
-
-    private async Task EnsureCategoryRelevance(
-        SupplierCandidate candidate,
-        Rfq rfq,
-        CancellationToken cancellationToken)
-    {
-        Dictionary<Guid, Guid?> parents = await dbContext.Categories.AsNoTracking()
-            .Where(category => category.IsActive)
-            .ToDictionaryAsync(category => category.Id, category => category.ParentId, cancellationToken);
-        HashSet<Guid> candidateCategories = CategoryCompatibilityPolicy.Expand(candidate.CategoryIds, parents);
-        HashSet<Guid> requiredCategories = rfq.RequiredCategoryIds.ToHashSet();
-        if (!requiredCategories.Any(candidateCategories.Contains))
-            throw new SupplierDiscoveryRuleException(
-                "Categoria firmei nu corespunde niciunei poziții din cererea selectată.");
     }
 
     private async Task CreateMatchesForCandidateAsync(

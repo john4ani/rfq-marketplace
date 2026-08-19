@@ -76,7 +76,7 @@ describe('SupplierDiscoveryAdminComponent',()=>{
     expect(link?.value).toContain('/supplier-invitations/secure-token');
   });
 
-  it('prevents an incompatible request from being selected for a candidate',()=>{
+  it('offers any open request regardless of the candidate category (category comes from registration)',()=>{
     const eligible={...candidate,status:'EligibleForInvitation' as const};
     TestBed.overrideProvider(SupplierDiscoveryService,{useValue:{
       candidates:()=>of([eligible]),
@@ -88,26 +88,25 @@ describe('SupplierDiscoveryAdminComponent',()=>{
     fixture.detectChanges();
 
     const page=fixture.nativeElement as HTMLElement;
-    expect(page.querySelectorAll('#invitation-opportunity-candidate-1 option')).toHaveLength(1);
-    expect(page.textContent).toContain('Nu există cereri deschise compatibile');
+    // Category no longer gates the picker: the request appears despite not matching the candidate category.
+    expect(page.querySelectorAll('#invitation-opportunity-candidate-1 option')).toHaveLength(2);
+    expect(page.textContent).toContain('Transport local');
+    expect(page.textContent).not.toContain('Nu există nicio cerere deschisă');
   });
 
-  it('does not offer a sibling category merely because both categories share a parent',()=>{
+  it('shows a clear empty state when there is no open request to associate',()=>{
     const eligible={...candidate,status:'EligibleForInvitation' as const};
     TestBed.overrideProvider(SupplierDiscoveryService,{useValue:{
       candidates:()=>of([eligible]),
-      opportunities:()=>of([{id:'rfq-insulation',title:'Izolație',deliveryLocality:'Marginea',county:'Suceava',quotationDeadline:'2026-08-19T10:00:00Z',primaryCategoryId:'insulation',requirementCategoryIds:['insulation']}])
+      opportunities:()=>of([])
     }});
-    TestBed.overrideProvider(SupplierSettingsService,{useValue:{getCategories:()=>of([
-      {id:'construction',parentId:null,name:'Construcții',slug:'constructii'},
-      {id:'category-1',parentId:'construction',name:'Lemn și plăci',slug:'lemn'},
-      {id:'insulation',parentId:'construction',name:'Izolații',slug:'izolatii'}
-    ])}});
     const fixture=TestBed.createComponent(SupplierDiscoveryAdminComponent);
     fixture.detectChanges();
     fixture.componentInstance.startInvitation(eligible.id);
     fixture.detectChanges();
 
-    expect((fixture.nativeElement as HTMLElement).querySelectorAll('#invitation-opportunity-candidate-1 option')).toHaveLength(1);
+    const page=fixture.nativeElement as HTMLElement;
+    expect(page.querySelectorAll('#invitation-opportunity-candidate-1 option')).toHaveLength(1);
+    expect(page.textContent).toContain('Nu există nicio cerere deschisă momentan');
   });
 });
