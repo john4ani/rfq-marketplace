@@ -14,9 +14,9 @@ import { ROMANIAN_COUNTIES } from '../../shared/romanian-counties';
       <label>Nume afișat *<input formControlName="displayName" placeholder="Cum să te afișăm?"></label>
       <label>E-mail<input [value]="auth.identity()?.email ?? ''" readonly aria-readonly="true"><small>Adresa de e-mail se gestionează prin securitatea contului.</small></label>
       <label>Telefon *<input formControlName="phoneNumber" placeholder="+40 7xx xxx xxx"></label></fieldset>
-      <fieldset><legend>Preferințe pentru cereri</legend><div class="form-row"><label>Oraș *<input formControlName="defaultCity"></label>
+      <fieldset><legend>Locația ta</legend><label>Adresă (opțional)<input formControlName="defaultAddress" placeholder="Stradă, număr"></label><div class="form-row"><label>Localitate *<input formControlName="defaultCity"></label>
       <label>Județ *<select formControlName="defaultCounty"><option value="">Alege județul</option>@for (county of counties; track county) { <option [value]="county">{{ county }}</option> }</select></label></div>
-      <label>Rază de interes (km) *<input type="number" min="1" max="1000" formControlName="marketRadiusKm"><small>O folosim pentru a căuta furnizori relevanți pentru cererile tale.</small></label></fieldset>
+      <label>Țară *<input formControlName="defaultCountry"></label><label>Rază de interes (km) *<input type="number" min="1" max="1000" formControlName="marketRadiusKm"><small>Raza în care vrei în mod normal să vezi piața.</small></label></fieldset>
       <div class="form-actions"><button [disabled]="form.invalid || saving()">{{ saving() ? 'Se salvează…' : 'Salvează datele' }}</button></div></form> }
   @if (message()) { <p [class.error]="hasError()" role="status">{{ message() }}</p> }
   </section>`,
@@ -30,8 +30,10 @@ export class ProfileEditorComponent {
     buyerType: new FormControl<'Individual' | 'Company'>('Individual', { nonNullable: true }),
     companyName: new FormControl<string | null>(null), taxIdentifier: new FormControl<string | null>(null),
     phoneNumber: new FormControl('', { nonNullable: true, validators: Validators.required }),
+    defaultAddress: new FormControl<string | null>(null),
     defaultCity: new FormControl('', { nonNullable: true, validators: Validators.required }),
     defaultCounty: new FormControl('', { nonNullable: true, validators: Validators.required }),
+    defaultCountry: new FormControl('România', { nonNullable: true, validators: Validators.required }),
     marketRadiusKm: new FormControl(30, { nonNullable: true, validators: [Validators.required, Validators.min(1), Validators.max(1000)] })
   });
 

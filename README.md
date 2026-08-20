@@ -43,6 +43,7 @@ Angular 21 is intentionally pinned because the available Node 24.14 runtime does
 
    ```powershell
    dotnet user-secrets set "AiIntake:ApiKey" "<your-api-key>" --project src/Marketplace.Api
+   dotnet user-secrets set "GooglePlaces:ApiKey" "<your-google-places-api-key>" --project src/Marketplace.Api
    ```
 
 6. Start the API:

@@ -17,7 +17,9 @@ param(
     [SecureString] $SmtpPassword,
 
     [Parameter(Mandatory)]
-    [SecureString] $AiIntakeApiKey
+    [SecureString] $AiIntakeApiKey,
+
+    [SecureString] $GooglePlacesApiKey
 )
 
 $ErrorActionPreference = 'Stop'
@@ -90,5 +92,8 @@ Set-SecureParameter 'jwt-signing-key' (ConvertTo-PlainText $JwtSigningKey)
 Set-SecureParameter 'smtp-username' (ConvertTo-PlainText $SmtpUsername)
 Set-SecureParameter 'smtp-password' (ConvertTo-PlainText $SmtpPassword)
 Set-SecureParameter 'ai-intake-api-key' (ConvertTo-PlainText $AiIntakeApiKey)
+if ($GooglePlacesApiKey) {
+    Set-SecureParameter 'google-places-api-key' (ConvertTo-PlainText $GooglePlacesApiKey)
+}
 
 Write-Host "Deployment secrets are configured under $parameterRoot. No secret values were printed."

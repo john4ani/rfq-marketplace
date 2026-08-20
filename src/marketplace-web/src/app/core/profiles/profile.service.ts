@@ -3,12 +3,13 @@ import { inject, Injectable } from '@angular/core';
 
 export interface BuyerProfile {
   id: string; displayName: string; buyerType: 'Individual' | 'Company'; companyName: string | null;
-  taxIdentifier: string | null; phoneNumber: string; defaultCity: string; defaultCounty: string; marketRadiusKm: number;
+  taxIdentifier: string | null; phoneNumber: string; defaultAddress: string | null; defaultCity: string; defaultCounty: string; defaultCountry: string;
+  defaultLatitude: number | null; defaultLongitude: number | null; marketRadiusKm: number;
 }
 export interface SupplierProfile {
   id: string; tradingName: string; companyRegistrationNumber: string; taxIdentifier: string | null;
   contactPerson: string; contactEmail: string; phoneNumber: string; website: string | null;
-  address: string; city: string; county: string; latitude: number | null; longitude: number | null;
+  address: string; city: string; county: string; country: string; latitude: number | null; longitude: number | null; marketRadiusKm: number;
   description: string | null; approvalStatus: 'Pending' | 'Approved' | 'Suspended'; isActive: boolean;
 }
 export interface RepresentedCompany { id: string; name: string; role: 'Proprietar' | 'Reprezentant'; }

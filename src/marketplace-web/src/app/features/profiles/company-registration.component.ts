@@ -29,6 +29,8 @@ import { SupplierSettingsComponent } from './supplier-settings.component';
           <label class="wide">Adresă *<input formControlName="address" autocomplete="street-address"></label>
           <label>Localitate *<input formControlName="city" autocomplete="address-level2" placeholder="Sat, comună, oraș sau municipiu"></label>
           <label>Județ *<select formControlName="county" autocomplete="address-level1"><option value="">Alege județul</option>@for (county of counties; track county) { <option [value]="county">{{ county }}</option> }</select></label>
+          <label>Țară *<input formControlName="country" autocomplete="country-name"></label>
+          <label>Rază de interes (km) *<input type="number" min="1" max="1000" formControlName="marketRadiusKm"><small>Raza în care firma vrea în mod normal să vadă oportunități.</small></label>
         </div>
         <section class="category-selection" aria-labelledby="company-categories-heading">
           <div class="section-heading"><div><p class="eyebrow">Ce oferă firma</p><h2 id="company-categories-heading">Categorii de produse</h2></div>
@@ -117,8 +119,8 @@ export class CompanyRegistrationComponent {
     address: new FormControl('', { nonNullable: true, validators: Validators.required }),
     city: new FormControl('', { nonNullable: true, validators: Validators.required }),
     county: new FormControl('', { nonNullable: true, validators: Validators.required }),
-    latitude: new FormControl<number | null>(null),
-    longitude: new FormControl<number | null>(null),
+    country: new FormControl('România', { nonNullable: true, validators: Validators.required }),
+    marketRadiusKm: new FormControl(30, { nonNullable: true, validators: [Validators.required, Validators.min(1), Validators.max(1000)] }),
     description: new FormControl<string | null>(null)
   });
 
@@ -176,8 +178,8 @@ export class CompanyRegistrationComponent {
 
   private saveInitialDeliveryArea(company: SupplierProfile): void {
     this.supplierSettings.saveDeliverySettings(company.id, {
-      normalDeliveryRadiusKm: 50,
-      maximumDeliveryRadiusKm: 100,
+      normalDeliveryRadiusKm: 30,
+      maximumDeliveryRadiusKm: 30,
       minimumOrderValue: null,
       nationwideDelivery: this.nationwideDelivery(),
       counties: this.nationwideDelivery() ? [] : this.selectedCounties()

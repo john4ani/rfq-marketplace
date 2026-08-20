@@ -30,7 +30,7 @@ import { ROMANIAN_COUNTIES } from '../../shared/romanian-counties';
 
     <section class="profile-card settings-card">
       <div class="section-heading"><div><p class="eyebrow">Unde livrezi</p><h2>Zonă și rază de livrare</h2></div>
-        <p>Aceste date vor fi folosite ulterior pentru a afișa doar cererile relevante.</p></div>
+        <p>Raza normală descrie zona ta obișnuită de livrare; nu este un filtru de vizibilitate sau clasare.</p></div>
       <form [formGroup]="deliveryForm" (ngSubmit)="saveDelivery()">
         <div class="form-row">
           <label>Rază normală (km) *<input type="number" min="1" max="1000" formControlName="normalDeliveryRadiusKm">
@@ -86,8 +86,8 @@ export class SupplierSettingsComponent {
     return values.filter(category => !parentIds.has(category.id));
   });
   readonly deliveryForm = new FormGroup({
-    normalDeliveryRadiusKm: new FormControl(50, { nonNullable: true, validators: [Validators.required, Validators.min(1), Validators.max(1000)] }),
-    maximumDeliveryRadiusKm: new FormControl(100, { nonNullable: true, validators: [Validators.required, Validators.min(1), Validators.max(1000)] }),
+    normalDeliveryRadiusKm: new FormControl(30, { nonNullable: true, validators: [Validators.required, Validators.min(1), Validators.max(1000)] }),
+    maximumDeliveryRadiusKm: new FormControl(30, { nonNullable: true, validators: [Validators.required, Validators.min(1), Validators.max(1000)] }),
     minimumOrderValue: new FormControl<number|null>(null, { validators: Validators.min(0) }),
     nationwideDelivery: new FormControl(false, { nonNullable: true })
   });
