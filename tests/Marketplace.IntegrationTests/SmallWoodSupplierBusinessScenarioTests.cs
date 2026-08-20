@@ -7,13 +7,13 @@ using Microsoft.AspNetCore.Mvc.Testing;
 namespace Marketplace.IntegrationTests;
 
 [Collection(IntegrationTestGroup.Name)]
-public sealed class SmallWoodSupplierBusinessScenarioTests : IClassFixture<WebApplicationFactory<Program>>
+public sealed class SmallWoodSupplierBusinessScenarioTests : IClassFixture<MarketplaceWebApplicationFactory>
 {
     private static readonly string[] SuceavaCounty = ["Suceava"];
     private static readonly decimal[] ExpectedLineTotals = [2880m, 900m];
     private readonly HttpClient _client;
 
-    public SmallWoodSupplierBusinessScenarioTests(WebApplicationFactory<Program> factory) =>
+    public SmallWoodSupplierBusinessScenarioTests(MarketplaceWebApplicationFactory factory) =>
         _client = factory.CreateClient(new() { BaseAddress = new Uri("https://localhost"), HandleCookies = true });
 
     [Fact]

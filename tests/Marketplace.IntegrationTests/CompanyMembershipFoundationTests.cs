@@ -11,11 +11,11 @@ using Microsoft.Extensions.DependencyInjection;
 namespace Marketplace.IntegrationTests;
 
 [Collection(IntegrationTestGroup.Name)]
-public sealed class CompanyMembershipFoundationTests : IClassFixture<WebApplicationFactory<Program>>
+public sealed class CompanyMembershipFoundationTests : IClassFixture<MarketplaceWebApplicationFactory>
 {
-    private readonly WebApplicationFactory<Program> factory;
+    private readonly MarketplaceWebApplicationFactory factory;
 
-    public CompanyMembershipFoundationTests(WebApplicationFactory<Program> factory) => this.factory = factory;
+    public CompanyMembershipFoundationTests(MarketplaceWebApplicationFactory factory) => this.factory = factory;
 
     [Fact]
     public async Task MembershipFoundationBackfillsNewLegacySupplierAndAuthorizesOnlyActiveRepresentatives()

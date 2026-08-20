@@ -10,11 +10,11 @@ using Microsoft.Extensions.DependencyInjection;
 namespace Marketplace.IntegrationTests;
 
 [Collection(IntegrationTestGroup.Name)]
-public sealed class CompanyMembershipAuthorizationEndpointTests : IClassFixture<WebApplicationFactory<Program>>
+public sealed class CompanyMembershipAuthorizationEndpointTests : IClassFixture<MarketplaceWebApplicationFactory>
 {
-    private readonly WebApplicationFactory<Program> factory;
+    private readonly MarketplaceWebApplicationFactory factory;
 
-    public CompanyMembershipAuthorizationEndpointTests(WebApplicationFactory<Program> factory) => this.factory = factory;
+    public CompanyMembershipAuthorizationEndpointTests(MarketplaceWebApplicationFactory factory) => this.factory = factory;
 
     [Fact]
     public async Task ActiveOwnerAndRepresentativeCanManageExplicitCompanySettingsWhileOthersCannot()

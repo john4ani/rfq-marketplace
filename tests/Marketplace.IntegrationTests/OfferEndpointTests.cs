@@ -7,10 +7,10 @@ using Microsoft.AspNetCore.Mvc.Testing;
 namespace Marketplace.IntegrationTests;
 
 [Collection(IntegrationTestGroup.Name)]
-public sealed class OfferEndpointTests : IClassFixture<WebApplicationFactory<Program>>
+public sealed class OfferEndpointTests : IClassFixture<MarketplaceWebApplicationFactory>
 {
     private readonly HttpClient _client;
-    public OfferEndpointTests(WebApplicationFactory<Program> factory) =>
+    public OfferEndpointTests(MarketplaceWebApplicationFactory factory) =>
         _client = factory.CreateClient(new() { BaseAddress = new Uri("https://localhost"), HandleCookies = true });
 
     [Fact]

@@ -1,26 +1,18 @@
 using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
-using Marketplace.Application.Profiles;
 using Marketplace.Domain.Profiles;
 using Microsoft.AspNetCore.Mvc.Testing;
-using Microsoft.AspNetCore.TestHost;
-using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.DependencyInjection.Extensions;
 
 namespace Marketplace.IntegrationTests;
 
 [Collection(IntegrationTestGroup.Name)]
-public sealed class ProfileEndpointTests : IClassFixture<WebApplicationFactory<Program>>
+public sealed class ProfileEndpointTests : IClassFixture<MarketplaceWebApplicationFactory>
 {
     private readonly HttpClient _client;
-    public ProfileEndpointTests(WebApplicationFactory<Program> factory)
+    public ProfileEndpointTests(MarketplaceWebApplicationFactory factory)
     {
-        _client = factory.WithWebHostBuilder(builder => builder.ConfigureTestServices(services =>
-        {
-            services.RemoveAll<ILocationGeocoder>();
-            services.AddScoped<ILocationGeocoder, FakeLocationGeocoder>();
-        })).CreateClient(new() { BaseAddress = new Uri("https://localhost"), HandleCookies = true });
+        _client = factory.CreateClient(new() { BaseAddress = new Uri("https://localhost"), HandleCookies = true });
     }
 
     [Fact]
@@ -103,9 +95,4 @@ public sealed class ProfileEndpointTests : IClassFixture<WebApplicationFactory<P
     private sealed record CategoryResponse(Guid Id, Guid? ParentId, string Name, string Slug, bool AlreadyExisted = false);
     private sealed record DeliveryResponse(int NormalDeliveryRadiusKm, int MaximumDeliveryRadiusKm, decimal? MinimumOrderValue, bool NationwideDelivery, string[] Counties);
 
-    private sealed class FakeLocationGeocoder : ILocationGeocoder
-    {
-        public Task<GeographicLocation> ResolveAsync(LocationInput input, CancellationToken cancellationToken) =>
-            Task.FromResult(new GeographicLocation(input.Address, input.Locality, input.County, input.Country, 47.7m, 25.8m));
-    }
 }

@@ -78,7 +78,7 @@ public sealed class SupplierDiscoveryPolicyTests
 
         GoogleEvidenceResult result = await collector.CollectAsync(request, CancellationToken.None);
 
-        Assert.Equal(["text", "text", "nearby", "nearby"], client.Calls);
+        Assert.Equal(["text", "text", "nearby"], client.Calls);
         Assert.DoesNotContain("county", client.Calls);
         Assert.Contains(result.Places, place => place.GeographicTier == SupplierSearchGeographicTier.Local);
         Assert.Contains(result.Places, place => place.GeographicTier == SupplierSearchGeographicTier.Nearby);

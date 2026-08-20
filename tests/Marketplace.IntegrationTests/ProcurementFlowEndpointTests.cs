@@ -10,14 +10,14 @@ using Microsoft.Extensions.DependencyInjection;
 namespace Marketplace.IntegrationTests;
 
 [Collection(IntegrationTestGroup.Name)]
-public sealed class ProcurementFlowEndpointTests : IClassFixture<WebApplicationFactory<Program>>
+public sealed class ProcurementFlowEndpointTests : IClassFixture<MarketplaceWebApplicationFactory>
 {
     private const string Password = "password";
     private static readonly string[] IasiCounty = ["Iași"];
-    private readonly WebApplicationFactory<Program> _factory;
+    private readonly MarketplaceWebApplicationFactory _factory;
     private readonly HttpClient _client;
 
-    public ProcurementFlowEndpointTests(WebApplicationFactory<Program> factory)
+    public ProcurementFlowEndpointTests(MarketplaceWebApplicationFactory factory)
     {
         _factory = factory;
         _client = factory.CreateClient(new() { BaseAddress = new Uri("https://localhost"), HandleCookies = true });

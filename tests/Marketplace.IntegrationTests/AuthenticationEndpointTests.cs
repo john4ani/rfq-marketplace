@@ -9,13 +9,13 @@ using Microsoft.Extensions.DependencyInjection;
 namespace Marketplace.IntegrationTests;
 
 [Collection(IntegrationTestGroup.Name)]
-public sealed class AuthenticationEndpointTests : IClassFixture<WebApplicationFactory<Program>>
+public sealed class AuthenticationEndpointTests : IClassFixture<MarketplaceWebApplicationFactory>
 {
     private static readonly string[] BuyerAndSupplierRoles = ["Buyer", "Supplier"];
     private readonly HttpClient _client;
     private readonly WebApplicationFactory<Program> _factory;
 
-    public AuthenticationEndpointTests(WebApplicationFactory<Program> factory)
+    public AuthenticationEndpointTests(MarketplaceWebApplicationFactory factory)
     {
         _factory = factory.WithWebHostBuilder(builder =>
             builder.ConfigureTestServices(services =>

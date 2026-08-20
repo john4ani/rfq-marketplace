@@ -6,13 +6,13 @@ using Microsoft.AspNetCore.Mvc.Testing;
 namespace Marketplace.IntegrationTests;
 
 [Collection(IntegrationTestGroup.Name)]
-public sealed class LiveMarketEndpointTests : IClassFixture<WebApplicationFactory<Program>>
+public sealed class LiveMarketEndpointTests : IClassFixture<MarketplaceWebApplicationFactory>
 {
     private static readonly string[] BuyerAndSupplierRoles = ["Buyer", "Supplier"];
     private readonly HttpClient _client;
     private readonly HttpClient _publicClient;
 
-    public LiveMarketEndpointTests(WebApplicationFactory<Program> factory)
+    public LiveMarketEndpointTests(MarketplaceWebApplicationFactory factory)
     {
         _client = factory.CreateClient(new() { BaseAddress = new Uri("https://localhost"), HandleCookies = true });
         _publicClient = factory.CreateClient(new() { BaseAddress = new Uri("https://localhost") });

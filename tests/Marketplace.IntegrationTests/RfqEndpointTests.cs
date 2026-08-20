@@ -10,11 +10,11 @@ using Microsoft.Extensions.DependencyInjection;
 namespace Marketplace.IntegrationTests;
 
 [Collection(IntegrationTestGroup.Name)]
-public sealed class RfqEndpointTests : IClassFixture<WebApplicationFactory<Program>>
+public sealed class RfqEndpointTests : IClassFixture<MarketplaceWebApplicationFactory>
 {
-    private readonly WebApplicationFactory<Program> _factory;
+    private readonly MarketplaceWebApplicationFactory _factory;
     private readonly HttpClient _client;
-    public RfqEndpointTests(WebApplicationFactory<Program> factory)
+    public RfqEndpointTests(MarketplaceWebApplicationFactory factory)
     {
         _factory = factory;
         _client = factory.CreateClient(new() { BaseAddress = new Uri("https://localhost"), HandleCookies = true });

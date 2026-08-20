@@ -7,12 +7,12 @@ using Microsoft.AspNetCore.Mvc.Testing;
 namespace Marketplace.IntegrationTests;
 
 [Collection(IntegrationTestGroup.Name)]
-public sealed class OpenRfqEndpointTests : IClassFixture<WebApplicationFactory<Program>>
+public sealed class OpenRfqEndpointTests : IClassFixture<MarketplaceWebApplicationFactory>
 {
     private static readonly string[] IasiCounty = ["Iași"];
     private static readonly JsonSerializerOptions WebJson = new(JsonSerializerDefaults.Web);
     private readonly HttpClient _client;
-    public OpenRfqEndpointTests(WebApplicationFactory<Program> factory) =>
+    public OpenRfqEndpointTests(MarketplaceWebApplicationFactory factory) =>
         _client = factory.CreateClient(new() { BaseAddress = new Uri("https://localhost"), HandleCookies = true });
 
     [Fact]

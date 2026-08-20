@@ -15,10 +15,10 @@ using Microsoft.Extensions.DependencyInjection.Extensions;
 namespace Marketplace.IntegrationTests;
 
 [Collection(IntegrationTestGroup.Name)]
-public sealed class AssistedIntakeEndpointTests : IClassFixture<WebApplicationFactory<Program>>
+public sealed class AssistedIntakeEndpointTests : IClassFixture<MarketplaceWebApplicationFactory>
 {
-    private readonly WebApplicationFactory<Program> factory;
-    public AssistedIntakeEndpointTests(WebApplicationFactory<Program> factory) => this.factory = factory;
+    private readonly MarketplaceWebApplicationFactory factory;
+    public AssistedIntakeEndpointTests(MarketplaceWebApplicationFactory factory) => this.factory = factory;
 
     [Fact]
     public async Task AiFlowClarifiesResearchesAndCreatesDraftOnlyAfterHumanApproval()
