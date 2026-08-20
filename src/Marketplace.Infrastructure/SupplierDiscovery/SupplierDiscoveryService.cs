@@ -1,5 +1,9 @@
 using System.Security.Cryptography;
 using System.Text;
+using System.Text.Json;
+using System.Text.Json.Nodes;
+using System.Diagnostics;
+using System.Text.RegularExpressions;
 using Marketplace.Application.Categories;
 using Marketplace.Application.SupplierDiscovery;
 using Marketplace.Domain.Rfqs;
@@ -9,16 +13,23 @@ using Marketplace.Domain.Suppliers;
 using Marketplace.Infrastructure.Persistence;
 using Marketplace.Application.Identity;
 using Marketplace.Infrastructure.Identity;
+using Marketplace.Infrastructure.AiIntake;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
+using Microsoft.Extensions.Logging;
 
 namespace Marketplace.Infrastructure.SupplierDiscovery;
 
-public sealed class SupplierDiscoveryService(
+public sealed partial class SupplierDiscoveryService(
     MarketplaceDbContext dbContext,
     TimeProvider timeProvider,
     IEmailSender emailSender,
-    IOptions<SupplierOutreachOptions> outreachOptions) : ISupplierDiscoveryService
+    IOptions<SupplierOutreachOptions> outreachOptions,
+    ICategoryDiscoveryProfileProvider categoryProfiles,
+    ISupplierSearchIntentBuilder intentBuilder,
+    ISupplierEvidenceQualifier evidenceQualifier,
+    ISupplierEvidencePipeline evidencePipeline,
+    ILogger<SupplierDiscoveryService> logger) : ISupplierDiscoveryService
 {
     public async Task<IReadOnlyCollection<DiscoveryOpportunity>> GetOpenOpportunitiesAsync(
         CancellationToken cancellationToken)
@@ -48,7 +59,10 @@ public sealed class SupplierDiscoveryService(
             .ToDictionary(
                 group => group.Key,
                 group => group.Select(category => category.CategoryId).Distinct().ToArray());
-        return opportunities.Select(rfq => new DiscoveryOpportunity(
+        // Legacy/open records without a routing category cannot be safely offered to
+        // Supplier Discovery. Omit them rather than making the entire Admin page fail.
+        return opportunities.Where(rfq => categoriesByRfq.TryGetValue(rfq.Id, out Guid[]? categories) && categories.Length > 0)
+            .Select(rfq => new DiscoveryOpportunity(
             rfq.Id,
             rfq.Title,
             rfq.DeliveryLocality,
@@ -434,6 +448,137 @@ public sealed class SupplierDiscoveryService(
         return true;
     }
 
+    public async Task<SupplierWebDiscoveryRunView?> DiscoverOnWebAsync(Guid administratorId, Guid rfqId, CancellationToken cancellationToken)
+    {
+        Rfq? need = await dbContext.Rfqs.AsNoTracking().Include(item => item.Items).Include(item => item.NeedCategories).SingleOrDefaultAsync(item => item.Id == rfqId, cancellationToken);
+        if (need is null) return null;
+        string category = await dbContext.Categories.AsNoTracking().Where(item => item.Id == need.PrimaryCategoryId).Select(item => item.Name).SingleOrDefaultAsync(cancellationToken) ?? "categorie comercială";
+        string[] products = need.Items.OrderBy(item => item.ItemNumber).Select(item => SanitizeCommercialTerm(item.ProductName)).ToArray();
+        CategoryDiscoveryProfile profile = categoryProfiles.Resolve(category, products);
+        SupplierSearchIntent intent = intentBuilder.Build(need, category, profile, products);
+        SupplierDiscoveryEvidenceRequest context = new(
+            category,
+            [need.PrimaryCategoryId],
+            intent.Locality,
+            intent.County,
+            intent.Latitude,
+            intent.Longitude,
+            intent.SearchRadiusKm,
+            intent.RequestedProducts,
+            BuildGooglePlacesQuery(intent),
+            BuildWebDiscoveryPrompt(intent),
+            profile.QualificationGuidance);
+        return await RunExternalDiscoveryAsync(administratorId, rfqId, context, cancellationToken);
+    }
+
+    public async Task<SupplierWebDiscoveryRunView> DiscoverCompanyOnWebAsync(Guid administratorId, SupplierCompanyWebSearchInput input, CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(input.CompanyName)) throw new SupplierDiscoveryRuleException("Introdu numele firmei căutate.");
+        string locality = input.Locality?.Trim() ?? string.Empty;
+        string county = input.County?.Trim() ?? string.Empty;
+        Guid[] categoryIds = input.CategoryIds.Where(item => item != Guid.Empty).Distinct().ToArray();
+        string[] categoryNames = categoryIds.Length == 0 ? [] : await dbContext.Categories.AsNoTracking()
+            .Where(item => categoryIds.Contains(item.Id) && item.IsActive).Select(item => item.Name).ToArrayAsync(cancellationToken);
+        if (categoryNames.Length != categoryIds.Length) throw new SupplierDiscoveryRuleException("Selectează numai categorii disponibile.");
+        string category = categoryNames.Length == 0 ? "categorie comercială nespecificată" : string.Join(" · ", categoryNames);
+        string query = string.Join(" ", new[] { input.CompanyName.Trim(), locality, county, "România" }.Where(item => !string.IsNullOrWhiteSpace(item)));
+        SupplierDiscoveryEvidenceRequest context = new(category, categoryIds, locality, county, null, null, 0, [], query,
+            $"Caută dovezi provizorii despre firma „{input.CompanyName.Trim()}” din România. Localitate: {locality}. Județ: {county}. Păstrează numai informațiile susținute de URL-uri și nu considera nimic verificat.", string.Empty);
+        return await RunExternalDiscoveryAsync(administratorId, null, context, cancellationToken);
+    }
+
+    private async Task<SupplierWebDiscoveryRunView> RunExternalDiscoveryAsync(Guid administratorId, Guid? rfqId, SupplierDiscoveryEvidenceRequest context, CancellationToken cancellationToken)
+    {
+        SupplierWebDiscoveryRun run = SupplierWebDiscoveryRun.Start(rfqId, administratorId, timeProvider.GetUtcNow());
+        dbContext.SupplierWebDiscoveryRuns.Add(run);
+        await SaveChangesAsync(cancellationToken);
+        LogWebDiscoveryStarted(logger, rfqId, administratorId);
+        SupplierEvidencePipelineResult collected = await evidencePipeline.CollectAsync(context, cancellationToken);
+        GoogleEvidenceResult google = collected.Google;
+        WebEvidenceResult web = collected.Web;
+        if (web.Response?.WebSearchCallCount > 2) LogWebDiscoveryCallCountExceeded(logger, rfqId, run.Id, web.Response.WebSearchCallCount);
+        if (google.Places.Count == 0 && web.Response is null)
+        {
+            run.RecordFailure("Nu au fost disponibile surse externe. Încearcă din nou.", timeProvider.GetUtcNow());
+            await SaveChangesAsync(cancellationToken);
+            return await ToWebRunViewAsync(run, cancellationToken);
+        }
+
+        JsonNode root = collected.Evidence;
+        run.RecordEvidence(root.ToJsonString(), web.Response?.WebSearchCallCount ?? 0, web.Response?.LatencyMs ?? 0, web.Response?.InputTokens ?? 0, web.Response?.OutputTokens ?? 0, timeProvider.GetUtcNow());
+        await SaveChangesAsync(cancellationToken);
+        LogWebDiscoveryCompleted(logger, rfqId, run.Id, web.Response?.WebSearchCallCount ?? 0, web.Response?.LatencyMs ?? 0);
+        return await ToWebRunViewAsync(run, cancellationToken);
+    }
+
+    public async Task<SupplierWebDiscoveryRunView?> QualifyWebDiscoveryAsync(Guid administratorId, Guid runId, CancellationToken cancellationToken)
+    {
+        SupplierWebDiscoveryRun? run = await dbContext.SupplierWebDiscoveryRuns.SingleOrDefaultAsync(item => item.Id == runId, cancellationToken);
+        if (run is null) return null;
+        if (run.Status == SupplierWebDiscoveryRunStatus.Qualified) return await ToWebRunViewAsync(run, cancellationToken);
+        if (run.Status != SupplierWebDiscoveryRunStatus.EvidenceReady) throw new SupplierDiscoveryRuleException("Nu există suficiente dovezi pentru calificare. Reîncearcă mai întâi căutarea pe web.");
+        SupplierDiscoveryEvidenceRequest context = ReadSearchContext(run.EvidenceJson);
+        string locality = string.IsNullOrWhiteSpace(context.Locality) ? "localitatea căutată" : context.Locality;
+        string category = context.Category;
+        string categoryFocus = context.CategoryFocus;
+        try
+        {
+            Stopwatch stopwatch = Stopwatch.StartNew();
+            OpenAiStructuredResponse response = await evidenceQualifier.QualifyAsync(
+                new(run.EvidenceJson, category, locality, categoryFocus), cancellationToken);
+            stopwatch.Stop();
+            EnsureQualificationShape(response.OutputText);
+            run.RecordQualification(response.OutputText, stopwatch.ElapsedMilliseconds, response.InputTokens, response.OutputTokens, timeProvider.GetUtcNow());
+            await SaveChangesAsync(cancellationToken);
+            LogSupplierQualificationCompleted(logger, run.RfqId, run.Id, stopwatch.ElapsedMilliseconds);
+        }
+        catch (Exception exception)
+        {
+            // Evidence remains intact for a deliberate qualification retry.
+            run.RecordQualificationFailure("Nu am putut califica rezultatele găsite pe web. Dovezile au fost păstrate pentru reîncercare.", timeProvider.GetUtcNow());
+            await SaveChangesAsync(cancellationToken);
+            LogWebDiscoveryFailed(logger, run.RfqId, run.Id, exception);
+        }
+        return await ToWebRunViewAsync(run, cancellationToken);
+    }
+
+    public async Task<SupplierWebCandidateAccepted?> AcceptWebCandidateAsync(Guid administratorId, Guid runId, int candidateIndex, IReadOnlyCollection<Guid>? categoryIds, CancellationToken cancellationToken)
+    {
+        SupplierWebDiscoveryRun? run = await dbContext.SupplierWebDiscoveryRuns.AsNoTracking().SingleOrDefaultAsync(item => item.Id == runId, cancellationToken);
+        if (run is null) return null;
+        if (run.Status != SupplierWebDiscoveryRunStatus.Qualified || string.IsNullOrWhiteSpace(run.QualificationJson)) throw new SupplierDiscoveryRuleException("Califică mai întâi rezultatele găsite pe web.");
+        Rfq? need = run.RfqId.HasValue ? await dbContext.Rfqs.AsNoTracking().SingleOrDefaultAsync(item => item.Id == run.RfqId.Value, cancellationToken) : null;
+        SupplierWebCandidateView[] candidates = ReadQualifiedCandidates(run.QualificationJson).ToArray();
+        if (candidateIndex < 0 || candidateIndex >= candidates.Length) throw new SupplierDiscoveryRuleException("Rezultatul selectat nu mai este disponibil.");
+        SupplierWebCandidateView selected = candidates[candidateIndex];
+        if (string.IsNullOrWhiteSpace(selected.Locality) || string.IsNullOrWhiteSpace(selected.County)) throw new SupplierDiscoveryRuleException("Rezultatul web nu conține localitatea și județul necesare pentru a crea o firmă candidată.");
+        if (need is not null && !string.Equals(selected.County, need.County, StringComparison.OrdinalIgnoreCase)) throw new SupplierDiscoveryRuleException("Firma găsită este în afara județului acestei cereri; nu poate fi asociată acestei oportunități în MVP.");
+        Guid[] effectiveCategories = need is null
+            ? (categoryIds ?? []).Where(item => item != Guid.Empty).Distinct().ToArray()
+            : [need.PrimaryCategoryId];
+        if (effectiveCategories.Length == 0) throw new SupplierDiscoveryRuleException("Selectează cel puțin o categorie înainte de a adăuga firma candidată.");
+        string normalizedName = NormalizeCompanyName(selected.CompanyName);
+        SupplierCandidate? existing = await dbContext.SupplierCandidates.AsNoTracking().Include(item => item.Categories)
+            .SingleOrDefaultAsync(item => item.NormalizedCompanyName == normalizedName && item.County == selected.County, cancellationToken);
+        bool reused = existing is not null;
+        SupplierCandidateView candidate;
+        if (existing is null)
+        {
+            string[] registeredNames = await dbContext.SupplierProfiles.AsNoTracking().Where(item => item.County == selected.County).Select(item => item.TradingName).ToArrayAsync(cancellationToken);
+            bool registered = registeredNames.Any(item => string.Equals(NormalizeCompanyName(item), normalizedName, StringComparison.Ordinal));
+            if (registered) throw new SupplierCandidateConflictException("Firma este deja înregistrată în CompaSpot; nu poate fi adăugată ca firmă candidată.");
+            string source = string.Join(" · ", selected.SourceUrls.Take(3));
+            if (source.Length > 500) source = source[..500];
+            string notes = $"Găsită pe web · Neverificată. {selected.WhyRelevant}";
+            if (notes.Length > 1000) notes = notes[..1000];
+            candidate = await CreateCandidateAsync(administratorId, new(selected.CompanyName, selected.Email, selected.Phone, selected.Website, selected.Locality, selected.County, effectiveCategories, source, notes), cancellationToken);
+        }
+        else candidate = (await GetCandidatesAsync(cancellationToken)).Single(item => item.Id == existing.Id);
+        OpportunityMatchView? match = need is null ? null : await CreateCandidateMatchAsync(administratorId, need.Id, candidate.Id, cancellationToken);
+        LogWebCandidateAccepted(logger, need?.Id, run.Id, candidate.Id, reused);
+        return new(candidate, match, reused);
+    }
+
     private async Task<IReadOnlyCollection<OpportunityMatchView>> ToOpportunityViewsAsync(OpportunityMatch[] matches, CancellationToken cancellationToken)
     {
         if (matches.Length == 0) return [];
@@ -473,6 +618,187 @@ public sealed class SupplierDiscoveryService(
     }
 
     private async Task<Dictionary<Guid,string>> CategoryNamesAsync(IEnumerable<Guid> ids, CancellationToken ct) => await dbContext.Categories.AsNoTracking().Where(c=>ids.Contains(c.Id)).ToDictionaryAsync(c=>c.Id,c=>c.Name,ct);
+
+    private async Task<SupplierWebDiscoveryRunView> ToWebRunViewAsync(SupplierWebDiscoveryRun run, CancellationToken cancellationToken)
+    {
+        SupplierWebCandidateView[] candidates = run.Status == SupplierWebDiscoveryRunStatus.Qualified && !string.IsNullOrWhiteSpace(run.QualificationJson) ? ReadQualifiedCandidates(run.QualificationJson) : [];
+        SupplierWebRejectedResult[] rejected = run.Status == SupplierWebDiscoveryRunStatus.Qualified && !string.IsNullOrWhiteSpace(run.QualificationJson) ? ReadRejectedCandidates(run.QualificationJson) : [];
+        SupplierWebEvidenceView[] provisionalEvidence = ReadProvisionalEvidence(run.EvidenceJson);
+        candidates = AddSourceProvenance(candidates, provisionalEvidence);
+        if (candidates.Length > 0)
+        {
+            string[] names = candidates.Select(item => NormalizeCompanyName(item.CompanyName)).ToArray();
+            var known = await dbContext.SupplierCandidates.AsNoTracking().Where(item => names.Contains(item.NormalizedCompanyName)).Select(item => new { item.NormalizedCompanyName, item.County }).ToArrayAsync(cancellationToken);
+            var registered = (await dbContext.SupplierProfiles.AsNoTracking().Select(item => new { item.TradingName, item.County }).ToArrayAsync(cancellationToken)).Select(item => new { Name = NormalizeCompanyName(item.TradingName), item.County }).ToArray();
+            candidates = candidates.Where(item => !known.Any(existing => existing.NormalizedCompanyName == NormalizeCompanyName(item.CompanyName) && string.Equals(existing.County, item.County, StringComparison.OrdinalIgnoreCase)) && !registered.Any(existing => existing.Name == NormalizeCompanyName(item.CompanyName) && string.Equals(existing.County, item.County, StringComparison.OrdinalIgnoreCase))).ToArray();
+        }
+        return new(run.Id, run.RfqId, run.Status.ToString(), run.FailureMessage, run.WebSearchCallCount, ReadSourceViews(run.EvidenceJson), provisionalEvidence, candidates, rejected);
+    }
+
+    private static SupplierWebCandidateView[] ReadQualifiedCandidates(string qualificationJson)
+    {
+        using JsonDocument document = JsonDocument.Parse(qualificationJson);
+        // Deterministic ordering so the locality-first, then main-category priority holds regardless of the
+        // model's array order: firms in the target locality first, then the proximity gradient, then evidence
+        // confidence. Every candidate already matches the main category by construction of the search/qualify.
+        return DeduplicateQualifiedCandidates(document.RootElement.GetProperty("candidates").EnumerateArray().Select(item => new SupplierWebCandidateView(item.GetProperty("companyName").GetString() ?? "", item.GetProperty("locality").GetString() ?? "", item.GetProperty("county").GetString() ?? "", NullIfEmpty(item.GetProperty("website").GetString()), NullIfEmpty(item.GetProperty("phone").GetString()), NullIfEmpty(item.GetProperty("email").GetString()), item.GetProperty("activityEvidence").GetString() ?? "", NullIfEmpty(item.GetProperty("caenCode").GetString()), item.GetProperty("productEvidence").GetString() ?? "", item.GetProperty("geographicRelevance").GetString() ?? "unknown", item.GetProperty("confidence").GetString() ?? "low", item.GetProperty("sourceUrls").EnumerateArray().Select(url => url.GetString() ?? "").Where(url => !string.IsNullOrWhiteSpace(url)).ToArray(), [], item.GetProperty("whyRelevant").GetString() ?? ""))
+            .OrderBy(candidate => GeographicRelevanceRank(candidate.GeographicRelevance))
+            .ThenBy(candidate => ConfidenceRank(candidate.Confidence))
+            .ToArray());
+    }
+
+    private static SupplierWebCandidateView[] DeduplicateQualifiedCandidates(IEnumerable<SupplierWebCandidateView> candidates)
+    {
+        List<SupplierWebCandidateView> unique = [];
+        foreach (SupplierWebCandidateView candidate in candidates)
+        {
+            int existingIndex = unique.FindIndex(item => SameCompanyEvidence(candidate.CompanyName, candidate.Locality, candidate.County,
+                item.CompanyName, item.Locality, item.County));
+            if (existingIndex < 0) unique.Add(candidate);
+            else unique[existingIndex] = unique[existingIndex] with
+            {
+                SourceUrls = unique[existingIndex].SourceUrls.Concat(candidate.SourceUrls)
+                    .Distinct(StringComparer.OrdinalIgnoreCase).ToArray(),
+                Sources = unique[existingIndex].Sources.Concat(candidate.Sources)
+                    .Distinct(StringComparer.Ordinal).ToArray()
+            };
+        }
+        return unique.ToArray();
+    }
+
+    private static int GeographicRelevanceRank(string geographicRelevance) => geographicRelevance switch
+    {
+        "local" => 0, "nearby" => 1, "county" => 2, "distant" => 3, _ => 4
+    };
+
+    private static int ConfidenceRank(string confidence) => confidence switch
+    {
+        "high" => 0, "medium" => 1, _ => 2
+    };
+
+    private static SupplierWebRejectedResult[] ReadRejectedCandidates(string qualificationJson)
+    {
+        using JsonDocument document = JsonDocument.Parse(qualificationJson);
+        return document.RootElement.GetProperty("rejectedResults").EnumerateArray().Select(item => new SupplierWebRejectedResult(item.GetProperty("companyName").GetString() ?? "", item.GetProperty("reason").GetString() ?? "", item.GetProperty("sourceUrls").EnumerateArray().Select(url => url.GetString() ?? "").Where(url => !string.IsNullOrWhiteSpace(url)).ToArray())).ToArray();
+    }
+
+    private static void EnsureQualificationShape(string output)
+    {
+        using JsonDocument document = JsonDocument.Parse(output);
+        if (!document.RootElement.TryGetProperty("candidates", out JsonElement candidates) || candidates.ValueKind != JsonValueKind.Array || candidates.GetArrayLength() > 10 || !document.RootElement.TryGetProperty("rejectedResults", out JsonElement rejected) || rejected.ValueKind != JsonValueKind.Array) throw new InvalidOperationException("Supplier qualification returned an invalid structured result.");
+    }
+
+    private static SupplierDiscoveryEvidenceRequest ReadSearchContext(string evidenceJson)
+    {
+        try
+        {
+            using JsonDocument document = JsonDocument.Parse(evidenceJson);
+            if (document.RootElement.TryGetProperty("context", out JsonElement context))
+                return context.Deserialize<SupplierDiscoveryEvidenceRequest>() ?? SupplierDiscoveryEvidenceRequest.Empty;
+        }
+        catch (JsonException) { }
+        return SupplierDiscoveryEvidenceRequest.Empty;
+    }
+
+    private static SupplierWebDiscoverySourceView[] ReadSourceViews(string evidenceJson)
+    {
+        try
+        {
+            using JsonDocument document = JsonDocument.Parse(evidenceJson);
+            JsonElement root = document.RootElement;
+            string? warning = root.TryGetProperty("sourceWarnings", out JsonElement warnings) && warnings.ValueKind == JsonValueKind.Array
+                ? string.Join(" ", warnings.EnumerateArray().Select(item => item.GetString()).Where(item => !string.IsNullOrWhiteSpace(item))) : null;
+            int Count(string property) => root.TryGetProperty(property, out JsonElement value) && value.ValueKind == JsonValueKind.Array ? value.GetArrayLength() : 0;
+            int WebCount() => root.TryGetProperty("webEvidence", out JsonElement value) && value.TryGetProperty("evidence", out JsonElement items) && items.ValueKind == JsonValueKind.Array ? items.GetArrayLength() : 0;
+            return [new("Google Places", Count("googlePlacesText") + Count("googlePlacesNearby") + Count("googlePlacesCounty"), warning?.Contains("Google Places", StringComparison.Ordinal) == true ? warning : null), new("Căutare web", WebCount(), warning?.Contains("Căutarea web", StringComparison.Ordinal) == true ? warning : null)];
+        }
+        catch (JsonException) { return []; }
+    }
+
+    private static SupplierWebEvidenceView[] ReadProvisionalEvidence(string evidenceJson)
+    {
+        try
+        {
+            using JsonDocument document = JsonDocument.Parse(evidenceJson);
+            if (!document.RootElement.TryGetProperty("mergedEvidence", out JsonElement items) || items.ValueKind != JsonValueKind.Array) return [];
+            SupplierWebEvidenceView[] evidence = items.EnumerateArray().Select(item => new SupplierWebEvidenceView(
+                item.TryGetProperty("companyName", out JsonElement name) ? name.GetString() ?? string.Empty : string.Empty,
+                item.TryGetProperty("locality", out JsonElement locality) ? locality.GetString() ?? string.Empty : string.Empty,
+                item.TryGetProperty("county", out JsonElement county) ? county.GetString() ?? string.Empty : string.Empty,
+                item.TryGetProperty("sources", out JsonElement sources) && sources.ValueKind == JsonValueKind.Array ? sources.EnumerateArray().Select(source => source.GetString() ?? string.Empty).Where(source => source.Length > 0).ToArray() : [],
+                item.TryGetProperty("sourceUrls", out JsonElement urls) && urls.ValueKind == JsonValueKind.Array ? urls.EnumerateArray().Select(url => url.GetString() ?? string.Empty).Where(url => url.Length > 0).ToArray() : []))
+                .Where(item => item.CompanyName.Length > 0).ToArray();
+            List<SupplierWebEvidenceView> unique = [];
+            foreach (SupplierWebEvidenceView item in evidence)
+            {
+                int existingIndex = unique.FindIndex(existing => SameCompanyEvidence(item.CompanyName, item.Locality, item.County,
+                    existing.CompanyName, existing.Locality, existing.County));
+                if (existingIndex < 0) unique.Add(item);
+                else unique[existingIndex] = unique[existingIndex] with
+                {
+                    Sources = unique[existingIndex].Sources.Concat(item.Sources).Distinct(StringComparer.Ordinal).ToArray(),
+                    SourceUrls = unique[existingIndex].SourceUrls.Concat(item.SourceUrls).Distinct(StringComparer.OrdinalIgnoreCase).ToArray()
+                };
+            }
+            return unique.ToArray();
+        }
+        catch (JsonException) { return []; }
+    }
+
+    private static SupplierWebCandidateView[] AddSourceProvenance(SupplierWebCandidateView[] candidates, SupplierWebEvidenceView[] evidence) => candidates
+        .Select(candidate =>
+        {
+            SupplierWebEvidenceView? matched = evidence.FirstOrDefault(item => SameCompanyEvidence(candidate.CompanyName, candidate.Locality, candidate.County,
+                item.CompanyName, item.Locality, item.County));
+            if (matched is null) return candidate with { Sources = ["Căutare web"] };
+            return candidate with
+            {
+                SourceUrls = candidate.SourceUrls.Concat(matched.SourceUrls).Distinct(StringComparer.OrdinalIgnoreCase).ToArray(),
+                Sources = matched.Sources
+            };
+        }).ToArray();
+
+    private static bool SameCompanyIdentity(string left, string right) => CompanyEvidenceIdentity.AreSame(left, right);
+
+    private static bool SameCompanyEvidence(string leftName, string? leftLocality, string? leftCounty,
+        string rightName, string? rightLocality, string? rightCounty) =>
+        CompanyEvidenceIdentity.IsCompatibleEvidence(leftName, leftLocality, leftCounty, rightName, rightLocality, rightCounty);
+
+
+    private static string BuildWebDiscoveryPrompt(SupplierSearchIntent intent) => $"""
+        Găsește dovezi provizorii despre furnizori pentru o nevoie comercială din România. Nu considera nimic verificat.
+        Caută exclusiv firme care operează în localitatea „{intent.Locality}” și acoperă categoria principală „{intent.CategoryName}”. Nu extinde încă la alte localități sau la județul „{intent.County}”; extinderea este un pas separat, numai dacă rezultatele locale sunt insuficiente. Detaliile de produs/serviciu, activitatea și codul CAEN adaugă la potrivire, dar nu înlocuiesc localitatea și categoria principală. Nu umple artificial lista.
+        Termeni de căutare: {string.Join("; ", intent.Profile.SearchTerms)}. Activitate principală: {string.Join("; ", intent.Profile.PrimaryActivityHints)}. Activitate secundară: {string.Join("; ", intent.Profile.SecondaryActivityHints)}. Reguli de calificare: {intent.Profile.QualificationGuidance}
+        Preferă surse oficiale/de business, apoi site-ul firmei, apoi directoare credibile. Păstrează numai informații susținute de URL-uri.
+        Categorie principală: {intent.CategoryName}. Localitate țintă: {intent.Locality}, județ: {intent.County}. Produse/servicii solicitate: {string.Join("; ", intent.RequestedProducts)}.
+        Construiește intentul cu produs/serviciu, activitate și CAEN numai dacă derivarea este solidă. Returnează maximum zece dovezi de firmă, nu candidați verificați.
+        """;
+
+    // Bounded Google Places Text Search query: main category + primary product + locality/county are the recall
+    // signals (§6/§8). regionCode=RO further constrains geography; keep it short to stay in the discovery tier.
+    private static string BuildGooglePlacesQuery(SupplierSearchIntent intent)
+    {
+        string primaryProduct = intent.RequestedProducts.FirstOrDefault() ?? string.Empty;
+        string discoveryTerm = intent.Profile.SearchTerms.FirstOrDefault() ?? intent.CategoryName;
+        return string.Join(" ", new[] { discoveryTerm, primaryProduct, intent.Locality, intent.County, "România" }
+            .Where(term => !string.IsNullOrWhiteSpace(term)));
+    }
+    private static string SanitizeCommercialTerm(string value) => Regex.Replace(Regex.Replace(value, @"[\w.+-]+@[\w.-]+\.[A-Za-z]{2,}", "[redacted-email]"), @"(?<!\d)\+?\d[\d\s().-]{7,}\d", "[redacted-phone]");
+    private static string NormalizeCompanyName(string value) => string.Join(' ', value.Trim().ToUpperInvariant().Split(' ', StringSplitOptions.RemoveEmptyEntries));
+    private static string? NullIfEmpty(string? value) => string.IsNullOrWhiteSpace(value) ? null : value;
+
+    [LoggerMessage(EventId = 4301, Level = LogLevel.Information, Message = "SupplierWebDiscoveryStarted for need {RfqId} by administrator {AdministratorId}.")]
+    private static partial void LogWebDiscoveryStarted(ILogger logger, Guid? rfqId, Guid administratorId);
+    [LoggerMessage(EventId = 4302, Level = LogLevel.Information, Message = "SupplierWebDiscoveryCompleted for need {RfqId}, run {RunId}; web calls {WebCalls}; latency {LatencyMs}ms.")]
+    private static partial void LogWebDiscoveryCompleted(ILogger logger, Guid? rfqId, Guid runId, int webCalls, long latencyMs);
+    [LoggerMessage(EventId = 4303, Level = LogLevel.Information, Message = "SupplierQualificationCompleted for need {RfqId}, run {RunId}; latency {LatencyMs}ms.")]
+    private static partial void LogSupplierQualificationCompleted(ILogger logger, Guid? rfqId, Guid runId, long latencyMs);
+    [LoggerMessage(EventId = 4304, Level = LogLevel.Information, Message = "SupplierWebCandidateAccepted for need {RfqId}, run {RunId}, candidate {CandidateId}; reused {Reused}.")]
+    private static partial void LogWebCandidateAccepted(ILogger logger, Guid? rfqId, Guid runId, Guid candidateId, bool reused);
+    [LoggerMessage(EventId = 4305, Level = LogLevel.Warning, Message = "SupplierWebDiscoveryFailed for need {RfqId}, run {RunId}.")]
+    private static partial void LogWebDiscoveryFailed(ILogger logger, Guid? rfqId, Guid runId, Exception exception);
+    [LoggerMessage(EventId = 4306, Level = LogLevel.Warning, Message = "Supplier web discovery returned {WebCalls} search-call output items for need {RfqId}, run {RunId}, despite the requested limit.")]
+    private static partial void LogWebDiscoveryCallCountExceeded(ILogger logger, Guid? rfqId, Guid runId, int webCalls);
 
     private static bool IsOpen(Rfq rfq, DateTimeOffset now) =>
         (rfq.Status is RfqStatus.Published or RfqStatus.ReceivingOffers) && rfq.QuotationDeadline > now;

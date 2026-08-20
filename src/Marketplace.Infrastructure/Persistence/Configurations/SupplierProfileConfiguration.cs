@@ -21,8 +21,10 @@ public sealed class SupplierProfileConfiguration : IEntityTypeConfiguration<Supp
         builder.Property(profile => profile.Address).HasMaxLength(300).IsRequired();
         builder.Property(profile => profile.City).HasMaxLength(120).IsRequired();
         builder.Property(profile => profile.County).HasMaxLength(80).IsRequired();
+        builder.Property(profile => profile.Country).HasMaxLength(80).HasDefaultValue("România").IsRequired();
         builder.Property(profile => profile.Latitude).HasPrecision(9, 6);
         builder.Property(profile => profile.Longitude).HasPrecision(9, 6);
+        builder.Property(profile => profile.MarketRadiusKm).HasDefaultValue(30);
         builder.Property(profile => profile.Description).HasMaxLength(2000);
         builder.HasOne<ApplicationUser>().WithOne().HasForeignKey<SupplierProfile>(profile => profile.Id).OnDelete(DeleteBehavior.Cascade);
     }

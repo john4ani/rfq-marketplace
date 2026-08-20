@@ -6,7 +6,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Marketplace.Infrastructure.Profiles;
 
-public sealed class ProfileService(MarketplaceDbContext dbContext, TimeProvider timeProvider) : IProfileService
+public sealed class ProfileService(MarketplaceDbContext dbContext, TimeProvider timeProvider, ILocationGeocoder locationGeocoder) : IProfileService
 {
     public Task<BuyerProfile?> GetBuyerAsync(Guid id, CancellationToken cancellationToken) =>
         dbContext.BuyerProfiles.AsNoTracking().SingleOrDefaultAsync(profile => profile.Id == id, cancellationToken);
@@ -15,12 +15,15 @@ public sealed class ProfileService(MarketplaceDbContext dbContext, TimeProvider 
     {
         BuyerProfile? profile = await dbContext.BuyerProfiles.SingleOrDefaultAsync(item => item.Id == id, cancellationToken);
         DateTimeOffset now = timeProvider.GetUtcNow();
+        GeographicLocation location = profile is not null && SameLocation(profile.Location, input.DefaultAddress, input.DefaultCity, input.DefaultCounty, input.DefaultCountry)
+            ? profile.Location
+            : await locationGeocoder.ResolveAsync(new(input.DefaultAddress, input.DefaultCity, input.DefaultCounty, input.DefaultCountry), cancellationToken);
         if (profile is null)
         {
-            profile = BuyerProfile.Create(id, input.DisplayName, input.BuyerType, input.CompanyName, input.TaxIdentifier, input.PhoneNumber, input.DefaultCity, input.DefaultCounty, input.MarketRadiusKm, now);
+            profile = BuyerProfile.Create(id, input.DisplayName, input.BuyerType, input.CompanyName, input.TaxIdentifier, input.PhoneNumber, location, input.MarketRadiusKm, now);
             dbContext.BuyerProfiles.Add(profile);
         }
-        else profile.Update(input.DisplayName, input.BuyerType, input.CompanyName, input.TaxIdentifier, input.PhoneNumber, input.DefaultCity, input.DefaultCounty, input.MarketRadiusKm, now);
+        else profile.Update(input.DisplayName, input.BuyerType, input.CompanyName, input.TaxIdentifier, input.PhoneNumber, location, input.MarketRadiusKm, now);
         dbContext.AccountAuditEvents.Add(AccountAuditEvent.Create(id, id, AccountAuditEventType.ProfileSaved, "Profil de cumpărător salvat.", now));
         await dbContext.SaveChangesAsync(cancellationToken);
         return profile;
@@ -34,13 +37,16 @@ public sealed class ProfileService(MarketplaceDbContext dbContext, TimeProvider 
         SupplierProfile? profile = await dbContext.SupplierProfiles.SingleOrDefaultAsync(item => item.Id == id, cancellationToken);
         DateTimeOffset now = timeProvider.GetUtcNow();
         bool creating = profile is null;
+        GeographicLocation location = profile is not null && SameLocation(profile.Location, input.Address, input.City, input.County, input.Country)
+            ? profile.Location
+            : await locationGeocoder.ResolveAsync(new(input.Address, input.City, input.County, input.Country), cancellationToken);
         if (profile is null)
         {
-            profile = SupplierProfile.Create(id, input.TradingName, input.CompanyRegistrationNumber, input.TaxIdentifier, input.ContactPerson, input.ContactEmail, input.PhoneNumber, input.Website, input.Address, input.City, input.County, input.Latitude, input.Longitude, input.Description, now);
+            profile = SupplierProfile.Create(id, input.TradingName, input.CompanyRegistrationNumber, input.TaxIdentifier, input.ContactPerson, input.ContactEmail, input.PhoneNumber, input.Website, location, input.MarketRadiusKm, input.Description, now);
             dbContext.SupplierProfiles.Add(profile);
             dbContext.CompanyMemberships.Add(CompanyMembership.Create(id, profile.Id, CompanyMembershipRole.Owner, now));
         }
-        else profile.Update(input.TradingName, input.CompanyRegistrationNumber, input.TaxIdentifier, input.ContactPerson, input.ContactEmail, input.PhoneNumber, input.Website, input.Address, input.City, input.County, input.Latitude, input.Longitude, input.Description, now);
+        else profile.Update(input.TradingName, input.CompanyRegistrationNumber, input.TaxIdentifier, input.ContactPerson, input.ContactEmail, input.PhoneNumber, input.Website, location, input.MarketRadiusKm, input.Description, now);
         dbContext.AccountAuditEvents.Add(AccountAuditEvent.Create(id, id, AccountAuditEventType.ProfileSaved, "Profil de furnizor salvat.", now));
         try
         {
@@ -59,4 +65,10 @@ public sealed class ProfileService(MarketplaceDbContext dbContext, TimeProvider 
 
     private static bool IsUniqueViolation(DbUpdateException exception) =>
         exception.InnerException is Npgsql.PostgresException { SqlState: "23505" };
+
+    private static bool SameLocation(GeographicLocation existing, string? address, string locality, string county, string country) =>
+        string.Equals(existing.Address?.Trim(), address?.Trim(), StringComparison.Ordinal)
+        && string.Equals(existing.Locality.Trim(), locality.Trim(), StringComparison.OrdinalIgnoreCase)
+        && string.Equals(existing.County.Trim(), county.Trim(), StringComparison.OrdinalIgnoreCase)
+        && string.Equals(existing.Country.Trim(), country.Trim(), StringComparison.OrdinalIgnoreCase);
 }

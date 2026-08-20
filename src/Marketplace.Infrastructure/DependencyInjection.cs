@@ -91,6 +91,19 @@ public static class DependencyInjection
             AiIntakeOptions options = provider.GetRequiredService<Microsoft.Extensions.Options.IOptions<AiIntakeOptions>>().Value;
             client.Timeout = TimeSpan.FromSeconds(Math.Clamp(options.RequestTimeoutSeconds, 5, 120));
         });
+        services.Configure<GooglePlacesOptions>(configuration.GetSection(GooglePlacesOptions.SectionName));
+        services.AddHttpClient<GooglePlacesClient>((provider, client) =>
+        {
+            GooglePlacesOptions options = provider.GetRequiredService<Microsoft.Extensions.Options.IOptions<GooglePlacesOptions>>().Value;
+            client.Timeout = TimeSpan.FromSeconds(Math.Clamp(options.RequestTimeoutSeconds, 5, 60));
+        });
+        services.AddScoped<IGooglePlacesClient>(provider => provider.GetRequiredService<GooglePlacesClient>());
+        services.AddHttpClient<GoogleLocationGeocoder>((provider, client) =>
+        {
+            GooglePlacesOptions options = provider.GetRequiredService<Microsoft.Extensions.Options.IOptions<GooglePlacesOptions>>().Value;
+            client.Timeout = TimeSpan.FromSeconds(Math.Clamp(options.RequestTimeoutSeconds, 5, 60));
+        });
+        services.AddScoped<ILocationGeocoder>(provider => provider.GetRequiredService<GoogleLocationGeocoder>());
         services.AddScoped<IGeneralNeedInterpreter, OpenAiNeedExtractionProvider>();
         services.AddScoped<IConstructionProjectInterpreter, OpenAiConstructionProjectInterpreter>();
         services.AddScoped<IAssistedIntakeService, AssistedIntakeService>();
@@ -100,6 +113,13 @@ public static class DependencyInjection
         services.AddScoped<ProcurementOutcomeReminderService>();
         services.AddScoped<INotificationService, NotificationService>();
         services.AddScoped<IMessagingService, MessagingService>();
+        services.AddSingleton<ICategoryDiscoveryProfileProvider, CategoryDiscoveryProfileProvider>();
+        services.AddSingleton<ISupplierSearchIntentBuilder, SupplierSearchIntentBuilder>();
+        services.AddScoped<IGooglePlacesEvidenceCollector, GooglePlacesEvidenceCollector>();
+        services.AddScoped<IWebEvidenceCollector, WebEvidenceCollector>();
+        services.AddSingleton<ISupplierEvidenceMerger, SupplierEvidenceMerger>();
+        services.AddScoped<ISupplierEvidencePipeline, SupplierEvidencePipeline>();
+        services.AddScoped<ISupplierEvidenceQualifier, SupplierEvidenceQualifier>();
         services.AddScoped<ISupplierDiscoveryService, SupplierDiscoveryService>();
         services.AddScoped<ITrustService, TrustService>();
         services.AddScoped<IProductEventService, ProductEventService>();

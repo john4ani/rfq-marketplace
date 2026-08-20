@@ -1,7 +1,12 @@
 using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
+using Marketplace.Application.Profiles;
+using Marketplace.Domain.Profiles;
 using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.AspNetCore.TestHost;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 
 namespace Marketplace.IntegrationTests;
 
@@ -11,7 +16,11 @@ public sealed class ProfileEndpointTests : IClassFixture<WebApplicationFactory<P
     private readonly HttpClient _client;
     public ProfileEndpointTests(WebApplicationFactory<Program> factory)
     {
-        _client = factory.CreateClient(new() { BaseAddress = new Uri("https://localhost"), HandleCookies = true });
+        _client = factory.WithWebHostBuilder(builder => builder.ConfigureTestServices(services =>
+        {
+            services.RemoveAll<ILocationGeocoder>();
+            services.AddScoped<ILocationGeocoder, FakeLocationGeocoder>();
+        })).CreateClient(new() { BaseAddress = new Uri("https://localhost"), HandleCookies = true });
     }
 
     [Fact]
@@ -27,9 +36,14 @@ public sealed class ProfileEndpointTests : IClassFixture<WebApplicationFactory<P
         Guid id = Guid.Parse(System.Text.Json.JsonDocument.Parse(payload).RootElement.GetProperty("sub").GetString()!);
         _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", login.AccessToken);
 
-        var profile = new { displayName = "Ion Test", buyerType = "Individual", companyName = (string?)null, taxIdentifier = (string?)null, phoneNumber = "0700000000", defaultCity = "Iași", defaultCounty = "Iași" };
+        var profile = new { displayName = "Ion Test", buyerType = "Individual", companyName = (string?)null, taxIdentifier = (string?)null, phoneNumber = "0700000000", defaultAddress = "Strada Test 1", defaultCity = "Iași", defaultCounty = "Iași", defaultCountry = "România", marketRadiusKm = 30 };
         Assert.Equal(HttpStatusCode.OK, (await _client.PutAsJsonAsync($"/api/v1/buyers/{id}", profile)).StatusCode);
-        Assert.Equal(HttpStatusCode.OK, (await _client.GetAsync($"/api/v1/buyers/{id}")).StatusCode);
+        HttpResponseMessage savedBuyer = await _client.GetAsync($"/api/v1/buyers/{id}");
+        Assert.Equal(HttpStatusCode.OK, savedBuyer.StatusCode);
+        BuyerResponse saved = (await savedBuyer.Content.ReadFromJsonAsync<BuyerResponse>())!;
+        Assert.Equal(30, saved.MarketRadiusKm);
+        Assert.NotNull(saved.DefaultLatitude);
+        Assert.NotNull(saved.DefaultLongitude);
         Assert.Equal(HttpStatusCode.NotFound, (await _client.GetAsync($"/api/v1/buyers/{Guid.NewGuid()}")).StatusCode);
         Assert.Equal(HttpStatusCode.NotFound, (await _client.GetAsync($"/api/v1/suppliers/{id}")).StatusCode);
     }
@@ -49,10 +63,13 @@ public sealed class ProfileEndpointTests : IClassFixture<WebApplicationFactory<P
         {
             tradingName = "Depozit Test", companyRegistrationNumber = "J00/1/2026", taxIdentifier = "RO123",
             contactPerson = "Ion Test", contactEmail = email, phoneNumber = "0700000000", website = (string?)null,
-            address = "Strada Test 1", city = "Iași", county = "Iași", latitude = (decimal?)null,
-            longitude = (decimal?)null, description = "Materiale"
+            address = "Strada Test 1", city = "Iași", county = "Iași", country = "România", marketRadiusKm = 30,
+            description = "Materiale"
         };
         Assert.Equal(HttpStatusCode.OK, (await _client.PutAsJsonAsync($"/api/v1/suppliers/{id}", profile)).StatusCode);
+        DeliveryResponse? defaultDelivery = await _client.GetFromJsonAsync<DeliveryResponse>($"/api/v1/suppliers/{id}/delivery-settings");
+        Assert.Equal(30, defaultDelivery?.NormalDeliveryRadiusKm);
+        Assert.Equal(30, defaultDelivery?.MaximumDeliveryRadiusKm);
 
         CategoryResponse[]? categories = await _client.GetFromJsonAsync<CategoryResponse[]>("/api/v1/categories");
         Guid categoryId = Assert.Single(categories!, category => category.Name == "Izolații").Id;
@@ -82,6 +99,13 @@ public sealed class ProfileEndpointTests : IClassFixture<WebApplicationFactory<P
     }
 
     private sealed record TokenResponse(string AccessToken, DateTimeOffset ExpiresAt);
+    private sealed record BuyerResponse(decimal? DefaultLatitude, decimal? DefaultLongitude, int MarketRadiusKm);
     private sealed record CategoryResponse(Guid Id, Guid? ParentId, string Name, string Slug, bool AlreadyExisted = false);
     private sealed record DeliveryResponse(int NormalDeliveryRadiusKm, int MaximumDeliveryRadiusKm, decimal? MinimumOrderValue, bool NationwideDelivery, string[] Counties);
+
+    private sealed class FakeLocationGeocoder : ILocationGeocoder
+    {
+        public Task<GeographicLocation> ResolveAsync(LocationInput input, CancellationToken cancellationToken) =>
+            Task.FromResult(new GeographicLocation(input.Address, input.Locality, input.County, input.Country, 47.7m, 25.8m));
+    }
 }

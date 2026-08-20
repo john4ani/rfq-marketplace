@@ -70,7 +70,9 @@ public sealed class SupplierSettingsService(MarketplaceDbContext dbContext, Time
             .SingleOrDefaultAsync(item => item.SupplierId == supplierId, cancellationToken);
         string[] counties = await dbContext.SupplierDeliveryAreas.AsNoTracking().Where(area => area.SupplierId == supplierId)
             .OrderBy(area => area.County).Select(area => area.County).ToArrayAsync(cancellationToken);
-        return settings is null ? new(50, 100, null, false, counties) : ToSelection(settings, counties);
+        // Delivery reach is profile information in this foundation. It is deliberately
+        // not used to hide, rank, or qualify opportunities yet.
+        return settings is null ? new(30, 30, null, false, counties) : ToSelection(settings, counties);
     }
 
     public async Task<SupplierDeliverySelection?> SaveDeliverySettingsAsync(Guid supplierId, SupplierDeliveryInput input, CancellationToken cancellationToken)

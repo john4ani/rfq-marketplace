@@ -47,6 +47,32 @@ public sealed class SupplierDiscoveryTests
             candidate.ValidateRelevance(Guid.NewGuid(), "Reverificare", Now.AddMinutes(3)));
     }
 
+    [Fact]
+    public void QualificationFailureKeepsWebEvidenceAvailableForRetry()
+    {
+        SupplierWebDiscoveryRun run = SupplierWebDiscoveryRun.Start(Guid.NewGuid(), Guid.NewGuid(), Now);
+        run.RecordEvidence("{\"evidence\":[]}", 2, 1_200, 20, 10, Now.AddMinutes(1));
+
+        run.RecordQualificationFailure("Calificarea nu a reușit.", Now.AddMinutes(2));
+
+        Assert.Equal(SupplierWebDiscoveryRunStatus.EvidenceReady, run.Status);
+        Assert.Equal("{\"evidence\":[]}", run.EvidenceJson);
+        Assert.Equal("Calificarea nu a reușit.", run.FailureMessage);
+    }
+
+    [Fact]
+    public void CompanyEvidenceAliasesTreatMardezAsOneCompany()
+    {
+        Assert.True(CompanyEvidenceIdentity.IsCompatibleEvidence(
+            "MARDEZ SRL",
+            "Marginea", "Suceava",
+            "mardez srl piese auto din dezmembrari",
+            null, "Suceava"));
+        Assert.False(CompanyEvidenceIdentity.IsCompatibleEvidence(
+            "MARDEZ SRL", "Marginea", "Suceava",
+            "mardez srl piese auto din dezmembrari", "Botoșani", "Botoșani"));
+    }
+
     private static SupplierCandidate Candidate() => SupplierCandidate.Create(
         Guid.NewGuid(),
         "Lemn Local SRL",

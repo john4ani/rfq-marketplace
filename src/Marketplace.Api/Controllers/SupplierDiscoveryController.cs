@@ -32,6 +32,42 @@ public sealed class SupplierDiscoveryController(
         (await discoveryService.GetNeedReviewAsync(rfqId, cancellationToken)) is { } review ? Ok(review) : NotFound();
 
     [Authorize(Roles = MarketplaceRoles.Administrator)]
+    [HttpPost("admin/supplier-discovery/needs/{rfqId:guid}/web-discovery")]
+    public async Task<IActionResult> DiscoverOnWeb(Guid rfqId, CancellationToken cancellationToken)
+    {
+        if (!CurrentUserId(out Guid administratorId)) return Unauthorized();
+        return (await discoveryService.DiscoverOnWebAsync(administratorId, rfqId, cancellationToken)) is { } run ? Ok(run) : NotFound();
+    }
+
+    [Authorize(Roles = MarketplaceRoles.Administrator)]
+    [HttpPost("admin/companies/web-discovery")]
+    public async Task<IActionResult> DiscoverCompanyOnWeb(SupplierCompanyWebSearchRequest request, CancellationToken cancellationToken)
+    {
+        if (!CurrentUserId(out Guid administratorId)) return Unauthorized();
+        try { return Ok(await discoveryService.DiscoverCompanyOnWebAsync(administratorId, new(request.CompanyName, request.Locality, request.County, request.CategoryIds ?? []), cancellationToken)); }
+        catch (SupplierDiscoveryRuleException exception) { return ValidationProblem(Errors("companySearch", exception.Message)); }
+    }
+
+    [Authorize(Roles = MarketplaceRoles.Administrator)]
+    [HttpPost("admin/supplier-discovery/web-discovery/{runId:guid}/qualify")]
+    public async Task<IActionResult> QualifyWebDiscovery(Guid runId, CancellationToken cancellationToken)
+    {
+        if (!CurrentUserId(out Guid administratorId)) return Unauthorized();
+        try { return (await discoveryService.QualifyWebDiscoveryAsync(administratorId, runId, cancellationToken)) is { } run ? Ok(run) : NotFound(); }
+        catch (SupplierDiscoveryRuleException exception) { return ValidationProblem(Errors("webDiscovery", exception.Message)); }
+    }
+
+    [Authorize(Roles = MarketplaceRoles.Administrator)]
+    [HttpPost("admin/supplier-discovery/web-discovery/{runId:guid}/candidates/{candidateIndex:int}/accept")]
+    public async Task<IActionResult> AcceptWebCandidate(Guid runId, int candidateIndex, SupplierWebCandidateAcceptRequest request, CancellationToken cancellationToken)
+    {
+        if (!CurrentUserId(out Guid administratorId)) return Unauthorized();
+        try { return (await discoveryService.AcceptWebCandidateAsync(administratorId, runId, candidateIndex, request.CategoryIds, cancellationToken)) is { } accepted ? Ok(accepted) : NotFound(); }
+        catch (SupplierCandidateConflictException exception) { return Conflict(Problem(title: "Firma există deja.", detail: exception.Message)); }
+        catch (SupplierDiscoveryRuleException exception) { return ValidationProblem(Errors("webCandidate", exception.Message)); }
+    }
+
+    [Authorize(Roles = MarketplaceRoles.Administrator)]
     [HttpGet("admin/supplier-discovery/outreach-opportunities")]
     public async Task<IActionResult> OutreachOpportunities([FromQuery] Guid? candidateId, [FromQuery] Guid? rfqId, CancellationToken cancellationToken) =>
         Ok(await discoveryService.GetApprovedOutreachOpportunitiesAsync(candidateId, rfqId, cancellationToken));
@@ -250,3 +286,5 @@ public sealed record OpportunityMatchReviewRequest(bool Approved, [MaxLength(100
 public sealed record SupplierOutreachRequest(Guid OpportunityMatchId);
 public sealed record SupplierManualContactRequest(Guid OpportunityMatchId, SupplierOutreachChannel Channel, [MaxLength(1000)] string? Note);
 public sealed record SupplierContactSuppressionRequest([MaxLength(500)] string? Reason);
+public sealed record SupplierWebCandidateAcceptRequest(IReadOnlyCollection<Guid>? CategoryIds);
+public sealed record SupplierCompanyWebSearchRequest([Required, MinLength(2), MaxLength(180)] string CompanyName, [MaxLength(120)] string? Locality, [MaxLength(120)] string? County, IReadOnlyCollection<Guid>? CategoryIds);

@@ -36,6 +36,10 @@ public interface ISupplierDiscoveryService
     Task<SupplierOutreachResult?> RecordManualContactAsync(Guid administratorId, Guid candidateId, Guid opportunityMatchId, SupplierOutreachChannel channel, string? note, CancellationToken cancellationToken);
     Task<SupplierOutreachResult?> SuppressContactAsync(Guid administratorId, Guid candidateId, string? reason, CancellationToken cancellationToken);
     Task<bool> OptOutEmailAsync(string token, CancellationToken cancellationToken);
+    Task<SupplierWebDiscoveryRunView?> DiscoverOnWebAsync(Guid administratorId, Guid rfqId, CancellationToken cancellationToken);
+    Task<SupplierWebDiscoveryRunView> DiscoverCompanyOnWebAsync(Guid administratorId, SupplierCompanyWebSearchInput input, CancellationToken cancellationToken);
+    Task<SupplierWebDiscoveryRunView?> QualifyWebDiscoveryAsync(Guid administratorId, Guid runId, CancellationToken cancellationToken);
+    Task<SupplierWebCandidateAccepted?> AcceptWebCandidateAsync(Guid administratorId, Guid runId, int candidateIndex, IReadOnlyCollection<Guid>? categoryIds, CancellationToken cancellationToken);
 }
 
 public sealed record SupplierCandidateInput(
@@ -141,6 +145,14 @@ public sealed record SupplierInvitationView(
     DateTimeOffset QuotationDeadline,
     int RequirementCount,
     bool Claimed);
+
+public sealed record SupplierCompanyWebSearchInput(string CompanyName, string? Locality, string? County, IReadOnlyCollection<Guid> CategoryIds);
+public sealed record SupplierWebDiscoveryRunView(Guid Id, Guid? RfqId, string Status, string? FailureMessage, int WebSearchCallCount, IReadOnlyCollection<SupplierWebDiscoverySourceView> Sources, IReadOnlyCollection<SupplierWebEvidenceView> ProvisionalEvidence, IReadOnlyCollection<SupplierWebCandidateView> Candidates, IReadOnlyCollection<SupplierWebRejectedResult> RejectedResults);
+public sealed record SupplierWebDiscoverySourceView(string Source, int ResultCount, string? Warning);
+public sealed record SupplierWebEvidenceView(string CompanyName, string Locality, string County, IReadOnlyCollection<string> Sources, IReadOnlyCollection<string> SourceUrls);
+public sealed record SupplierWebCandidateView(string CompanyName, string Locality, string County, string? Website, string? Phone, string? Email, string ActivityEvidence, string? CaenCode, string ProductEvidence, string GeographicRelevance, string Confidence, IReadOnlyCollection<string> SourceUrls, IReadOnlyCollection<string> Sources, string WhyRelevant);
+public sealed record SupplierWebRejectedResult(string CompanyName, string Reason, IReadOnlyCollection<string> SourceUrls);
+public sealed record SupplierWebCandidateAccepted(SupplierCandidateView Candidate, OpportunityMatchView? OpportunityMatch, bool ReusedExistingCandidate);
 
 public sealed class SupplierCandidateConflictException(string message) : InvalidOperationException(message);
 public sealed class SupplierDiscoveryConcurrencyException(string message, Exception innerException)

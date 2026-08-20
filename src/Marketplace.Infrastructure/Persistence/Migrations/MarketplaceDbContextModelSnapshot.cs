@@ -460,15 +460,34 @@ namespace Marketplace.Infrastructure.Persistence.Migrations
                     b.Property<DateTimeOffset>("CreatedAt")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<string>("DefaultAddress")
+                        .HasMaxLength(300)
+                        .HasColumnType("character varying(300)");
+
                     b.Property<string>("DefaultCity")
                         .IsRequired()
                         .HasMaxLength(120)
                         .HasColumnType("character varying(120)");
 
+                    b.Property<string>("DefaultCountry")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(80)
+                        .HasColumnType("character varying(80)")
+                        .HasDefaultValue("România");
+
                     b.Property<string>("DefaultCounty")
                         .IsRequired()
                         .HasMaxLength(80)
                         .HasColumnType("character varying(80)");
+
+                    b.Property<decimal?>("DefaultLatitude")
+                        .HasPrecision(9, 6)
+                        .HasColumnType("numeric(9,6)");
+
+                    b.Property<decimal?>("DefaultLongitude")
+                        .HasPrecision(9, 6)
+                        .HasColumnType("numeric(9,6)");
 
                     b.Property<string>("DisplayName")
                         .IsRequired()
@@ -565,6 +584,13 @@ namespace Marketplace.Infrastructure.Persistence.Migrations
                         .HasMaxLength(160)
                         .HasColumnType("character varying(160)");
 
+                    b.Property<string>("Country")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(80)
+                        .HasColumnType("character varying(80)")
+                        .HasDefaultValue("România");
+
                     b.Property<string>("County")
                         .IsRequired()
                         .HasMaxLength(80)
@@ -587,6 +613,11 @@ namespace Marketplace.Infrastructure.Persistence.Migrations
                     b.Property<decimal?>("Longitude")
                         .HasPrecision(9, 6)
                         .HasColumnType("numeric(9,6)");
+
+                    b.Property<int>("MarketRadiusKm")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasDefaultValue(30);
 
                     b.Property<string>("PhoneNumber")
                         .IsRequired()
@@ -1343,6 +1374,68 @@ namespace Marketplace.Infrastructure.Persistence.Migrations
                     b.HasIndex("OpportunityMatchId", "Channel");
 
                     b.ToTable("SupplierOutreachContacts", (string)null);
+                });
+
+            modelBuilder.Entity("Marketplace.Domain.SupplierDiscovery.SupplierWebDiscoveryRun", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset?>("CompletedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int?>("DiscoveryInputTokens")
+                        .HasColumnType("integer");
+
+                    b.Property<long?>("DiscoveryLatencyMs")
+                        .HasColumnType("bigint");
+
+                    b.Property<int?>("DiscoveryOutputTokens")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("EvidenceJson")
+                        .IsRequired()
+                        .HasColumnType("jsonb");
+
+                    b.Property<string>("FailureMessage")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<int?>("QualificationInputTokens")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("QualificationJson")
+                        .HasColumnType("jsonb");
+
+                    b.Property<long?>("QualificationLatencyMs")
+                        .HasColumnType("bigint");
+
+                    b.Property<int?>("QualificationOutputTokens")
+                        .HasColumnType("integer");
+
+                    b.Property<Guid?>("RfqId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("StartedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("StartedBy")
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("WebSearchCallCount")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("StartedBy");
+
+                    b.HasIndex("RfqId", "StartedAt");
+
+                    b.ToTable("SupplierWebDiscoveryRuns", (string)null);
                 });
 
             modelBuilder.Entity("Marketplace.Domain.Suppliers.Category", b =>
@@ -2332,6 +2425,20 @@ namespace Marketplace.Infrastructure.Persistence.Migrations
                     b.HasOne("Marketplace.Domain.SupplierDiscovery.OpportunityMatch", null)
                         .WithMany()
                         .HasForeignKey("OpportunityMatchId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Marketplace.Domain.SupplierDiscovery.SupplierWebDiscoveryRun", b =>
+                {
+                    b.HasOne("Marketplace.Domain.Rfqs.Rfq", null)
+                        .WithMany()
+                        .HasForeignKey("RfqId")
+                        .OnDelete(DeleteBehavior.Cascade);
+
+                    b.HasOne("Marketplace.Infrastructure.Identity.ApplicationUser", null)
+                        .WithMany()
+                        .HasForeignKey("StartedBy")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
                 });

@@ -48,6 +48,7 @@ public sealed class MarketplaceDbContext(DbContextOptions<MarketplaceDbContext> 
     public DbSet<SupplierContactSuppression> SupplierContactSuppressions => Set<SupplierContactSuppression>();
     public DbSet<OpportunityMatch> OpportunityMatches => Set<OpportunityMatch>();
     public DbSet<SupplierDiscoveryAuditEvent> SupplierDiscoveryAuditEvents => Set<SupplierDiscoveryAuditEvent>();
+    public DbSet<SupplierWebDiscoveryRun> SupplierWebDiscoveryRuns => Set<SupplierWebDiscoveryRun>();
     public DbSet<AccountTrustRecord> AccountTrustRecords => Set<AccountTrustRecord>();
     public DbSet<AccountAuditEvent> AccountAuditEvents => Set<AccountAuditEvent>();
     public DbSet<ProductEvent> ProductEvents => Set<ProductEvent>();
