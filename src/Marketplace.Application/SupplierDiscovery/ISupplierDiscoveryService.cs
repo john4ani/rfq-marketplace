@@ -158,7 +158,7 @@ public sealed record SupplierWebEvidenceView(
     double? Latitude = null,
     double? Longitude = null,
     decimal? DistanceKm = null);
-public sealed record SupplierWebCandidateView(string CompanyName, string Locality, string County, string? Website, string? Phone, string? Email, string ActivityEvidence, string? CaenCode, string ProductEvidence, string GeographicRelevance, string Confidence, IReadOnlyCollection<string> SourceUrls, IReadOnlyCollection<string> Sources, string WhyRelevant);
+public sealed record SupplierWebCandidateView(string CompanyName, string Locality, string County, string? Website, string? Phone, string? Email, string ActivityEvidence, string? CaenCode, string ProductEvidence, string GeographicRelevance, string Confidence, IReadOnlyCollection<string> SourceUrls, IReadOnlyCollection<string> Sources, string WhyRelevant, decimal? DistanceKm = null);
 public sealed record SupplierWebRejectedResult(string CompanyName, string Reason, IReadOnlyCollection<string> SourceUrls);
 public sealed record SupplierWebCandidateAccepted(SupplierCandidateView Candidate, OpportunityMatchView? OpportunityMatch, bool ReusedExistingCandidate);
 

@@ -12,12 +12,13 @@ public sealed record SupplierDiscoveryEvidenceRequest(
     decimal? Longitude,
     int SearchRadiusKm,
     IReadOnlyCollection<string> Products,
+    IReadOnlyCollection<string> CategoryRecallTerms,
     string GoogleTextQuery,
     string WebPrompt,
     string CategoryFocus)
 {
     public static SupplierDiscoveryEvidenceRequest Empty { get; } = new(
-        "categoria comercială", [], string.Empty, string.Empty, null, null, 0, [], string.Empty, string.Empty, string.Empty);
+        "categoria comercială", [], string.Empty, string.Empty, null, null, 0, [], [], string.Empty, string.Empty, string.Empty);
 }
 
 public sealed record CollectedGooglePlace(GooglePlaceEvidence Place, decimal DistanceKm);

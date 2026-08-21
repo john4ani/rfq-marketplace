@@ -465,6 +465,7 @@ public sealed partial class SupplierDiscoveryService(
             intent.Longitude,
             intent.SearchRadiusKm,
             intent.RequestedProducts,
+            profile.SearchTerms,
             BuildGooglePlacesQuery(intent),
             BuildWebDiscoveryPrompt(intent),
             profile.QualificationGuidance);
@@ -482,7 +483,7 @@ public sealed partial class SupplierDiscoveryService(
         if (categoryNames.Length != categoryIds.Length) throw new SupplierDiscoveryRuleException("Selectează numai categorii disponibile.");
         string category = categoryNames.Length == 0 ? "categorie comercială nespecificată" : string.Join(" · ", categoryNames);
         string query = string.Join(" ", new[] { input.CompanyName.Trim(), locality, county, "România" }.Where(item => !string.IsNullOrWhiteSpace(item)));
-        SupplierDiscoveryEvidenceRequest context = new(category, categoryIds, locality, county, null, null, 0, [], query,
+        SupplierDiscoveryEvidenceRequest context = new(category, categoryIds, locality, county, null, null, 0, [], [], query,
             $"Caută dovezi provizorii despre firma „{input.CompanyName.Trim()}” din România. Localitate: {locality}. Județ: {county}. Păstrează numai informațiile susținute de URL-uri și nu considera nimic verificat.", string.Empty);
         return await RunExternalDiscoveryAsync(administratorId, null, context, cancellationToken);
     }
@@ -548,7 +549,7 @@ public sealed partial class SupplierDiscoveryService(
         if (run is null) return null;
         if (run.Status != SupplierWebDiscoveryRunStatus.Qualified || string.IsNullOrWhiteSpace(run.QualificationJson)) throw new SupplierDiscoveryRuleException("Califică mai întâi rezultatele găsite pe web.");
         Rfq? need = run.RfqId.HasValue ? await dbContext.Rfqs.AsNoTracking().SingleOrDefaultAsync(item => item.Id == run.RfqId.Value, cancellationToken) : null;
-        SupplierWebCandidateView[] candidates = ReadQualifiedCandidates(run.QualificationJson).ToArray();
+        SupplierWebCandidateView[] candidates = FinalizeQualifiedCandidates(run).Candidates.ToArray();
         if (candidateIndex < 0 || candidateIndex >= candidates.Length) throw new SupplierDiscoveryRuleException("Rezultatul selectat nu mai este disponibil.");
         SupplierWebCandidateView selected = candidates[candidateIndex];
         if (string.IsNullOrWhiteSpace(selected.Locality) || string.IsNullOrWhiteSpace(selected.County)) throw new SupplierDiscoveryRuleException("Rezultatul web nu conține localitatea și județul necesare pentru a crea o firmă candidată.");
@@ -621,10 +622,18 @@ public sealed partial class SupplierDiscoveryService(
 
     private async Task<SupplierWebDiscoveryRunView> ToWebRunViewAsync(SupplierWebDiscoveryRun run, CancellationToken cancellationToken)
     {
-        SupplierWebCandidateView[] candidates = run.Status == SupplierWebDiscoveryRunStatus.Qualified && !string.IsNullOrWhiteSpace(run.QualificationJson) ? ReadQualifiedCandidates(run.QualificationJson) : [];
-        SupplierWebRejectedResult[] rejected = run.Status == SupplierWebDiscoveryRunStatus.Qualified && !string.IsNullOrWhiteSpace(run.QualificationJson) ? ReadRejectedCandidates(run.QualificationJson) : [];
         SupplierWebEvidenceView[] provisionalEvidence = ReadProvisionalEvidence(run.EvidenceJson);
-        candidates = AddSourceProvenance(candidates, provisionalEvidence);
+        SupplierDiscoveryFinalRanking finalRanking = run.Status == SupplierWebDiscoveryRunStatus.Qualified && !string.IsNullOrWhiteSpace(run.QualificationJson)
+            ? FinalizeQualifiedCandidates(run)
+            : new([], []);
+        SupplierWebCandidateView[] candidates = finalRanking.Candidates.ToArray();
+        SupplierWebRejectedResult[] rejected = (run.Status == SupplierWebDiscoveryRunStatus.Qualified && !string.IsNullOrWhiteSpace(run.QualificationJson)
+                ? ReadRejectedCandidates(run.QualificationJson)
+                : [])
+            .Concat(finalRanking.RejectedResults)
+            .GroupBy(item => $"{NormalizeCompanyName(item.CompanyName)}|{item.Reason}", StringComparer.Ordinal)
+            .Select(group => group.First())
+            .ToArray();
         if (candidates.Length > 0)
         {
             string[] names = candidates.Select(item => NormalizeCompanyName(item.CompanyName)).ToArray();
@@ -638,12 +647,7 @@ public sealed partial class SupplierDiscoveryService(
     private static SupplierWebCandidateView[] ReadQualifiedCandidates(string qualificationJson)
     {
         using JsonDocument document = JsonDocument.Parse(qualificationJson);
-        // Deterministic ordering so the locality-first, then main-category priority holds regardless of the
-        // model's array order: firms in the target locality first, then the proximity gradient, then evidence
-        // confidence. Every candidate already matches the main category by construction of the search/qualify.
         return DeduplicateQualifiedCandidates(document.RootElement.GetProperty("candidates").EnumerateArray().Select(item => new SupplierWebCandidateView(item.GetProperty("companyName").GetString() ?? "", item.GetProperty("locality").GetString() ?? "", item.GetProperty("county").GetString() ?? "", NullIfEmpty(item.GetProperty("website").GetString()), NullIfEmpty(item.GetProperty("phone").GetString()), NullIfEmpty(item.GetProperty("email").GetString()), item.GetProperty("activityEvidence").GetString() ?? "", NullIfEmpty(item.GetProperty("caenCode").GetString()), item.GetProperty("productEvidence").GetString() ?? "", item.GetProperty("geographicRelevance").GetString() ?? "unknown", item.GetProperty("confidence").GetString() ?? "low", item.GetProperty("sourceUrls").EnumerateArray().Select(url => url.GetString() ?? "").Where(url => !string.IsNullOrWhiteSpace(url)).ToArray(), [], item.GetProperty("whyRelevant").GetString() ?? ""))
-            .OrderBy(candidate => GeographicRelevanceRank(candidate.GeographicRelevance))
-            .ThenBy(candidate => ConfidenceRank(candidate.Confidence))
             .ToArray());
     }
 
@@ -666,16 +670,6 @@ public sealed partial class SupplierDiscoveryService(
         return unique.ToArray();
     }
 
-    private static int GeographicRelevanceRank(string geographicRelevance) => geographicRelevance switch
-    {
-        "local" => 0, "nearby" => 1, "county" => 2, "distant" => 3, _ => 4
-    };
-
-    private static int ConfidenceRank(string confidence) => confidence switch
-    {
-        "high" => 0, "medium" => 1, _ => 2
-    };
-
     private static SupplierWebRejectedResult[] ReadRejectedCandidates(string qualificationJson)
     {
         using JsonDocument document = JsonDocument.Parse(qualificationJson);
@@ -685,7 +679,14 @@ public sealed partial class SupplierDiscoveryService(
     private static void EnsureQualificationShape(string output)
     {
         using JsonDocument document = JsonDocument.Parse(output);
-        if (!document.RootElement.TryGetProperty("candidates", out JsonElement candidates) || candidates.ValueKind != JsonValueKind.Array || candidates.GetArrayLength() > 10 || !document.RootElement.TryGetProperty("rejectedResults", out JsonElement rejected) || rejected.ValueKind != JsonValueKind.Array) throw new InvalidOperationException("Supplier qualification returned an invalid structured result.");
+        if (!document.RootElement.TryGetProperty("candidates", out JsonElement candidates) || candidates.ValueKind != JsonValueKind.Array || candidates.GetArrayLength() > 25 || !document.RootElement.TryGetProperty("rejectedResults", out JsonElement rejected) || rejected.ValueKind != JsonValueKind.Array) throw new InvalidOperationException("Supplier qualification returned an invalid structured result.");
+    }
+
+    private SupplierDiscoveryFinalRanking FinalizeQualifiedCandidates(SupplierWebDiscoveryRun run)
+    {
+        SupplierDiscoveryEvidenceRequest context = ReadSearchContext(run.EvidenceJson);
+        CategoryDiscoveryProfile profile = categoryProfiles.Resolve(context.Category, context.Products);
+        return SupplierDiscoveryCandidateRanker.Rank(ReadQualifiedCandidates(run.QualificationJson!), ReadProvisionalEvidence(run.EvidenceJson), profile);
     }
 
     private static SupplierDiscoveryEvidenceRequest ReadSearchContext(string evidenceJson)
@@ -757,19 +758,6 @@ public sealed partial class SupplierDiscoveryService(
                 return value;
         return null;
     }
-
-    private static SupplierWebCandidateView[] AddSourceProvenance(SupplierWebCandidateView[] candidates, SupplierWebEvidenceView[] evidence) => candidates
-        .Select(candidate =>
-        {
-            SupplierWebEvidenceView? matched = evidence.FirstOrDefault(item => SameCompanyEvidence(candidate.CompanyName, candidate.Locality, candidate.County,
-                item.CompanyName, item.Locality, item.County));
-            if (matched is null) return candidate with { Sources = ["Căutare web"] };
-            return candidate with
-            {
-                SourceUrls = candidate.SourceUrls.Concat(matched.SourceUrls).Distinct(StringComparer.OrdinalIgnoreCase).ToArray(),
-                Sources = matched.Sources
-            };
-        }).ToArray();
 
     private static bool SameCompanyIdentity(string left, string right) => CompanyEvidenceIdentity.AreSame(left, right);
 

@@ -40,15 +40,11 @@ public sealed class GooglePlacesEvidenceCollector(IGooglePlacesClient client) : 
     {
         string evidence = string.Join(' ', new[] { place.DisplayName, place.PrimaryType, place.PrimaryTypeDisplayName }
             .Concat(place.Types).Where(value => !string.IsNullOrWhiteSpace(value))).ToUpperInvariant();
-        if (request.Category.Contains("Piese auto", StringComparison.OrdinalIgnoreCase)
-            && (place.Types.Contains("auto_parts_store", StringComparer.OrdinalIgnoreCase)
-                || string.Equals(place.PrimaryType, "auto_parts_store", StringComparison.OrdinalIgnoreCase)))
-            return true;
-        string[] terms = new[] { request.Category }.Concat(request.Products)
-            .SelectMany(value => value.ToUpperInvariant().Split([' ', '-', '/', ','], StringSplitOptions.RemoveEmptyEntries))
-            .Where(term => term.Length >= 4 && term is not "PENTRU" and not "CARE" and not "DIN" and not "AUTO")
+        string[] terms = request.CategoryRecallTerms.Concat(request.Products).Append(request.Category)
+            .Select(value => value.Trim())
+            .Where(term => term.Length >= 3)
             .Distinct(StringComparer.Ordinal).ToArray();
-        return terms.Any(evidence.Contains);
+        return terms.Any(term => evidence.Contains(term, StringComparison.OrdinalIgnoreCase));
     }
 
 }
