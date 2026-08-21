@@ -2,6 +2,7 @@ using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using Marketplace.Application.Rfqs;
 using Marketplace.Domain.Rfqs;
+using Marketplace.Application.Profiles;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -52,6 +53,7 @@ public sealed class RfqsController(IRfqService rfqService) : ControllerBase
         }
         catch (RfqConcurrencyException exception) { return StaleRfq(exception.Message); }
         catch (RfqRuleException exception) { return InvalidRfq(exception.Message); }
+        catch (LocationResolutionException exception) { return InvalidRfq(exception.Message); }
     }
 
     [HttpPost("{rfqId:guid}/publish")]
@@ -64,6 +66,7 @@ public sealed class RfqsController(IRfqService rfqService) : ControllerBase
         }
         catch (RfqConcurrencyException exception) { return StaleRfq(exception.Message); }
         catch (RfqRuleException exception) { return InvalidRfq(exception.Message); }
+        catch (LocationResolutionException exception) { return InvalidRfq(exception.Message); }
     }
 
     [HttpPost("{rfqId:guid}/cancel")]
@@ -132,14 +135,16 @@ public sealed record RfqRequest(
     ProcurementInputType InputType = ProcurementInputType.StructuredForm,
     IReadOnlyCollection<Guid>? CategoryIds = null,
     ProcurementNeedType? NeedType = null,
-    Guid? ProjectTemplateId = null)
+    Guid? ProjectTemplateId = null,
+    RfqLocationContext LocationContext = RfqLocationContext.Other,
+    Guid? BuyingCompanyId = null)
 {
     public RfqDraft ToDraft() => new(
         Title ?? string.Empty, ProjectName, Description, PrimaryCategoryId,
         DeliveryAddress ?? string.Empty, DeliveryLocality ?? string.Empty, County ?? string.Empty, SupplierSearchRadiusKm ?? 30,
         Latitude, Longitude, PreferredDeliveryDate, QuotationDeadline, AlternativeProductsAccepted,
         EstimatedBudget, BuyerNotes, Items?.Select(item => item.ToDraft()).ToArray() ?? [], AllowSplit, DeliveryRequired,
-        Source, InputType, CategoryIds, NeedType, ProjectTemplateId);
+        Source, InputType, CategoryIds, NeedType, ProjectTemplateId, LocationContext, BuyingCompanyId);
 }
 
 public sealed record RfqItemRequest(
@@ -154,7 +159,7 @@ public sealed record ExtendRfqDeadlineRequest(DateTimeOffset QuotationDeadline);
 public sealed record RecordProcurementOutcomeRequest(ProcurementOutcome Outcome, string? Reason);
 
 public sealed record RfqResponse(
-    Guid Id, Guid BuyerId, string Title, string? ProjectName, string? Description, Guid PrimaryCategoryId,
+    Guid Id, Guid BuyerId, Guid? BuyingCompanyId, RfqLocationContext LocationContext, string Title, string? ProjectName, string? Description, Guid PrimaryCategoryId,
     IReadOnlyCollection<Guid> CategoryIds, ProcurementNeedType NeedType, Guid? ProjectTemplateId,
     string DeliveryAddress, string DeliveryLocality, string County, int SupplierSearchRadiusKm, decimal? Latitude, decimal? Longitude,
     DateOnly? PreferredDeliveryDate, DateTimeOffset QuotationDeadline, bool AlternativeProductsAccepted,
@@ -168,7 +173,7 @@ public sealed record RfqResponse(
     IReadOnlyCollection<RfqItemResponse> Items)
 {
     public static RfqResponse From(Rfq rfq) => new(
-        rfq.Id, rfq.BuyerId, rfq.Title, rfq.ProjectName, rfq.Description, rfq.PrimaryCategoryId,
+        rfq.Id, rfq.BuyerId, rfq.BuyingCompanyId, rfq.LocationContext, rfq.Title, rfq.ProjectName, rfq.Description, rfq.PrimaryCategoryId,
         rfq.RequiredCategoryIds, rfq.NeedType, rfq.ProjectTemplateId,
         rfq.DeliveryAddress, rfq.DeliveryLocality, rfq.County, rfq.SupplierSearchRadiusKm, rfq.Latitude, rfq.Longitude,
         rfq.PreferredDeliveryDate, rfq.QuotationDeadline, rfq.AlternativeProductsAccepted,

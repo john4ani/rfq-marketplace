@@ -2,6 +2,7 @@ using Marketplace.Application.Categories;
 using Marketplace.Application.Companies;
 using Marketplace.Application.Rfqs;
 using Marketplace.Application.Operations;
+using Marketplace.Application.Profiles;
 using Marketplace.Domain.Offers;
 using Marketplace.Domain.Notifications;
 using Marketplace.Domain.Rfqs;
@@ -14,6 +15,7 @@ namespace Marketplace.Infrastructure.Rfqs;
 public sealed class RfqService(
     MarketplaceDbContext dbContext,
     ICompanyAuthorizationService companyAuthorizationService,
+    ILocationGeocoder locationGeocoder,
     TimeProvider timeProvider,
     IProcurementNeedAuditTrail auditTrail,
     IProductEventService productEvents) : IRfqService
@@ -44,6 +46,7 @@ public sealed class RfqService(
 
     public async Task<Rfq> CreateAsync(Guid buyerId, RfqDraft draft, CancellationToken cancellationToken)
     {
+        draft = await ResolveLocationAsync(buyerId, draft, cancellationToken);
         await ValidateReferences(buyerId, draft, cancellationToken);
         DateTimeOffset now = timeProvider.GetUtcNow();
         Rfq rfq = Rfq.Create(Guid.NewGuid(), buyerId, draft, now);
@@ -57,6 +60,7 @@ public sealed class RfqService(
 
     public async Task<Rfq?> UpdateAsync(Guid buyerId, Guid rfqId, RfqDraft draft, CancellationToken cancellationToken)
     {
+        draft = await ResolveLocationAsync(buyerId, draft, cancellationToken);
         await ValidateReferences(buyerId, draft, cancellationToken);
         Rfq? rfq = await Find(buyerId, rfqId, cancellationToken);
         if (rfq is null) return null;
@@ -298,6 +302,30 @@ public sealed class RfqService(
             if (!validTemplate)
                 throw new RfqRuleException("Șablonul de proiect selectat nu este disponibil.");
         }
+    }
+
+    private async Task<RfqDraft> ResolveLocationAsync(Guid buyerId, RfqDraft draft, CancellationToken cancellationToken)
+    {
+        if (draft.LocationContext == RfqLocationContext.Personal)
+        {
+            var profile = await dbContext.BuyerProfiles.AsNoTracking().SingleOrDefaultAsync(item => item.Id == buyerId, cancellationToken)
+                ?? throw new RfqRuleException("Completează mai întâi locația personală din Cont.");
+            var location = profile.Location.Latitude.HasValue && profile.Location.Longitude.HasValue ? profile.Location
+                : await locationGeocoder.ResolveAsync(new(profile.DefaultAddress, profile.DefaultCity, profile.DefaultCounty, profile.DefaultCountry), cancellationToken);
+            return draft with { DeliveryAddress = location.Address ?? string.Empty, DeliveryLocality = location.Locality, County = location.County, Latitude = location.Latitude, Longitude = location.Longitude, SupplierSearchRadiusKm = draft.SupplierSearchRadiusKm > 0 ? draft.SupplierSearchRadiusKm : profile.MarketRadiusKm, BuyingCompanyId = null };
+        }
+        if (draft.LocationContext == RfqLocationContext.Company)
+        {
+            if (!draft.BuyingCompanyId.HasValue || !await companyAuthorizationService.CanRepresentCompanyAsync(buyerId, draft.BuyingCompanyId.Value, cancellationToken))
+                throw new RfqRuleException("Selectează o firmă pe care o reprezinți.");
+            var company = await dbContext.SupplierProfiles.AsNoTracking().SingleOrDefaultAsync(item => item.Id == draft.BuyingCompanyId.Value, cancellationToken)
+                ?? throw new RfqRuleException("Firma selectată nu este disponibilă.");
+            var location = company.Location.Latitude.HasValue && company.Location.Longitude.HasValue ? company.Location
+                : await locationGeocoder.ResolveAsync(new(company.Address, company.City, company.County, company.Country), cancellationToken);
+            return draft with { DeliveryAddress = location.Address ?? string.Empty, DeliveryLocality = location.Locality, County = location.County, Latitude = location.Latitude, Longitude = location.Longitude, SupplierSearchRadiusKm = draft.SupplierSearchRadiusKm > 0 ? draft.SupplierSearchRadiusKm : company.MarketRadiusKm };
+        }
+        var other = await locationGeocoder.ResolveAsync(new(draft.DeliveryAddress, draft.DeliveryLocality, draft.County, "România"), cancellationToken);
+        return draft with { Latitude = other.Latitude, Longitude = other.Longitude, SupplierSearchRadiusKm = draft.SupplierSearchRadiusKm > 0 ? draft.SupplierSearchRadiusKm : 30, BuyingCompanyId = null };
     }
 
     private async Task NotifyMatchingSuppliersAsync(Rfq rfq, DateTimeOffset now, CancellationToken cancellationToken)

@@ -786,6 +786,9 @@ namespace Marketplace.Infrastructure.Persistence.Migrations
                         .HasMaxLength(2000)
                         .HasColumnType("character varying(2000)");
 
+                    b.Property<Guid?>("BuyingCompanyId")
+                        .HasColumnType("uuid");
+
                     b.Property<DateTimeOffset?>("ClosedAt")
                         .HasColumnType("timestamp with time zone");
 
@@ -839,6 +842,13 @@ namespace Marketplace.Infrastructure.Persistence.Migrations
                     b.Property<decimal?>("Latitude")
                         .HasPrecision(9, 6)
                         .HasColumnType("numeric(9,6)");
+
+                    b.Property<string>("LocationContext")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)")
+                        .HasDefaultValue("Other");
 
                     b.Property<decimal?>("Longitude")
                         .HasPrecision(9, 6)
@@ -911,6 +921,8 @@ namespace Marketplace.Infrastructure.Persistence.Migrations
                         .HasColumnName("xmin");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("BuyingCompanyId");
 
                     b.HasIndex("ProjectTemplateId");
 
@@ -2264,6 +2276,11 @@ namespace Marketplace.Infrastructure.Persistence.Migrations
                         .HasForeignKey("BuyerId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
+
+                    b.HasOne("Marketplace.Domain.Profiles.SupplierProfile", null)
+                        .WithMany()
+                        .HasForeignKey("BuyingCompanyId")
+                        .OnDelete(DeleteBehavior.Restrict);
 
                     b.HasOne("Marketplace.Domain.Rfqs.ProjectTemplate", null)
                         .WithMany()

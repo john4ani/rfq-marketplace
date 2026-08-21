@@ -4,9 +4,9 @@ import { FormArray, FormControl, FormGroup, ReactiveFormsModule, Validators } fr
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { switchMap } from 'rxjs';
 import { AuthService } from '../../core/auth/auth.service';
-import { ProfileService } from '../../core/profiles/profile.service';
+import { BuyerProfile, ProfileService, RepresentedCompany } from '../../core/profiles/profile.service';
 import { AssistedIntakeResult, AssistedIntakeService } from '../../core/rfqs/assisted-intake.service';
-import { ProcurementInputType, ProcurementNeedSource, ProcurementNeedType, RequirementKind, Rfq, RfqDraft, RfqService, UnitOfMeasure } from '../../core/rfqs/rfq.service';
+import { ProcurementInputType, ProcurementNeedSource, ProcurementNeedType, RequirementKind, Rfq, RfqDraft, RfqLocationContext, RfqService, UnitOfMeasure } from '../../core/rfqs/rfq.service';
 import { CategoryOption, ProjectTemplateOption, SupplierSettingsService } from '../../core/suppliers/supplier-settings.service';
 import { ROMANIAN_COUNTIES } from '../../shared/romanian-counties';
 
@@ -81,12 +81,15 @@ import { ROMANIAN_COUNTIES } from '../../shared/romanian-counties';
         <label class="check"><input type="checkbox" formControlName="deliveryRequired">
           Solicit ca transportul până la adresă să fie inclus în ofertă</label>
         <p class="help">Dacă debifezi, ridicarea sau transportul se organizează separat și cererea păstrează fluxul actual după selectarea ofertei.</p>
-        <label>Adresa de livrare *<input formControlName="deliveryAddress" placeholder="Stradă, număr și detalii de acces">
+        <fieldset><legend>Unde ai nevoie?</legend><div class="category-choice-grid"><label [class.selected]="form.controls.locationContext.value==='Personal'"><input type="radio" formControlName="locationContext" value="Personal" (change)="selectLocation('Personal')">Personal / Acasă</label>
+          @for(company of companies();track company.id){<label [class.selected]="form.controls.locationContext.value==='Company'&&form.controls.buyingCompanyId.value===company.id"><input type="radio" name="locationContext" [checked]="form.controls.locationContext.value==='Company'&&form.controls.buyingCompanyId.value===company.id" (change)="selectCompany(company)">{{company.name}} <small>pentru firma ta</small></label>}
+          <label [class.selected]="form.controls.locationContext.value==='Other'"><input type="radio" formControlName="locationContext" value="Other" (change)="selectLocation('Other')">Altă adresă</label></div>@if(form.controls.locationContext.value==='Company'){<p class="help">Cumperi pentru firma selectată.</p>}</fieldset>
+        @if(form.controls.locationContext.value==='Other'){<label>Adresa de livrare *<input formControlName="deliveryAddress" placeholder="Stradă, număr și detalii de acces">
           @if (form.controls.deliveryAddress.touched && form.controls.deliveryAddress.invalid) { <small class="field-error">Completează adresa de livrare.</small> }</label>
         <div class="two"><label>Localitate *<input formControlName="deliveryLocality">
           @if (form.controls.deliveryLocality.touched && form.controls.deliveryLocality.invalid) { <small class="field-error">Completează localitatea.</small> }</label>
           <label>Județ *<select formControlName="county"><option value="">Alege județul</option>@for (county of counties; track county) { <option [value]="county">{{ county }}</option> }</select>
-            @if (form.controls.county.touched && form.controls.county.invalid) { <small class="field-error">Selectează județul.</small> }</label></div>
+            @if (form.controls.county.touched && form.controls.county.invalid) { <small class="field-error">Selectează județul.</small> }</label></div>}
         <label>Rază de căutare a furnizorilor (km) *<input type="number" min="1" max="1000" formControlName="supplierSearchRadiusKm">
           <small>Este preluată din profilul tău. Pentru prima versiune, potrivirea folosește localitatea și județul.</small>
           @if (form.controls.supplierSearchRadiusKm.touched && form.controls.supplierSearchRadiusKm.invalid) { <small class="field-error">Raza trebuie să fie între 1 și 1.000 km.</small> }</label>
@@ -154,6 +157,8 @@ export class RfqEditorComponent {
     {value:'SquareMetre',label:'Metru pătrat'},{value:'CubicMetre',label:'Metru cub'},
     {value:'Litre',label:'Litru'},{value:'Pallet',label:'Palet'},{value:'Other',label:'Altă unitate'}];
   readonly categories = signal<CategoryOption[]>([]); readonly categoryLoadFailed = signal(false);
+  readonly companies = signal<RepresentedCompany[]>([]);
+  readonly personalProfile = signal<BuyerProfile|null>(null);
   readonly projectTemplates = signal<ProjectTemplateOption[]>([]);
   readonly constructionEntryMode = signal(this.route.snapshot.queryParamMap.get('entryMode') === 'construction');
   readonly loading = signal(false); readonly saving = signal(false);
@@ -172,6 +177,7 @@ export class RfqEditorComponent {
     primaryCategoryId:new FormControl('',{nonNullable:true,validators:Validators.required}),
     needType:new FormControl<ProcurementNeedType>('DirectPurchase',{nonNullable:true}),
     projectTemplateId:new FormControl<string|null>(null),
+    locationContext:new FormControl<RfqLocationContext>('Personal',{nonNullable:true}),buyingCompanyId:new FormControl<string|null>(null),
     deliveryAddress:new FormControl('',{nonNullable:true,validators:Validators.required}),
     deliveryLocality:new FormControl('',{nonNullable:true,validators:Validators.required}),
     county:new FormControl('',{nonNullable:true,validators:Validators.required}),
@@ -222,13 +228,14 @@ export class RfqEditorComponent {
       if (initialDescription) this.form.patchValue({ description: initialDescription, title: initialDescription.slice(0, 180) });
       const identity=this.auth.identity();
       if(identity) this.profiles.getBuyer(identity.userId).subscribe({
-        next:p=>this.form.patchValue({deliveryLocality:p.defaultCity,county:p.defaultCounty,supplierSearchRadiusKm:p.marketRadiusKm}),
+        next:p=>{this.personalProfile.set(p);this.applyPersonalLocation();},
         error:error=>{
           if(error.status!==404) {
             this.fail('Nu am putut încărca datele tale de livrare implicite. Reîncarcă pagina și încearcă din nou.');
           }
         }
       });
+      this.profiles.getMyCompanies().subscribe({next:values=>this.companies.set(values)});
     }
   }
 
@@ -246,6 +253,9 @@ export class RfqEditorComponent {
     });
   }
   selectPrimaryCategory(id:string):void { this.form.controls.primaryCategoryId.setValue(id); }
+  selectLocation(context:RfqLocationContext):void { this.form.controls.locationContext.setValue(context); if(context==='Personal'){this.form.controls.buyingCompanyId.setValue(null);this.applyPersonalLocation();} else if(context==='Other'){this.form.patchValue({buyingCompanyId:null,supplierSearchRadiusKm:30});} }
+  selectCompany(company:RepresentedCompany):void { this.profiles.getSupplier(company.id).subscribe({next:profile=>this.form.patchValue({locationContext:'Company',buyingCompanyId:company.id,deliveryAddress:profile.address,deliveryLocality:profile.city,county:profile.county,supplierSearchRadiusKm:profile.marketRadiusKm}),error:()=>this.fail('Nu am putut încărca locația firmei selectate.')}); }
+  private applyPersonalLocation():void { const profile=this.personalProfile();if(profile)this.form.patchValue({deliveryAddress:profile.defaultAddress??'',deliveryLocality:profile.defaultCity,county:profile.defaultCounty,supplierSearchRadiusKm:profile.marketRadiusKm}); }
   applyProjectTemplate():void{
     const template=this.projectTemplates().find(value=>value.id===this.form.controls.projectTemplateId.value);
     if(!template)return;

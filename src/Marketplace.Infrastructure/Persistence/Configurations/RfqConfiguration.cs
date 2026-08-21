@@ -1,5 +1,6 @@
 using Marketplace.Domain.Rfqs;
 using Marketplace.Domain.Suppliers;
+using Marketplace.Domain.Profiles;
 using Marketplace.Infrastructure.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
@@ -33,6 +34,7 @@ public sealed class RfqConfiguration : IEntityTypeConfiguration<Rfq>
         builder.Property(rfq => rfq.FulfillmentStatus).HasDefaultValue(FulfillmentStatus.NotApplicable);
         builder.Property(rfq => rfq.Latitude).HasPrecision(9, 6);
         builder.Property(rfq => rfq.Longitude).HasPrecision(9, 6);
+        builder.Property(rfq => rfq.LocationContext).HasConversion<string>().HasMaxLength(16).HasDefaultValue(RfqLocationContext.Other);
         builder.Property(rfq => rfq.EstimatedBudget).HasPrecision(18, 2);
         builder.Property(rfq => rfq.BuyerNotes).HasMaxLength(2000);
         builder.Property(rfq => rfq.OutcomeReason).HasMaxLength(1000);
@@ -44,6 +46,7 @@ public sealed class RfqConfiguration : IEntityTypeConfiguration<Rfq>
         builder.HasIndex(rfq => new { rfq.BuyerId, rfq.Status });
         builder.HasIndex(rfq => new { rfq.Status, rfq.QuotationDeadline });
         builder.HasOne<ApplicationUser>().WithMany().HasForeignKey(rfq => rfq.BuyerId).OnDelete(DeleteBehavior.Restrict);
+        builder.HasOne<SupplierProfile>().WithMany().HasForeignKey(rfq => rfq.BuyingCompanyId).OnDelete(DeleteBehavior.Restrict);
         builder.HasOne<ProjectTemplate>().WithMany().HasForeignKey(rfq => rfq.ProjectTemplateId).OnDelete(DeleteBehavior.SetNull);
         builder.HasMany(rfq => rfq.NeedCategories).WithOne().HasForeignKey(category => category.ProcurementNeedId).OnDelete(DeleteBehavior.Cascade);
         builder.Navigation(rfq => rfq.NeedCategories).UsePropertyAccessMode(PropertyAccessMode.Field);

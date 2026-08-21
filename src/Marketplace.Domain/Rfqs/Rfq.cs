@@ -2,6 +2,7 @@ namespace Marketplace.Domain.Rfqs;
 
 public enum RfqStatus { Draft, Published, ReceivingOffers, OfferSelected, Closed, Cancelled }
 public enum FulfillmentStatus { NotApplicable, AwaitingDelivery, DeliveryReported, Delivered }
+public enum RfqLocationContext { Personal, Company, Other }
 
 public sealed class Rfq
 {
@@ -10,6 +11,8 @@ public sealed class Rfq
     private Rfq() { }
     public Guid Id { get; private set; }
     public Guid BuyerId { get; private set; }
+    public Guid? BuyingCompanyId { get; private set; }
+    public RfqLocationContext LocationContext { get; private set; } = RfqLocationContext.Other;
     public ProcurementNeedSource Source { get; private set; }
     public ProcurementInputType InputType { get; private set; }
     public ProcurementNeedType NeedType { get; private set; }
@@ -98,6 +101,7 @@ public sealed class Rfq
     {
         if (Status != RfqStatus.Draft) throw new RfqRuleException("Doar o cerere în starea Ciornă poate fi publicată.");
         if (QuotationDeadline <= now) throw new RfqRuleException("Termenul pentru oferte trebuie să fie în viitor.");
+        if (!Latitude.HasValue || !Longitude.HasValue) throw new RfqRuleException("Confirmă locația cererii înainte de publicare.");
         Status = RfqStatus.Published;
         PublishedAt = now;
         UpdatedAt = now;
@@ -252,6 +256,8 @@ public sealed class Rfq
         // A template is explicit Construction compatibility state. NeedType.Project
         // remains a generic procurement shape and must not decide Construction mode.
         ProjectTemplateId = draft.ProjectTemplateId;
+        BuyingCompanyId = draft.BuyingCompanyId;
+        LocationContext = draft.LocationContext;
         DeliveryAddress = draft.DeliveryAddress.Trim();
         DeliveryLocality = draft.DeliveryLocality.Trim();
         County = draft.County.Trim();
@@ -325,7 +331,9 @@ public sealed record RfqDraft(
     ProcurementInputType InputType = ProcurementInputType.StructuredForm,
     IReadOnlyCollection<Guid>? CategoryIds = null,
     ProcurementNeedType? NeedType = null,
-    Guid? ProjectTemplateId = null);
+    Guid? ProjectTemplateId = null,
+    RfqLocationContext LocationContext = RfqLocationContext.Other,
+    Guid? BuyingCompanyId = null);
 
 public sealed class RfqRuleException(string message) : InvalidOperationException(message);
 public sealed class RfqConcurrencyException(string message, Exception innerException) : Exception(message, innerException);

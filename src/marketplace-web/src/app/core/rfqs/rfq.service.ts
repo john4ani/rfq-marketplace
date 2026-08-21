@@ -10,6 +10,7 @@ export type RequirementKind = 'Product' | 'Service';
 export type ProcurementOutcome = 'PurchasedThroughCompaSpot' | 'PurchasedFromParticipant' | 'PurchasedElsewhere' | 'Postponed' | 'Cancelled' | 'NoSuitableOffer' | 'InsufficientResponses' | 'Other';
 export type ProcurementNeedAuditEventType = 'Created' | 'Updated' | 'Published' | 'OfferReceived' | 'DeadlineExtended' | 'OfferSelected' | 'Reopened' | 'DeliveryReported' | 'Completed' | 'Cancelled' | 'OutcomeRecorded' | 'Migrated';
 export type FulfillmentStatus = 'NotApplicable' | 'AwaitingDelivery' | 'DeliveryReported' | 'Delivered';
+export type RfqLocationContext = 'Personal' | 'Company' | 'Other';
 export type UnitOfMeasure = 'Piece' | 'Pack' | 'Bag' | 'Kilogram' | 'Tonne' | 'Metre' | 'SquareMetre' | 'CubicMetre' | 'Litre' | 'Pallet' | 'Other';
 
 export interface RfqItem {
@@ -22,11 +23,12 @@ export interface RfqDraft {
   title: string; projectName: string | null; description: string | null; primaryCategoryId: string;
   categoryIds: string[]; needType: ProcurementNeedType; projectTemplateId: string | null;
   deliveryAddress: string; deliveryLocality: string; county: string; supplierSearchRadiusKm: number; latitude: number | null; longitude: number | null;
+  locationContext?: RfqLocationContext; buyingCompanyId?: string | null;
   preferredDeliveryDate: string | null; quotationDeadline: string; alternativeProductsAccepted: boolean;
   estimatedBudget: number | null; buyerNotes: string | null; items: RfqItem[]; allowSplit: boolean; deliveryRequired: boolean;
 }
 export interface Rfq extends RfqDraft {
-  id: string; buyerId: string; status: RfqStatus; createdAt: string; updatedAt: string;
+  id: string; buyerId: string; buyingCompanyId: string | null; locationContext: RfqLocationContext; status: RfqStatus; createdAt: string; updatedAt: string;
   needStatus: ProcurementNeedStatus;
   projectContext: { name: string | null; description: string | null } | null;
   deliveryConstraints: { address: string; locality: string; county: string; supplierSearchRadiusKm: number; latitude: number | null; longitude: number | null; preferredDeliveryDate: string | null; transportRequired: boolean };

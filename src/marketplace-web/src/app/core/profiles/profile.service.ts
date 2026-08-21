@@ -27,10 +27,10 @@ export interface EmailConfirmationRequestResponse { emailSent: boolean; alreadyC
 export class ProfileService {
   private readonly http = inject(HttpClient);
   getBuyer(id: string) { return this.http.get<BuyerProfile>(`/api/v1/buyers/${id}`); }
-  saveBuyer(id: string, profile: Omit<BuyerProfile, 'id'>) { return this.http.put<BuyerProfile>(`/api/v1/buyers/${id}`, profile); }
+  saveBuyer(id: string, profile: Omit<BuyerProfile, 'id'|'defaultLatitude'|'defaultLongitude'>) { return this.http.put<BuyerProfile>(`/api/v1/buyers/${id}`, profile); }
   getSupplier(id: string) { return this.http.get<SupplierProfile>(`/api/v1/suppliers/${id}`); }
   getMyCompanies() { return this.http.get<RepresentedCompany[]>('/api/v1/companies/mine'); }
-  saveSupplier(id: string, profile: Omit<SupplierProfile, 'id'|'approvalStatus'|'isActive'>) { return this.http.put<SupplierProfile>(`/api/v1/suppliers/${id}`, profile); }
+  saveSupplier(id: string, profile: Omit<SupplierProfile, 'id'|'latitude'|'longitude'|'approvalStatus'|'isActive'>) { return this.http.put<SupplierProfile>(`/api/v1/suppliers/${id}`, profile); }
   getTrustSummary() { return this.http.get<AccountTrustSummary>('/api/v1/trust/me'); }
   getTrustFacts() { return this.http.get<TrustFacts>('/api/v1/trust/me/facts'); }
   requestEmailConfirmation() { return this.http.post<EmailConfirmationRequestResponse>('/api/v1/auth/request-email-confirmation', {}); }
