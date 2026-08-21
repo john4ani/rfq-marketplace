@@ -9,7 +9,7 @@ namespace Marketplace.Infrastructure.SupplierDiscovery;
 public interface IGooglePlacesClient
 {
     bool IsAvailable { get; }
-    Task<IReadOnlyList<GooglePlaceEvidence>> SearchTextAsync(string textQuery, string regionCode, CancellationToken cancellationToken);
+    Task<IReadOnlyList<GooglePlaceEvidence>> SearchTextAsync(string textQuery, string regionCode, decimal latitude, decimal longitude, int radiusKm, CancellationToken cancellationToken);
     Task<IReadOnlyList<GooglePlaceEvidence>> SearchNearbyAsync(decimal latitude, decimal longitude, int radiusKm, CancellationToken cancellationToken);
 }
 
@@ -34,7 +34,7 @@ public sealed partial class GooglePlacesClient(
     public int MinimumTextResultsForNearbyFallback => Math.Clamp(settings.MinimumTextResultsForNearbyFallback, 0, 20);
 
     public async Task<IReadOnlyList<GooglePlaceEvidence>> SearchTextAsync(
-        string textQuery, string regionCode, CancellationToken cancellationToken)
+        string textQuery, string regionCode, decimal latitude, decimal longitude, int radiusKm, CancellationToken cancellationToken)
     {
         using var request = new HttpRequestMessage(HttpMethod.Post, settings.TextSearchEndpoint);
         request.Version = HttpVersion.Version20;
@@ -46,7 +46,8 @@ public sealed partial class GooglePlacesClient(
             textQuery,
             regionCode,
             languageCode = "ro",
-            maxResultCount = Math.Clamp(settings.MaxResults, 1, 20)
+            maxResultCount = Math.Clamp(settings.MaxResults, 1, 20),
+            locationBias = new { circle = new { center = new { latitude = (double)latitude, longitude = (double)longitude }, radius = Math.Clamp(radiusKm, 1, 50) * 1000d } }
         });
 
         using HttpResponseMessage response = await httpClient.SendAsync(

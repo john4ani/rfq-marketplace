@@ -66,8 +66,8 @@ public sealed class SupplierDiscoveryPolicyTests
 
         GoogleEvidenceResult result = await collector.CollectAsync(request, CancellationToken.None);
 
-        Assert.Equal(["nearby"], client.Calls);
-        Assert.Contains(result.Places, place => place.Place.DisplayName == "Carlio Grup - Piese Auto și STIHL");
+        Assert.Equal(["text"], client.Calls);
+        Assert.Contains(result.Places, place => place.Place.DisplayName == "Carlio Grup - Piese Auto");
         Assert.All(result.Places, place => Assert.InRange(place.DistanceKm, 0m, 30m));
         Assert.DoesNotContain(result.Places, place => place.Place.DisplayName == "Far Auto");
     }
@@ -156,7 +156,7 @@ public sealed class SupplierDiscoveryPolicyTests
         public bool IsAvailable => true;
         public List<string> Calls { get; } = [];
 
-        public Task<IReadOnlyList<GooglePlaceEvidence>> SearchTextAsync(string textQuery, string regionCode, CancellationToken cancellationToken)
+        public Task<IReadOnlyList<GooglePlaceEvidence>> SearchTextAsync(string textQuery, string regionCode, decimal latitude, decimal longitude, int radiusKm, CancellationToken cancellationToken)
         {
             Calls.Add(textQuery.Contains("Rădăuți", StringComparison.OrdinalIgnoreCase)
                 ? "nearby"
