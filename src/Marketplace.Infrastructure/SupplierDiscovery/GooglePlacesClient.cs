@@ -47,7 +47,7 @@ public sealed partial class GooglePlacesClient(
             regionCode,
             languageCode = "ro",
             maxResultCount = Math.Clamp(settings.MaxResults, 1, 20),
-            locationBias = new { circle = new { center = new { latitude = (double)latitude, longitude = (double)longitude }, radius = Math.Clamp(radiusKm, 1, 50) * 1000d } }
+            locationRestriction = Rectangle(latitude, longitude, radiusKm)
         });
 
         using HttpResponseMessage response = await httpClient.SendAsync(
@@ -118,6 +118,13 @@ public sealed partial class GooglePlacesClient(
             : [],
         Text(place, "businessStatus"),
         Text(place, "googleMapsUri"));
+
+    private static object Rectangle(decimal latitude, decimal longitude, int radiusKm)
+    {
+        double latitudeDelta = Math.Max(radiusKm, 1) / 111.32d;
+        double longitudeDelta = latitudeDelta / Math.Max(Math.Cos((double)latitude * Math.PI / 180d), 0.01d);
+        return new { rectangle = new { low = new { latitude = (double)latitude - latitudeDelta, longitude = (double)longitude - longitudeDelta }, high = new { latitude = (double)latitude + latitudeDelta, longitude = (double)longitude + longitudeDelta } } };
+    }
 
     private static string Text(JsonElement element, string property) =>
         element.TryGetProperty(property, out JsonElement value) ? value.GetString() ?? string.Empty : string.Empty;

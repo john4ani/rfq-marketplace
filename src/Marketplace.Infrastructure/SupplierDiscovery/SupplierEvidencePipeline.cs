@@ -24,6 +24,6 @@ public sealed class SupplierEvidencePipeline(
     {
         GoogleEvidenceResult google = await googleCollector.CollectAsync(request, cancellationToken);
         WebEvidenceResult web = await webCollector.CollectAsync(request, cancellationToken);
-        return new(merger.Merge(request, google, web), google, web);
+        return new(await merger.MergeAsync(request, google, web, cancellationToken), google, web);
     }
 }

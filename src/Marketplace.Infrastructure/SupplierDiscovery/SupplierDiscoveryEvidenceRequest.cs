@@ -41,5 +41,5 @@ public sealed record WebEvidenceResult(OpenAiWebDiscoveryResponse? Response, IRe
 
 public interface ISupplierEvidenceMerger
 {
-    JsonObject Merge(SupplierDiscoveryEvidenceRequest request, GoogleEvidenceResult google, WebEvidenceResult web);
+    Task<JsonObject> MergeAsync(SupplierDiscoveryEvidenceRequest request, GoogleEvidenceResult google, WebEvidenceResult web, CancellationToken cancellationToken);
 }

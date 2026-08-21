@@ -1,15 +1,17 @@
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using Marketplace.Domain.SupplierDiscovery;
+using Marketplace.Application.Profiles;
+using Marketplace.Infrastructure.Profiles;
 
 namespace Marketplace.Infrastructure.SupplierDiscovery;
 
 // Keeps source provenance and merges only evidence that identifies the same company.
-public sealed class SupplierEvidenceMerger : ISupplierEvidenceMerger
+public sealed class SupplierEvidenceMerger(ILocationGeocoder geocoder) : ISupplierEvidenceMerger
 {
     private const int MaximumEvidencePerSource = 5;
 
-    public JsonObject Merge(SupplierDiscoveryEvidenceRequest request, GoogleEvidenceResult google, WebEvidenceResult web)
+    public async Task<JsonObject> MergeAsync(SupplierDiscoveryEvidenceRequest request, GoogleEvidenceResult google, WebEvidenceResult web, CancellationToken cancellationToken)
     {
         CollectedGooglePlace[] googlePlaces = google.Places.Take(MaximumEvidencePerSource).ToArray();
         JsonNode? webEvidence = web.Response is null ? null : LimitWebEvidence(JsonNode.Parse(web.Response.OutputText));
@@ -20,7 +22,7 @@ public sealed class SupplierEvidenceMerger : ISupplierEvidenceMerger
             ["googlePlaces"] = JsonSerializer.SerializeToNode(googlePlaces) ?? new JsonArray(),
             ["webEvidence"] = webEvidence,
             ["webSources"] = webSources,
-            ["mergedEvidence"] = MergeEvidence(googlePlaces, webEvidence),
+            ["mergedEvidence"] = await MergeEvidenceAsync(request, googlePlaces, webEvidence, cancellationToken),
             ["sourceWarnings"] = JsonSerializer.SerializeToNode(google.Warnings.Concat(web.Warnings).Distinct()) ?? new JsonArray()
         };
     }
@@ -34,7 +36,7 @@ public sealed class SupplierEvidenceMerger : ISupplierEvidenceMerger
         return limited;
     }
 
-    private static JsonArray MergeEvidence(IReadOnlyCollection<CollectedGooglePlace> googlePlaces, JsonNode? webEvidence)
+    private async Task<JsonArray> MergeEvidenceAsync(SupplierDiscoveryEvidenceRequest request, IReadOnlyCollection<CollectedGooglePlace> googlePlaces, JsonNode? webEvidence, CancellationToken cancellationToken)
     {
         Dictionary<string, JsonObject> merged = new(StringComparer.Ordinal);
         void Add(string companyName, string? locality, string? county, IEnumerable<string> urls, string source, JsonNode evidence, decimal? distanceKm = null)
@@ -73,7 +75,10 @@ public sealed class SupplierEvidenceMerger : ISupplierEvidenceMerger
                 string? county = item["county"]?.GetValue<string>();
                 if (!merged.Values.Any(existing => CompanyEvidenceIdentity.IsCompatibleEvidence(name, locality, county,
                     existing["companyName"]?.GetValue<string>() ?? string.Empty, existing["locality"]?.GetValue<string>(), existing["county"]?.GetValue<string>())))
-                    continue;
+                    {
+                        if (string.IsNullOrWhiteSpace(locality) || string.IsNullOrWhiteSpace(county)) continue;
+                        try { var location = await geocoder.ResolveAsync(new(null, locality, county, "România"), cancellationToken); decimal distance = GeographicDistance.Kilometers(request.Latitude!.Value, request.Longitude!.Value, location.Latitude!.Value, location.Longitude!.Value); if (distance > request.SearchRadiusKm) continue; Add(name, locality, county, item["sourceUrls"] is JsonArray webUrls ? webUrls.Select(url => url?.GetValue<string>() ?? string.Empty) : [], "OpenAI Web Search", item, distance); continue; } catch (LocationResolutionException) { continue; }
+                    }
                 Add(name, locality, county, item["sourceUrls"] is JsonArray urls ? urls.Select(url => url?.GetValue<string>() ?? string.Empty) : [], "OpenAI Web Search", item);
             }
         return new JsonArray(merged.Values.Select(item => (JsonNode)item).ToArray());

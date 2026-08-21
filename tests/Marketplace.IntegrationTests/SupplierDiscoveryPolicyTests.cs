@@ -1,4 +1,6 @@
 using Marketplace.Application.SupplierDiscovery;
+using Marketplace.Application.Profiles;
+using Marketplace.Domain.Profiles;
 using Marketplace.Infrastructure.SupplierDiscovery;
 
 namespace Marketplace.IntegrationTests;
@@ -44,7 +46,7 @@ public sealed class SupplierDiscoveryPolicyTests
         FakeGoogleCollector google = new(new([new(new("place-1", "Carlio Grup - Piese Auto", null, "Marginea", "Suceava", 47.8, 25.8,
             "shopping_mall", null, ["shopping_mall"], null, "https://maps.example/carlio"), 1m)], []));
         FakeWebCollector web = new(new(null, []));
-        SupplierEvidencePipeline pipeline = new(google, web, new SupplierEvidenceMerger());
+        SupplierEvidencePipeline pipeline = new(google, web, new SupplierEvidenceMerger(new FakeGeocoder()));
         SupplierDiscoveryEvidenceRequest request = new("Piese auto", [], "Marginea", "Suceava", 47.81m, 25.81m, 30,
             ["Plăcuțe de frână"], ["piese auto"], "piese auto Marginea", "prompt", "Google este doar recall.");
 
@@ -149,6 +151,11 @@ public sealed class SupplierDiscoveryPolicyTests
             WasCalled = true;
             return Task.FromResult(result);
         }
+    }
+
+    private sealed class FakeGeocoder : ILocationGeocoder
+    {
+        public Task<GeographicLocation> ResolveAsync(LocationInput input, CancellationToken cancellationToken) => Task.FromResult(new GeographicLocation(input.Address, input.Locality, input.County, input.Country, 47.81m, 25.81m));
     }
 
     private sealed class FakeGooglePlacesClient : IGooglePlacesClient
