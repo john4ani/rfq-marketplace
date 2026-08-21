@@ -728,8 +728,8 @@ public sealed partial class SupplierDiscoveryService(
                 item.TryGetProperty("county", out JsonElement county) ? county.GetString() ?? string.Empty : string.Empty,
                 item.TryGetProperty("sources", out JsonElement sources) && sources.ValueKind == JsonValueKind.Array ? sources.EnumerateArray().Select(source => source.GetString() ?? string.Empty).Where(source => source.Length > 0).ToArray() : [],
                 item.TryGetProperty("sourceUrls", out JsonElement urls) && urls.ValueKind == JsonValueKind.Array ? urls.EnumerateArray().Select(url => url.GetString() ?? string.Empty).Where(url => url.Length > 0).ToArray() : [],
-                ReadGoogleCoordinate(item, "latitude"),
-                ReadGoogleCoordinate(item, "longitude"),
+                ReadCoordinate(item, "latitude"),
+                ReadCoordinate(item, "longitude"),
                 item.TryGetProperty("distanceKm", out JsonElement distance) && distance.TryGetDecimal(out decimal distanceKm) ? distanceKm : null))
                 .Where(item => item.CompanyName.Length > 0).ToArray();
             List<SupplierWebEvidenceView> unique = [];
@@ -749,13 +749,16 @@ public sealed partial class SupplierDiscoveryService(
         catch (JsonException) { return []; }
     }
 
-    private static double? ReadGoogleCoordinate(JsonElement mergedEvidence, string property)
+    private static double? ReadCoordinate(JsonElement mergedEvidence, string property)
     {
+        if (mergedEvidence.TryGetProperty(property, out JsonElement value) && value.TryGetDouble(out double coordinate))
+            return coordinate;
         if (!mergedEvidence.TryGetProperty("evidence", out JsonElement evidence) || evidence.ValueKind != JsonValueKind.Array)
             return null;
         foreach (JsonElement source in evidence.EnumerateArray())
-            if (source.TryGetProperty(property, out JsonElement coordinate) && coordinate.TryGetDouble(out double value))
-                return value;
+            if ((source.TryGetProperty(property, out value) || source.TryGetProperty(char.ToUpperInvariant(property[0]) + property[1..], out value))
+                && value.TryGetDouble(out coordinate))
+                return coordinate;
         return null;
     }
 
@@ -772,7 +775,7 @@ public sealed partial class SupplierDiscoveryService(
         Termeni de căutare: {string.Join("; ", intent.Profile.SearchTerms)}. Activitate principală: {string.Join("; ", intent.Profile.PrimaryActivityHints)}. Activitate secundară: {string.Join("; ", intent.Profile.SecondaryActivityHints)}. Reguli de calificare: {intent.Profile.QualificationGuidance}
         Preferă surse oficiale/de business, apoi site-ul firmei, apoi directoare credibile. Păstrează numai informații susținute de URL-uri.
         Categorie principală: {intent.CategoryName}. Context: {intent.Locality}, județ: {intent.County}. Produse/servicii solicitate: {string.Join("; ", intent.RequestedProducts)}.
-        Construiește intentul cu produs/serviciu, activitate și CAEN numai dacă derivarea este solidă. Returnează maximum zece dovezi de firmă, nu candidați verificați. O dovadă exclusiv web fără coordonate Google Places compatibile nu este eligibilă pentru un candidat MVP.
+        Construiește intentul cu produs/serviciu, activitate și CAEN numai dacă derivarea este solidă. Returnează maximum zece dovezi de firmă, nu candidați verificați.
         """;
 
     // Bounded Google Places Text Search query: main category + primary product + locality/county are the recall

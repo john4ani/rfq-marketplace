@@ -56,6 +56,8 @@ public sealed class SupplierDiscoveryPolicyTests
         Assert.True(web.WasCalled);
         Assert.Equal("Carlio Grup - Piese Auto", result.Evidence["mergedEvidence"]![0]!["companyName"]!.GetValue<string>());
         Assert.Equal(1m, result.Evidence["mergedEvidence"]![0]!["distanceKm"]!.GetValue<decimal>());
+        Assert.Equal(47.8, result.Evidence["mergedEvidence"]![0]!["latitude"]!.GetValue<double>());
+        Assert.Equal(25.8, result.Evidence["mergedEvidence"]![0]!["longitude"]!.GetValue<double>());
     }
 
     [Fact]

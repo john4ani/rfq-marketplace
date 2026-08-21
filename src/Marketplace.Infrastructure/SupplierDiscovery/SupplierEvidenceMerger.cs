@@ -39,7 +39,16 @@ public sealed class SupplierEvidenceMerger(ILocationGeocoder geocoder) : ISuppli
     private async Task<JsonArray> MergeEvidenceAsync(SupplierDiscoveryEvidenceRequest request, IReadOnlyCollection<CollectedGooglePlace> googlePlaces, JsonNode? webEvidence, CancellationToken cancellationToken)
     {
         Dictionary<string, JsonObject> merged = new(StringComparer.Ordinal);
-        void Add(string companyName, string? locality, string? county, IEnumerable<string> urls, string source, JsonNode evidence, decimal? distanceKm = null)
+        void Add(
+            string companyName,
+            string? locality,
+            string? county,
+            IEnumerable<string> urls,
+            string source,
+            JsonNode evidence,
+            decimal? distanceKm = null,
+            double? latitude = null,
+            double? longitude = null)
         {
             if (string.IsNullOrWhiteSpace(companyName)) return;
             string key = $"{Normalize(companyName)}|{(locality ?? string.Empty).Trim().ToUpperInvariant()}|{(county ?? string.Empty).Trim().ToUpperInvariant()}";
@@ -54,6 +63,8 @@ public sealed class SupplierEvidenceMerger(ILocationGeocoder geocoder) : ISuppli
             }
             AddDistinct(item["sources"]!.AsArray(), source, StringComparer.Ordinal);
             if (distanceKm.HasValue) item["distanceKm"] = distanceKm.Value;
+            if (latitude.HasValue) item["latitude"] = latitude.Value;
+            if (longitude.HasValue) item["longitude"] = longitude.Value;
             JsonArray sourceUrls = item["sourceUrls"] as JsonArray ?? new JsonArray();
             item["sourceUrls"] = sourceUrls;
             foreach (string url in urls.Where(url => !string.IsNullOrWhiteSpace(url)).Distinct(StringComparer.OrdinalIgnoreCase))
@@ -65,7 +76,7 @@ public sealed class SupplierEvidenceMerger(ILocationGeocoder geocoder) : ISuppli
         {
             GooglePlaceEvidence place = collected.Place;
             Add(place.DisplayName ?? string.Empty, place.Locality, place.County, [place.GoogleMapsUri ?? string.Empty],
-                "Google Places", JsonSerializer.SerializeToNode(place)!, collected.DistanceKm);
+                "Google Places", JsonSerializer.SerializeToNode(place)!, collected.DistanceKm, place.Latitude, place.Longitude);
         }
         if (webEvidence?["evidence"] is JsonArray webItems)
             foreach (JsonNode? item in webItems.OfType<JsonObject>())
@@ -77,7 +88,7 @@ public sealed class SupplierEvidenceMerger(ILocationGeocoder geocoder) : ISuppli
                     existing["companyName"]?.GetValue<string>() ?? string.Empty, existing["locality"]?.GetValue<string>(), existing["county"]?.GetValue<string>())))
                     {
                         if (string.IsNullOrWhiteSpace(locality) || string.IsNullOrWhiteSpace(county)) continue;
-                        try { var location = await geocoder.ResolveAsync(new(null, locality, county, "România"), cancellationToken); decimal distance = GeographicDistance.Kilometers(request.Latitude!.Value, request.Longitude!.Value, location.Latitude!.Value, location.Longitude!.Value); if (distance > request.SearchRadiusKm) continue; Add(name, locality, county, item["sourceUrls"] is JsonArray webUrls ? webUrls.Select(url => url?.GetValue<string>() ?? string.Empty) : [], "OpenAI Web Search", item, distance); continue; } catch (LocationResolutionException) { continue; }
+                        try { var location = await geocoder.ResolveAsync(new(null, locality, county, "România"), cancellationToken); decimal distance = GeographicDistance.Kilometers(request.Latitude!.Value, request.Longitude!.Value, location.Latitude!.Value, location.Longitude!.Value); if (distance > request.SearchRadiusKm) continue; Add(name, locality, county, item["sourceUrls"] is JsonArray webUrls ? webUrls.Select(url => url?.GetValue<string>() ?? string.Empty) : [], "OpenAI Web Search", item, distance, (double)location.Latitude!.Value, (double)location.Longitude!.Value); continue; } catch (LocationResolutionException) { continue; }
                     }
                 Add(name, locality, county, item["sourceUrls"] is JsonArray urls ? urls.Select(url => url?.GetValue<string>() ?? string.Empty) : [], "OpenAI Web Search", item);
             }
