@@ -213,5 +213,5 @@ public sealed class RfqTests
 
     private static RfqDraft Draft(IReadOnlyCollection<RfqItemDraft> items) => new(
         "Materiale renovare", null, null, Guid.NewGuid(), "Strada Test 1", "Iași", "Iași", 30,
-        null, null, null, Now.AddDays(2), true, null, null, items);
+        47.1585m, 27.6014m, null, Now.AddDays(2), true, null, null, items);
 }
