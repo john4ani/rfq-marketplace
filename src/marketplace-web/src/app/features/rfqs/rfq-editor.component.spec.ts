@@ -20,7 +20,7 @@ describe('RfqEditorComponent material positions', () => {
         provideRouter([]),
         { provide: AuthService, useValue: { identity: () => ({ userId: 'buyer-id', email: 'buyer@example.com', roles: [] }) } },
         { provide: SupplierSettingsService, useValue: { getCategories: () => of([]), getProjectTemplates: () => of([]) } },
-        { provide: ProfileService, useValue: { getBuyer: () => buyerProfileResponse } },
+        { provide: ProfileService, useValue: { getBuyer: () => buyerProfileResponse, getMyCompanies: () => of([]) } },
         { provide: AssistedIntakeService, useValue: {} },
         { provide: RfqService, useValue: {} }
       ]
