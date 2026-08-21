@@ -8,6 +8,7 @@ namespace Marketplace.Infrastructure.Profiles;
 
 public sealed class GoogleLocationGeocoder(HttpClient httpClient, IOptions<GooglePlacesOptions> options) : ILocationGeocoder
 {
+    private const string DefaultGeocodingEndpoint = "https://maps.googleapis.com/maps/api/geocode/json";
     private readonly GooglePlacesOptions settings = options.Value;
 
     public async Task<GeographicLocation> ResolveAsync(LocationInput input, CancellationToken cancellationToken)
@@ -17,7 +18,10 @@ public sealed class GoogleLocationGeocoder(HttpClient httpClient, IOptions<Googl
 
         string address = string.Join(", ", new[] { input.Address, input.Locality, input.County, input.Country }
             .Where(value => !string.IsNullOrWhiteSpace(value)));
-        Uri uri = new($"{settings.GeocodingEndpoint}?address={Uri.EscapeDataString(address)}&key={Uri.EscapeDataString(settings.ApiKey)}&language=ro&region=ro");
+        string endpoint = string.IsNullOrWhiteSpace(settings.GeocodingEndpoint)
+            ? DefaultGeocodingEndpoint
+            : settings.GeocodingEndpoint;
+        Uri uri = new($"{endpoint}?address={Uri.EscapeDataString(address)}&key={Uri.EscapeDataString(settings.ApiKey)}&language=ro&region=ro");
         using HttpResponseMessage response = await httpClient.GetAsync(uri, cancellationToken);
         if (!response.IsSuccessStatusCode)
             throw new LocationResolutionException("Nu am putut confirma locația. Verifică adresa și încearcă din nou.");

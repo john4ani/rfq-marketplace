@@ -14,11 +14,11 @@ public sealed record SupplierDiscoveryEvidenceRequest(
     IReadOnlyCollection<string> Products,
     IReadOnlyCollection<string> CategoryRecallTerms,
     string GoogleTextQuery,
-    string WebPrompt,
+    IReadOnlyCollection<string> WebPrompts,
     string CategoryFocus)
 {
     public static SupplierDiscoveryEvidenceRequest Empty { get; } = new(
-        "categoria comercială", [], string.Empty, string.Empty, null, null, 0, [], [], string.Empty, string.Empty, string.Empty);
+        "categoria comercială", [], string.Empty, string.Empty, null, null, 0, [], [], string.Empty, [], string.Empty);
 }
 
 public sealed record CollectedGooglePlace(GooglePlaceEvidence Place, decimal DistanceKm);
@@ -37,7 +37,13 @@ public interface IWebEvidenceCollector
     Task<WebEvidenceResult> CollectAsync(SupplierDiscoveryEvidenceRequest request, CancellationToken cancellationToken);
 }
 
-public sealed record WebEvidenceResult(OpenAiWebDiscoveryResponse? Response, IReadOnlyCollection<string> Warnings);
+public sealed record WebEvidenceResult(IReadOnlyCollection<OpenAiWebDiscoveryResponse> Responses, IReadOnlyCollection<string> Warnings)
+{
+    public int WebSearchCallCount => Responses.Sum(response => response.WebSearchCallCount);
+    public long LatencyMs => Responses.Sum(response => response.LatencyMs);
+    public int InputTokens => Responses.Sum(response => response.InputTokens);
+    public int OutputTokens => Responses.Sum(response => response.OutputTokens);
+}
 
 public interface ISupplierEvidenceMerger
 {

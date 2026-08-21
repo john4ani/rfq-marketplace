@@ -110,7 +110,7 @@ public sealed partial class OpenAiResponsesTransport(
             reasoning = new { effort = "none" },
             input = request.Instructions,
             tools = new[] { new { type = "web_search", search_context_size = "low", user_location = new { type = "approximate", country = "RO", region = request.County, city = request.Locality } } },
-            max_tool_calls = 2,
+            max_tool_calls = 1,
             include = WebSearchSourcesInclude,
             text = new { verbosity = "low", format = new { type = "json_schema", name = request.SchemaName, strict = true, schema = request.Schema } },
             max_output_tokens = request.MaxOutputTokens

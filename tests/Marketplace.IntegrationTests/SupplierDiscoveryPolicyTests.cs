@@ -45,10 +45,10 @@ public sealed class SupplierDiscoveryPolicyTests
     {
         FakeGoogleCollector google = new(new([new(new("place-1", "Carlio Grup - Piese Auto", null, "Marginea", "Suceava", 47.8, 25.8,
             "shopping_mall", null, ["shopping_mall"], null, "https://maps.example/carlio"), 1m)], []));
-        FakeWebCollector web = new(new(null, []));
+        FakeWebCollector web = new(new([], []));
         SupplierEvidencePipeline pipeline = new(google, web, new SupplierEvidenceMerger(new FakeGeocoder()));
         SupplierDiscoveryEvidenceRequest request = new("Piese auto", [], "Marginea", "Suceava", 47.81m, 25.81m, 30,
-            ["Plăcuțe de frână"], ["piese auto"], "piese auto Marginea", "prompt", "Google este doar recall.");
+            ["Plăcuțe de frână"], ["piese auto"], "piese auto Marginea", ["prompt"], "Google este doar recall.");
 
         SupplierEvidencePipelineResult result = await pipeline.CollectAsync(request, CancellationToken.None);
 
@@ -61,12 +61,73 @@ public sealed class SupplierDiscoveryPolicyTests
     }
 
     [Fact]
+    public async Task EvidencePipelineDoesNotDiscardWebEvidenceBeyondTheFirstFiveBeforeQualification()
+    {
+        FakeGoogleCollector google = new(new([], []));
+        string evidence = "{\"searchIntent\":{\"productOrService\":\"lemn rotund\",\"primaryActivity\":\"CAEN 0220\",\"secondaryActivity\":\"\",\"location\":\"Marginea\"},\"evidence\":[" + string.Join(',', Enumerable.Range(1, 20).Select(index => $"{{\"companyName\":\"Furnizor{index}\",\"locality\":\"Marginea\",\"county\":\"Suceava\",\"website\":\"\",\"phone\":\"\",\"email\":\"\",\"activityEvidence\":\"CAEN 0220\",\"caenCode\":\"CAEN 0220\",\"productEvidence\":\"lemn rotund\",\"sourceUrls\":[\"https://example.test/furnizor{index}\"]}}")) + "]}";
+        FakeWebCollector web = new(new([new(evidence, "[]", 1, 1, 1, 1)], []));
+        SupplierEvidencePipeline pipeline = new(google, web, new SupplierEvidenceMerger(new FakeGeocoder()));
+        SupplierDiscoveryEvidenceRequest request = new("Lemn și produse din lemn", [], "Marginea", "Suceava", 47.81m, 25.81m, 100,
+            ["Lemn rotund de rășinoase pentru construcții"], ["lemn rotund", "CAEN 0220"], "lemn rotund Marginea", ["prompt"], "guidance");
+
+        SupplierEvidencePipelineResult result = await pipeline.CollectAsync(request, CancellationToken.None);
+
+        Assert.Equal(20, result.Evidence["webEvidence"]!["evidence"]!.AsArray().Count);
+        Assert.Equal(20, result.Evidence["mergedEvidence"]!.AsArray().Count);
+    }
+
+    [Fact]
+    public async Task EvidencePipelineRejectsWebEvidenceWhoseSourceIdentifiesAnotherCompany()
+    {
+        const string evidence = """
+            {"searchIntent":{"productOrService":"lemn","primaryActivity":"CAEN 0220","secondaryActivity":"","location":"Marginea"},"evidence":[
+              {"companyName":"Firma Alpha SRL","locality":"Marginea","county":"Suceava","website":"","phone":"","email":"","activityEvidence":"CAEN 0220","caenCode":"CAEN 0220","productEvidence":"lemn","sourceUrls":["https://directory.example/firma-alpha-srl"]},
+              {"companyName":"Firma Beta SRL","locality":"Marginea","county":"Suceava","website":"","phone":"","email":"","activityEvidence":"CAEN 0220","caenCode":"CAEN 0220","productEvidence":"lemn","sourceUrls":["https://directory.example/firma/123-firma-gamma-srl"]},
+              {"companyName":"Firma Delta S.R.L.","locality":"Marginea","county":"Suceava","website":"","phone":"","email":"","activityEvidence":"CAEN 0220","caenCode":"CAEN 0220","productEvidence":"lemn","sourceUrls":["https://directory.example/firma/firma-delta-srl"]},
+              {"companyName":"Firma Epsilon SRL","locality":"Marginea","county":"Suceava","website":"","phone":"","email":"","activityEvidence":"CAEN 0220","caenCode":"CAEN 0220","productEvidence":"lemn","sourceUrls":["https://directory.example/cities/suceava/marginea.html"]}
+            ]}
+            """;
+        SupplierEvidencePipeline pipeline = new(new FakeGoogleCollector(new([], [])), new FakeWebCollector(new([new(evidence, "[]", 1, 1, 1, 1)], [])), new SupplierEvidenceMerger(new FakeGeocoder()));
+        SupplierDiscoveryEvidenceRequest request = new("Lemn și produse din lemn", [], "Marginea", "Suceava", 47.81m, 25.81m, 100,
+            ["Lemn rotund"], ["CAEN 0220"], "lemn Marginea", ["prompt"], "guidance");
+
+        SupplierEvidencePipelineResult result = await pipeline.CollectAsync(request, CancellationToken.None);
+
+        Assert.Equal(["Firma Alpha SRL", "Firma Delta S.R.L.", "Firma Epsilon SRL"], result.Evidence["mergedEvidence"]!.AsArray().Select(item => item!["companyName"]!.GetValue<string>()));
+        Assert.Equal("Firma Beta SRL", result.Evidence["untrustedWebEvidence"]![0]!["companyName"]!.GetValue<string>());
+    }
+
+    [Fact]
+    public async Task WebEvidenceGeocodingDoesNotDuplicateCountyAlreadyPresentInLocation()
+    {
+        const string evidence = """
+            {"searchIntent":{"productOrService":"lemn","primaryActivity":"CAEN 0220","secondaryActivity":"","location":"Marginea"},"evidence":[
+              {"companyName":"Firma Alpha SRL","locality":"Marginea, Strada Principală nr. 1, județul Suceava","county":"Suceava","website":"","phone":"","email":"","activityEvidence":"CAEN 0220","caenCode":"0220","productEvidence":"lemn","sourceUrls":["https://directory.example/firma/firma-alpha-srl"]},
+              {"companyName":"Firma Beta SRL","locality":"Marginea","county":"Suceava","website":"","phone":"","email":"","activityEvidence":"CAEN 0220","caenCode":"0220","productEvidence":"lemn","sourceUrls":["https://directory.example/firma/firma-beta-srl"]},
+              {"companyName":"Firma Gamma SRL","locality":"Marginea, nr. 1331","county":"Suceava","website":"","phone":"","email":"","activityEvidence":"CAEN 0220","caenCode":"0220","productEvidence":"lemn","sourceUrls":["https://directory.example/firma/firma-gamma-srl"]},
+              {"companyName":"Firma Delta SRL","locality":"Strada Principală, nr. 1331","county":"Suceava","website":"","phone":"","email":"","activityEvidence":"CAEN 0220","caenCode":"0220","productEvidence":"lemn","sourceUrls":["https://directory.example/firma/firma-delta-srl"]}
+            ]}
+            """;
+        FakeGeocoder geocoder = new();
+        SupplierEvidencePipeline pipeline = new(new FakeGoogleCollector(new([], [])), new FakeWebCollector(new([new(evidence, "[]", 1, 1, 1, 1)], [])), new SupplierEvidenceMerger(geocoder));
+        SupplierDiscoveryEvidenceRequest request = new("Lemn și produse din lemn", [], "Marginea", "Suceava", 47.81m, 25.81m, 100,
+            ["Lemn rotund"], ["CAEN 0220"], "lemn Marginea", ["prompt"], "guidance");
+
+        await pipeline.CollectAsync(request, CancellationToken.None);
+
+        Assert.Equal(new LocationInput(null, "Marginea, Strada Principală nr. 1, județul Suceava", string.Empty, "România"), geocoder.Inputs[0]);
+        Assert.Equal(new LocationInput(null, "Marginea", "Suceava", "România"), geocoder.Inputs[1]);
+        Assert.Equal(new LocationInput(null, "Marginea, nr. 1331", "Suceava", "România"), geocoder.Inputs[2]);
+        Assert.Equal(new LocationInput(null, "Marginea", "Suceava", "România"), geocoder.Inputs[3]);
+    }
+
+    [Fact]
     public async Task GoogleCollectorUsesRfqCoordinatesAndRadius()
     {
         FakeGooglePlacesClient client = new();
         GooglePlacesEvidenceCollector collector = new(client);
         SupplierDiscoveryEvidenceRequest request = new("Piese auto", [], "Marginea", "Suceava", 47.81m, 25.81m, 30,
-            ["Plăcuțe de frână"], ["piese auto"], "piese auto Marginea", "prompt", "Google este doar recall.");
+            ["Plăcuțe de frână"], ["piese auto"], "piese auto Marginea", ["prompt"], "Google este doar recall.");
 
         GoogleEvidenceResult result = await collector.CollectAsync(request, CancellationToken.None);
 
@@ -94,6 +155,18 @@ public sealed class SupplierDiscoveryPolicyTests
 
         Assert.Equal(["Carlio Grup - Piese Auto și STIHL", "Piese Auto Mai Departe"], result.Candidates.Select(item => item.CompanyName));
         Assert.Contains(result.RejectedResults, item => item.CompanyName == "Biserica Evanghelică");
+    }
+
+    [Fact]
+    public void FinalRankingUsesValidatedCoordinatesInsteadOfTextualLocalityFormatting()
+    {
+        CategoryDiscoveryProfile profile = profiles.Resolve("Lemn și produse din lemn", ["Lemn rotund de rășinoase"]);
+        SupplierDiscoveryFinalRanking result = SupplierDiscoveryCandidateRanker.Rank(
+            [Candidate("Firma Lemn SRL", "lemn rotund", "CAEN 0220", "Activitate relevantă")],
+            [new SupplierWebEvidenceView("Firma Lemn SRL", "Marginea, nr. 100, județul Suceava", "Suceava", ["OpenAI Web Search"], ["https://example.test/firma-lemn-srl"], 47.81, 25.81, 1m)],
+            profile);
+
+        Assert.Equal("Firma Lemn SRL", result.Candidates.Single().CompanyName);
     }
 
     [Fact]
@@ -157,7 +230,12 @@ public sealed class SupplierDiscoveryPolicyTests
 
     private sealed class FakeGeocoder : ILocationGeocoder
     {
-        public Task<GeographicLocation> ResolveAsync(LocationInput input, CancellationToken cancellationToken) => Task.FromResult(new GeographicLocation(input.Address, input.Locality, input.County, input.Country, 47.81m, 25.81m));
+        public List<LocationInput> Inputs { get; } = [];
+        public Task<GeographicLocation> ResolveAsync(LocationInput input, CancellationToken cancellationToken)
+        {
+            Inputs.Add(input);
+            return Task.FromResult(new GeographicLocation(input.Address, input.Locality, input.County, input.Country, 47.81m, 25.81m));
+        }
     }
 
     private sealed class FakeGooglePlacesClient : IGooglePlacesClient

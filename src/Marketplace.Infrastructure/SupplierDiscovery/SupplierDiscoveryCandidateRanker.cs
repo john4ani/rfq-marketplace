@@ -19,9 +19,10 @@ public static class SupplierDiscoveryCandidateRanker
 
         foreach (SupplierWebCandidateView candidate in qualified)
         {
-            SupplierWebEvidenceView? matched = evidence.FirstOrDefault(item => CompanyEvidenceIdentity.IsCompatibleEvidence(
-                candidate.CompanyName, candidate.Locality, candidate.County,
-                item.CompanyName, item.Locality, item.County));
+            // Evidence reaching this ranker was already geocoded and radius-validated.
+            // Textual locality formatting must not invalidate those persisted coordinates.
+            SupplierWebEvidenceView? matched = evidence.FirstOrDefault(item => CompanyEvidenceIdentity.AreSame(
+                candidate.CompanyName, item.CompanyName));
             if (matched?.Latitude is null || matched.Longitude is null || matched.DistanceKm is null)
             {
                 rejected.Add(new(candidate.CompanyName, "Nu există coordonate utilizabile, în raza cererii, pentru această firmă.", candidate.SourceUrls));

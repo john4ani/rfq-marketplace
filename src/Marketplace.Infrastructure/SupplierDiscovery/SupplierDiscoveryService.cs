@@ -467,7 +467,7 @@ public sealed partial class SupplierDiscoveryService(
             intent.RequestedProducts,
             profile.SearchTerms,
             BuildGooglePlacesQuery(intent),
-            BuildWebDiscoveryPrompt(intent),
+            [BuildRegistryWebDiscoveryPrompt(intent)],
             profile.QualificationGuidance);
         return await RunExternalDiscoveryAsync(administratorId, rfqId, context, cancellationToken);
     }
@@ -484,7 +484,7 @@ public sealed partial class SupplierDiscoveryService(
         string category = categoryNames.Length == 0 ? "categorie comercială nespecificată" : string.Join(" · ", categoryNames);
         string query = string.Join(" ", new[] { input.CompanyName.Trim(), locality, county, "România" }.Where(item => !string.IsNullOrWhiteSpace(item)));
         SupplierDiscoveryEvidenceRequest context = new(category, categoryIds, locality, county, null, null, 0, [], [], query,
-            $"Caută dovezi provizorii despre firma „{input.CompanyName.Trim()}” din România. Localitate: {locality}. Județ: {county}. Păstrează numai informațiile susținute de URL-uri și nu considera nimic verificat.", string.Empty);
+            [$"Caută dovezi provizorii despre firma „{input.CompanyName.Trim()}” din România. Localitate: {locality}. Județ: {county}. Păstrează numai informațiile susținute de URL-uri și nu considera nimic verificat."], string.Empty);
         return await RunExternalDiscoveryAsync(administratorId, null, context, cancellationToken);
     }
 
@@ -497,8 +497,8 @@ public sealed partial class SupplierDiscoveryService(
         SupplierEvidencePipelineResult collected = await evidencePipeline.CollectAsync(context, cancellationToken);
         GoogleEvidenceResult google = collected.Google;
         WebEvidenceResult web = collected.Web;
-        if (web.Response?.WebSearchCallCount > 2) LogWebDiscoveryCallCountExceeded(logger, rfqId, run.Id, web.Response.WebSearchCallCount);
-        if (google.Places.Count == 0 && web.Response is null)
+        if (web.WebSearchCallCount > 2) LogWebDiscoveryCallCountExceeded(logger, rfqId, run.Id, web.WebSearchCallCount);
+        if (google.Places.Count == 0 && web.Responses.Count == 0)
         {
             run.RecordFailure("Nu au fost disponibile surse externe. Încearcă din nou.", timeProvider.GetUtcNow());
             await SaveChangesAsync(cancellationToken);
@@ -506,9 +506,9 @@ public sealed partial class SupplierDiscoveryService(
         }
 
         JsonNode root = collected.Evidence;
-        run.RecordEvidence(root.ToJsonString(), web.Response?.WebSearchCallCount ?? 0, web.Response?.LatencyMs ?? 0, web.Response?.InputTokens ?? 0, web.Response?.OutputTokens ?? 0, timeProvider.GetUtcNow());
+        run.RecordEvidence(root.ToJsonString(), web.WebSearchCallCount, web.LatencyMs, web.InputTokens, web.OutputTokens, timeProvider.GetUtcNow());
         await SaveChangesAsync(cancellationToken);
-        LogWebDiscoveryCompleted(logger, rfqId, run.Id, web.Response?.WebSearchCallCount ?? 0, web.Response?.LatencyMs ?? 0);
+        LogWebDiscoveryCompleted(logger, rfqId, run.Id, web.WebSearchCallCount, web.LatencyMs);
         return await ToWebRunViewAsync(run, cancellationToken);
     }
 
@@ -769,14 +769,21 @@ public sealed partial class SupplierDiscoveryService(
         CompanyEvidenceIdentity.IsCompatibleEvidence(leftName, leftLocality, leftCounty, rightName, rightLocality, rightCounty);
 
 
-    private static string BuildWebDiscoveryPrompt(SupplierSearchIntent intent) => $"""
-        Găsește dovezi provizorii despre furnizori pentru o nevoie comercială din România. Nu considera nimic verificat.
-        Caută dovezi despre firme relevante pentru categoria principală „{intent.CategoryName}” și nevoia descrisă. Localitatea și județul sunt context comercial util, nu un mecanism de extindere geografică. Detaliile de produs/serviciu, activitatea și codul CAEN completează potrivirea; nu umple artificial lista.
-        Termeni de căutare: {string.Join("; ", intent.Profile.SearchTerms)}. Activitate principală: {string.Join("; ", intent.Profile.PrimaryActivityHints)}. Activitate secundară: {string.Join("; ", intent.Profile.SecondaryActivityHints)}. Reguli de calificare: {intent.Profile.QualificationGuidance}
-        Preferă surse oficiale/de business, apoi site-ul firmei, apoi directoare credibile. Păstrează numai informații susținute de URL-uri.
-        Categorie principală: {intent.CategoryName}. Context: {intent.Locality}, județ: {intent.County}. Produse/servicii solicitate: {string.Join("; ", intent.RequestedProducts)}.
-        Construiește intentul cu produs/serviciu, activitate și CAEN numai dacă derivarea este solidă. Returnează maximum zece dovezi de firmă, nu candidați verificați.
-        """;
+    private static string BuildRegistryWebDiscoveryPrompt(SupplierSearchIntent intent)
+    {
+        string primaryCaen = intent.Profile.PrimaryActivityHints
+            .Select(hint => Regex.Match(hint, @"CAEN\s*\d{4}", RegexOptions.IgnoreCase).Value)
+            .FirstOrDefault(value => !string.IsNullOrWhiteSpace(value)) ?? string.Empty;
+        string query = string.Join(' ', new[] { $"\"{intent.Locality}\"", $"\"{primaryCaen}\"", intent.County, "firme" }
+            .Where(value => !string.IsNullOrWhiteSpace(value)));
+        return $"""
+            Efectuează exact o singură căutare web registry-style cu interogarea: {query}
+            Descoperă firme cu activitatea economică relevantă; nu ghici furnizori și nu considera nimic verificat.
+            Pentru fiecare rezultat păstrează numai numele firmei, localitatea/adresa când există, activitatea/CAEN și URL-ul sursei. Copiază numai componentele de adresă explicite din sursă; nu inventa nume sau tipuri de stradă. Dacă sursa conține doar localitate și număr, păstrează exact localitatea și numărul.
+            Contextul cererii este categoria „{intent.CategoryName}”; {intent.Profile.QualificationGuidance}
+            Returnează maximum douăzeci de dovezi de firmă. Eligibilitatea geografică și calificarea comercială se fac ulterior de CompaSpot.
+            """;
+    }
 
     // Bounded Google Places Text Search query: main category + primary product + locality/county are the recall
     // signals (§6/§8). regionCode=RO further constrains geography; keep it short to stay in the discovery tier.

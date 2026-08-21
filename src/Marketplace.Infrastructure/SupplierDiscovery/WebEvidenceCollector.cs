@@ -11,18 +11,23 @@ public sealed class WebEvidenceCollector(OpenAiResponsesTransport transport) : I
         CancellationToken cancellationToken)
     {
         if (!transport.IsAvailable)
-            return new(null, ["Căutarea web nu este configurată; continuăm cu Google Places."]);
+            return new([], ["Căutarea web nu este configurată; continuăm cu Google Places."]);
 
-        try
+        List<OpenAiWebDiscoveryResponse> responses = [];
+        List<string> warnings = [];
+        foreach (string prompt in request.WebPrompts.Where(prompt => !string.IsNullOrWhiteSpace(prompt)).Take(2))
         {
-            OpenAiWebDiscoveryResponse response = await transport.SendWebDiscoveryAsync(new(
-                request.WebPrompt, "supplier_web_evidence", EvidenceSchema(), request.Locality, request.County, 2400), cancellationToken);
-            return new(response, []);
+            try
+            {
+                responses.Add(await transport.SendWebDiscoveryAsync(new(
+                    prompt, "supplier_web_evidence", EvidenceSchema(), request.Locality, request.County, 5000), cancellationToken));
+            }
+            catch (Exception exception)
+            {
+                warnings.Add(ToFailureMessage(exception));
+            }
         }
-        catch (Exception exception)
-        {
-            return new(null, [ToFailureMessage(exception)]);
-        }
+        return new(responses, warnings);
     }
 
     private static string ToFailureMessage(Exception exception) => exception switch
@@ -38,5 +43,5 @@ public sealed class WebEvidenceCollector(OpenAiResponsesTransport transport) : I
         _ => "Nu am putut căuta furnizori pe web. Încearcă din nou."
     };
 
-    private static JsonNode EvidenceSchema() => JsonNode.Parse("""{"type":"object","additionalProperties":false,"required":["searchIntent","evidence"],"properties":{"searchIntent":{"type":"object","additionalProperties":false,"required":["productOrService","primaryActivity","secondaryActivity","location"],"properties":{"productOrService":{"type":"string"},"primaryActivity":{"type":"string"},"secondaryActivity":{"type":"string"},"location":{"type":"string"}}},"evidence":{"type":"array","maxItems":10,"items":{"type":"object","additionalProperties":false,"required":["companyName","locality","county","website","phone","email","activityEvidence","caenCode","productEvidence","sourceUrls"],"properties":{"companyName":{"type":"string"},"locality":{"type":"string"},"county":{"type":"string"},"website":{"type":"string"},"phone":{"type":"string"},"email":{"type":"string"},"activityEvidence":{"type":"string"},"caenCode":{"type":"string"},"productEvidence":{"type":"string"},"sourceUrls":{"type":"array","items":{"type":"string"}}}}}}}""")!;
+    private static JsonNode EvidenceSchema() => JsonNode.Parse("""{"type":"object","additionalProperties":false,"required":["searchIntent","evidence"],"properties":{"searchIntent":{"type":"object","additionalProperties":false,"required":["productOrService","primaryActivity","secondaryActivity","location"],"properties":{"productOrService":{"type":"string"},"primaryActivity":{"type":"string"},"secondaryActivity":{"type":"string"},"location":{"type":"string"}}},"evidence":{"type":"array","maxItems":20,"items":{"type":"object","additionalProperties":false,"required":["companyName","locality","county","website","phone","email","activityEvidence","caenCode","productEvidence","sourceUrls"],"properties":{"companyName":{"type":"string"},"locality":{"type":"string"},"county":{"type":"string"},"website":{"type":"string"},"phone":{"type":"string"},"email":{"type":"string"},"activityEvidence":{"type":"string"},"caenCode":{"type":"string"},"productEvidence":{"type":"string"},"sourceUrls":{"type":"array","items":{"type":"string"}}}}}}}""")!;
 }

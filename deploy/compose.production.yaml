@@ -74,6 +74,7 @@ services:
       GooglePlaces__ApiKey: ${GOOGLE_PLACES_API_KEY:-}
       GooglePlaces__TextSearchEndpoint: ${GOOGLE_PLACES_TEXT_SEARCH_ENDPOINT:-https://places.googleapis.com/v1/places:searchText}
       GooglePlaces__NearbySearchEndpoint: ${GOOGLE_PLACES_NEARBY_SEARCH_ENDPOINT:-https://places.googleapis.com/v1/places:searchNearby}
+      GooglePlaces__GeocodingEndpoint: ${GOOGLE_PLACES_GEOCODING_ENDPOINT:-https://maps.googleapis.com/maps/api/geocode/json}
       PasswordReset__ResetPageUrl: ${FRONTEND_ORIGIN}/reset-password
       EmailVerification__ConfirmationPageUrl: ${FRONTEND_ORIGIN}/verify-email
       Email__Enabled: ${EMAIL_ENABLED}
