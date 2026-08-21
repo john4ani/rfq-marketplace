@@ -12,7 +12,7 @@ registerLocaleData(localeRo);
 
 describe('BuyerOfferComparisonComponent', () => {
   const request: Rfq = {
-    categoryIds:['category-1'],needType:'DirectPurchase',projectTemplateId:null,
+    categoryIds:['category-1'],needType:'DirectPurchase',projectTemplateId:null,buyingCompanyId:null,locationContext:'Personal',
     id:'rfq-1',buyerId:'buyer-1',title:'Materiale renovare',projectName:'Apartament',
     source:'Manual',inputType:'StructuredForm',needStatus:'Published',
     projectContext:{name:'Apartament',description:'Necesar complet'},

@@ -13,8 +13,8 @@ describe('CompanyRegistrationComponent', () => {
       id: '11111111-1111-1111-1111-111111111111', tradingName: 'Firma Nouă SRL',
       companyRegistrationNumber: 'J33/1/2026', taxIdentifier: null, contactPerson: 'Ion Popescu',
       contactEmail: 'ion@example.test', phoneNumber: '0712345678', website: null,
-      address: 'Strada Principală 1', city: 'Suceava', county: 'Suceava', latitude: null,
-      longitude: null, description: null, approvalStatus: 'Pending', isActive: true
+      address: 'Strada Principală 1', city: 'Suceava', county: 'Suceava', country: 'România', latitude: null,
+      longitude: null, marketRadiusKm: 30, description: null, approvalStatus: 'Pending', isActive: true
     };
     const profiles = { saveSupplier: vi.fn().mockReturnValue(of(company)) };
     const auth = {
