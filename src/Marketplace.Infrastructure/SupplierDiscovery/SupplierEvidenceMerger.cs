@@ -17,9 +17,7 @@ public sealed class SupplierEvidenceMerger : ISupplierEvidenceMerger
         return new JsonObject
         {
             ["context"] = JsonSerializer.SerializeToNode(request),
-            ["googlePlacesText"] = JsonSerializer.SerializeToNode(googlePlaces.Where(place => place.GeographicTier == SupplierSearchGeographicTier.Local).Select(place => place.Place).ToArray()) ?? new JsonArray(),
-            ["googlePlacesNearby"] = JsonSerializer.SerializeToNode(googlePlaces.Where(place => place.GeographicTier == SupplierSearchGeographicTier.Nearby).Select(place => place.Place).ToArray()) ?? new JsonArray(),
-            ["googlePlacesCounty"] = JsonSerializer.SerializeToNode(googlePlaces.Where(place => place.GeographicTier == SupplierSearchGeographicTier.County).Select(place => place.Place).ToArray()) ?? new JsonArray(),
+            ["googlePlaces"] = JsonSerializer.SerializeToNode(googlePlaces) ?? new JsonArray(),
             ["webEvidence"] = webEvidence,
             ["webSources"] = webSources,
             ["mergedEvidence"] = MergeEvidence(googlePlaces, webEvidence),
@@ -39,7 +37,7 @@ public sealed class SupplierEvidenceMerger : ISupplierEvidenceMerger
     private static JsonArray MergeEvidence(IReadOnlyCollection<CollectedGooglePlace> googlePlaces, JsonNode? webEvidence)
     {
         Dictionary<string, JsonObject> merged = new(StringComparer.Ordinal);
-        void Add(string companyName, string? locality, string? county, IEnumerable<string> urls, string source, string geographicTier, JsonNode evidence)
+        void Add(string companyName, string? locality, string? county, IEnumerable<string> urls, string source, JsonNode evidence, decimal? distanceKm = null)
         {
             if (string.IsNullOrWhiteSpace(companyName)) return;
             string key = $"{Normalize(companyName)}|{(locality ?? string.Empty).Trim().ToUpperInvariant()}|{(county ?? string.Empty).Trim().ToUpperInvariant()}";
@@ -49,11 +47,11 @@ public sealed class SupplierEvidenceMerger : ISupplierEvidenceMerger
                     existing["locality"]?.GetValue<string>(), existing["county"]?.GetValue<string>()));
             if (item is null)
             {
-                item = new JsonObject { ["companyName"] = companyName, ["locality"] = locality ?? string.Empty, ["county"] = county ?? string.Empty, ["sources"] = new JsonArray(), ["geographicTiers"] = new JsonArray(), ["evidence"] = new JsonArray() };
+                item = new JsonObject { ["companyName"] = companyName, ["locality"] = locality ?? string.Empty, ["county"] = county ?? string.Empty, ["sources"] = new JsonArray(), ["evidence"] = new JsonArray() };
                 merged.Add(key, item);
             }
             AddDistinct(item["sources"]!.AsArray(), source, StringComparer.Ordinal);
-            AddDistinct(item["geographicTiers"]!.AsArray(), geographicTier, StringComparer.Ordinal);
+            if (distanceKm.HasValue) item["distanceKm"] = distanceKm.Value;
             JsonArray sourceUrls = item["sourceUrls"] as JsonArray ?? new JsonArray();
             item["sourceUrls"] = sourceUrls;
             foreach (string url in urls.Where(url => !string.IsNullOrWhiteSpace(url)).Distinct(StringComparer.OrdinalIgnoreCase))
@@ -65,13 +63,19 @@ public sealed class SupplierEvidenceMerger : ISupplierEvidenceMerger
         {
             GooglePlaceEvidence place = collected.Place;
             Add(place.DisplayName ?? string.Empty, place.Locality, place.County, [place.GoogleMapsUri ?? string.Empty],
-                "Google Places", ToTier(collected.GeographicTier), JsonSerializer.SerializeToNode(place)!);
+                "Google Places", JsonSerializer.SerializeToNode(place)!, collected.DistanceKm);
         }
         if (webEvidence?["evidence"] is JsonArray webItems)
             foreach (JsonNode? item in webItems.OfType<JsonObject>())
-                Add(item["companyName"]?.GetValue<string>() ?? string.Empty, item["locality"]?.GetValue<string>(), item["county"]?.GetValue<string>(),
-                    item["sourceUrls"] is JsonArray urls ? urls.Select(url => url?.GetValue<string>() ?? string.Empty) : [],
-                    "OpenAI Web Search", "web", item);
+            {
+                string name = item["companyName"]?.GetValue<string>() ?? string.Empty;
+                string? locality = item["locality"]?.GetValue<string>();
+                string? county = item["county"]?.GetValue<string>();
+                if (!merged.Values.Any(existing => CompanyEvidenceIdentity.IsCompatibleEvidence(name, locality, county,
+                    existing["companyName"]?.GetValue<string>() ?? string.Empty, existing["locality"]?.GetValue<string>(), existing["county"]?.GetValue<string>())))
+                    continue;
+                Add(name, locality, county, item["sourceUrls"] is JsonArray urls ? urls.Select(url => url?.GetValue<string>() ?? string.Empty) : [], "OpenAI Web Search", item);
+            }
         return new JsonArray(merged.Values.Select(item => (JsonNode)item).ToArray());
     }
 
@@ -81,10 +85,4 @@ public sealed class SupplierEvidenceMerger : ISupplierEvidenceMerger
     }
 
     private static string Normalize(string companyName) => companyName.Trim().ToUpperInvariant();
-    private static string ToTier(SupplierSearchGeographicTier tier) => tier switch
-    {
-        SupplierSearchGeographicTier.Local => "local",
-        SupplierSearchGeographicTier.Nearby => "nearby",
-        _ => "county"
-    };
 }

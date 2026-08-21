@@ -149,7 +149,15 @@ public sealed record SupplierInvitationView(
 public sealed record SupplierCompanyWebSearchInput(string CompanyName, string? Locality, string? County, IReadOnlyCollection<Guid> CategoryIds);
 public sealed record SupplierWebDiscoveryRunView(Guid Id, Guid? RfqId, string Status, string? FailureMessage, int WebSearchCallCount, IReadOnlyCollection<SupplierWebDiscoverySourceView> Sources, IReadOnlyCollection<SupplierWebEvidenceView> ProvisionalEvidence, IReadOnlyCollection<SupplierWebCandidateView> Candidates, IReadOnlyCollection<SupplierWebRejectedResult> RejectedResults);
 public sealed record SupplierWebDiscoverySourceView(string Source, int ResultCount, string? Warning);
-public sealed record SupplierWebEvidenceView(string CompanyName, string Locality, string County, IReadOnlyCollection<string> Sources, IReadOnlyCollection<string> SourceUrls);
+public sealed record SupplierWebEvidenceView(
+    string CompanyName,
+    string Locality,
+    string County,
+    IReadOnlyCollection<string> Sources,
+    IReadOnlyCollection<string> SourceUrls,
+    double? Latitude = null,
+    double? Longitude = null,
+    decimal? DistanceKm = null);
 public sealed record SupplierWebCandidateView(string CompanyName, string Locality, string County, string? Website, string? Phone, string? Email, string ActivityEvidence, string? CaenCode, string ProductEvidence, string GeographicRelevance, string Confidence, IReadOnlyCollection<string> SourceUrls, IReadOnlyCollection<string> Sources, string WhyRelevant);
 public sealed record SupplierWebRejectedResult(string CompanyName, string Reason, IReadOnlyCollection<string> SourceUrls);
 public sealed record SupplierWebCandidateAccepted(SupplierCandidateView Candidate, OpportunityMatchView? OpportunityMatch, bool ReusedExistingCandidate);

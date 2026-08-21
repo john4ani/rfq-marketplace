@@ -20,7 +20,7 @@ public sealed record SupplierDiscoveryEvidenceRequest(
         "categoria comercială", [], string.Empty, string.Empty, null, null, 0, [], string.Empty, string.Empty, string.Empty);
 }
 
-public sealed record CollectedGooglePlace(GooglePlaceEvidence Place, SupplierSearchGeographicTier GeographicTier);
+public sealed record CollectedGooglePlace(GooglePlaceEvidence Place, decimal DistanceKm);
 
 public sealed record GoogleEvidenceResult(
     IReadOnlyCollection<CollectedGooglePlace> Places,

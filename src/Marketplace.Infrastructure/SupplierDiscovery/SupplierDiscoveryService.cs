@@ -710,7 +710,7 @@ public sealed partial class SupplierDiscoveryService(
                 ? string.Join(" ", warnings.EnumerateArray().Select(item => item.GetString()).Where(item => !string.IsNullOrWhiteSpace(item))) : null;
             int Count(string property) => root.TryGetProperty(property, out JsonElement value) && value.ValueKind == JsonValueKind.Array ? value.GetArrayLength() : 0;
             int WebCount() => root.TryGetProperty("webEvidence", out JsonElement value) && value.TryGetProperty("evidence", out JsonElement items) && items.ValueKind == JsonValueKind.Array ? items.GetArrayLength() : 0;
-            return [new("Google Places", Count("googlePlacesText") + Count("googlePlacesNearby") + Count("googlePlacesCounty"), warning?.Contains("Google Places", StringComparison.Ordinal) == true ? warning : null), new("Căutare web", WebCount(), warning?.Contains("Căutarea web", StringComparison.Ordinal) == true ? warning : null)];
+            return [new("Google Places", Count("googlePlaces"), warning?.Contains("Google Places", StringComparison.Ordinal) == true ? warning : null), new("Căutare web", WebCount(), warning?.Contains("Căutarea web", StringComparison.Ordinal) == true ? warning : null)];
         }
         catch (JsonException) { return []; }
     }
@@ -726,7 +726,10 @@ public sealed partial class SupplierDiscoveryService(
                 item.TryGetProperty("locality", out JsonElement locality) ? locality.GetString() ?? string.Empty : string.Empty,
                 item.TryGetProperty("county", out JsonElement county) ? county.GetString() ?? string.Empty : string.Empty,
                 item.TryGetProperty("sources", out JsonElement sources) && sources.ValueKind == JsonValueKind.Array ? sources.EnumerateArray().Select(source => source.GetString() ?? string.Empty).Where(source => source.Length > 0).ToArray() : [],
-                item.TryGetProperty("sourceUrls", out JsonElement urls) && urls.ValueKind == JsonValueKind.Array ? urls.EnumerateArray().Select(url => url.GetString() ?? string.Empty).Where(url => url.Length > 0).ToArray() : []))
+                item.TryGetProperty("sourceUrls", out JsonElement urls) && urls.ValueKind == JsonValueKind.Array ? urls.EnumerateArray().Select(url => url.GetString() ?? string.Empty).Where(url => url.Length > 0).ToArray() : [],
+                ReadGoogleCoordinate(item, "latitude"),
+                ReadGoogleCoordinate(item, "longitude"),
+                item.TryGetProperty("distanceKm", out JsonElement distance) && distance.TryGetDecimal(out decimal distanceKm) ? distanceKm : null))
                 .Where(item => item.CompanyName.Length > 0).ToArray();
             List<SupplierWebEvidenceView> unique = [];
             foreach (SupplierWebEvidenceView item in evidence)
@@ -743,6 +746,16 @@ public sealed partial class SupplierDiscoveryService(
             return unique.ToArray();
         }
         catch (JsonException) { return []; }
+    }
+
+    private static double? ReadGoogleCoordinate(JsonElement mergedEvidence, string property)
+    {
+        if (!mergedEvidence.TryGetProperty("evidence", out JsonElement evidence) || evidence.ValueKind != JsonValueKind.Array)
+            return null;
+        foreach (JsonElement source in evidence.EnumerateArray())
+            if (source.TryGetProperty(property, out JsonElement coordinate) && coordinate.TryGetDouble(out double value))
+                return value;
+        return null;
     }
 
     private static SupplierWebCandidateView[] AddSourceProvenance(SupplierWebCandidateView[] candidates, SupplierWebEvidenceView[] evidence) => candidates
@@ -767,11 +780,11 @@ public sealed partial class SupplierDiscoveryService(
 
     private static string BuildWebDiscoveryPrompt(SupplierSearchIntent intent) => $"""
         Găsește dovezi provizorii despre furnizori pentru o nevoie comercială din România. Nu considera nimic verificat.
-        Caută exclusiv firme care operează în localitatea „{intent.Locality}” și acoperă categoria principală „{intent.CategoryName}”. Nu extinde încă la alte localități sau la județul „{intent.County}”; extinderea este un pas separat, numai dacă rezultatele locale sunt insuficiente. Detaliile de produs/serviciu, activitatea și codul CAEN adaugă la potrivire, dar nu înlocuiesc localitatea și categoria principală. Nu umple artificial lista.
+        Caută dovezi despre firme relevante pentru categoria principală „{intent.CategoryName}” și nevoia descrisă. Localitatea și județul sunt context comercial util, nu un mecanism de extindere geografică. Detaliile de produs/serviciu, activitatea și codul CAEN completează potrivirea; nu umple artificial lista.
         Termeni de căutare: {string.Join("; ", intent.Profile.SearchTerms)}. Activitate principală: {string.Join("; ", intent.Profile.PrimaryActivityHints)}. Activitate secundară: {string.Join("; ", intent.Profile.SecondaryActivityHints)}. Reguli de calificare: {intent.Profile.QualificationGuidance}
         Preferă surse oficiale/de business, apoi site-ul firmei, apoi directoare credibile. Păstrează numai informații susținute de URL-uri.
-        Categorie principală: {intent.CategoryName}. Localitate țintă: {intent.Locality}, județ: {intent.County}. Produse/servicii solicitate: {string.Join("; ", intent.RequestedProducts)}.
-        Construiește intentul cu produs/serviciu, activitate și CAEN numai dacă derivarea este solidă. Returnează maximum zece dovezi de firmă, nu candidați verificați.
+        Categorie principală: {intent.CategoryName}. Context: {intent.Locality}, județ: {intent.County}. Produse/servicii solicitate: {string.Join("; ", intent.RequestedProducts)}.
+        Construiește intentul cu produs/serviciu, activitate și CAEN numai dacă derivarea este solidă. Returnează maximum zece dovezi de firmă, nu candidați verificați. O dovadă exclusiv web fără coordonate Google Places compatibile nu este eligibilă pentru un candidat MVP.
         """;
 
     // Bounded Google Places Text Search query: main category + primary product + locality/county are the recall

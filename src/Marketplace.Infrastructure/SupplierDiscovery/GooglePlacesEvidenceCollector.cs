@@ -1,4 +1,5 @@
 using Marketplace.Infrastructure.AiIntake;
+using Marketplace.Infrastructure.Profiles;
 
 namespace Marketplace.Infrastructure.SupplierDiscovery;
 
@@ -16,23 +17,15 @@ public sealed class GooglePlacesEvidenceCollector(IGooglePlacesClient client) : 
 
         try
         {
+            if (!request.Latitude.HasValue || !request.Longitude.HasValue || request.SearchRadiusKm < 1)
+                return new([], ["Cererea nu are coordonate sau rază de căutare utilizabile."]);
             List<CollectedGooglePlace> collected = [];
-            foreach (GeographicSearchStep step in GeographicSearchPlanner.Plan(ToIntent(request)))
+            foreach (GooglePlaceEvidence place in await client.SearchNearbyAsync(request.Latitude.Value, request.Longitude.Value, request.SearchRadiusKm, cancellationToken))
             {
+                if (!place.Latitude.HasValue || !place.Longitude.HasValue || !IsCommerciallyRelevant(place, request)) continue;
+                decimal distanceKm = GeographicDistance.Kilometers(request.Latitude.Value, request.Longitude.Value, (decimal)place.Latitude.Value, (decimal)place.Longitude.Value);
+                if (distanceKm <= request.SearchRadiusKm && !collected.Any(existing => existing.Place.PlaceId == place.PlaceId)) collected.Add(new(place, distanceKm));
                 if (collected.Count >= MaximumEvidence) break;
-                double? discoveredLatitude = collected.Select(item => item.Place.Latitude).FirstOrDefault(value => value.HasValue);
-                double? discoveredLongitude = collected.Select(item => item.Place.Longitude).FirstOrDefault(value => value.HasValue);
-                decimal? latitude = request.Latitude ?? (discoveredLatitude.HasValue ? (decimal?)discoveredLatitude.Value : null);
-                decimal? longitude = request.Longitude ?? (discoveredLongitude.HasValue ? (decimal?)discoveredLongitude.Value : null);
-                IReadOnlyList<GooglePlaceEvidence> places = await SearchStepAsync(request, step, latitude, longitude, cancellationToken);
-                foreach (GooglePlaceEvidence place in places)
-                {
-                    if (!IsCommerciallyRelevant(place, request)
-                        || collected.Any(existing => string.Equals(existing.Place.PlaceId, place.PlaceId, StringComparison.Ordinal)))
-                        continue;
-                    collected.Add(new(place, step.Tier));
-                    if (collected.Count >= MaximumEvidence) break;
-                }
             }
             return new(collected, []);
         }
@@ -42,62 +35,6 @@ public sealed class GooglePlacesEvidenceCollector(IGooglePlacesClient client) : 
         }
     }
 
-    private async Task<IReadOnlyList<GooglePlaceEvidence>> SearchStepAsync(
-        SupplierDiscoveryEvidenceRequest request,
-        GeographicSearchStep step,
-        decimal? latitude,
-        decimal? longitude,
-        CancellationToken cancellationToken)
-    {
-        return step.Tier switch
-        {
-            SupplierSearchGeographicTier.Local => await SearchLocalAsync(request, cancellationToken),
-            SupplierSearchGeographicTier.Nearby => await SearchNearbyAsync(request, step, latitude, longitude, cancellationToken),
-            SupplierSearchGeographicTier.County => await client.SearchTextAsync($"{request.Category} {request.County} România", "RO", cancellationToken),
-            _ => []
-        };
-    }
-
-    private async Task<IReadOnlyList<GooglePlaceEvidence>> SearchLocalAsync(
-        SupplierDiscoveryEvidenceRequest request,
-        CancellationToken cancellationToken)
-    {
-        List<GooglePlaceEvidence> results = [];
-        foreach (string query in LocalQueries(request))
-        {
-            foreach (GooglePlaceEvidence place in await client.SearchTextAsync(query, "RO", cancellationToken))
-            {
-                if (!string.Equals(place.Locality, request.Locality, StringComparison.OrdinalIgnoreCase)
-                    || results.Any(existing => string.Equals(existing.PlaceId, place.PlaceId, StringComparison.Ordinal)))
-                    continue;
-                results.Add(place);
-            }
-        }
-        return results;
-    }
-
-    private async Task<IReadOnlyList<GooglePlaceEvidence>> SearchNearbyAsync(
-        SupplierDiscoveryEvidenceRequest request,
-        GeographicSearchStep step,
-        decimal? latitude,
-        decimal? longitude,
-        CancellationToken cancellationToken)
-    {
-        List<GooglePlaceEvidence> results = [];
-        foreach (string nearbyLocality in step.NearbyLocalities)
-            results.AddRange(await client.SearchTextAsync($"{request.Category} {string.Join(" ", request.Products)} {nearbyLocality} {request.County} România", "RO", cancellationToken));
-        if (latitude.HasValue && longitude.HasValue)
-            results.AddRange(await client.SearchNearbyAsync(latitude.Value, longitude.Value, step.RadiusKm, cancellationToken));
-        return results.Where(place => step.NearbyLocalities.Count == 0
-                || step.NearbyLocalities.Any(locality => string.Equals(place.Locality, locality, StringComparison.OrdinalIgnoreCase)))
-            .ToArray();
-    }
-
-    private static IEnumerable<string> LocalQueries(SupplierDiscoveryEvidenceRequest request)
-    {
-        yield return request.GoogleTextQuery;
-        if (!string.IsNullOrWhiteSpace(request.Locality)) yield return $"{request.Category} {request.Locality} România";
-    }
 
     private static bool IsCommerciallyRelevant(GooglePlaceEvidence place, SupplierDiscoveryEvidenceRequest request)
     {
@@ -114,8 +51,4 @@ public sealed class GooglePlacesEvidenceCollector(IGooglePlacesClient client) : 
         return terms.Any(evidence.Contains);
     }
 
-    private static SupplierSearchIntent ToIntent(SupplierDiscoveryEvidenceRequest request) => new(
-        request.Category,
-        new(request.Category, [], [], [], [], [], request.CategoryFocus),
-        request.Products, request.Locality, request.County, request.Latitude, request.Longitude, request.SearchRadiusKm);
 }

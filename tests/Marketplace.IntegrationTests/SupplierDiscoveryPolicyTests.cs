@@ -7,19 +7,6 @@ public sealed class SupplierDiscoveryPolicyTests
     private readonly CategoryDiscoveryProfileProvider profiles = new();
 
     [Fact]
-    public void GeographyExpandsLocalThenNearbyThenCounty()
-    {
-        CategoryDiscoveryProfile profile = profiles.Resolve("Lemn și produse din lemn", ["Lemn rotund de rășinoase"]);
-        SupplierSearchIntent intent = new("Lemn și produse din lemn", profile, ["Lemn rotund de rășinoase"], "Marginea", "Suceava", null, null, 30);
-
-        GeographicSearchStep[] steps = GeographicSearchPlanner.Plan(intent).ToArray();
-
-        Assert.Equal([SupplierSearchGeographicTier.Local, SupplierSearchGeographicTier.Nearby, SupplierSearchGeographicTier.County], steps.Select(step => step.Tier));
-        Assert.Equal(30, steps[1].RadiusKm);
-        Assert.Empty(steps[1].NearbyLocalities);
-    }
-
-    [Fact]
     public void AutoPartsProfileRetainsGenericGoogleRecallButRequiresWebConfirmation()
     {
         CategoryDiscoveryProfile profile = profiles.Resolve("Piese auto", ["Plăcuțe de frână"]);
@@ -53,11 +40,11 @@ public sealed class SupplierDiscoveryPolicyTests
     [Fact]
     public async Task EvidencePipelineUsesBothCollectorsAndPreservesGeographicProvenance()
     {
-        FakeGoogleCollector google = new(new([new(new("place-1", "Carlio Grup - Piese Auto", null, "Marginea", "Suceava", null, null,
-            "shopping_mall", null, ["shopping_mall"], null, "https://maps.example/carlio"), SupplierSearchGeographicTier.Local)], []));
+        FakeGoogleCollector google = new(new([new(new("place-1", "Carlio Grup - Piese Auto", null, "Marginea", "Suceava", 47.8, 25.8,
+            "shopping_mall", null, ["shopping_mall"], null, "https://maps.example/carlio"), 1m)], []));
         FakeWebCollector web = new(new(null, []));
         SupplierEvidencePipeline pipeline = new(google, web, new SupplierEvidenceMerger());
-        SupplierDiscoveryEvidenceRequest request = new("Piese auto", [], "Marginea", "Suceava", null, null, 30,
+        SupplierDiscoveryEvidenceRequest request = new("Piese auto", [], "Marginea", "Suceava", 47.81m, 25.81m, 30,
             ["Plăcuțe de frână"], "piese auto Marginea", "prompt", "Google este doar recall.");
 
         SupplierEvidencePipelineResult result = await pipeline.CollectAsync(request, CancellationToken.None);
@@ -65,23 +52,22 @@ public sealed class SupplierDiscoveryPolicyTests
         Assert.True(google.WasCalled);
         Assert.True(web.WasCalled);
         Assert.Equal("Carlio Grup - Piese Auto", result.Evidence["mergedEvidence"]![0]!["companyName"]!.GetValue<string>());
-        Assert.Contains("local", result.Evidence["mergedEvidence"]![0]!["geographicTiers"]!.AsArray().Select(node => node!.GetValue<string>()));
+        Assert.Equal(1m, result.Evidence["mergedEvidence"]![0]!["distanceKm"]!.GetValue<decimal>());
     }
 
     [Fact]
-    public async Task GoogleCollectorUsesLocalCoordinatesBeforeCountyExpansion()
+    public async Task GoogleCollectorUsesRfqCoordinatesAndRadius()
     {
         FakeGooglePlacesClient client = new();
         GooglePlacesEvidenceCollector collector = new(client);
-        SupplierDiscoveryEvidenceRequest request = new("Piese auto", [], "Marginea", "Suceava", null, null, 30,
+        SupplierDiscoveryEvidenceRequest request = new("Piese auto", [], "Marginea", "Suceava", 47.81m, 25.81m, 30,
             ["Plăcuțe de frână"], "piese auto Marginea", "prompt", "Google este doar recall.");
 
         GoogleEvidenceResult result = await collector.CollectAsync(request, CancellationToken.None);
 
-        Assert.Equal(["text", "text", "nearby"], client.Calls);
-        Assert.DoesNotContain("county", client.Calls);
-        Assert.Contains(result.Places, place => place.GeographicTier == SupplierSearchGeographicTier.Local);
-        Assert.Contains(result.Places, place => place.GeographicTier == SupplierSearchGeographicTier.Nearby);
+        Assert.Equal(["nearby"], client.Calls);
+        Assert.All(result.Places, place => Assert.InRange(place.DistanceKm, 0m, 30m));
+        Assert.DoesNotContain(result.Places, place => place.Place.DisplayName == "Far Auto");
     }
 
     private sealed class FakeGoogleCollector(GoogleEvidenceResult result) : IGooglePlacesEvidenceCollector
@@ -123,7 +109,8 @@ public sealed class SupplierDiscoveryPolicyTests
             Calls.Add("nearby");
             return Task.FromResult<IReadOnlyList<GooglePlaceEvidence>>([
                 Place("Auto One", "Rădăuți", 47.84, 25.92), Place("Auto Two", "Rădăuți", 47.85, 25.93),
-                Place("Auto Three", "Rădăuți", 47.86, 25.94), Place("Auto Four", "Rădăuți", 47.87, 25.95)]);
+                Place("Auto Three", "Rădăuți", 47.86, 25.94), Place("Auto Four", "Rădăuți", 47.87, 25.95),
+                Place("Far Auto", "Suceava", 47.81, 26.30)]);
         }
 
         private static GooglePlaceEvidence Place(string name, string locality, double latitude, double longitude) => new(

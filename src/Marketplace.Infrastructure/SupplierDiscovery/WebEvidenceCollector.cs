@@ -6,8 +6,6 @@ namespace Marketplace.Infrastructure.SupplierDiscovery;
 
 public sealed class WebEvidenceCollector(OpenAiResponsesTransport transport) : IWebEvidenceCollector
 {
-    private const int MaximumEvidence = 5;
-
     public async Task<WebEvidenceResult> CollectAsync(
         SupplierDiscoveryEvidenceRequest request,
         CancellationToken cancellationToken)
@@ -19,12 +17,6 @@ public sealed class WebEvidenceCollector(OpenAiResponsesTransport transport) : I
         {
             OpenAiWebDiscoveryResponse response = await transport.SendWebDiscoveryAsync(new(
                 request.WebPrompt, "supplier_web_evidence", EvidenceSchema(), request.Locality, request.County, 2400), cancellationToken);
-            if (EvidenceCount(response.OutputText) < MaximumEvidence)
-            {
-                OpenAiWebDiscoveryResponse expanded = await transport.SendWebDiscoveryAsync(new(
-                    BuildExpansionPrompt(request), "supplier_web_evidence", EvidenceSchema(), request.Locality, request.County, 2400), cancellationToken);
-                response = Combine(response, expanded);
-            }
             return new(response, []);
         }
         catch (Exception exception)
@@ -32,37 +24,6 @@ public sealed class WebEvidenceCollector(OpenAiResponsesTransport transport) : I
             return new(null, [ToFailureMessage(exception)]);
         }
     }
-
-    private static int EvidenceCount(string output)
-    {
-        using JsonDocument document = JsonDocument.Parse(output);
-        return document.RootElement.TryGetProperty("evidence", out JsonElement evidence) && evidence.ValueKind == JsonValueKind.Array
-            ? evidence.GetArrayLength() : 0;
-    }
-
-    private static OpenAiWebDiscoveryResponse Combine(OpenAiWebDiscoveryResponse local, OpenAiWebDiscoveryResponse expanded)
-    {
-        JsonObject combined = JsonNode.Parse(local.OutputText)?.AsObject()
-            ?? throw new InvalidOperationException("Web discovery did not return structured evidence.");
-        JsonArray target = combined["evidence"]?.AsArray()
-            ?? throw new InvalidOperationException("Web discovery did not return structured evidence.");
-        JsonArray additions = JsonNode.Parse(expanded.OutputText)?["evidence"]?.AsArray()
-            ?? throw new InvalidOperationException("Web discovery did not return structured evidence.");
-        foreach (JsonNode? item in additions)
-            if (target.Count < MaximumEvidence) target.Add(item?.DeepClone());
-        JsonArray sources = [];
-        foreach (string json in new[] { local.SourcesJson, expanded.SourcesJson })
-            if (JsonNode.Parse(json) is JsonArray array)
-                foreach (JsonNode? item in array) sources.Add(item?.DeepClone());
-        return new(combined.ToJsonString(), sources.ToJsonString(), local.WebSearchCallCount + expanded.WebSearchCallCount,
-            local.LatencyMs + expanded.LatencyMs, local.InputTokens + expanded.InputTokens, local.OutputTokens + expanded.OutputTokens);
-    }
-
-    private static string BuildExpansionPrompt(SupplierDiscoveryEvidenceRequest request) => $"""
-        Caută dovezi provizorii despre furnizori pentru categoria „{request.Category}”. Localitatea inițială „{request.Locality}” nu a produs suficiente firme relevante.
-        Extinde numai în zona apropiată, în raza comercială de {request.SearchRadiusKm} km. Dacă încă lipsesc rezultate, extinde în județul „{request.County}”. Nu căuta în alte județe și nu repeta firmele deja găsite local. Returnează maximum cinci dovezi, cu URL-uri, fără a considera datele verificate.
-        Produse/servicii: {string.Join("; ", request.Products)}.
-        """;
 
     private static string ToFailureMessage(Exception exception) => exception switch
     {
