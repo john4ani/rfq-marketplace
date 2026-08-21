@@ -7,6 +7,7 @@ using Marketplace.Domain.Offers;
 using Marketplace.Domain.Rfqs;
 using Marketplace.Domain.Notifications;
 using Marketplace.Infrastructure.Persistence;
+using Marketplace.Infrastructure.Profiles;
 using Microsoft.EntityFrameworkCore;
 
 namespace Marketplace.Infrastructure.Offers;
@@ -245,7 +246,7 @@ public sealed class OfferService(
             .AnyAsync(item => item.RfqId == rfqId && item.SupplierId == supplierId, cancellationToken);
         HashSet<Guid> requiredCategories = rfq.RequiredCategoryIds.ToHashSet();
         var profiles = await dbContext.SupplierProfiles.AsNoTracking().Where(profile => profile.IsActive)
-            .Select(profile => new { profile.Id, profile.County }).ToArrayAsync(cancellationToken);
+            .Select(profile => new { profile.Id, profile.Latitude, profile.Longitude, profile.MarketRadiusKm }).ToArrayAsync(cancellationToken);
         var currentProfile = profiles.SingleOrDefault(profile => profile.Id == supplierId)
             ?? throw new OfferRuleException("Profilul furnizorului nu este activ.");
         var categoryRows = await dbContext.SupplierCategories.AsNoTracking()
@@ -259,26 +260,9 @@ public sealed class OfferService(
         if (!categoriesBySupplier.TryGetValue(supplierId, out HashSet<Guid>? currentCategories))
             throw new OfferRuleException("Selectați categoriile furnizate înainte de a oferta.");
 
-        var settingsRows = await dbContext.SupplierDeliverySettings.AsNoTracking()
-            .Select(settings => new {
-                settings.SupplierId,
-                settings.NationwideDelivery
-            }).ToArrayAsync(cancellationToken);
-        HashSet<Guid> nationwideSuppliers = settingsRows.Where(settings => settings.NationwideDelivery)
-            .Select(settings => settings.SupplierId).ToHashSet();
-        var areaRows = await dbContext.SupplierDeliveryAreas.AsNoTracking()
-            .Select(area => new { area.SupplierId, area.County }).ToArrayAsync(cancellationToken);
-        Dictionary<Guid, HashSet<string>> areasBySupplier = areaRows.GroupBy(area => area.SupplierId)
-            .ToDictionary(group => group.Key, group => group.Select(area => area.County).ToHashSet(StringComparer.OrdinalIgnoreCase));
-
-        bool DeliversToRequest(Guid id, string profileCounty) =>
-            nationwideSuppliers.Contains(id)
-            || (areasBySupplier.TryGetValue(id, out HashSet<string>? areas)
-                ? areas.Contains(rfq.County)
-                : string.Equals(profileCounty, rfq.County, StringComparison.OrdinalIgnoreCase));
-
-        if (!DeliversToRequest(supplierId, currentProfile.County))
-            throw new OfferRuleException("Cererea nu este disponibilă în zona de livrare configurată.");
+        if (!currentProfile.Latitude.HasValue || !currentProfile.Longitude.HasValue || !rfq.Latitude.HasValue || !rfq.Longitude.HasValue
+            || GeographicDistance.Kilometers(currentProfile.Latitude.Value, currentProfile.Longitude.Value, rfq.Latitude.Value, rfq.Longitude.Value) > currentProfile.MarketRadiusKm)
+            throw new OfferRuleException("Cererea nu este disponibilă în raza de piață configurată.");
 
         ProviderCoverageMatch coverage = ProviderCoveragePolicy.Decide(
             rfq.AllowSplit,

@@ -8,6 +8,7 @@ using Marketplace.Domain.Notifications;
 using Marketplace.Domain.Rfqs;
 using Marketplace.Domain.SupplierDiscovery;
 using Marketplace.Infrastructure.Persistence;
+using Marketplace.Infrastructure.Profiles;
 using Microsoft.EntityFrameworkCore;
 
 namespace Marketplace.Infrastructure.Rfqs;
@@ -172,21 +173,11 @@ public sealed class RfqService(
         HashSet<Guid> compatibleSupplierCategories = CategoryCompatibilityPolicy.Expand(supplierCategoryIds, categoryParents);
         Guid[] compatibleSupplierCategoryIds = compatibleSupplierCategories.ToArray();
 
-        string? supplierCounty = await dbContext.SupplierProfiles.AsNoTracking()
+        var supplierLocation = await dbContext.SupplierProfiles.AsNoTracking()
             .Where(profile => profile.Id == supplierId && profile.IsActive)
-            .Select(profile => profile.County)
+            .Select(profile => new { profile.Latitude, profile.Longitude, profile.MarketRadiusKm })
             .SingleOrDefaultAsync(cancellationToken);
-        if (supplierCounty is null) return [];
-
-        bool nationwide = await dbContext.SupplierDeliverySettings.AsNoTracking()
-            .Where(settings => settings.SupplierId == supplierId)
-            .Select(settings => settings.NationwideDelivery)
-            .SingleOrDefaultAsync(cancellationToken);
-        string[] configuredCounties = await dbContext.SupplierDeliveryAreas.AsNoTracking()
-            .Where(area => area.SupplierId == supplierId)
-            .Select(area => area.County)
-            .ToArrayAsync(cancellationToken);
-        string[] deliveryCounties = configuredCounties.Length > 0 ? configuredCounties : [supplierCounty];
+        if (supplierLocation?.Latitude is null || supplierLocation.Longitude is null) return [];
 
         IQueryable<Rfq> query = dbContext.Rfqs.AsNoTracking().Include(rfq => rfq.NeedCategories)
             .Include(rfq => rfq.Items)
@@ -194,8 +185,7 @@ public sealed class RfqService(
                 && rfq.QuotationDeadline > now
                 && rfq.BuyerId != actorId
                 && (explicitlyMatchedRequestIds.Contains(rfq.Id)
-                    || (rfq.NeedCategories.Any(category => compatibleSupplierCategoryIds.Contains(category.CategoryId))
-                        && (nationwide || deliveryCounties.Contains(rfq.County)))));
+                    || rfq.NeedCategories.Any(category => compatibleSupplierCategoryIds.Contains(category.CategoryId))));
         if (categoryId.HasValue)
         {
             Guid[] compatibleFilterCategoryIds = CategoryCompatibilityPolicy.Expand([categoryId.Value], categoryParents).ToArray();
@@ -204,6 +194,8 @@ public sealed class RfqService(
 
         Rfq[] rfqs = await query.OrderBy(rfq => rfq.QuotationDeadline).ThenByDescending(rfq => rfq.PublishedAt)
             .ToArrayAsync(cancellationToken);
+        rfqs = rfqs.Where(rfq => rfq.Latitude.HasValue && rfq.Longitude.HasValue
+            && GeographicDistance.Kilometers(supplierLocation.Latitude.Value, supplierLocation.Longitude.Value, rfq.Latitude.Value, rfq.Longitude.Value) <= supplierLocation.MarketRadiusKm).ToArray();
         string cleanSearch = search?.Trim() ?? string.Empty;
         if (cleanSearch.Length > 0)
             rfqs = rfqs.Where(rfq =>
