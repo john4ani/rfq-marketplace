@@ -774,7 +774,11 @@ public sealed partial class SupplierDiscoveryService(
         string primaryCaen = intent.Profile.PrimaryActivityHints
             .Select(hint => Regex.Match(hint, @"CAEN\s*\d{4}", RegexOptions.IgnoreCase).Value)
             .FirstOrDefault(value => !string.IsNullOrWhiteSpace(value)) ?? string.Empty;
-        string query = string.Join(' ', new[] { $"\"{intent.Locality}\"", $"\"{primaryCaen}\"", intent.County, "firme" }
+        string primaryActivity = intent.Profile.PrimaryActivityHints
+            .FirstOrDefault(hint => hint.Contains("forestier", StringComparison.OrdinalIgnoreCase))
+            ?? intent.Profile.PrimaryActivityHints.FirstOrDefault(hint => !hint.Contains("CAEN", StringComparison.OrdinalIgnoreCase))
+            ?? string.Empty;
+        string query = string.Join(' ', new[] { "firme", primaryCaen, primaryActivity, "în raza de", $"{intent.SearchRadiusKm} km de", $"{intent.Locality},", intent.County }
             .Where(value => !string.IsNullOrWhiteSpace(value)));
         return $"""
             Efectuează exact o singură căutare web registry-style cu interogarea: {query}
