@@ -117,7 +117,7 @@ public static class DependencyInjection
         services.AddSingleton<ISupplierSearchIntentBuilder, SupplierSearchIntentBuilder>();
         services.AddScoped<IGooglePlacesEvidenceCollector, GooglePlacesEvidenceCollector>();
         services.AddScoped<IWebEvidenceCollector, WebEvidenceCollector>();
-        services.AddSingleton<ISupplierEvidenceMerger, SupplierEvidenceMerger>();
+        services.AddScoped<ISupplierEvidenceMerger, SupplierEvidenceMerger>();
         services.AddScoped<ISupplierEvidencePipeline, SupplierEvidencePipeline>();
         services.AddScoped<ISupplierEvidenceQualifier, SupplierEvidenceQualifier>();
         services.AddScoped<ISupplierDiscoveryService, SupplierDiscoveryService>();
