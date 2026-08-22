@@ -21,6 +21,7 @@ public sealed partial class OpenAiResponsesTransport(
 {
     private readonly AiIntakeOptions settings = options.Value;
     private static readonly string[] WebSearchSourcesInclude = ["web_search_call.action.sources"];
+    private static readonly string[] SupplierDiscoveryDirectoryDomains = ["termene.ro", "listafirme.ro", "metricbiz.ro", "firme.info", "firme-on-line.ro", "topfirme.com"];
 
     public bool IsAvailable => settings.Enabled
         && !string.IsNullOrWhiteSpace(settings.ApiKey)
@@ -109,7 +110,7 @@ public sealed partial class OpenAiResponsesTransport(
             store = false,
             reasoning = new { effort = "none" },
             input = request.Instructions,
-            tools = new[] { new { type = "web_search", search_context_size = "low", user_location = new { type = "approximate", country = "RO", region = request.County, city = request.Locality } } },
+            tools = new[] { new { type = "web_search", search_context_size = "low", filters = new { allowed_domains = SupplierDiscoveryDirectoryDomains }, user_location = new { type = "approximate", country = "RO", region = request.County, city = request.Locality } } },
             max_tool_calls = 1,
             include = WebSearchSourcesInclude,
             text = new { verbosity = "low", format = new { type = "json_schema", name = request.SchemaName, strict = true, schema = request.Schema } },

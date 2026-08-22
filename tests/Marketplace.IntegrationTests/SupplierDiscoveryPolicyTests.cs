@@ -122,6 +122,27 @@ public sealed class SupplierDiscoveryPolicyTests
     }
 
     [Fact]
+    public async Task EvidenceMergeDeduplicatesTheSameCompanyWhenDirectoryAddressesUseDifferentFormats()
+    {
+        const string evidence = """
+            {"searchIntent":{"productOrService":"lemn","primaryActivity":"CAEN 0220","secondaryActivity":"","location":"Marginea"},"evidence":[
+              {"companyName":"BIOPOPLAR SRL","locality":"Marginea, nr. 100","county":"Suceava","website":"","phone":"","email":"","activityEvidence":"CAEN 0220","caenCode":"CAEN 0220","productEvidence":"lemn rotund","sourceUrls":["https://directory.example/firma/biopoplar-srl-1"]},
+              {"companyName":"BIOPOPLAR S.R.L.","locality":"Marginea","county":"Suceava","website":"","phone":"","email":"","activityEvidence":"CAEN 0220","caenCode":"CAEN 0220","productEvidence":"lemn rotund","sourceUrls":["https://directory.example/firma/biopoplar-srl-2"]}
+            ]}
+            """;
+        FakeGeocoder geocoder = new();
+        SupplierEvidencePipeline pipeline = new(new FakeGoogleCollector(new([], [])), new FakeWebCollector(new([new(evidence, "[]", 1, 1, 1, 1)], [])), new SupplierEvidenceMerger(geocoder));
+        SupplierDiscoveryEvidenceRequest request = new("Lemn și produse din lemn", [], "Marginea", "Suceava", 47.81m, 25.81m, 100,
+            ["Lemn rotund"], ["CAEN 0220"], "lemn Marginea", ["prompt"], "guidance");
+
+        SupplierEvidencePipelineResult result = await pipeline.CollectAsync(request, CancellationToken.None);
+
+        Assert.Single(result.Evidence["mergedEvidence"]!.AsArray());
+        Assert.Equal(2, result.Evidence["mergedEvidence"]![0]!["sourceUrls"]!.AsArray().Count);
+        Assert.Single(geocoder.Inputs);
+    }
+
+    [Fact]
     public async Task GoogleCollectorUsesRfqCoordinatesAndRadius()
     {
         FakeGooglePlacesClient client = new();

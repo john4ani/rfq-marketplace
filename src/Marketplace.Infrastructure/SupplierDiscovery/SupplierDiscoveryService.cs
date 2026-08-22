@@ -467,7 +467,7 @@ public sealed partial class SupplierDiscoveryService(
             intent.RequestedProducts,
             profile.SearchTerms,
             BuildGooglePlacesQuery(intent),
-            [BuildRegistryWebDiscoveryPrompt(intent)],
+            [BuildLocalRegistryWebDiscoveryPrompt(intent), BuildCountyRegistryWebDiscoveryPrompt(intent)],
             profile.QualificationGuidance);
         return await RunExternalDiscoveryAsync(administratorId, rfqId, context, cancellationToken);
     }
@@ -769,7 +769,17 @@ public sealed partial class SupplierDiscoveryService(
         CompanyEvidenceIdentity.IsCompatibleEvidence(leftName, leftLocality, leftCounty, rightName, rightLocality, rightCounty);
 
 
-    private static string BuildRegistryWebDiscoveryPrompt(SupplierSearchIntent intent)
+    private static string BuildLocalRegistryWebDiscoveryPrompt(SupplierSearchIntent intent)
+    {
+        string primaryCaen = intent.Profile.PrimaryActivityHints
+            .Select(hint => Regex.Match(hint, @"CAEN\s*\d{4}", RegexOptions.IgnoreCase).Value)
+            .FirstOrDefault(value => !string.IsNullOrWhiteSpace(value)) ?? string.Empty;
+        string query = string.Join(' ', new[] { $"\"{intent.Locality}\"", $"\"{primaryCaen}\"", intent.County, "firme" }
+            .Where(value => !string.IsNullOrWhiteSpace(value)));
+        return BuildRegistryWebDiscoveryPrompt(intent, query);
+    }
+
+    private static string BuildCountyRegistryWebDiscoveryPrompt(SupplierSearchIntent intent)
     {
         string primaryCaen = intent.Profile.PrimaryActivityHints
             .Select(hint => Regex.Match(hint, @"CAEN\s*\d{4}", RegexOptions.IgnoreCase).Value)
@@ -778,8 +788,13 @@ public sealed partial class SupplierDiscoveryService(
             .FirstOrDefault(hint => hint.Contains("forestier", StringComparison.OrdinalIgnoreCase))
             ?? intent.Profile.PrimaryActivityHints.FirstOrDefault(hint => !hint.Contains("CAEN", StringComparison.OrdinalIgnoreCase))
             ?? string.Empty;
-        string query = string.Join(' ', new[] { "firme", primaryCaen, primaryActivity, "în raza de", $"{intent.SearchRadiusKm} km de", $"{intent.Locality},", intent.County }
+        string query = string.Join(' ', new[] { $"\"{primaryCaen}\"", $"\"{primaryActivity}\"", intent.County, "firme" }
             .Where(value => !string.IsNullOrWhiteSpace(value)));
+        return BuildRegistryWebDiscoveryPrompt(intent, query);
+    }
+
+    private static string BuildRegistryWebDiscoveryPrompt(SupplierSearchIntent intent, string query)
+    {
         return $"""
             Efectuează exact o singură căutare web registry-style cu interogarea: {query}
             Descoperă firme cu activitatea economică relevantă; nu ghici furnizori și nu considera nimic verificat.

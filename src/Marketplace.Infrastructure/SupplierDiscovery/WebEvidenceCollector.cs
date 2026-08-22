@@ -19,8 +19,10 @@ public sealed class WebEvidenceCollector(OpenAiResponsesTransport transport) : I
         {
             try
             {
-                responses.Add(await transport.SendWebDiscoveryAsync(new(
-                    prompt, "supplier_web_evidence", EvidenceSchema(), request.Locality, request.County, 5000), cancellationToken));
+                OpenAiWebDiscoveryResponse response = await transport.SendWebDiscoveryAsync(new(
+                    prompt, "supplier_web_evidence", EvidenceSchema(), request.Locality, request.County, 5000), cancellationToken);
+                responses.Add(response);
+                if (UsableCompanyEvidenceCount(responses) >= 10) break;
             }
             catch (Exception exception)
             {
@@ -28,6 +30,27 @@ public sealed class WebEvidenceCollector(OpenAiResponsesTransport transport) : I
             }
         }
         return new(responses, warnings);
+    }
+
+    private static int UsableCompanyEvidenceCount(IEnumerable<OpenAiWebDiscoveryResponse> responses)
+    {
+        HashSet<string> companies = new(StringComparer.OrdinalIgnoreCase);
+        foreach (OpenAiWebDiscoveryResponse response in responses)
+        {
+            try
+            {
+                JsonArray? evidence = JsonNode.Parse(response.OutputText)?["evidence"]?.AsArray();
+                if (evidence is null) continue;
+                foreach (JsonObject item in evidence.OfType<JsonObject>())
+                {
+                    string name = item["companyName"]?.GetValue<string>()?.Trim() ?? string.Empty;
+                    bool hasSource = item["sourceUrls"] is JsonArray urls && urls.Any(url => !string.IsNullOrWhiteSpace(url?.GetValue<string>()));
+                    if (!string.IsNullOrWhiteSpace(name) && hasSource) companies.Add(name);
+                }
+            }
+            catch (JsonException) { }
+        }
+        return companies.Count;
     }
 
     private static string ToFailureMessage(Exception exception) => exception switch

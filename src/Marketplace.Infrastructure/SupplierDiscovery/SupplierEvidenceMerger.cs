@@ -81,9 +81,9 @@ public sealed class SupplierEvidenceMerger(ILocationGeocoder geocoder) : ISuppli
             if (string.IsNullOrWhiteSpace(companyName)) return;
             string key = $"{Normalize(companyName)}|{(locality ?? string.Empty).Trim().ToUpperInvariant()}|{(county ?? string.Empty).Trim().ToUpperInvariant()}";
             JsonObject? item = merged.TryGetValue(key, out JsonObject? exact) ? exact : merged.Values.FirstOrDefault(existing =>
-                CompanyEvidenceIdentity.IsCompatibleEvidence(companyName, locality, county,
+                IsSameCompanyInCounty(companyName, county,
                     existing["companyName"]?.GetValue<string>() ?? string.Empty,
-                    existing["locality"]?.GetValue<string>(), existing["county"]?.GetValue<string>()));
+                    existing["county"]?.GetValue<string>()));
             if (item is null)
             {
                 item = new JsonObject { ["companyName"] = companyName, ["locality"] = locality ?? string.Empty, ["county"] = county ?? string.Empty, ["sources"] = new JsonArray(), ["evidence"] = new JsonArray() };
@@ -131,8 +131,8 @@ public sealed class SupplierEvidenceMerger(ILocationGeocoder geocoder) : ISuppli
                     });
                     continue;
                 }
-                if (!merged.Values.Any(existing => CompanyEvidenceIdentity.IsCompatibleEvidence(name, locality, county,
-                    existing["companyName"]?.GetValue<string>() ?? string.Empty, existing["locality"]?.GetValue<string>(), existing["county"]?.GetValue<string>())))
+                if (!merged.Values.Any(existing => IsSameCompanyInCounty(name, county,
+                    existing["companyName"]?.GetValue<string>() ?? string.Empty, existing["county"]?.GetValue<string>())))
                     {
                         if (string.IsNullOrWhiteSpace(locality) || string.IsNullOrWhiteSpace(county)) continue;
                         try
@@ -196,6 +196,13 @@ public sealed class SupplierEvidenceMerger(ILocationGeocoder geocoder) : ISuppli
         && !value.Contains("jude", StringComparison.OrdinalIgnoreCase)
         && !value.Contains("comuna", StringComparison.OrdinalIgnoreCase)
         && !value.Contains("sat", StringComparison.OrdinalIgnoreCase);
+
+    // External directories frequently format a company's locality as either a town name or a full address.
+    // For the same company in the same county, coordinates/Haversine—not the address string—remain geographic truth.
+    private static bool IsSameCompanyInCounty(string leftName, string? leftCounty, string rightName, string? rightCounty) =>
+        CompanyEvidenceIdentity.AreSame(leftName, rightName)
+        && (string.IsNullOrWhiteSpace(leftCounty) || string.IsNullOrWhiteSpace(rightCounty)
+            || string.Equals(leftCounty.Trim(), rightCounty.Trim(), StringComparison.OrdinalIgnoreCase));
 
     private static void AddDistinct(JsonArray target, string value, StringComparer comparer)
     {
