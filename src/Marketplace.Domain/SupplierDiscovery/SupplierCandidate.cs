@@ -105,6 +105,34 @@ public sealed class SupplierCandidate
         ClaimedAt = now;
     }
 
+    public void UpdateDetails(
+        string companyName,
+        string? contactEmail,
+        string? phoneNumber,
+        string? website,
+        string city,
+        string county,
+        IReadOnlyCollection<Guid> categoryIds)
+    {
+        if (Status == SupplierCandidateStatus.Claimed)
+            throw new SupplierDiscoveryRuleException("Firma revendicată nu mai poate fi modificată din registrul de firme descoperite.");
+
+        string cleanName = Required(companyName, "Denumirea companiei este obligatorie.");
+        Guid[] selectedCategories = categoryIds.Where(value => value != Guid.Empty).Distinct().ToArray();
+        if (selectedCategories.Length == 0)
+            throw new SupplierDiscoveryRuleException("Selectează cel puțin o categorie pentru firmă.");
+
+        CompanyName = cleanName;
+        NormalizedCompanyName = NormalizeName(cleanName);
+        ContactEmail = Clean(contactEmail);
+        PhoneNumber = Clean(phoneNumber);
+        Website = Clean(website);
+        City = Required(city, "Localitatea este obligatorie.");
+        County = Required(county, "Județul este obligatoriu.");
+        _categories.Clear();
+        _categories.AddRange(selectedCategories.Select(categoryId => SupplierCandidateCategory.Create(Id, categoryId)));
+    }
+
     private static string NormalizeName(string value) =>
         string.Join(' ', value.Trim().ToUpperInvariant().Split(' ', StringSplitOptions.RemoveEmptyEntries));
     private static string Required(string? value, string message) =>

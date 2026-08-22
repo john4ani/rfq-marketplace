@@ -30,7 +30,8 @@ Errors: RFC 7807 Problem Details
 | Delivery confirmation | Provider report and Buyer confirmation routes | Selected Provider or owning Buyer |
 | Messaging | `/offers/{id}/conversation`, messages and read state | Buyer and that offer's supplier |
 | Attachments | upload request, complete, download URL, delete | Authorized parent participant |
-| Supplier discovery administration | `/admin/supplier-candidates`, `/admin/discovery-opportunities` | Administrator |
+| Supplier discovery administration | `/admin/supplier-candidates`, `/admin/discovery-opportunities`, `/admin/supplier-discovery/needs/{rfqId}`, `/admin/supplier-discovery/acquisition`, `/admin/supplier-discovery/outreach-opportunities`, `/admin/supplier-discovery/web-discovery/{runId}/qualify` and `/candidates/{index}/accept`, `/admin/companies/web-discovery` | Administrator |
+| Company registry administration | `GET/PUT/DELETE /admin/companies`, including discovered-company detail editing and deletion | Administrator |
 | Supplier invitation and claim | `/supplier-invitations/{token}` | Public view; Supplier claim |
 | Concierge administration | `/admin/concierge`, supplier search, manual match, correction, normalization and outcome actions | Administrator |
 | Broader administration | `/admin/users`, suppliers, categories, inspection, reports, metrics | Partially implemented; dedicated operations workspace is available |

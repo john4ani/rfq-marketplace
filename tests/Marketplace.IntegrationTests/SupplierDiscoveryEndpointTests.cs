@@ -156,10 +156,26 @@ public sealed class SupplierDiscoveryEndpointTests : IClassFixture<MarketplaceWe
         Assert.Equal("0712345678", accepted.Candidate.PhoneNumber);
         Assert.Equal("https://furnizor-web.example", accepted.Candidate.Website);
         Assert.NotNull(accepted.OpportunityMatch);
+        Assert.Equal(HttpStatusCode.NoContent, (await adminClient.DeleteAsync(
+            $"/api/v1/admin/companies/discovered/{accepted.Candidate.Id}")).StatusCode);
         HttpResponseMessage acceptedSecondWebCandidate = await adminClient.PostAsJsonAsync(
             $"/api/v1/admin/supplier-discovery/web-discovery/{webRun.Id}/candidates/0/accept", new { categoryIds = Array.Empty<Guid>(), companyName = secondWebCandidateCompanyName });
         Assert.True(acceptedSecondWebCandidate.IsSuccessStatusCode, await acceptedSecondWebCandidate.Content.ReadAsStringAsync());
-        Assert.Equal(secondWebCandidateCompanyName, (await acceptedSecondWebCandidate.Content.ReadFromJsonAsync<WebCandidateAcceptedResponse>())!.Candidate.CompanyName);
+        WebCandidateAcceptedResponse secondAccepted = (await acceptedSecondWebCandidate.Content.ReadFromJsonAsync<WebCandidateAcceptedResponse>())!;
+        Assert.Equal(secondWebCandidateCompanyName, secondAccepted.Candidate.CompanyName);
+        Assert.NotNull(secondAccepted.OpportunityMatch);
+        Assert.Equal(HttpStatusCode.OK, (await adminClient.PutAsJsonAsync(
+            $"/api/v1/admin/supplier-discovery/opportunity-matches/{secondAccepted.OpportunityMatch!.Id}/review",
+            new { approved = true })).StatusCode);
+        AcquisitionCandidateResponse[] approvedAcquisition = (await adminClient.GetFromJsonAsync<AcquisitionCandidateResponse[]>(
+            "/api/v1/admin/supplier-discovery/acquisition"))!;
+        Assert.Contains(approvedAcquisition, item => item.CandidateId == secondAccepted.Candidate.Id);
+        Assert.Equal(HttpStatusCode.OK, (await adminClient.PutAsJsonAsync(
+            $"/api/v1/admin/supplier-discovery/opportunity-matches/{secondAccepted.OpportunityMatch.Id}/review",
+            new { approved = false })).StatusCode);
+        AcquisitionCandidateResponse[] removedFromContact = (await adminClient.GetFromJsonAsync<AcquisitionCandidateResponse[]>(
+            "/api/v1/admin/supplier-discovery/acquisition"))!;
+        Assert.DoesNotContain(removedFromContact, item => item.CandidateId == secondAccepted.Candidate.Id);
 
         DiscoveryOpportunityResponse[] opportunities = (await adminClient.GetFromJsonAsync<DiscoveryOpportunityResponse[]>(
             "/api/v1/admin/discovery-opportunities"))!;
@@ -185,9 +201,29 @@ public sealed class SupplierDiscoveryEndpointTests : IClassFixture<MarketplaceWe
         CandidateResponse candidate = (await candidateCreated.Content.ReadFromJsonAsync<CandidateResponse>())!;
         Assert.Equal("Unverified", candidate.Status);
         Assert.Contains(candidate.Categories, category => category.Id == categoryId);
-
         Assert.Equal(HttpStatusCode.Conflict,
             (await adminClient.PostAsJsonAsync("/api/v1/admin/supplier-candidates", candidateRequest)).StatusCode);
+
+        candidateCompanyName = $"{candidateCompanyName} Actualizată";
+        HttpResponseMessage updatedCandidate = await adminClient.PutAsJsonAsync(
+            $"/api/v1/admin/companies/discovered/{candidate.Id}", new
+            {
+                companyName = candidateCompanyName,
+                locality = "Marginea",
+                county = "Suceava",
+                email = "actualizat@descoperit.example",
+                phone = "0722222222",
+                website = "https://actualizat.example",
+                categoryIds = new[] { categoryId }
+            });
+        Assert.True(updatedCandidate.IsSuccessStatusCode, await updatedCandidate.Content.ReadAsStringAsync());
+        CompanyRegistryResponse updated = (await updatedCandidate.Content.ReadFromJsonAsync<CompanyRegistryResponse>())!;
+        Assert.Equal(candidateCompanyName, updated.Name);
+        Assert.Equal("actualizat@descoperit.example", updated.Email);
+        Assert.Equal("0722222222", updated.Phone);
+        Assert.Equal("https://actualizat.example", updated.Website);
+        Assert.Single(updated.Categories);
+
         Assert.Equal(HttpStatusCode.BadRequest,
             (await adminClient.PostAsJsonAsync($"/api/v1/admin/supplier-candidates/{candidate.Id}/invitations",
                 new { rfqId = rfq.Id })).StatusCode);
@@ -199,6 +235,9 @@ public sealed class SupplierDiscoveryEndpointTests : IClassFixture<MarketplaceWe
         Assert.Equal(HttpStatusCode.OK, (await adminClient.PutAsJsonAsync(
             $"/api/v1/admin/supplier-discovery/opportunity-matches/{opportunityMatch.Id}/review",
             new { approved = true, note = "Relevantă pentru această oportunitate concretă." })).StatusCode);
+        AcquisitionCandidateResponse[] acquisition = (await adminClient.GetFromJsonAsync<AcquisitionCandidateResponse[]>(
+            "/api/v1/admin/supplier-discovery/acquisition"))!;
+        Assert.Contains(acquisition, item => item.CandidateId == candidate.Id);
 
         HttpResponseMessage reviewed = await adminClient.PutAsJsonAsync(
             $"/api/v1/admin/supplier-candidates/{candidate.Id}/review",
@@ -336,6 +375,8 @@ public sealed class SupplierDiscoveryEndpointTests : IClassFixture<MarketplaceWe
     private sealed record OpportunityMatchResponse(Guid Id, Guid? CandidateId, string Status);
     private sealed record WebCandidateAcceptedResponse(WebCandidateResponse Candidate, OpportunityMatchResponse? OpportunityMatch, bool ReusedExistingCandidate);
     private sealed record WebCandidateResponse(Guid Id, string CompanyName, string? ContactEmail, string? PhoneNumber, string? Website);
+    private sealed record CompanyRegistryResponse(string Name, string? Email, string? Phone, string? Website, string[] Categories);
+    private sealed record AcquisitionCandidateResponse(Guid CandidateId);
     private sealed record CandidateResponse(
         Guid Id,
         string Status,

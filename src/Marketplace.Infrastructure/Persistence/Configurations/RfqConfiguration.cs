@@ -34,7 +34,11 @@ public sealed class RfqConfiguration : IEntityTypeConfiguration<Rfq>
         builder.Property(rfq => rfq.FulfillmentStatus).HasDefaultValue(FulfillmentStatus.NotApplicable);
         builder.Property(rfq => rfq.Latitude).HasPrecision(9, 6);
         builder.Property(rfq => rfq.Longitude).HasPrecision(9, 6);
-        builder.Property(rfq => rfq.LocationContext).HasConversion<string>().HasMaxLength(16).HasDefaultValue(RfqLocationContext.Other);
+        // The store default is "Other" (2), which differs from the enum's CLR default "Personal" (0).
+        // Without an explicit sentinel, EF treats any "Personal" value as unset and omits it from inserts,
+        // silently persisting "Other" instead. The sentinel must match the store default so that only the
+        // neutral value is left to the database.
+        builder.Property(rfq => rfq.LocationContext).HasConversion<string>().HasMaxLength(16).HasDefaultValue(RfqLocationContext.Other).HasSentinel(RfqLocationContext.Other);
         builder.Property(rfq => rfq.EstimatedBudget).HasPrecision(18, 2);
         builder.Property(rfq => rfq.BuyerNotes).HasMaxLength(2000);
         builder.Property(rfq => rfq.OutcomeReason).HasMaxLength(1000);

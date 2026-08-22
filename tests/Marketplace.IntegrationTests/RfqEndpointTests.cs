@@ -102,6 +102,40 @@ public sealed class RfqEndpointTests : IClassFixture<MarketplaceWebApplicationFa
         Assert.Equal("Created,Updated,Published,DeadlineExtended,Cancelled,OutcomeRecorded", string.Join(',', history.Select(entry => entry.Type)));
     }
 
+    [Fact]
+    public async Task PersonalLocationContextIsPersistedAndReloaded()
+    {
+        string email = $"rfq-loc-{Guid.NewGuid():N}@example.test";
+        const string password = "password";
+        Assert.Equal(HttpStatusCode.Created, (await _client.PostAsJsonAsync("/api/v1/auth/register/buyer", new { email, password })).StatusCode);
+        TokenResponse login = (await (await _client.PostAsJsonAsync("/api/v1/auth/login", new { email, password })).Content.ReadFromJsonAsync<TokenResponse>())!;
+        Guid buyerId = UserId(login.AccessToken);
+        _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", login.AccessToken);
+        Assert.Equal(HttpStatusCode.OK, (await _client.PutAsJsonAsync($"/api/v1/buyers/{buyerId}", new {
+            displayName = "Cumpărător Test", buyerType = "Company", companyName = "Test SRL", taxIdentifier = "RO123",
+            phoneNumber = "0700000000", defaultAddress = "Strada Test 1", defaultCity = "Iași", defaultCounty = "Iași"
+        })).StatusCode);
+        CategoryResponse[] categories = (await _client.GetFromJsonAsync<CategoryResponse[]>("/api/v1/categories"))!;
+        Guid categoryId = categories.First(category => category.ParentId is not null).Id;
+
+        // Regression: the RfqLocationContext CLR default is "Personal" (0), while the store default is "Other" (2).
+        // Without an explicit sentinel, EF omits "Personal" from inserts and the store default "Other" is persisted.
+        HttpResponseMessage created = await _client.PostAsJsonAsync("/api/v1/rfqs", new {
+            source = "Manual", inputType = "StructuredForm", title = "Cerere personală", projectName = (string?)null, description = "Necesar test",
+            primaryCategoryId = categoryId, locationContext = "Personal", buyingCompanyId = (Guid?)null,
+            deliveryAddress = "Strada Test 1", deliveryLocality = "Iași", county = "Iași", latitude = (decimal?)null, longitude = (decimal?)null,
+            preferredDeliveryDate = (DateOnly?)null, quotationDeadline = DateTimeOffset.UtcNow.AddDays(2), alternativeProductsAccepted = true,
+            estimatedBudget = 5000m, buyerNotes = (string?)null, items = new[] {
+                new { kind = "Product", productName = "Ciment", manufacturerOrBrand = (string?)null, specification = "40 kg", quantity = 10m, unit = "Bag", alternativesAccepted = true, buyerNotes = (string?)null }
+            }
+        });
+        Assert.Equal(HttpStatusCode.Created, created.StatusCode);
+        Guid rfqId = (await created.Content.ReadFromJsonAsync<RfqResponse>())!.Id;
+
+        RfqResponse reloaded = (await _client.GetFromJsonAsync<RfqResponse>($"/api/v1/rfqs/{rfqId}"))!;
+        Assert.Equal("Personal", reloaded.LocationContext);
+    }
+
     private static object Request(Guid categoryId, string title, decimal quantity, bool includeSecondItem = false) => new {
         source="Manual",inputType="StructuredForm",title,projectName="Renovare",description="Necesar test",primaryCategoryId=categoryId,
         deliveryAddress="Strada Test 1",deliveryLocality="Iași",county="Iași",latitude=(decimal?)null,longitude=(decimal?)null,
@@ -119,7 +153,7 @@ public sealed class RfqEndpointTests : IClassFixture<MarketplaceWebApplicationFa
     private sealed record TokenResponse(string AccessToken, DateTimeOffset ExpiresAt);
     private sealed record CategoryResponse(Guid Id, Guid? ParentId, string Name, string Slug);
     private sealed record RfqResponse(
-        Guid Id, string Status, string Source, string InputType, string NeedStatus,
+        Guid Id, string Status, string Source, string InputType, string NeedStatus, string LocationContext,
         ProjectContextResponse? ProjectContext, DeliveryConstraintsResponse DeliveryConstraints,
         string? Outcome, string? OutcomeReason, int SupplierSearchRadiusKm, DateTimeOffset QuotationDeadline, RfqItemResponse[] Items);
     private sealed record ProjectContextResponse(string? Name, string? Description);

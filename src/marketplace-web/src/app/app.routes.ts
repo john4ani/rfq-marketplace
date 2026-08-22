@@ -19,7 +19,7 @@ export const routes: Routes = [
   { path: 'admin/catalog', canActivate: [administratorGuard], loadComponent: () => import('./features/admin/category-catalog.component').then(m => m.CategoryCatalogComponent) },
   { path: 'admin/trust', canActivate: [administratorGuard], loadComponent: () => import('./features/admin/trust-admin.component').then(m => m.TrustAdminComponent) },
   { path: 'admin/companies', canActivate: [administratorGuard], loadComponent: () => import('./features/admin/company-registry-list.component').then(m => m.CompanyRegistryListComponent) },
-  { path: 'admin/companies/:kind/:id', canActivate: [administratorGuard], loadComponent: () => import('./features/admin/company-detail-view.component').then(m => m.CompanyDetailViewComponent) },
+  { path: 'admin/companies/:kind/:id', canActivate: [administratorGuard], loadComponent: () => import('./features/admin/company-detail-editor.component').then(m => m.CompanyDetailEditorComponent) },
   { path: 'admin/concierge', canActivate: [administratorGuard], loadComponent: () => import('./features/admin/concierge-admin.component').then(m => m.ConciergeAdminComponent) },
   { path: 'dashboard', canActivate: [authGuard], loadComponent: () => import('./features/dashboard/dashboard.component').then(m => m.DashboardComponent) },
   { path: 'account/company/new', canActivate: [authGuard], loadComponent: () => import('./features/profiles/company-registration.component').then(m => m.CompanyRegistrationComponent) },
