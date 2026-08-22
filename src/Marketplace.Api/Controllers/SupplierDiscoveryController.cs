@@ -62,7 +62,7 @@ public sealed class SupplierDiscoveryController(
     public async Task<IActionResult> AcceptWebCandidate(Guid runId, int candidateIndex, SupplierWebCandidateAcceptRequest request, CancellationToken cancellationToken)
     {
         if (!CurrentUserId(out Guid administratorId)) return Unauthorized();
-        try { return (await discoveryService.AcceptWebCandidateAsync(administratorId, runId, candidateIndex, request.CategoryIds, cancellationToken)) is { } accepted ? Ok(accepted) : NotFound(); }
+        try { return (await discoveryService.AcceptWebCandidateAsync(administratorId, runId, candidateIndex, request.CategoryIds, request.CompanyName, cancellationToken)) is { } accepted ? Ok(accepted) : NotFound(); }
         catch (SupplierCandidateConflictException exception) { return Conflict(Problem(title: "Firma există deja.", detail: exception.Message)); }
         catch (SupplierDiscoveryRuleException exception) { return ValidationProblem(Errors("webCandidate", exception.Message)); }
     }
@@ -286,5 +286,5 @@ public sealed record OpportunityMatchReviewRequest(bool Approved, [MaxLength(100
 public sealed record SupplierOutreachRequest(Guid OpportunityMatchId);
 public sealed record SupplierManualContactRequest(Guid OpportunityMatchId, SupplierOutreachChannel Channel, [MaxLength(1000)] string? Note);
 public sealed record SupplierContactSuppressionRequest([MaxLength(500)] string? Reason);
-public sealed record SupplierWebCandidateAcceptRequest(IReadOnlyCollection<Guid>? CategoryIds);
+public sealed record SupplierWebCandidateAcceptRequest(IReadOnlyCollection<Guid>? CategoryIds, [MaxLength(200)] string? CompanyName = null);
 public sealed record SupplierCompanyWebSearchRequest([Required, MinLength(2), MaxLength(180)] string CompanyName, [MaxLength(120)] string? Locality, [MaxLength(120)] string? County, IReadOnlyCollection<Guid>? CategoryIds);

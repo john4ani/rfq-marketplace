@@ -543,15 +543,17 @@ public sealed partial class SupplierDiscoveryService(
         return await ToWebRunViewAsync(run, cancellationToken);
     }
 
-    public async Task<SupplierWebCandidateAccepted?> AcceptWebCandidateAsync(Guid administratorId, Guid runId, int candidateIndex, IReadOnlyCollection<Guid>? categoryIds, CancellationToken cancellationToken)
+    public async Task<SupplierWebCandidateAccepted?> AcceptWebCandidateAsync(Guid administratorId, Guid runId, int candidateIndex, IReadOnlyCollection<Guid>? categoryIds, string? companyName, CancellationToken cancellationToken)
     {
         SupplierWebDiscoveryRun? run = await dbContext.SupplierWebDiscoveryRuns.AsNoTracking().SingleOrDefaultAsync(item => item.Id == runId, cancellationToken);
         if (run is null) return null;
         if (run.Status != SupplierWebDiscoveryRunStatus.Qualified || string.IsNullOrWhiteSpace(run.QualificationJson)) throw new SupplierDiscoveryRuleException("Califică mai întâi rezultatele găsite pe web.");
         Rfq? need = run.RfqId.HasValue ? await dbContext.Rfqs.AsNoTracking().Include(item => item.NeedCategories).SingleOrDefaultAsync(item => item.Id == run.RfqId.Value, cancellationToken) : null;
         SupplierWebCandidateView[] candidates = FinalizeQualifiedCandidates(run).Candidates.ToArray();
-        if (candidateIndex < 0 || candidateIndex >= candidates.Length) throw new SupplierDiscoveryRuleException("Rezultatul selectat nu mai este disponibil.");
-        SupplierWebCandidateView selected = candidates[candidateIndex];
+        SupplierWebCandidateView? selected = string.IsNullOrWhiteSpace(companyName)
+            ? candidateIndex >= 0 && candidateIndex < candidates.Length ? candidates[candidateIndex] : null
+            : candidates.SingleOrDefault(candidate => SameCompanyIdentity(candidate.CompanyName, companyName));
+        if (selected is null) throw new SupplierDiscoveryRuleException("Rezultatul selectat nu mai este disponibil.");
         if (string.IsNullOrWhiteSpace(selected.Locality) || string.IsNullOrWhiteSpace(selected.County)) throw new SupplierDiscoveryRuleException("Rezultatul web nu conține localitatea și județul necesare pentru a crea o firmă candidată.");
         if (need is not null && !string.Equals(selected.County, need.County, StringComparison.OrdinalIgnoreCase)) throw new SupplierDiscoveryRuleException("Firma găsită este în afara județului acestei cereri; nu poate fi asociată acestei oportunități în MVP.");
         Guid[] effectiveCategories = need is null

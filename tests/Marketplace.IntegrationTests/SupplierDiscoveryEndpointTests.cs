@@ -111,16 +111,21 @@ public sealed class SupplierDiscoveryEndpointTests : IClassFixture<MarketplaceWe
             (await adminClient.PostAsJsonAsync($"/api/v1/rfqs/{rfq.Id}/publish", new { })).StatusCode);
 
         string webCandidateCompanyName = $"Furnizor Web {Guid.NewGuid():N} SRL";
+        string secondWebCandidateCompanyName = $"Furnizor Web {Guid.NewGuid():N} SRL";
         SupplierWebDiscoveryRun webRun = SupplierWebDiscoveryRun.Start(rfq.Id, adminId, DateTimeOffset.UtcNow);
         string webEvidenceJson = JsonSerializer.Serialize(new
         {
             context = new SupplierDiscoveryEvidenceRequest("Lemn și plăci", [categoryId], "Marginea", "Suceava", 47.7m, 25.8m, 30,
                 TimberProducts, TimberRecallTerms, "lemn Marginea", Array.Empty<string>(), "Dovezi relevante."),
-            mergedEvidence = new[] { new { companyName = webCandidateCompanyName, locality = "Marginea", county = "Suceava", sources = WebSources, sourceUrls = WebSourceUrls, latitude = 47.7, longitude = 25.8, distanceKm = 1.0 } }
+            mergedEvidence = new[]
+            {
+                new { companyName = webCandidateCompanyName, locality = "Marginea", county = "Suceava", sources = WebSources, sourceUrls = WebSourceUrls, latitude = 47.7, longitude = 25.8, distanceKm = 1.0 },
+                new { companyName = secondWebCandidateCompanyName, locality = "Marginea", county = "Suceava", sources = WebSources, sourceUrls = WebSourceUrls, latitude = 47.71, longitude = 25.81, distanceKm = 2.0 }
+            }
         });
         webRun.RecordEvidence(webEvidenceJson, 1, 1, 1, 1, DateTimeOffset.UtcNow);
         webRun.RecordQualification($$"""
-            {"candidates":[{"companyName":"{{webCandidateCompanyName}}","locality":"Marginea","county":"Suceava","website":null,"phone":null,"email":null,"activityEvidence":"CAEN 0220","caenCode":"0220","productEvidence":"lemn rotund","geographicRelevance":"în rază","confidence":"high","sourceUrls":["https://example.test/furnizor-web"],"whyRelevant":"Activitate relevantă."}],"rejectedResults":[]}
+            {"candidates":[{"companyName":"{{webCandidateCompanyName}}","locality":"Marginea","county":"Suceava","website":null,"phone":null,"email":null,"activityEvidence":"CAEN 0220","caenCode":"0220","productEvidence":"lemn rotund","geographicRelevance":"în rază","confidence":"high","sourceUrls":["https://example.test/furnizor-web"],"whyRelevant":"Activitate relevantă."},{"companyName":"{{secondWebCandidateCompanyName}}","locality":"Marginea","county":"Suceava","website":null,"phone":null,"email":null,"activityEvidence":"CAEN 0220","caenCode":"0220","productEvidence":"lemn rotund","geographicRelevance":"în rază","confidence":"high","sourceUrls":["https://example.test/furnizor-web"],"whyRelevant":"Activitate relevantă."}],"rejectedResults":[]}
             """, 1, 1, 1, DateTimeOffset.UtcNow);
         using (IServiceScope scope = _factory.Services.CreateScope())
         {
@@ -129,12 +134,16 @@ public sealed class SupplierDiscoveryEndpointTests : IClassFixture<MarketplaceWe
             await db.SaveChangesAsync();
         }
         HttpResponseMessage acceptedWebCandidate = await adminClient.PostAsJsonAsync(
-            $"/api/v1/admin/supplier-discovery/web-discovery/{webRun.Id}/candidates/0/accept", new { categoryIds = Array.Empty<Guid>() });
+            $"/api/v1/admin/supplier-discovery/web-discovery/{webRun.Id}/candidates/0/accept", new { categoryIds = Array.Empty<Guid>(), companyName = webCandidateCompanyName });
         string acceptedWebCandidateBody = await acceptedWebCandidate.Content.ReadAsStringAsync();
         Assert.True(acceptedWebCandidate.IsSuccessStatusCode, acceptedWebCandidateBody);
         WebCandidateAcceptedResponse accepted = (await acceptedWebCandidate.Content.ReadFromJsonAsync<WebCandidateAcceptedResponse>())!;
         Assert.Equal(webCandidateCompanyName, accepted.Candidate.CompanyName);
         Assert.NotNull(accepted.OpportunityMatch);
+        HttpResponseMessage acceptedSecondWebCandidate = await adminClient.PostAsJsonAsync(
+            $"/api/v1/admin/supplier-discovery/web-discovery/{webRun.Id}/candidates/0/accept", new { categoryIds = Array.Empty<Guid>(), companyName = secondWebCandidateCompanyName });
+        Assert.True(acceptedSecondWebCandidate.IsSuccessStatusCode, await acceptedSecondWebCandidate.Content.ReadAsStringAsync());
+        Assert.Equal(secondWebCandidateCompanyName, (await acceptedSecondWebCandidate.Content.ReadFromJsonAsync<WebCandidateAcceptedResponse>())!.Candidate.CompanyName);
 
         DiscoveryOpportunityResponse[] opportunities = (await adminClient.GetFromJsonAsync<DiscoveryOpportunityResponse[]>(
             "/api/v1/admin/discovery-opportunities"))!;
@@ -241,7 +250,7 @@ public sealed class SupplierDiscoveryEndpointTests : IClassFixture<MarketplaceWe
         Assert.Equal("Claimed", claimed.Status);
         Assert.Equal(supplierId, claimed.ClaimedBySupplierId);
         Assert.Equal("Claimed", Assert.Single(claimed.Invitations).Status);
-        await Cleanup(adminEmail, supplierEmail, [candidateCompanyName, webCandidateCompanyName], template.Id, customCategory.Id);
+        await Cleanup(adminEmail, supplierEmail, [candidateCompanyName, webCandidateCompanyName, secondWebCandidateCompanyName], template.Id, customCategory.Id);
     }
 
     private async Task<HttpClient> AuthenticatedClient(string email, string password)

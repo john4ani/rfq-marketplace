@@ -39,7 +39,7 @@ public interface ISupplierDiscoveryService
     Task<SupplierWebDiscoveryRunView?> DiscoverOnWebAsync(Guid administratorId, Guid rfqId, CancellationToken cancellationToken);
     Task<SupplierWebDiscoveryRunView> DiscoverCompanyOnWebAsync(Guid administratorId, SupplierCompanyWebSearchInput input, CancellationToken cancellationToken);
     Task<SupplierWebDiscoveryRunView?> QualifyWebDiscoveryAsync(Guid administratorId, Guid runId, CancellationToken cancellationToken);
-    Task<SupplierWebCandidateAccepted?> AcceptWebCandidateAsync(Guid administratorId, Guid runId, int candidateIndex, IReadOnlyCollection<Guid>? categoryIds, CancellationToken cancellationToken);
+    Task<SupplierWebCandidateAccepted?> AcceptWebCandidateAsync(Guid administratorId, Guid runId, int candidateIndex, IReadOnlyCollection<Guid>? categoryIds, string? companyName, CancellationToken cancellationToken);
 }
 
 public sealed record SupplierCandidateInput(
