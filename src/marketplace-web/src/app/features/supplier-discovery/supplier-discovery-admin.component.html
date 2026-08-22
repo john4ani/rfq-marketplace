@@ -1,72 +1,23 @@
 <section class="discovery-page">
-  <header><div><p class="eyebrow">Operațiuni controlate</p><h1>Descoperire asistată de firme</h1>
-    <p>Înregistrează firme candidate și revizuiește potrivirile lor cu cereri concrete. Contactarea începe numai după aprobarea unei potriviri.</p><p><a routerLink="/admin/supplier-discovery/acquisition">Vezi firmele de contactat →</a> · <a routerLink="/admin/supplier-discovery/outreach">Vezi oportunitățile aprobate pentru contact →</a></p></div></header>
+  <header>
+    <div><p class="eyebrow">Administrare</p><h1>Supplier Discovery</h1>
+      <p>Alege o cerere concretă, vezi potrivirile și caută firme noi. Firmele descoperite sunt salvate automat în registru numai când alegi să le adaugi.</p>
+    </div>
+    <nav aria-label="Legături Supplier Discovery"><a class="secondary" routerLink="/admin/companies">Firme</a><a routerLink="/admin/supplier-discovery/acquisition">Achiziție furnizori</a></nav>
+  </header>
 
   <aside class="integrity-note" role="note"><strong>Control uman obligatoriu</strong>
-    <span>Datele descoperite nu sunt prezentate ca verificate. CompaSpot nu trimite automat invitații și nu contactează firme în masă.</span></aside>
+    <span>O firmă găsită pe web rămâne neverificată. Adăugarea nu trimite nimic automat; contactarea începe numai după aprobarea potrivirii pentru cererea aleasă.</span>
+  </aside>
 
-  <section class="opportunity-list" aria-labelledby="opportunities-heading">
-    <div class="section-heading"><div><p class="eyebrow">Oportunități active</p><h2 id="opportunities-heading">Cereri deschise pentru Supplier Discovery</h2></div><span>{{opportunities().length}}</span></div>
-    @for(opportunity of opportunities();track opportunity.id){
-      <a class="opportunity-link" [routerLink]="['/admin/supplier-discovery/needs',opportunity.id]"><span><strong>{{opportunity.title}}</strong><small>{{opportunity.deliveryLocality}}, {{opportunity.county}}</small></span><span>Vezi potrivirile →</span></a>
-    }@empty{<p class="empty">Nu există cereri deschise pentru discovery în acest moment.</p>}
-  </section>
-
-  @if(error()){<p class="error" role="alert">{{error()}}</p>}
-  @if(message()){<p class="success-message" role="status">{{message()}}</p>}
-
-  <details class="create-panel">
-    <summary>Adaugă o firmă candidată</summary>
-    <form [formGroup]="form" (ngSubmit)="createCandidate()">
-      <div class="form-grid">
-        <label>Denumire firmă *<input formControlName="companyName"></label>
-        <label>E-mail de contact<input type="email" formControlName="contactEmail"></label>
-        <label>Telefon<input formControlName="phoneNumber"></label>
-        <label>Website<input type="url" formControlName="website" placeholder="https://"></label>
-        <label>Localitate *<input formControlName="city"></label>
-        <label>Județ *<select formControlName="county"><option value="">Alege județul</option>@for(county of counties;track county){<option [value]="county">{{county}}</option>}</select></label>
-        <label>Sursa informațiilor *<input formControlName="source" placeholder="Ex.: site-ul firmei, recomandare directă"></label>
-      </div>
-      <fieldset><legend>Categorii acoperite *</legend><div class="category-options">@for(category of categories();track category.id){@if(category.parentId){<label [class.selected]="selectedCategoryIds().includes(category.id)"><input type="checkbox" [checked]="selectedCategoryIds().includes(category.id)" (change)="toggleCategory(category.id)">{{category.name}}</label>}}</div></fieldset>
-      <label>Note interne<textarea rows="3" formControlName="notes" placeholder="Ce trebuie verificat înainte de invitație"></textarea></label>
-      <button type="submit" [disabled]="saving()">{{saving()?'Se salvează…':'Salvează ca firmă neverificată'}}</button>
-    </form>
-  </details>
-
-  @if(createdInvitation();as invitation){
-    <section id="created-invitation" class="share-panel" aria-label="Invitație pregătită" tabindex="-1"><div><p class="eyebrow">Invitație pregătită</p><h2>{{invitation.companyName}}</h2>
-      <p>Linkul expiră la {{invitation.expiresAt|date:'dd.MM.yyyy, HH:mm'}} și trebuie trimis manual destinatarului corect.</p></div>
-      <label>Link securizat<input readonly [value]="invitation.link"></label>
-      <button type="button" class="secondary" (click)="copyInvitation()">Copiază linkul</button>
+  @if(loading()){<section class="state" role="status">Se încarcă cererile…</section>}
+  @else if(error()){<section class="state error" role="alert"><p>{{error()}}</p><button type="button" (click)="load()">Încearcă din nou</button></section>}
+  @else{
+    <section class="opportunity-list" aria-labelledby="opportunities-heading">
+      <div class="section-heading"><div><p class="eyebrow">Cereri active</p><h2 id="opportunities-heading">Alege cererea pentru care cauți furnizori</h2></div><span>{{opportunities().length}}</span></div>
+      @for(opportunity of opportunities();track opportunity.id){
+        <a class="opportunity-link" [routerLink]="['/admin/supplier-discovery/needs',opportunity.id]"><span><strong>{{opportunity.title}}</strong><small>{{opportunity.deliveryLocality}}, {{opportunity.county}}</small></span><span>Vezi potrivirile →</span></a>
+      }@empty{<section class="state"><strong>Nu există cereri deschise pentru discovery în acest moment.</strong><p>Firmele deja cunoscute rămân disponibile în registrul de Firme.</p><a routerLink="/admin/companies">Vezi Firme</a></section>}
     </section>
   }
-
-  <section class="candidate-list"><div class="section-heading"><div><p class="eyebrow">Coada de validare</p><h2>Firme candidate</h2></div><span>{{candidates().length}}</span></div>
-    @if(loading()){<p role="status">Se încarcă firmele candidate…</p>}
-    @for(candidate of candidates();track candidate.id){
-      <article class="candidate-card">
-        <div class="candidate-main"><div><span class="status" [class]="candidate.status.toLowerCase()">{{statusLabel(candidate)}}</span><h3>{{candidate.companyName}}</h3>
-          <p>{{candidateCategoryNames(candidate)}} · {{candidate.city}}, {{candidate.county}}</p></div>
-          <dl><div><dt>Sursă</dt><dd>{{candidate.source}}</dd></div>@if(candidate.contactEmail){<div><dt>E-mail</dt><dd>{{candidate.contactEmail}}</dd></div>}@if(candidate.website){<div><dt>Website</dt><dd>{{candidate.website}}</dd></div>}</dl>
-          @if(candidate.notes){<p class="internal-note"><strong>Note:</strong> {{candidate.notes}}</p>}
-          @if(candidate.reviewNotes){<p class="review-note"><strong>Validare umană:</strong> {{candidate.reviewNotes}}</p>}
-        </div>
-        @if(candidate.status==='Unverified'){
-          @if(reviewingId()!==candidate.id){<button type="button" class="secondary" (click)="startReview(candidate.id)">Verifică relevanța</button>}
-          @else{<div class="action-panel"><label>Concluzia verificării<textarea rows="3" [formControl]="reviewNotes" placeholder="Ce ai verificat și de ce este sau nu relevantă"></textarea></label>
-            <div><button type="button" class="secondary" (click)="cancelReview()">Renunță</button><button type="button" class="danger-link" [disabled]="reviewNotes.invalid||saving()" (click)="review(candidate,false)">Respinge</button><button type="button" [disabled]="reviewNotes.invalid||saving()" (click)="review(candidate,true)">Validează relevanța</button></div></div>}
-        }@else if(candidate.status==='EligibleForInvitation'){
-          @if(invitingId()!==candidate.id){<button type="button" (click)="startInvitation(candidate.id)">Pregătește invitație</button>}
-          @else{<div class="action-panel"><label>Cerere relevantă<select [id]="'invitation-opportunity-'+candidate.id" [formControl]="opportunityId" [attr.aria-invalid]="invitationError()?.candidateId===candidate.id?'true':null" [attr.aria-describedby]="invitationError()?.candidateId===candidate.id?'invitation-action-error':null"><option value="">Alege cererea</option>@for(opportunity of compatibleOpportunities(candidate);track opportunity.id){<option [value]="opportunity.id">{{opportunity.title}} · {{opportunity.deliveryLocality}}, {{opportunity.county}}</option>}</select></label>
-            <small>Invitația este creată numai dacă categoria firmei corespunde cererii.</small>
-            <p class="create-request-hint">Nu găsești cererea potrivită? <a routerLink="/rfqs/new">Creează o cerere nouă</a>.</p>
-            @if(compatibleOpportunities(candidate).length===0){<p class="action-guidance" role="status">Nu există nicio cerere deschisă momentan. Așteaptă o cerere activă pentru a asocia invitația.</p>}
-            @if(invitationError();as actionError){@if(actionError.candidateId===candidate.id){<p id="invitation-action-error" class="action-error" role="alert" tabindex="-1">{{actionError.message}}</p>}}
-            @if(saving()){<p class="action-progress" role="status">Se creează linkul securizat…</p>}
-            <div><button type="button" class="secondary" [disabled]="saving()" (click)="cancelInvitation()">Renunță</button><button type="button" [attr.aria-busy]="saving()" [disabled]="opportunityId.invalid||saving()" (click)="createInvitation(candidate)">{{saving()?'Se creează…':'Creează linkul securizat'}}</button></div></div>}
-        }
-        @if(candidate.invitations.length){<details class="invitation-history"><summary>Invitații asociate ({{candidate.invitations.length}})</summary><ul>@for(invitation of candidate.invitations;track invitation.id){<li><span>{{invitation.rfqTitle}}</span><strong>{{invitationStatus(invitation.status)}}</strong></li>}</ul></details>}
-      </article>
-    }@empty{@if(!loading()){<div class="empty"><strong>Nu există firme candidate.</strong><span>Adaugă prima firmă numai după identificarea unei surse reale.</span></div>}}
-  </section>
 </section>

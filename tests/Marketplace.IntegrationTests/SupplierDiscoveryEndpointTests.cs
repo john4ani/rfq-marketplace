@@ -134,11 +134,27 @@ public sealed class SupplierDiscoveryEndpointTests : IClassFixture<MarketplaceWe
             await db.SaveChangesAsync();
         }
         HttpResponseMessage acceptedWebCandidate = await adminClient.PostAsJsonAsync(
-            $"/api/v1/admin/supplier-discovery/web-discovery/{webRun.Id}/candidates/0/accept", new { categoryIds = Array.Empty<Guid>(), companyName = webCandidateCompanyName });
+            $"/api/v1/admin/supplier-discovery/web-discovery/{webRun.Id}/candidates/0/accept", new
+            {
+                categoryIds = Array.Empty<Guid>(),
+                companyName = webCandidateCompanyName,
+                reviewedDetails = new
+                {
+                    companyName = $"{webCandidateCompanyName} Verificată",
+                    locality = "Marginea",
+                    county = "Suceava",
+                    email = "contact@furnizor-web.example",
+                    phone = "0712345678",
+                    website = "https://furnizor-web.example"
+                }
+            });
         string acceptedWebCandidateBody = await acceptedWebCandidate.Content.ReadAsStringAsync();
         Assert.True(acceptedWebCandidate.IsSuccessStatusCode, acceptedWebCandidateBody);
         WebCandidateAcceptedResponse accepted = (await acceptedWebCandidate.Content.ReadFromJsonAsync<WebCandidateAcceptedResponse>())!;
-        Assert.Equal(webCandidateCompanyName, accepted.Candidate.CompanyName);
+        Assert.Equal($"{webCandidateCompanyName} Verificată", accepted.Candidate.CompanyName);
+        Assert.Equal("contact@furnizor-web.example", accepted.Candidate.ContactEmail);
+        Assert.Equal("0712345678", accepted.Candidate.PhoneNumber);
+        Assert.Equal("https://furnizor-web.example", accepted.Candidate.Website);
         Assert.NotNull(accepted.OpportunityMatch);
         HttpResponseMessage acceptedSecondWebCandidate = await adminClient.PostAsJsonAsync(
             $"/api/v1/admin/supplier-discovery/web-discovery/{webRun.Id}/candidates/0/accept", new { categoryIds = Array.Empty<Guid>(), companyName = secondWebCandidateCompanyName });
@@ -250,7 +266,7 @@ public sealed class SupplierDiscoveryEndpointTests : IClassFixture<MarketplaceWe
         Assert.Equal("Claimed", claimed.Status);
         Assert.Equal(supplierId, claimed.ClaimedBySupplierId);
         Assert.Equal("Claimed", Assert.Single(claimed.Invitations).Status);
-        await Cleanup(adminEmail, supplierEmail, [candidateCompanyName, webCandidateCompanyName, secondWebCandidateCompanyName], template.Id, customCategory.Id);
+        await Cleanup(adminEmail, supplierEmail, [candidateCompanyName, $"{webCandidateCompanyName} Verificată", secondWebCandidateCompanyName], template.Id, customCategory.Id);
     }
 
     private async Task<HttpClient> AuthenticatedClient(string email, string password)
@@ -319,7 +335,7 @@ public sealed class SupplierDiscoveryEndpointTests : IClassFixture<MarketplaceWe
     private sealed record DiscoveryNeedReviewResponse(OpportunityMatchResponse[] Candidates);
     private sealed record OpportunityMatchResponse(Guid Id, Guid? CandidateId, string Status);
     private sealed record WebCandidateAcceptedResponse(WebCandidateResponse Candidate, OpportunityMatchResponse? OpportunityMatch, bool ReusedExistingCandidate);
-    private sealed record WebCandidateResponse(Guid Id, string CompanyName);
+    private sealed record WebCandidateResponse(Guid Id, string CompanyName, string? ContactEmail, string? PhoneNumber, string? Website);
     private sealed record CandidateResponse(
         Guid Id,
         string Status,

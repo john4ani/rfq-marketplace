@@ -543,7 +543,7 @@ public sealed partial class SupplierDiscoveryService(
         return await ToWebRunViewAsync(run, cancellationToken);
     }
 
-    public async Task<SupplierWebCandidateAccepted?> AcceptWebCandidateAsync(Guid administratorId, Guid runId, int candidateIndex, IReadOnlyCollection<Guid>? categoryIds, string? companyName, CancellationToken cancellationToken)
+    public async Task<SupplierWebCandidateAccepted?> AcceptWebCandidateAsync(Guid administratorId, Guid runId, int candidateIndex, IReadOnlyCollection<Guid>? categoryIds, string? companyName, SupplierWebCandidateReviewedDetailsInput? reviewedDetails, CancellationToken cancellationToken)
     {
         SupplierWebDiscoveryRun? run = await dbContext.SupplierWebDiscoveryRuns.AsNoTracking().SingleOrDefaultAsync(item => item.Id == runId, cancellationToken);
         if (run is null) return null;
@@ -554,27 +554,36 @@ public sealed partial class SupplierDiscoveryService(
             ? candidateIndex >= 0 && candidateIndex < candidates.Length ? candidates[candidateIndex] : null
             : candidates.SingleOrDefault(candidate => SameCompanyIdentity(candidate.CompanyName, companyName));
         if (selected is null) throw new SupplierDiscoveryRuleException("Rezultatul selectat nu mai este disponibil.");
-        if (string.IsNullOrWhiteSpace(selected.Locality) || string.IsNullOrWhiteSpace(selected.County)) throw new SupplierDiscoveryRuleException("Rezultatul web nu conține localitatea și județul necesare pentru a crea o firmă candidată.");
-        if (need is not null && !string.Equals(selected.County, need.County, StringComparison.OrdinalIgnoreCase)) throw new SupplierDiscoveryRuleException("Firma găsită este în afara județului acestei cereri; nu poate fi asociată acestei oportunități în MVP.");
+        SupplierWebCandidateView candidateToCreate = reviewedDetails is null ? selected : selected with
+        {
+            CompanyName = reviewedDetails.CompanyName,
+            Locality = reviewedDetails.Locality,
+            County = reviewedDetails.County,
+            Website = NullIfEmpty(reviewedDetails.Website),
+            Phone = NullIfEmpty(reviewedDetails.Phone),
+            Email = NullIfEmpty(reviewedDetails.Email)
+        };
+        if (string.IsNullOrWhiteSpace(candidateToCreate.Locality) || string.IsNullOrWhiteSpace(candidateToCreate.County)) throw new SupplierDiscoveryRuleException("Completează localitatea și județul înainte de a adăuga firma în registru.");
+        if (need is not null && !string.Equals(candidateToCreate.County, need.County, StringComparison.OrdinalIgnoreCase)) throw new SupplierDiscoveryRuleException("Firma găsită este în afara județului acestei cereri; nu poate fi asociată acestei oportunități în MVP.");
         Guid[] effectiveCategories = need is null
             ? (categoryIds ?? []).Where(item => item != Guid.Empty).Distinct().ToArray()
             : [need.PrimaryCategoryId];
         if (effectiveCategories.Length == 0) throw new SupplierDiscoveryRuleException("Selectează cel puțin o categorie înainte de a adăuga firma candidată.");
-        string normalizedName = NormalizeCompanyName(selected.CompanyName);
+        string normalizedName = NormalizeCompanyName(candidateToCreate.CompanyName);
         SupplierCandidate? existing = await dbContext.SupplierCandidates.AsNoTracking().Include(item => item.Categories)
-            .SingleOrDefaultAsync(item => item.NormalizedCompanyName == normalizedName && item.County == selected.County, cancellationToken);
+            .SingleOrDefaultAsync(item => item.NormalizedCompanyName == normalizedName && item.County == candidateToCreate.County, cancellationToken);
         bool reused = existing is not null;
         SupplierCandidateView candidate;
         if (existing is null)
         {
-            string[] registeredNames = await dbContext.SupplierProfiles.AsNoTracking().Where(item => item.County == selected.County).Select(item => item.TradingName).ToArrayAsync(cancellationToken);
+            string[] registeredNames = await dbContext.SupplierProfiles.AsNoTracking().Where(item => item.County == candidateToCreate.County).Select(item => item.TradingName).ToArrayAsync(cancellationToken);
             bool registered = registeredNames.Any(item => string.Equals(NormalizeCompanyName(item), normalizedName, StringComparison.Ordinal));
             if (registered) throw new SupplierCandidateConflictException("Firma este deja înregistrată în CompaSpot; nu poate fi adăugată ca firmă candidată.");
             string source = string.Join(" · ", selected.SourceUrls.Take(3));
             if (source.Length > 500) source = source[..500];
             string notes = $"Găsită pe web · Neverificată. {selected.WhyRelevant}";
             if (notes.Length > 1000) notes = notes[..1000];
-            candidate = await CreateCandidateAsync(administratorId, new(selected.CompanyName, selected.Email, selected.Phone, selected.Website, selected.Locality, selected.County, effectiveCategories, source, notes), cancellationToken);
+            candidate = await CreateCandidateAsync(administratorId, new(candidateToCreate.CompanyName, candidateToCreate.Email, candidateToCreate.Phone, candidateToCreate.Website, candidateToCreate.Locality, candidateToCreate.County, effectiveCategories, source, notes), cancellationToken);
         }
         else candidate = (await GetCandidatesAsync(cancellationToken)).Single(item => item.Id == existing.Id);
         OpportunityMatchView? match = need is null ? null : await CreateCandidateMatchAsync(administratorId, need.Id, candidate.Id, cancellationToken);
