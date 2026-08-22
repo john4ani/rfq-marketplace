@@ -1,9 +1,13 @@
 using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
+using System.Text.Json;
 using Marketplace.Domain.Identity;
+using Marketplace.Domain.SupplierDiscovery;
+using Marketplace.Application.SupplierDiscovery;
 using Marketplace.Infrastructure.Identity;
 using Marketplace.Infrastructure.Persistence;
+using Marketplace.Infrastructure.SupplierDiscovery;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.AspNetCore.Mvc.Testing;
@@ -16,6 +20,10 @@ public sealed class SupplierDiscoveryEndpointTests : IClassFixture<MarketplaceWe
 {
     private static readonly string[] BuyerOnly = ["Buyer"];
     private static readonly string[] SupplierOnly = ["Supplier"];
+    private static readonly string[] TimberProducts = ["lemn rotund"];
+    private static readonly string[] TimberRecallTerms = ["lemn"];
+    private static readonly string[] WebSources = ["OpenAI Web Search"];
+    private static readonly string[] WebSourceUrls = ["https://example.test/furnizor-web"];
     private readonly MarketplaceWebApplicationFactory _factory;
 
     public SupplierDiscoveryEndpointTests(MarketplaceWebApplicationFactory factory) => _factory = factory;
@@ -101,6 +109,32 @@ public sealed class SupplierDiscoveryEndpointTests : IClassFixture<MarketplaceWe
         RfqResponse rfq = (await rfqCreated.Content.ReadFromJsonAsync<RfqResponse>())!;
         Assert.Equal(HttpStatusCode.OK,
             (await adminClient.PostAsJsonAsync($"/api/v1/rfqs/{rfq.Id}/publish", new { })).StatusCode);
+
+        string webCandidateCompanyName = $"Furnizor Web {Guid.NewGuid():N} SRL";
+        SupplierWebDiscoveryRun webRun = SupplierWebDiscoveryRun.Start(rfq.Id, adminId, DateTimeOffset.UtcNow);
+        string webEvidenceJson = JsonSerializer.Serialize(new
+        {
+            context = new SupplierDiscoveryEvidenceRequest("Lemn și plăci", [categoryId], "Marginea", "Suceava", 47.7m, 25.8m, 30,
+                TimberProducts, TimberRecallTerms, "lemn Marginea", Array.Empty<string>(), "Dovezi relevante."),
+            mergedEvidence = new[] { new { companyName = webCandidateCompanyName, locality = "Marginea", county = "Suceava", sources = WebSources, sourceUrls = WebSourceUrls, latitude = 47.7, longitude = 25.8, distanceKm = 1.0 } }
+        });
+        webRun.RecordEvidence(webEvidenceJson, 1, 1, 1, 1, DateTimeOffset.UtcNow);
+        webRun.RecordQualification($$"""
+            {"candidates":[{"companyName":"{{webCandidateCompanyName}}","locality":"Marginea","county":"Suceava","website":null,"phone":null,"email":null,"activityEvidence":"CAEN 0220","caenCode":"0220","productEvidence":"lemn rotund","geographicRelevance":"în rază","confidence":"high","sourceUrls":["https://example.test/furnizor-web"],"whyRelevant":"Activitate relevantă."}],"rejectedResults":[]}
+            """, 1, 1, 1, DateTimeOffset.UtcNow);
+        using (IServiceScope scope = _factory.Services.CreateScope())
+        {
+            MarketplaceDbContext db = scope.ServiceProvider.GetRequiredService<MarketplaceDbContext>();
+            db.SupplierWebDiscoveryRuns.Add(webRun);
+            await db.SaveChangesAsync();
+        }
+        HttpResponseMessage acceptedWebCandidate = await adminClient.PostAsJsonAsync(
+            $"/api/v1/admin/supplier-discovery/web-discovery/{webRun.Id}/candidates/0/accept", new { categoryIds = Array.Empty<Guid>() });
+        string acceptedWebCandidateBody = await acceptedWebCandidate.Content.ReadAsStringAsync();
+        Assert.True(acceptedWebCandidate.IsSuccessStatusCode, acceptedWebCandidateBody);
+        WebCandidateAcceptedResponse accepted = (await acceptedWebCandidate.Content.ReadFromJsonAsync<WebCandidateAcceptedResponse>())!;
+        Assert.Equal(webCandidateCompanyName, accepted.Candidate.CompanyName);
+        Assert.NotNull(accepted.OpportunityMatch);
 
         DiscoveryOpportunityResponse[] opportunities = (await adminClient.GetFromJsonAsync<DiscoveryOpportunityResponse[]>(
             "/api/v1/admin/discovery-opportunities"))!;
@@ -207,7 +241,7 @@ public sealed class SupplierDiscoveryEndpointTests : IClassFixture<MarketplaceWe
         Assert.Equal("Claimed", claimed.Status);
         Assert.Equal(supplierId, claimed.ClaimedBySupplierId);
         Assert.Equal("Claimed", Assert.Single(claimed.Invitations).Status);
-        await Cleanup(adminEmail, supplierEmail, candidateCompanyName, template.Id, customCategory.Id);
+        await Cleanup(adminEmail, supplierEmail, [candidateCompanyName, webCandidateCompanyName], template.Id, customCategory.Id);
     }
 
     private async Task<HttpClient> AuthenticatedClient(string email, string password)
@@ -235,7 +269,7 @@ public sealed class SupplierDiscoveryEndpointTests : IClassFixture<MarketplaceWe
         return (await users.FindByEmailAsync(email))!.Id;
     }
 
-    private async Task Cleanup(string adminEmail, string supplierEmail, string candidateCompanyName, Guid templateId, Guid customCategoryId)
+    private async Task Cleanup(string adminEmail, string supplierEmail, IReadOnlyCollection<string> candidateCompanyNames, Guid templateId, Guid customCategoryId)
     {
         using IServiceScope scope = _factory.Services.CreateScope();
         MarketplaceDbContext db = scope.ServiceProvider.GetRequiredService<MarketplaceDbContext>();
@@ -243,7 +277,7 @@ public sealed class SupplierDiscoveryEndpointTests : IClassFixture<MarketplaceWe
         ApplicationUser? administrator = await users.FindByEmailAsync(adminEmail);
         ApplicationUser? supplier = await users.FindByEmailAsync(supplierEmail);
         Guid[] candidateIds = await db.SupplierCandidates
-            .Where(candidate => candidate.CompanyName == candidateCompanyName)
+            .Where(candidate => candidateCompanyNames.Contains(candidate.CompanyName))
             .Select(candidate => candidate.Id)
             .ToArrayAsync();
         await db.OpportunityMatches.Where(item => item.SupplierCandidateId != null && candidateIds.Contains(item.SupplierCandidateId.Value)).ExecuteDeleteAsync();
@@ -275,6 +309,8 @@ public sealed class SupplierDiscoveryEndpointTests : IClassFixture<MarketplaceWe
     private sealed record DiscoveryOpportunityResponse(Guid Id, Guid[] RequirementCategoryIds);
     private sealed record DiscoveryNeedReviewResponse(OpportunityMatchResponse[] Candidates);
     private sealed record OpportunityMatchResponse(Guid Id, Guid? CandidateId, string Status);
+    private sealed record WebCandidateAcceptedResponse(WebCandidateResponse Candidate, OpportunityMatchResponse? OpportunityMatch, bool ReusedExistingCandidate);
+    private sealed record WebCandidateResponse(Guid Id, string CompanyName);
     private sealed record CandidateResponse(
         Guid Id,
         string Status,

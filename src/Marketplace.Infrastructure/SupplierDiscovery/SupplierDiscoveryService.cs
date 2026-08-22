@@ -548,7 +548,7 @@ public sealed partial class SupplierDiscoveryService(
         SupplierWebDiscoveryRun? run = await dbContext.SupplierWebDiscoveryRuns.AsNoTracking().SingleOrDefaultAsync(item => item.Id == runId, cancellationToken);
         if (run is null) return null;
         if (run.Status != SupplierWebDiscoveryRunStatus.Qualified || string.IsNullOrWhiteSpace(run.QualificationJson)) throw new SupplierDiscoveryRuleException("Califică mai întâi rezultatele găsite pe web.");
-        Rfq? need = run.RfqId.HasValue ? await dbContext.Rfqs.AsNoTracking().SingleOrDefaultAsync(item => item.Id == run.RfqId.Value, cancellationToken) : null;
+        Rfq? need = run.RfqId.HasValue ? await dbContext.Rfqs.AsNoTracking().Include(item => item.NeedCategories).SingleOrDefaultAsync(item => item.Id == run.RfqId.Value, cancellationToken) : null;
         SupplierWebCandidateView[] candidates = FinalizeQualifiedCandidates(run).Candidates.ToArray();
         if (candidateIndex < 0 || candidateIndex >= candidates.Length) throw new SupplierDiscoveryRuleException("Rezultatul selectat nu mai este disponibil.");
         SupplierWebCandidateView selected = candidates[candidateIndex];
