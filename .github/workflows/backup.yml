@@ -7,9 +7,10 @@ on:
         description: AWS environment to back up
         required: true
         type: choice
+        default: production
         options:
-          - staging
           - production
+          - staging
   schedule:
     - cron: "17 2 * * *"
 

@@ -81,6 +81,16 @@ public sealed class RfqsController(IRfqService rfqService) : ControllerBase
         catch (RfqRuleException exception) { return InvalidRfq(exception.Message); }
     }
 
+    [HttpDelete("{rfqId:guid}")]
+    public async Task<IActionResult> DeleteDraft(Guid rfqId, CancellationToken cancellationToken)
+    {
+        try
+        {
+            return await rfqService.DeleteDraftAsync(BuyerId(), rfqId, cancellationToken) ? NoContent() : NotFound();
+        }
+        catch (RfqRuleException exception) { return InvalidRfq(exception.Message); }
+    }
+
     [HttpPost("{rfqId:guid}/outcome")]
     public async Task<IActionResult> RecordOutcome(
         Guid rfqId, RecordProcurementOutcomeRequest request, CancellationToken cancellationToken)

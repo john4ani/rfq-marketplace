@@ -9,6 +9,7 @@
 .column-description{min-height:2.5rem;margin:.5rem 0 1rem;color:#647169;font-size:.86rem;line-height:1.4}.column-list{display:grid;align-content:start;gap:.75rem}
 .column-list article{display:grid;gap:.85rem;padding:1rem;border:1px solid #dfe6e2;border-radius:12px;background:#fff;box-shadow:0 5px 16px rgb(29 54 41 / 4%)}
 article h4{margin:.5rem 0 .25rem;font-size:1rem}article p,article small{color:#667168;margin:0}article a{display:block;padding:.55rem .7rem;border-radius:8px;color:#1f6a43;background:#edf6f1;font-weight:750;text-align:center;text-decoration:none}
+.draft-actions{display:grid;gap:.5rem}.draft-actions .delete-draft{padding:.55rem .7rem;border:1px solid #e3b7b1;border-radius:8px;color:#8c2f25;background:#fff7f5;font:inherit;font-weight:750;cursor:pointer}.draft-actions .delete-draft:hover:not(:disabled){background:#fdeae7}.draft-actions .delete-draft:disabled{opacity:.55;cursor:not-allowed}
 .status{display:inline-block;font-size:.72rem;font-weight:800;padding:.25rem .5rem;border-radius:999px;background:#eef1ee}.status.published,.status.receivingoffers{background:#dff4e6;color:#17663b}.status.cancelled{background:#f7e4e1;color:#8c2f25}.status.needs-outcome{background:#fff0bd;color:#75530c}
 .column-empty{display:grid;gap:.3rem;padding:1rem;border:1px dashed #c7d3cc;border-radius:10px;color:#617067;background:#fff}.column-empty span{font-size:.85rem;line-height:1.4}
 .error{color:#9c2f24}

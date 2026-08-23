@@ -1,7 +1,7 @@
 # C4 Level 3 — Angular Frontend Components
 
 Status: Current implementation
-Last updated: 2026-08-05
+Last updated: 2026-08-23
 
 This view expands the **Angular SPA** container from the C4 container diagram. Components are grouped by responsibility rather than by individual source file so that the diagram remains useful as the UI evolves.
 
@@ -26,6 +26,7 @@ flowchart LR
             offers["Offer workflow<br/>Provider offer editor/list,<br/>comparison and outcome feedback"]
             messaging["Private messaging<br/>Offer conversation"]
             supplierDiscovery["Supplier discovery<br/>Admin review and invitation<br/>Public claim journey"]
+            seapTenders["Anunțuri SEAP<br/>Public tenders, AI auto-bid,<br/>standalone Main Menu surface"]
         end
 
         notifications["Notification menu<br/>Unread count and notification actions"]
@@ -51,6 +52,7 @@ flowchart LR
     router --> offers
     router --> messaging
     router --> supplierDiscovery
+    router --> seapTenders
     router --> authPipeline
 
     shell --> auth
@@ -91,6 +93,7 @@ flowchart LR
 | Offer workflow | Create/revise/submit/withdraw Provider offers with explicit coverage, tax, alternatives and delivery terms; compare every requested line, select a complete offer, and record the terminal procurement outcome in a focused child component |
 | Private messaging | Poll and send messages within the conversation authorized for one submitted offer |
 | Supplier discovery | Let Administrators source and review unverified candidates, generate a request-linked link for manual sharing, and let a Supplier complete the public claim journey |
+| Anunțuri SEAP | Standalone Main Menu product surface: public tender list/detail, AI auto-bid with Stripe checkout or shadow mode, and bid-status polling; Company Vault uploads support the RAG context |
 | Notification menu | Poll unread count, load notifications, mark items read, and follow notification links |
 | Auth service and state | Access token, linked profiles, active role, refresh, logout, and online-presence heartbeat |
 | Typed API clients | Feature-focused HTTP contracts; keep transport calls out of presentation components |
@@ -123,4 +126,6 @@ src/marketplace-web/src/app/
   features/messaging/           Private conversations
   features/notifications/       Notification menu
   features/supplier-discovery/  Admin review and public claim pages
+  features/seap/                Anunțuri SEAP (standalone Main Menu surface)
+  core/seap/                    SEAP typed API client
 ```

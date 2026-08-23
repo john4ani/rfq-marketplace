@@ -10,9 +10,12 @@ using Marketplace.Domain.Messaging;
 using Marketplace.Domain.SupplierDiscovery;
 using Marketplace.Domain.Trust;
 using Marketplace.Domain.Operations;
+using Marketplace.Domain.Seap;
+using Marketplace.Domain.Vault;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
+using Npgsql;
 
 namespace Marketplace.Infrastructure.Persistence;
 
@@ -53,10 +56,17 @@ public sealed class MarketplaceDbContext(DbContextOptions<MarketplaceDbContext> 
     public DbSet<AccountAuditEvent> AccountAuditEvents => Set<AccountAuditEvent>();
     public DbSet<ProductEvent> ProductEvents => Set<ProductEvent>();
     public DbSet<ConciergeMatchOverride> ConciergeMatchOverrides => Set<ConciergeMatchOverride>();
+    public DbSet<CompanyVault> CompanyVaults => Set<CompanyVault>();
+    public DbSet<VaultDocument> VaultDocuments => Set<VaultDocument>();
+    public DbSet<DocumentChunk> DocumentChunks => Set<DocumentChunk>();
+    public DbSet<SeapTender> SeapTenders => Set<SeapTender>();
+    public DbSet<SeapTenderAttachment> SeapTenderAttachments => Set<SeapTenderAttachment>();
+    public DbSet<SeapRawIngestion> SeapRawIngestions => Set<SeapRawIngestion>();
 
     protected override void OnModelCreating(ModelBuilder builder)
     {
         ArgumentNullException.ThrowIfNull(builder);
+        builder.HasPostgresExtension("vector");
         base.OnModelCreating(builder);
         builder.ApplyConfigurationsFromAssembly(typeof(MarketplaceDbContext).Assembly);
     }

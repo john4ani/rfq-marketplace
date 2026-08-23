@@ -1,4 +1,5 @@
 using Marketplace.Application.Companies;
+using Marketplace.Domain.Profiles;
 using Marketplace.Domain.Rfqs;
 using Marketplace.Domain.SupplierDiscovery;
 using Marketplace.Infrastructure.Persistence;
@@ -21,8 +22,8 @@ public sealed class CompanyRegistryService(MarketplaceDbContext dbContext, TimeP
         Guid[] matchedNeedIds = matches.Select(match => match.RfqId).Distinct().ToArray();
         var rfqs = await dbContext.Rfqs.AsNoTracking().Where(rfq => matchedNeedIds.Contains(rfq.Id)).ToDictionaryAsync(rfq => rfq.Id, cancellationToken);
         var suppressions = await dbContext.SupplierContactSuppressions.AsNoTracking().Where(item => candidateIds.Contains(item.CandidateId)).Select(item => item.CandidateId).ToArrayAsync(cancellationToken);
-        return companies.Select(company => Entry(company.Id, company.TradingName, "Registered", true, company.City, company.County, company.ContactEmail, company.PhoneNumber, company.Website, company.TaxIdentifier, companyCategories.Where(item => item.SupplierId == company.Id).Select(item => categoryNames.GetValueOrDefault(item.CategoryId, "Categorie indisponibilă")), matches.Where(match => match.SupplierProfileId == company.Id), rfqs, company.CreatedAt, null, now))
-            .Concat(candidates.Select(candidate => Entry(candidate.Id, candidate.CompanyName, "Discovered", candidate.Status == SupplierCandidateStatus.Claimed, candidate.City, candidate.County, candidate.ContactEmail, candidate.PhoneNumber, candidate.Website, null, candidate.CategoryIds.Select(id => categoryNames.GetValueOrDefault(id, "Categorie indisponibilă")), matches.Where(match => match.SupplierCandidateId == candidate.Id), rfqs, candidate.CreatedAt, suppressions.Contains(candidate.Id) ? "Nu mai contacta" : candidate.Status == SupplierCandidateStatus.Claimed ? "Revendicată" : "Nerevendicată", now)))
+        return companies.Select(company => Entry(company.Id, company.TradingName, "Registered", true, company.City, company.County, company.ContactEmail, company.PhoneNumber, company.Website, company.TaxIdentifier, companyCategories.Where(item => item.SupplierId == company.Id).Select(item => categoryNames.GetValueOrDefault(item.CategoryId, "Categorie indisponibilă")), matches.Where(match => match.SupplierProfileId == company.Id), rfqs, company.CreatedAt, null, now, company.IsActive))
+            .Concat(candidates.Select(candidate => Entry(candidate.Id, candidate.CompanyName, "Discovered", candidate.Status == SupplierCandidateStatus.Claimed, candidate.City, candidate.County, candidate.ContactEmail, candidate.PhoneNumber, candidate.Website, null, candidate.CategoryIds.Select(id => categoryNames.GetValueOrDefault(id, "Categorie indisponibilă")), matches.Where(match => match.SupplierCandidateId == candidate.Id), rfqs, candidate.CreatedAt, suppressions.Contains(candidate.Id) ? "Nu mai contacta" : candidate.Status == SupplierCandidateStatus.Claimed ? "Revendicată" : "Nerevendicată", now, false)))
             .OrderBy(entry => entry.Name).ToArray();
     }
 
@@ -66,10 +67,19 @@ public sealed class CompanyRegistryService(MarketplaceDbContext dbContext, TimeP
         return true;
     }
 
-    private static CompanyRegistryEntry Entry(Guid id,string name,string kind,bool claimed,string locality,string county,string? email,string? phone,string? website,string? taxIdentifier,IEnumerable<string> categories,IEnumerable<OpportunityMatch> matches,Dictionary<Guid,Rfq> rfqs,DateTimeOffset createdAt,string? contactState,DateTimeOffset now)
+    public async Task<CompanyRegistryEntry?> SetRegisteredActiveAsync(Guid companyId, bool isActive, CancellationToken cancellationToken)
+    {
+        SupplierProfile? company = await dbContext.SupplierProfiles.SingleOrDefaultAsync(item => item.Id == companyId, cancellationToken);
+        if (company is null) return null;
+        company.SetActive(isActive, timeProvider.GetUtcNow());
+        await dbContext.SaveChangesAsync(cancellationToken);
+        return (await GetAsync(cancellationToken)).SingleOrDefault(item => item.Id == companyId && item.Kind == "Registered");
+    }
+
+    private static CompanyRegistryEntry Entry(Guid id,string name,string kind,bool claimed,string locality,string county,string? email,string? phone,string? website,string? taxIdentifier,IEnumerable<string> categories,IEnumerable<OpportunityMatch> matches,Dictionary<Guid,Rfq> rfqs,DateTimeOffset createdAt,string? contactState,DateTimeOffset now,bool isActive)
     {
         var values=matches.ToArray();
-        return new(id,name,kind,claimed,locality,county,email,phone,website,taxIdentifier,categories.Distinct().Order().ToArray(),values.Length,values.Count(match=>rfqs.TryGetValue(match.RfqId,out Rfq? rfq)&&(rfq.Status is RfqStatus.Published or RfqStatus.ReceivingOffers)&&rfq.QuotationDeadline>now),values.Count(match=>match.Status==OpportunityMatchStatus.Approved),values.Select(match=>(DateTimeOffset?)match.MatchedAt).Max(),createdAt,contactState);
+        return new(id,name,kind,claimed,locality,county,email,phone,website,taxIdentifier,categories.Distinct().Order().ToArray(),values.Length,values.Count(match=>rfqs.TryGetValue(match.RfqId,out Rfq? rfq)&&(rfq.Status is RfqStatus.Published or RfqStatus.ReceivingOffers)&&rfq.QuotationDeadline>now),values.Count(match=>match.Status==OpportunityMatchStatus.Approved),values.Select(match=>(DateTimeOffset?)match.MatchedAt).Max(),createdAt,contactState,isActive);
     }
 
     private static string NormalizeCompanyName(string value) => string.Join(' ', value.Trim().ToUpperInvariant().Split(' ', StringSplitOptions.RemoveEmptyEntries));

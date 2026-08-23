@@ -1,12 +1,12 @@
 # RFQ Marketplace Architecture
 
-Status: Implemented application and AWS deployment baseline; AWS staging deployed
+Status: Implemented application and AWS deployment baseline; production live (legacy “staging” resource names)
 Scope: Milestones 0–8
-Last updated: 2026-07-27
+Last updated: 2026-08-23
 
 This directory is the design baseline for the industry-neutral RFQ Marketplace MVP. The initial geography is Romania and construction materials are the first category, while the platform model is intended to support additional markets and industries. The application, documentation, and development language is English.
 
-Application functionality is implemented through Milestone 7. Milestone 8 infrastructure, production packaging, and deployment automation are implemented, locally validated, and deployed to AWS staging. Production remains pending.
+Application functionality is implemented through Milestone 7. Milestone 8 infrastructure, production packaging, and deployment automation are implemented, locally validated, and deployed. The current single live environment is **production**; its AWS resources keep legacy “staging” names from before the environment split, and a separate Staging environment will be added later (see `docs/operations/environments.md`).
 
 ## Architecture principles
 

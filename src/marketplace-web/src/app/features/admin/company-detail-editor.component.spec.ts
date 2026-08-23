@@ -15,7 +15,7 @@ describe('CompanyDetailEditorComponent', () => {
         { provide: CompanyRegistryService, useValue: { list: () => of([{
           id: 'candidate-1', name: 'Firma găsită SRL', kind: 'Discovered', claimed: false, locality: 'Marginea', county: 'Suceava',
           email: 'contact@firma.example', phone: null, website: null, taxIdentifier: null, categories: ['Lemn și plăci'],
-          relevantOpportunities: 1, activeOpportunities: 1, approvedMatches: 0, lastRelevantOpportunity: null, createdAt: '2026-08-22T00:00:00Z', contactState: 'Nerevendicată'
+          relevantOpportunities: 1, activeOpportunities: 1, approvedMatches: 0, lastRelevantOpportunity: null, createdAt: '2026-08-22T00:00:00Z', contactState: 'Nerevendicată', isActive: false
         }]) } },
         { provide: SupplierSettingsService, useValue: { getCategories: () => of([{ id: 'category-1', name: 'Lemn și plăci' }]) } }
       ]

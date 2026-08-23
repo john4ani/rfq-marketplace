@@ -2,7 +2,7 @@ locals {
   use_custom_domain           = length(var.frontend_domains) > 0
   use_route53_dns             = var.hosted_zone_id != null
   manage_frontend_certificate = local.use_custom_domain && var.frontend_certificate_arn == null
-  frontend_certificate_arn    = var.frontend_certificate_arn != null ? var.frontend_certificate_arn : aws_acm_certificate_validation.frontend[0].certificate_arn
+  frontend_certificate_arn    = var.frontend_certificate_arn != null ? var.frontend_certificate_arn : (local.manage_frontend_certificate ? aws_acm_certificate_validation.frontend[0].certificate_arn : null)
 }
 
 data "aws_cloudfront_cache_policy" "caching_optimized" {

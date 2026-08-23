@@ -1,13 +1,17 @@
+import { Component } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { provideHttpClient } from '@angular/common/http';
-import { provideRouter } from '@angular/router';
+import { provideRouter, Router } from '@angular/router';
 import { App } from './app';
 import { AuthService } from './core/auth/auth.service';
 import { BackendAvailabilityService } from './core/connectivity/backend-availability.service';
 
+@Component({ template: '' })
+class SeapStubComponent {}
+
 describe('App', () => {
   beforeEach(async () => {
-    await TestBed.configureTestingModule({ imports: [App], providers: [provideRouter([]), provideHttpClient()] }).compileComponents();
+    await TestBed.configureTestingModule({ imports: [App], providers: [provideRouter([{ path: 'seap/tenders', component: SeapStubComponent }]), provideHttpClient()] }).compileComponents();
   });
   it('creates the application shell', () => {
     const fixture = TestBed.createComponent(App);
@@ -51,6 +55,7 @@ describe('App', () => {
     expect(rail?.textContent).toContain('Acasă');
     expect(rail?.textContent).toContain('Cererile mele');
     expect(rail?.textContent).toContain('Oferte');
+    expect(rail?.textContent).toContain('Anunțuri SEAP');
     expect(rail?.textContent).toContain('Cont');
     expect(rail?.textContent).not.toContain('Piața Live');
     expect(rail?.textContent).not.toContain('Furnizori');
@@ -60,5 +65,24 @@ describe('App', () => {
     (fixture.nativeElement as HTMLElement).querySelector<HTMLButtonElement>('.navigation-scrim')!.click();
     fixture.detectChanges();
     expect(rail?.classList.contains('mobile-open')).toBe(false);
+  });
+
+  it('keeps the company rail with "Anunțuri SEAP" visible on SEAP pages', async () => {
+    const auth = TestBed.inject(AuthService);
+    Object.defineProperties(auth, {
+      isAuthenticated: { value: () => true },
+      isAdministrator: { value: () => false },
+      session: { value: () => ({ userId: 'user-1', email: 'provider@example.com', accountType: 'Buyer', roles: ['Buyer'] }) },
+      profiles: { value: () => [{ userId: 'user-1', email: 'provider@example.com', accountType: 'Buyer' }] }
+    });
+    await TestBed.inject(Router).navigateByUrl('/seap/tenders');
+
+    const fixture = TestBed.createComponent(App);
+    fixture.detectChanges();
+
+    const rail = (fixture.nativeElement as HTMLElement).querySelector<HTMLElement>('.side-rail');
+    expect(rail?.textContent).toContain('Firma ta');
+    expect(rail?.textContent).toContain('Anunțuri SEAP');
+    expect(rail?.textContent).not.toContain('Cererile mele');
   });
 });

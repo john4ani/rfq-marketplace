@@ -23,7 +23,9 @@ variable "lightsail_bundle_id" {
 }
 
 variable "root_domain" {
-  type = string
+  type     = string
+  default  = null
+  nullable = true
 }
 
 variable "hosted_zone_id" {
@@ -59,4 +61,9 @@ variable "smtp_from_address" {
 
 variable "smtp_reply_to_address" {
   type = string
+}
+
+variable "create_ses_identity" {
+  type    = bool
+  default = true
 }

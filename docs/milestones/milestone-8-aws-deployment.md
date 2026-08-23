@@ -1,7 +1,7 @@
 # Milestone 8: AWS deployment
 
-Status: AWS staging deployed and verified; production pending
-Last updated: 2026-07-27
+Status: AWS production deployed and verified
+Last updated: 2026-08-23
 
 ## Outcome
 
@@ -35,20 +35,20 @@ Deliver a repeatable, low-cost AWS deployment for the accepted MVP without Kuber
 
 The full application regression suite must pass again before the implementation is committed. Live verification items below cannot be claimed until AWS resources exist.
 
-## Live staging acceptance
+## Live production acceptance
 
 - [x] Bootstrap state and GitHub OIDC resources provisioned in `eu-central-1`.
-- [x] Staging Terraform plan reviewed and applied.
+- [x] Production Terraform plan reviewed and applied.
 - [ ] SES sender and SNS subscription confirmed. SES is verified; the recreated SNS subscription awaits email confirmation.
-- [x] GitHub `staging` environment variables configured.
+- [x] GitHub `production` environment variables configured.
 - [x] Deployment workflow completes from the committed `main` SHA.
 - [x] CloudFront frontend and `/health/ready` respond over HTTPS.
 - [ ] Authentication, dual-role navigation, request publication, offer submission, comparison, messaging, selection, reopen-once, and delivery confirmation smoke-tested.
 - [ ] API-unavailable frontend behavior remains useful and recoverable.
-- [ ] Backup copied to S3 and restore rehearsal completed. Two live backups are in S3; restore was rehearsed locally against the production runtime, not against live staging.
+- [ ] Backup copied to S3 and restore rehearsal completed. Two live backups are in S3; restore was rehearsed locally against the production runtime, not against live production.
 - [x] Restricted SSH, private buckets, alarms, and CloudFront behavior inspected in AWS.
 
-## Live staging evidence
+## Live production evidence
 
 - Frontend: `https://d3gmo2aqxxbvqe.cloudfront.net`
 - API origin: `https://63-185-35-216.sslip.io` (CloudFront origin, not the user-facing base URL)
@@ -60,15 +60,15 @@ The full application regression suite must pass again before the implementation 
 - Cost governance: the pre-existing account budget is adopted into bootstrap Terraform and alerts `john4ani@gmail.com` before and at the approved monthly guardrail.
 - Backups: the encrypted/versioned S3 backup bucket contains checksum-paired deployment and standalone-workflow backups.
 
-## Production gate
+## Production gate (historical)
 
-Production additionally requires a controlled domain/Route 53 hosted zone, protected GitHub environment approval, confirmed SES sending capability, a reviewed staging acceptance record, and an agreed maintenance/rollback window.
+The original production gate required a controlled domain/Route 53 hosted zone, protected GitHub environment approval, confirmed SES sending capability, a reviewed acceptance record, and an agreed maintenance/rollback window. This gate has been passed — the current single live environment **is production** (frontend on CloudFront, API origin on Lightsail). A separate Staging environment will be added later as a pre-production test environment.
 
 ## Production inputs and costs
 
-Staging uses the approved Lightsail bundle and usage-based supporting services. Production still requires a domain and Route 53 hosted zone, protected GitHub environment approval, a production maintenance window, and explicit production cost approval.
+Production uses the approved Lightsail bundle and usage-based supporting services; the domain (`compaspot.com`) and ACM certificate are configured for CloudFront.
 
-The proposed staging host is Lightsail `small_3_0` in `eu-central-1` (2 GB RAM, 2 vCPU, 60 GB SSD). Its current listed fixed price must be rechecked immediately before creation; CloudFront, S3, email, and data transfer are usage-based.
+The production host is Lightsail `small_3_0` in `eu-central-1` (2 GB RAM, 2 vCPU, 60 GB SSD). Its current listed fixed price must be rechecked before any change; CloudFront, S3, email, and data transfer are usage-based.
 
 ## Deferred beyond the MVP
 

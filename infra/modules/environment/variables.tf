@@ -29,6 +29,12 @@ variable "github_oidc_repository_subject" {
   type        = string
 }
 
+variable "github_environment" {
+  description = "GitHub Actions environment name the deploy role may assume. Defaults to production, which is the current single live environment."
+  type        = string
+  default     = "production"
+}
+
 variable "root_domain" {
   type     = string
   default  = null

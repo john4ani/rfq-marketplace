@@ -5,6 +5,7 @@ public interface ICompanyRegistryService
     Task<IReadOnlyCollection<CompanyRegistryEntry>> GetAsync(CancellationToken cancellationToken);
     Task<CompanyRegistryEntry?> UpdateDiscoveredAsync(Guid candidateId, DiscoveredCompanyUpdate input, CancellationToken cancellationToken);
     Task<bool> DeleteDiscoveredAsync(Guid candidateId, CancellationToken cancellationToken);
+    Task<CompanyRegistryEntry?> SetRegisteredActiveAsync(Guid companyId, bool isActive, CancellationToken cancellationToken);
 }
 
 public sealed record DiscoveredCompanyUpdate(
@@ -33,4 +34,5 @@ public sealed record CompanyRegistryEntry(
     int ApprovedMatches,
     DateTimeOffset? LastRelevantOpportunity,
     DateTimeOffset CreatedAt,
-    string? ContactState);
+    string? ContactState,
+    bool IsActive);

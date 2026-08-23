@@ -34,7 +34,7 @@ import { ProcurementOutcome, Rfq, RfqService, RfqStatus } from '../../core/rfqs/
                     <p>{{ rfq.items.length }} {{ rfq.items.length === 1 ? 'poziție' : 'poziții' }} · {{ rfq.deliveryLocality }}, {{ rfq.county }}</p>
                     <small>Termen oferte: {{ rfq.quotationDeadline | date:'dd.MM.yyyy, HH:mm' }}</small>
                   </div>
-                  @if (rfq.status === 'Draft') { <a [routerLink]="['/rfqs', rfq.id, 'edit']">Continuă ciorna</a> }
+                  @if (rfq.status === 'Draft') { <div class="draft-actions"><a [routerLink]="['/rfqs', rfq.id, 'edit']">Continuă ciorna</a><button type="button" class="delete-draft" [disabled]="deletingId() === rfq.id" (click)="deleteDraft(rfq)">{{ deletingId() === rfq.id ? 'Se șterge…' : 'Șterge' }}</button></div> }
                   @else { <a [routerLink]="['/rfqs', rfq.id, 'offers']">{{ rfq.outcome ? 'Vezi rezultatul' : outcomeDue(rfq) ? 'Înregistrează rezultatul' : rfq.selectedOfferId ? 'Vezi oferta selectată' : 'Vezi și compară ofertele' }}</a> }
                 </article>
               } @empty {
@@ -54,6 +54,7 @@ export class BuyerRfqListComponent {
   private readonly service = inject(RfqService);
   private readonly destroyRef = inject(DestroyRef);
   readonly rfqs = signal<Rfq[]>([]);
+  readonly deletingId = signal<string | null>(null);
   readonly loading = signal(true);
   readonly error = signal('');
   readonly columns = computed(() => [
@@ -103,7 +104,14 @@ export class BuyerRfqListComponent {
       NoSuitableOffer:'Fără ofertă potrivită', InsufficientResponses:'Răspunsuri insuficiente', Other:'Închisă'
     })[outcome];
   }
-  load(): void {
+  deleteDraft(rfq: Rfq): void {
+    if (!confirm(`Ștergi definitiv ciorna „${rfq.title}”? Poți pierde pozițiile completate.`)) return;
+    this.deletingId.set(rfq.id);
+    this.service.deleteDraft(rfq.id).subscribe({
+      next: () => { this.deletingId.set(null); this.load(); },
+      error: () => { this.deletingId.set(null); this.error.set('Ciorna nu a putut fi ștearsă. Încearcă din nou.'); }
+    });
+  }  load(): void {
     this.loading.set(true); this.error.set('');
     this.service.getMine().subscribe({
       next: values => {

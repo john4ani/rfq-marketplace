@@ -5,7 +5,15 @@
 - Run Terraform with the intended AWS account and `eu-central-1` selected; verify identity before every apply.
 - Review every plan. Never apply a saved plan produced from a different commit or account.
 - Do not place SMTP credentials, JWT keys, database passwords, `.tfvars`, plans, or rendered `.env` files in Git.
-- Provision staging first. Production is allowed only after the Milestone 8 live acceptance gate passes.
+
+> **Environment naming (2026-08-23):** the current single live environment is **PRODUCTION**. It is managed
+> by the legacy Terraform root `infra/environments/staging/` (the Lightsail host and buckets are physically
+> named `rfq-marketplace-staging-*`; renaming them would destroy the host and its PostgreSQL data). The
+> GitHub deploy/backup workflows now target `production`; before the first `production` deploy, apply the
+> Terraform role-trust change and run `scripts/migrate-env-staging-to-production.ps1`. A separate Staging
+> environment will be added later. See [environments.md](environments.md).
+
+The current single live environment is **production** and has passed the Milestone 8 acceptance gate.
 
 ## 1. Verify prerequisites
 
@@ -41,9 +49,9 @@ terraform plan
 
 Do not destroy this root casually. Its own state now lives under `bootstrap/terraform.tfstate`. The state bucket uses `prevent_destroy`, versioning, encryption, public-access blocking, and lifecycle retention.
 
-The bootstrap root also owns the single account-wide AWS cost budget. For the current staging baseline it is `$20/month`, with direct email alerts at 80% actual spend, 100% forecasted spend, and 100% actual spend. Budget notifications are advisory rather than a hard service shutdown, and AWS billing data can lag usage.
+The bootstrap root also owns the single account-wide AWS cost budget. For the current production baseline it is `$20/month`, with direct email alerts at 80% actual spend, 100% forecasted spend, and 100% actual spend. Budget notifications are advisory rather than a hard service shutdown, and AWS billing data can lag usage.
 
-## 3. Configure staging inputs
+## 3. Configure production inputs
 
 Copy:
 
@@ -57,17 +65,17 @@ Set:
 - `acme_email` to an owned operations email;
 - `smtp_from_address` to an email that can complete SES verification.
 
-Staging does not require a domain. It uses the generated CloudFront hostname and `<static-ip>.sslip.io` for the Caddy origin.
+The current production environment uses the `compaspot.com` domain and its ACM certificate for CloudFront. A future domainless Staging would use the generated CloudFront hostname and `<static-ip>.sslip.io` for the Caddy origin.
 
-## 4. Plan and apply staging
+## 4. Plan and apply production (legacy root `infra/environments/staging`)
 
 ```powershell
 Set-Location infra/environments/staging
 terraform init -backend-config=backend.hcl
 terraform validate
-terraform plan -out staging.tfplan
-terraform show staging.tfplan
-terraform apply staging.tfplan
+terraform plan -out production.tfplan
+terraform show production.tfplan
+terraform apply production.tfplan
 terraform output -json deployment
 ```
 
@@ -79,17 +87,21 @@ After Terraform creates the environment-specific SMTP user, generate region-spec
 
 ```powershell
 .\scripts\Initialize-SesSmtpCredentials.ps1 `
-  -EnvironmentName staging `
+  -EnvironmentName production `
   -IamUserName (terraform -chdir=infra/environments/staging output -json deployment |
     ConvertFrom-Json |
     Select-Object -ExpandProperty ses_smtp_user_name)
 ```
 
+> Before the first `production` deploy, migrate the existing parameters from `/rfq-marketplace/staging/*`
+> to `/rfq-marketplace/production/*` with `scripts/migrate-env-staging-to-production.ps1`, and apply the
+> Terraform role-trust change (`github_environment = "production"`).
+
 The helper creates at most one new IAM access key, derives the region-specific SMTP password, generates strong PostgreSQL and JWT secrets, and stores all four values as SSM `SecureString` parameters. It prints no credentials and deletes the new access key if secret storage fails.
 
 ## 6. Configure GitHub environment
 
-Create a GitHub environment named `staging`. Add environment variables from Terraform output and the AWS account:
+Create a GitHub environment named `production`. Add environment variables from Terraform output and the AWS account:
 
 | Variable | Value |
 |---|---|
@@ -97,12 +109,12 @@ Create a GitHub environment named `staging`. Add environment variables from Terr
 | `AWS_ACCOUNT_ID` | expected 12-digit AWS account |
 | `AWS_DEPLOY_ROLE_ARN` | `deployment.github_deploy_role_arn` |
 
-Create `production` separately and require manual approval. Do not share environment-specific role ARNs.
+The `production` GitHub environment is the current single live environment; add any required manual-approval protection rules. Do not share environment-specific role ARNs.
 After production is deployed and its first manual backup succeeds, create the repository-level variable `PRODUCTION_BACKUP_ENABLED=true` to enable the daily production schedule. Manual staging and production backup runs do not depend on that flag.
 
 ## 7. Deploy
 
-Commit and push a fully verified SHA to `main`, then manually run the `Deploy` workflow for `staging`.
+Commit and push a fully verified SHA to `main`, then manually run the `Deploy` workflow for `production`.
 
 The workflow:
 
@@ -137,9 +149,11 @@ For a manual application rollback, SSH from the configured administrator CIDR, p
 
 Use the database restore runbook only for a confirmed data/schema recovery event.
 
-## Production
+## Staging (future)
 
-Repeat the environment process under `infra/environments/production` with an owned Route 53 zone and domain. Review the full Terraform plan, require GitHub environment approval, and execute the production acceptance and backup checks during the agreed window.
+When a separate Staging test environment is needed, provision a new environment with its own resources and
+state key (for example a new `infra/environments/staging` root), then repeat the environment process using
+the `staging` name and run the `Deploy` / `Database backup` workflows with the `staging` choice.
 
 ### Cloudflare or another external DNS provider
 

@@ -176,3 +176,19 @@ These Supplier-only endpoints return active published RFQs matched by selected c
 ### Assisted Supplier discovery
 
 Candidate creation and review are restricted to the existing `Administrator` role. Every candidate starts as `Unverified` and records its source; only a human-reviewed `EligibleForInvitation` candidate may be associated with a compatible, open request. Invitation URLs contain a cryptographically random token, while persistence stores only its SHA-256 hash. Public reads expose locality and requirement summary, never the exact delivery address. Claim requires an authenticated Supplier with a completed Supplier profile, is idempotent for that Supplier, and records immutable discovery audit events. The application generates a link for deliberate manual sharing; it sends no email or bulk outreach automatically.
+
+### V3 - Auto-bidding (SEAP ingestion, Company Vault, Stripe)
+
+All V3 endpoints require authentication unless noted. Shadow Mode (AutoBidding:IsShadowMode) makes auto-bid generate silently without Stripe and without exposing results to end users.
+
+```text
+GET  /api/v1/seap/tenders
+GET  /api/v1/seap/tenders/{tenderId}
+POST /api/v1/seap/tenders/{tenderId}/auto-bid
+GET  /api/v1/seap/tenders/{tenderId}/bid-status
+POST /api/v1/webhooks/stripe            [AllowAnonymous, signature-verified]
+GET  /api/v1/companies/{companyId}/vault
+POST /api/v1/companies/{companyId}/vault/documents   [multipart PDF]
+```
+
+SEAP tenders are a distinct aggregate (SeapTender); they are public opportunities, not CompaSpot buyer needs, and the buying institution is not an ApplicationUser. auto-bid prices dynamically from the estimated value (29/49/99 EUR tiers) via a Stripe Checkout session with PriceData; bid-status is polled after checkout completes. The webhook verifies the Stripe-Signature header before triggering generation. Vault uploads accept a PDF; OCR (Azure Document Intelligence) and embeddings (OpenAI) run only when configured, and the document stays indexed-less otherwise.

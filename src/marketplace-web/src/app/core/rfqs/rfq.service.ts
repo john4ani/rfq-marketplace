@@ -52,6 +52,7 @@ export class RfqService {
   update(id: string, draft: RfqDraft) { return this.http.put<Rfq>(`/api/v1/rfqs/${id}`, draft); }
   publish(id: string) { return this.http.post<Rfq>(`/api/v1/rfqs/${id}/publish`, {}); }
   cancel(id: string) { return this.http.post<Rfq>(`/api/v1/rfqs/${id}/cancel`, {}); }
+  deleteDraft(id: string) { return this.http.delete<void>(`/api/v1/rfqs/${id}`); }
   recordOutcome(id: string, outcome: ProcurementOutcome, reason: string | null) {
     return this.http.post<Rfq>(`/api/v1/rfqs/${id}/outcome`, { outcome, reason });
   }

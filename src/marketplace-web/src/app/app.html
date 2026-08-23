@@ -27,6 +27,7 @@
             <span class="nav-section-label">Firma ta</span>
             <a class="nav-link" routerLink="/opportunities" [queryParams]="companyContextParams()" routerLinkActive="active" ariaCurrentWhenActive="page" (click)="closeMobileNavigation()"><span aria-hidden="true">⌕</span> Oportunități</a>
             <a class="nav-link" routerLink="/company/offers" [queryParams]="companyContextParams()" routerLinkActive="active" ariaCurrentWhenActive="page" (click)="closeMobileNavigation()"><span aria-hidden="true">◌</span> Ofertele firmei</a>
+            <a class="nav-link" routerLink="/seap/tenders" routerLinkActive="active" [routerLinkActiveOptions]="{ exact: true }" ariaCurrentWhenActive="page" (click)="closeMobileNavigation()"><span aria-hidden="true">⚑</span> Anunțuri SEAP</a>
             <app-messages-menu />
             <a class="nav-link" [routerLink]="companyLink()" routerLinkActive="active" ariaCurrentWhenActive="page" (click)="closeMobileNavigation()"><span aria-hidden="true">♧</span> Firma</a>
             <a class="nav-link back-to-app" routerLink="/dashboard" (click)="closeMobileNavigation()"><span aria-hidden="true">←</span> Înapoi în CompaSpot</a>
@@ -43,6 +44,7 @@
             <a class="nav-link" routerLink="/dashboard" routerLinkActive="active" [routerLinkActiveOptions]="{ exact: true }" ariaCurrentWhenActive="page" (click)="closeMobileNavigation()"><span aria-hidden="true">⌂</span> Acasă</a>
             <a class="nav-link" routerLink="/requests" routerLinkActive="active" ariaCurrentWhenActive="page" (click)="closeMobileNavigation()"><span aria-hidden="true">☷</span> Cererile mele</a>
             <a class="nav-link" routerLink="/offers" routerLinkActive="active" ariaCurrentWhenActive="page" (click)="closeMobileNavigation()"><span aria-hidden="true">◌</span> Oferte</a>
+            <a class="nav-link" routerLink="/seap/tenders" routerLinkActive="active" [routerLinkActiveOptions]="{ exact: true }" ariaCurrentWhenActive="page" (click)="closeMobileNavigation()"><span aria-hidden="true">⚑</span> Anunțuri SEAP</a>
             <a class="nav-link" routerLink="/account" routerLinkActive="active" ariaCurrentWhenActive="page" (click)="closeMobileNavigation()"><span aria-hidden="true">◉</span> Cont</a>
             @if (auth.isAdministrator()) { <a class="nav-link admin-link" routerLink="/admin/supplier-discovery" (click)="closeMobileNavigation()"><span aria-hidden="true">⚙</span> Administrare</a> }
           }

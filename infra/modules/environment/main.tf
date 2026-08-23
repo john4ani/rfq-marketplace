@@ -6,7 +6,7 @@ locals {
   has_managed_domain = var.root_domain != null && var.hosted_zone_id != null
   frontend_domain    = var.frontend_domain != null ? var.frontend_domain : (local.has_managed_domain ? "${var.frontend_subdomain}.${var.root_domain}" : null)
   frontend_domains   = local.frontend_domain == null ? [] : concat([local.frontend_domain], var.frontend_aliases)
-  bucket_prefix      = "${var.project_name}-${var.environment}-${data.aws_caller_identity.current.account_id}-${var.aws_region}"
+  bucket_prefix      = "${var.project_name}-${var.environment}-${var.aws_region}"
   parameter_path     = "/${var.project_name}/${var.environment}"
   oidc_provider_arn  = "arn:${data.aws_partition.current.partition}:iam::${data.aws_caller_identity.current.account_id}:oidc-provider/token.actions.githubusercontent.com"
   common_tags = merge(var.tags, {
@@ -134,11 +134,11 @@ module "github_deploy_role" {
   name                           = "${local.name}-github-deploy"
   github_oidc_provider_arn       = local.oidc_provider_arn
   github_oidc_repository_subject = var.github_oidc_repository_subject
-  github_environment             = var.environment
+  github_environment             = var.github_environment
   frontend_bucket_arn            = module.storage.frontend_bucket_arn
   backups_bucket_arn             = module.storage.backups_bucket_arn
   cloudfront_distribution_arn    = module.frontend.distribution_arn
-  parameter_path_arn             = "arn:${data.aws_partition.current.partition}:ssm:${var.aws_region}:${data.aws_caller_identity.current.account_id}:parameter${local.parameter_path}/"
+  parameter_path_arn             = "arn:${data.aws_partition.current.partition}:ssm:${var.aws_region}:${data.aws_caller_identity.current.account_id}:parameter/${var.project_name}/*"
   tags                           = local.common_tags
 }
 

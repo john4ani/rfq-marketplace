@@ -19,11 +19,13 @@ export class App {
   private readonly currentUrl = signal(this.router.url);
 
   // Navigation is contextual, not a permanent mode: selling routes show the company rail, /admin shows the admin rail,
-  // everything else shows the user-first buyer rail. The brand logo and "Înapoi în CompaSpot" always return home.
+  // everything else shows the user-first buyer rail. Anunțuri SEAP is a standalone product surface and stays in the
+  // main rail in every context; SEAP and company pages also keep the company rail. The brand always returns home.
   readonly navContext = computed<NavContext>(() => {
     const url = this.currentUrl();
     if (url.startsWith('/admin')) return 'admin';
-    if (url.startsWith('/opportunities') || url.startsWith('/company/offers')) return 'company';
+    if (url.startsWith('/opportunities') || url.startsWith('/company/offers')
+      || url.startsWith('/seap/') || url.startsWith('/account/company')) return 'company';
     return 'buyer';
   });
   readonly companyContextId = computed(() => {
@@ -59,3 +61,4 @@ export class App {
     });
   }
 }
+

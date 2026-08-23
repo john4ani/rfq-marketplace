@@ -42,6 +42,12 @@ public sealed class SupplierProfile
         Latitude = location.Latitude; Longitude = location.Longitude; MarketRadiusKm = marketRadiusKm; Description = description; UpdatedAt = now;
     }
 
+    public void SetActive(bool active, DateTimeOffset now)
+    {
+        IsActive = active;
+        UpdatedAt = now;
+    }
+
     private static void ValidateRadius(int radiusKm)
     {
         if (radiusKm is < 1 or > 1000) throw new ArgumentOutOfRangeException(nameof(radiusKm));

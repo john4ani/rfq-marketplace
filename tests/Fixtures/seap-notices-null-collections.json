@@ -1,0 +1,58 @@
+﻿{
+    "total":  3000,
+    "items":  [
+                  {
+                      "cNoticeId":  100054828,
+                      "noticeId":  100162488,
+                      "procedureId":  100069293,
+                      "noticeNo":  "CN1010558",
+                      "sysNoticeTypeId":  2,
+                      "sysNoticeState":  {
+                                             "id":  2,
+                                             "text":  "Publicat",
+                                             "localeKey":  null,
+                                             "apiActionResult":  null
+                                         },
+                      "sysProcedureState":  {
+                                                "id":  3,
+                                                "text":  "Anulata",
+                                                "localeKey":  null,
+                                                "apiActionResult":  null
+                                            },
+                      "contractingAuthorityNameAndFN":  "21551614 - SC ECOVOL ILFOV SA",
+                      "contractTitle":  "Produse cascaval de vaca feliat",
+                      "sysAcquisitionContractType":  {
+                                                         "id":  1,
+                                                         "text":  "Furnizare",
+                                                         "localeKey":  null,
+                                                         "apiActionResult":  null
+                                                     },
+                      "sysProcedureType":  {
+                                               "id":  1,
+                                               "text":  "Licitatie deschisa",
+                                               "localeKey":  null,
+                                               "apiActionResult":  null
+                                           },
+                      "sysContractAssigmentType":  {
+                                                       "id":  1,
+                                                       "text":  "Contract de achizitii publice",
+                                                       "localeKey":  null,
+                                                       "apiActionResult":  null
+                                                   },
+                      "cpvCodeAndName":  null,
+                      "estimatedValueRon":  null,
+                      "isOnline":  true,
+                      "hasLots":  false,
+                      "noticeStateDate":  "2019-04-08T14:13:16+03:00",
+                      "minTenderReceiptDeadline":  null,
+                      "maxTenderReceiptDeadline":  null,
+                      "errataNo":  0,
+                      "sysNoticeVersionId":  2,
+                      "tenderReceiptDeadlineExport":  "14.05.2019 15:00",
+                      "estimatedValueExport":  "514800 RON",
+                      "sadId":  null,
+                      "hasAppeal":  false
+                  }
+              ],
+    "searchTooLong":  true
+}

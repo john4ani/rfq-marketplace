@@ -308,6 +308,55 @@ public sealed class SupplierDiscoveryEndpointTests : IClassFixture<MarketplaceWe
         await Cleanup(adminEmail, supplierEmail, [candidateCompanyName, $"{webCandidateCompanyName} Verificată", secondWebCandidateCompanyName], template.Id, customCategory.Id);
     }
 
+    [Fact]
+    public async Task AdministratorCanDeactivateAndReactivateRegisteredCompany()
+    {
+        string supplierEmail = $"registry-supplier-{Guid.NewGuid():N}@example.test";
+        const string password = "password";
+        using HttpClient publicClient = _factory.CreateClient(new() { BaseAddress = new Uri("https://localhost") });
+        Assert.Equal(HttpStatusCode.Created, (await publicClient.PostAsJsonAsync("/api/v1/auth/register",
+            new { email = supplierEmail, password, accountTypes = SupplierOnly })).StatusCode);
+        using HttpClient supplierClient = await AuthenticatedClient(supplierEmail, password);
+        Guid supplierId = await UserId(supplierEmail);
+        Assert.Equal(HttpStatusCode.OK, (await supplierClient.PutAsJsonAsync($"/api/v1/suppliers/{supplierId}", new
+        {
+            tradingName = $"Furnizor Registru {Guid.NewGuid():N}",
+            companyRegistrationNumber = "J33/2/2026",
+            taxIdentifier = (string?)null,
+            contactPerson = "Persoană Contact",
+            contactEmail = supplierEmail,
+            phoneNumber = "0711222222",
+            website = (string?)null,
+            address = "Strada Furnizorului 2",
+            city = "Marginea",
+            county = "Suceava",
+            latitude = (decimal?)null,
+            longitude = (decimal?)null,
+            description = "Furnizor local"
+        })).StatusCode);
+
+        string adminEmail = $"registry-admin-{Guid.NewGuid():N}@example.test";
+        Assert.Equal(HttpStatusCode.Created, (await publicClient.PostAsJsonAsync("/api/v1/auth/register",
+            new { email = adminEmail, password, accountTypes = BuyerOnly })).StatusCode);
+        await GrantAdministratorRole(adminEmail);
+        using HttpClient adminClient = await AuthenticatedClient(adminEmail, password);
+
+        CompanyRegistryEntryResponse[] companies =
+            (await adminClient.GetFromJsonAsync<CompanyRegistryEntryResponse[]>("/api/v1/admin/companies"))!;
+        CompanyRegistryEntryResponse registered = Assert.Single(companies, item => item.Id == supplierId && item.Kind == "Registered");
+        Assert.True(registered.IsActive);
+
+        CompanyRegistryEntryResponse deactivated = (await (await adminClient.PostAsJsonAsync(
+            $"/api/v1/admin/companies/registered/{supplierId}/activation", new { isActive = false }))
+            .Content.ReadFromJsonAsync<CompanyRegistryEntryResponse>())!;
+        Assert.False(deactivated.IsActive);
+
+        CompanyRegistryEntryResponse reactivated = (await (await adminClient.PostAsJsonAsync(
+            $"/api/v1/admin/companies/registered/{supplierId}/activation", new { isActive = true }))
+            .Content.ReadFromJsonAsync<CompanyRegistryEntryResponse>())!;
+        Assert.True(reactivated.IsActive);
+    }
+
     private async Task<HttpClient> AuthenticatedClient(string email, string password)
     {
         HttpClient client = _factory.CreateClient(new() { BaseAddress = new Uri("https://localhost"), HandleCookies = true });
@@ -376,6 +425,7 @@ public sealed class SupplierDiscoveryEndpointTests : IClassFixture<MarketplaceWe
     private sealed record WebCandidateAcceptedResponse(WebCandidateResponse Candidate, OpportunityMatchResponse? OpportunityMatch, bool ReusedExistingCandidate);
     private sealed record WebCandidateResponse(Guid Id, string CompanyName, string? ContactEmail, string? PhoneNumber, string? Website);
     private sealed record CompanyRegistryResponse(string Name, string? Email, string? Phone, string? Website, string[] Categories);
+    private sealed record CompanyRegistryEntryResponse(Guid Id, string Name, string Kind, bool Claimed, string Locality, string County, string? Email, string? Phone, string? Website, string? TaxIdentifier, string[] Categories, int RelevantOpportunities, int ActiveOpportunities, int ApprovedMatches, DateTimeOffset? LastRelevantOpportunity, DateTimeOffset CreatedAt, string? ContactState, bool IsActive);
     private sealed record AcquisitionCandidateResponse(Guid CandidateId);
     private sealed record CandidateResponse(
         Guid Id,

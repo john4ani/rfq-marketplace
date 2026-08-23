@@ -1,3 +1,6 @@
+# This root manages the CURRENT SINGLE LIVE ENVIRONMENT: PRODUCTION.
+# All resources are physically named rfq-marketplace-production-*.
+# See docs/operations/environments.md.
 module "environment" {
   source = "../../modules/environment"
   providers = {
@@ -6,6 +9,7 @@ module "environment" {
   }
 
   environment                    = "production"
+  github_environment             = "production"
   aws_region                     = var.aws_region
   availability_zone              = var.availability_zone
   admin_cidr                     = var.admin_cidr
@@ -19,4 +23,5 @@ module "environment" {
   acme_email                     = var.acme_email
   smtp_from_address              = var.smtp_from_address
   smtp_reply_to_address          = var.smtp_reply_to_address
+  create_ses_identity            = var.create_ses_identity
 }

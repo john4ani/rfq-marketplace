@@ -1,6 +1,6 @@
 # Terraform Infrastructure Diagram
 
-Status: Implemented and drift-free in AWS staging
+Status: Implemented and drift-free in AWS production (legacy “staging” resource names)
 
 ```mermaid
 flowchart LR
@@ -55,7 +55,7 @@ Terraform does not:
 
 ## Environment isolation
 
-- `staging` and `production` are separate Terraform roots and state keys.
+- The current single live environment is **production**, managed by the legacy `infra/environments/staging` root and state key (the Lightsail host and buckets are physically named `rfq-marketplace-staging-*`; renaming them would be destructive). A separate Staging environment with its own root and state key will be added later.
 - Environment-specific values are passed through non-secret reviewed variables.
 - Secret `.tfvars`, state, plans, and `.terraform/` are excluded from Git.
 - Provider and Terraform versions are constrained.

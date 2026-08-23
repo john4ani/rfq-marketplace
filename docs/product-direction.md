@@ -14,6 +14,11 @@ Construction Projects┘
 
 General Procurement provides breadth: products, materials, parts, equipment, transport, and services across industries. Construction Projects provides depth through construction-specific vocabulary, rules, project decomposition, and AI assistance. Construction remains in MVP, but is not the default CompaSpot experience.
 
+### Anunțuri SEAP — standalone product surface
+
+**Anunțuri SEAP** (public tender opportunities with AI-assisted auto-bidding, V3) is a **standalone product surface**, not a Buyer or Company workflow. It is a permanent **Main Menu** item for authenticated users — it must never be hidden behind contextual rails or the active profile. SEAP routes (`/seap/tenders`, `/seap/tenders/{id}`) also keep the company rail visible for continuity. SEAP tenders are public opportunities owned by external institutions and deliberately never become CompaSpot buyer needs.
+
+
 **General Procurement is an entry mode and generic flow, not an assumed permanent business Vertical.** Reuse the current Vertical/Category model pragmatically. If compatibility requires a general placeholder Vertical, mark it provisional, keep it free of business rules, and do not make future category or matching behaviour depend on it.
 
 For the initial MVP compatibility set, the provisional category root contains **Piese auto**, **Lemn și produse din lemn**, **Transport și logistică**, **Închiriere utilaje**, **Servicii specializate**, **Materiale și consumabile**, **Echipamente** and **Combustibili și încălzire**. These examples make normal procurement and supplier matching usable for alternators, timber, transport, excavator hire, specialist work and pellets; they are not a universal taxonomy.

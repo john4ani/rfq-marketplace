@@ -1,80 +1,45 @@
 using Marketplace.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Npgsql;
+using Testcontainers.PostgreSql;
 
 namespace Marketplace.IntegrationTests;
 
 /// <summary>
-/// Provisions a dedicated, disposable "marketplace_test" database for the whole integration test run so
-/// tests never write into the shared local development database. Recreated from scratch on every run;
-/// dropped again on teardown (best effort - the next run recreates it regardless of leftover state).
+/// Provisions a disposable PostgreSQL 17 + pgvector container (Testcontainers) for the whole integration
+/// test run, per the V3 testing addendum: real Postgres, never EF InMemory, never the shared local
+/// development database. The container connection string is exposed to the app host via the same
+/// environment variable the production configuration contract already honours.
 /// </summary>
 public sealed class IntegrationTestDatabaseFixture : IAsyncLifetime
 {
     private const string ConnectionStringEnvironmentVariable = "ConnectionStrings__MarketplaceDatabase";
-    private const string DatabaseName = "marketplace_test";
-    private const string DefaultDevelopmentConnectionString =
-        "Host=localhost;Port=5432;Database=marketplace;Username=marketplace;Password=marketplace-local-only";
-
-    private string _maintenanceConnectionString = string.Empty;
+    private PostgreSqlContainer? _postgres;
 
     public async Task InitializeAsync()
     {
-        string baseConnectionString = Environment.GetEnvironmentVariable(ConnectionStringEnvironmentVariable)
-            ?? DefaultDevelopmentConnectionString;
-        NpgsqlConnectionStringBuilder builder = new(baseConnectionString);
-        _maintenanceConnectionString = new NpgsqlConnectionStringBuilder(builder.ConnectionString) { Database = "postgres" }.ConnectionString;
-        string owner = builder.Username ?? "marketplace";
-        builder.Database = DatabaseName;
-        string testConnectionString = builder.ConnectionString;
-
-        await RecreateDatabaseAsync(owner);
+        _postgres = new PostgreSqlBuilder("pgvector/pgvector:pg17")
+            .WithDatabase("marketplace_test")
+            .Build();
+        await _postgres.StartAsync();
 
         DbContextOptionsBuilder<MarketplaceDbContext> optionsBuilder = new();
-        optionsBuilder.UseNpgsql(testConnectionString,
-            npgsql => npgsql.MigrationsAssembly(typeof(MarketplaceDbContext).Assembly.FullName));
+        optionsBuilder.UseNpgsql(_postgres.GetConnectionString(),
+            npgsql =>
+            {
+                npgsql.MigrationsAssembly(typeof(MarketplaceDbContext).Assembly.FullName);
+                npgsql.UseVector();
+            });
         await using MarketplaceDbContext dbContext = new(optionsBuilder.Options);
         await dbContext.Database.MigrateAsync();
 
-        Environment.SetEnvironmentVariable(ConnectionStringEnvironmentVariable, testConnectionString);
+        Environment.SetEnvironmentVariable(ConnectionStringEnvironmentVariable, _postgres.GetConnectionString());
     }
 
     public async Task DisposeAsync()
     {
         Environment.SetEnvironmentVariable(ConnectionStringEnvironmentVariable, null);
-        try
-        {
-            await DropDatabaseAsync();
-        }
-        catch
-        {
-            // Best-effort cleanup only; the next run drops and recreates the database regardless.
-        }
-    }
-
-    private async Task RecreateDatabaseAsync(string owner)
-    {
-        await DropDatabaseAsync();
-        await using NpgsqlConnection maintenance = new(_maintenanceConnectionString);
-        await maintenance.OpenAsync();
-        await using NpgsqlCommand create = maintenance.CreateCommand();
-        create.CommandText = $"CREATE DATABASE \"{DatabaseName}\" OWNER \"{owner}\";";
-        await create.ExecuteNonQueryAsync();
-    }
-
-    private async Task DropDatabaseAsync()
-    {
-        await using NpgsqlConnection maintenance = new(_maintenanceConnectionString);
-        await maintenance.OpenAsync();
-        await using (NpgsqlCommand terminate = maintenance.CreateCommand())
-        {
-            terminate.CommandText =
-                $"SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = '{DatabaseName}' AND pid <> pg_backend_pid();";
-            await terminate.ExecuteNonQueryAsync();
-        }
-        await using NpgsqlCommand drop = maintenance.CreateCommand();
-        drop.CommandText = $"DROP DATABASE IF EXISTS \"{DatabaseName}\";";
-        await drop.ExecuteNonQueryAsync();
+        if (_postgres is not null) await _postgres.DisposeAsync();
     }
 }
 
@@ -83,3 +48,4 @@ public sealed class IntegrationTestGroup : ICollectionFixture<IntegrationTestDat
 {
     public const string Name = "Integration database";
 }
+

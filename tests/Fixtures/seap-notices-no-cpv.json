@@ -1,0 +1,57 @@
+﻿{
+    "total":  3000,
+    "items":  [
+                  {
+                      "cNoticeId":  100054485,
+                      "noticeId":  100161457,
+                      "procedureId":  100069409,
+                      "noticeNo":  "CN1010518",
+                      "sysNoticeTypeId":  2,
+                      "sysNoticeState":  {
+                                             "id":  2,
+                                             "text":  "Publicat",
+                                             "localeKey":  null,
+                                             "apiActionResult":  null
+                                         },
+                      "sysProcedureState":  {
+                                                "id":  5,
+                                                "text":  "Atribuita",
+                                                "localeKey":  null,
+                                                "apiActionResult":  null
+                                            },
+                      "contractingAuthorityNameAndFN":  "RO 7796899 - REGIA AUTONOMA JUDETEANA DRUMURI SI PODURI VALCEA RA",
+                      "contractTitle":  "ACHIZITIONARE STAÅ¢IE DE PRODUCÈšIE MIXTURI ASFALTICE IN LEASING FINANCIAR",
+                      "sysAcquisitionContractType":  {
+                                                         "id":  1,
+                                                         "text":  "Furnizare",
+                                                         "localeKey":  null,
+                                                         "apiActionResult":  null
+                                                     },
+                      "sysProcedureType":  {
+                                               "id":  1,
+                                               "text":  "Licitatie deschisa",
+                                               "localeKey":  null,
+                                               "apiActionResult":  null
+                                           },
+                      "sysContractAssigmentType":  {
+                                                       "id":  1,
+                                                       "text":  "Contract de achizitii publice",
+                                                       "localeKey":  null,
+                                                       "apiActionResult":  null
+                                                   },
+                      "estimatedValueRon":  7618240.0,
+                      "isOnline":  true,
+                      "hasLots":  false,
+                      "noticeStateDate":  "2019-04-09T01:35:04+03:00",
+                      "minTenderReceiptDeadline":  "2019-05-15T15:00:00+03:00",
+                      "maxTenderReceiptDeadline":  "2019-05-15T15:00:00+03:00",
+                      "errataNo":  1,
+                      "sysNoticeVersionId":  2,
+                      "tenderReceiptDeadlineExport":  "15.05.2019 15:00",
+                      "estimatedValueExport":  "7618240 RON",
+                      "sadId":  null,
+                      "hasAppeal":  false
+                  }
+              ],
+    "searchTooLong":  true
+}

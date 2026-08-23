@@ -105,6 +105,28 @@ public sealed class RfqService(
         return rfq;
     }
 
+    public async Task<bool> DeleteDraftAsync(Guid buyerId, Guid rfqId, CancellationToken cancellationToken)
+    {
+        Rfq? rfq = await dbContext.Rfqs
+            .SingleOrDefaultAsync(item => item.Id == rfqId && item.BuyerId == buyerId, cancellationToken);
+        if (rfq is null) return false;
+        if (rfq.Status != RfqStatus.Draft)
+            throw new RfqRuleException("Doar o cerere în starea Ciornă poate fi ștearsă.");
+        if (await dbContext.Offers.AnyAsync(offer => offer.RfqId == rfqId, cancellationToken))
+            throw new RfqRuleException("Cererea are oferte asociate și nu poate fi ștearsă.");
+        DateTimeOffset now = timeProvider.GetUtcNow();
+        productEvents.Record("ProcurementNeedDeleted", "ProcurementNeed", rfq.Id, buyerId, null, now);
+        // Delete children explicitly in dependency order: RfqItem references NeedCategory with DeleteBehavior.Restrict.
+        await dbContext.ProcurementNeedAuditEvents.Where(auditEvent => auditEvent.ProcurementNeedId == rfqId)
+            .ExecuteDeleteAsync(cancellationToken);
+        await dbContext.RfqItems.Where(item => item.RfqId == rfqId).ExecuteDeleteAsync(cancellationToken);
+        await dbContext.ProcurementNeedCategories.Where(category => category.ProcurementNeedId == rfqId)
+            .ExecuteDeleteAsync(cancellationToken);
+        dbContext.Rfqs.Remove(rfq);
+        await SaveRfqChangesAsync(cancellationToken);
+        return true;
+    }
+
     public async Task<Rfq?> RecordOutcomeAsync(
         Guid buyerId,
         Guid rfqId,

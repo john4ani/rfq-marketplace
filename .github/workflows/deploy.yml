@@ -7,9 +7,13 @@ on:
         description: AWS environment to deploy
         required: true
         type: choice
+        default: production
         options:
-          - staging
           - production
+          - staging
+# The current single live environment is PRODUCTION. The legacy AWS resources keep "staging" names
+# (Lightsail host, buckets, SSM path) until they are migrated — see docs/operations/environments.md.
+# A separate Staging environment will be added later.
 
 permissions:
   contents: read

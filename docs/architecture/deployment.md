@@ -1,6 +1,6 @@
 # Deployment Diagram
 
-Status: Implemented and verified in AWS staging
+Status: Implemented and verified in AWS production (legacy “staging” resource names)
 
 ```mermaid
 flowchart TB
@@ -56,9 +56,9 @@ flowchart TB
 
 ## Deployment properties
 
-- With a custom domain, `app.example.com` resolves to CloudFront. Domainless staging uses the generated CloudFront hostname.
+- With a custom domain, `app.example.com` resolves to CloudFront. A future domainless Staging uses the generated CloudFront hostname.
 - Angular uses relative `/api/*` URLs. CloudFront's default behaviour serves S3, while ordered `/api/*` and `/health/*` behaviours use Caddy as the API origin.
-- An origin-only DNS name resolves to the Lightsail static IP. Domainless staging uses `<static-ip>.sslip.io` so Caddy can obtain origin TLS without buying a domain.
+- An origin-only DNS name resolves to the Lightsail static IP. A future domainless Staging uses `<static-ip>.sslip.io` so Caddy can obtain origin TLS without buying a domain.
 - The API and PostgreSQL ports are not exposed publicly.
 - Caddy manages origin TLS; CloudFront uses ACM for the public frontend TLS.
 - PostgreSQL data survives container restarts through a named volume.

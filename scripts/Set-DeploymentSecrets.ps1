@@ -1,7 +1,7 @@
 [CmdletBinding()]
 param(
     [Parameter(Mandatory)]
-    [ValidateSet('staging', 'production')]
+    [ValidateSet('production', 'staging')]
     [string] $EnvironmentName,
 
     [string] $AwsRegion = 'eu-central-1',

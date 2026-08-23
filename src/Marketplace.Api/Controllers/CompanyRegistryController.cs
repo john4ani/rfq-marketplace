@@ -39,7 +39,16 @@ public sealed class CompanyRegistryController(ICompanyRegistryService registry) 
             return ValidationProblem(new ValidationProblemDetails(new Dictionary<string, string[]> { ["company"] = [exception.Message] }));
         }
     }
+
+    [HttpPost("registered/{companyId:guid}/activation")]
+    public async Task<IActionResult> SetRegisteredActive(Guid companyId, SetRegisteredActiveRequest request, CancellationToken cancellationToken)
+    {
+        CompanyRegistryEntry? company = await registry.SetRegisteredActiveAsync(companyId, request.IsActive, cancellationToken);
+        return company is null ? NotFound() : Ok(company);
+    }
 }
+
+public sealed record SetRegisteredActiveRequest(bool IsActive);
 
 public sealed record DiscoveredCompanyUpdateRequest(
     [Required, MinLength(2), MaxLength(200)] string CompanyName,

@@ -1,4 +1,5 @@
 using System.Text;
+using Npgsql;
 using Marketplace.Application.Identity;
 using Marketplace.Infrastructure.Identity;
 using Marketplace.Infrastructure.Persistence;
@@ -24,6 +25,15 @@ using Marketplace.Application.Trust;
 using Marketplace.Infrastructure.Trust;
 using Marketplace.Application.Operations;
 using Marketplace.Infrastructure.Operations;
+using Marketplace.Application.Seap;
+using Marketplace.Infrastructure.Seap;
+using Marketplace.Infrastructure.Bidding;
+using Marketplace.Infrastructure.Documents;
+using Marketplace.Infrastructure.Embeddings;
+using Marketplace.Application.Bidding;
+using Marketplace.Application.Billing;
+using Marketplace.Infrastructure.Billing;
+using Amazon.S3;
 using Marketplace.Application.Companies;
 using Marketplace.Infrastructure.Companies;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
@@ -47,6 +57,7 @@ public static class DependencyInjection
             {
                 npgsql.MigrationsAssembly(typeof(MarketplaceDbContext).Assembly.FullName);
                 npgsql.EnableRetryOnFailure(5, TimeSpan.FromSeconds(5), null);
+                npgsql.UseVector();
             }));
         services.AddIdentityCore<ApplicationUser>(options =>
         {
@@ -124,6 +135,32 @@ public static class DependencyInjection
         services.AddScoped<ITrustService, TrustService>();
         services.AddScoped<IProductEventService, ProductEventService>();
         services.AddScoped<IConciergeService, ConciergeService>();
+        services.Configure<FeaturesOptions>(configuration.GetSection(FeaturesOptions.SectionName));
+        services.Configure<SeapOptions>(configuration.GetSection(SeapOptions.SectionName));
+        services.Configure<SeapStorageOptions>(configuration.GetSection("Seap:Storage"));
+        services.Configure<AutoBiddingOptions>(configuration.GetSection(AutoBiddingOptions.SectionName));
+        services.AddHttpClient("seap");
+        services.AddSingleton<IAmazonS3>(provider =>
+        {
+            SeapStorageOptions options = provider.GetRequiredService<Microsoft.Extensions.Options.IOptions<SeapStorageOptions>>().Value;
+            string region = string.IsNullOrWhiteSpace(options.Region) ? "eu-central-1" : options.Region;
+            return new AmazonS3Client(Amazon.RegionEndpoint.GetBySystemName(region));
+        });
+        services.AddScoped<ISeapApiClient, SeapApiClient>();
+        services.AddScoped<ISeapAttachmentStorage, SeapAttachmentStorage>();
+        services.AddScoped<ISeapIngestionService, SeapIngestionService>();
+        services.AddHostedService<SeapIngestionWorker>();
+        services.Configure<DocumentIntelligenceOptions>(configuration.GetSection(DocumentIntelligenceOptions.SectionName));
+        services.AddHttpClient("embeddings");
+        services.AddHttpClient("claude");
+        services.AddScoped<IEmbeddingService, OpenAiEmbeddingService>();
+        services.AddScoped<IDocumentExtractionService, AzureDocumentIntelligenceExtractionService>();
+        services.AddScoped<ILlmProvider, AnthropicClaudeProvider>();
+        services.AddScoped<IDocumentGenerator, DocumentGenerator>();
+        services.AddScoped<IBiddingGenerationService, BiddingGenerationService>();
+        services.Configure<StripeOptions>(configuration.GetSection(StripeOptions.SectionName));
+        services.AddScoped<IStripeGateway, StripeGateway>();
+        services.AddScoped<ICompanyVaultService, CompanyVaultService>();
         return services;
     }
 }

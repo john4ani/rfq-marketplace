@@ -136,6 +136,72 @@ public sealed class RfqEndpointTests : IClassFixture<MarketplaceWebApplicationFa
         Assert.Equal("Personal", reloaded.LocationContext);
     }
 
+    [Fact]
+    public async Task BuyerCanDeleteOnlyUnpublishedDraft()
+    {
+        string email = $"rfq-del-{Guid.NewGuid():N}@example.test";
+        const string password = "password";
+        Assert.Equal(HttpStatusCode.Created, (await _client.PostAsJsonAsync("/api/v1/auth/register/buyer", new { email, password })).StatusCode);
+        TokenResponse login = (await (await _client.PostAsJsonAsync("/api/v1/auth/login", new { email, password })).Content.ReadFromJsonAsync<TokenResponse>())!;
+        Guid buyerId = UserId(login.AccessToken);
+        _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", login.AccessToken);
+        Assert.Equal(HttpStatusCode.OK, (await _client.PutAsJsonAsync($"/api/v1/buyers/{buyerId}", new {
+            displayName = "Cumpărător Test", buyerType = "Company", companyName = "Test SRL", taxIdentifier = "RO123",
+            phoneNumber = "0700000000", defaultAddress = "Strada Test 1", defaultCity = "Iași", defaultCounty = "Iași"
+        })).StatusCode);
+        CategoryResponse[] categories = (await _client.GetFromJsonAsync<CategoryResponse[]>("/api/v1/categories"))!;
+        Guid categoryId = categories.First(category => category.ParentId is not null).Id;
+
+        RfqResponse draft = (await (await _client.PostAsJsonAsync("/api/v1/rfqs", Request(categoryId, "Ciornă de șters", 10))).Content.ReadFromJsonAsync<RfqResponse>())!;
+        Assert.Equal("Draft", draft.Status);
+        HttpResponseMessage deleteDraft = await _client.DeleteAsync($"/api/v1/rfqs/{draft.Id}");
+        Assert.True(deleteDraft.IsSuccessStatusCode, await deleteDraft.Content.ReadAsStringAsync());
+        Assert.Equal(HttpStatusCode.NotFound, (await _client.GetAsync($"/api/v1/rfqs/{draft.Id}")).StatusCode);
+
+        RfqResponse published = (await (await _client.PostAsJsonAsync("/api/v1/rfqs", Request(categoryId, "Ciornă publicată", 10))).Content.ReadFromJsonAsync<RfqResponse>())!;
+        Assert.Equal(HttpStatusCode.OK, (await _client.PostAsJsonAsync($"/api/v1/rfqs/{published.Id}/publish", new { })).StatusCode);
+        Assert.Equal(HttpStatusCode.BadRequest, (await _client.DeleteAsync($"/api/v1/rfqs/{published.Id}")).StatusCode);
+    }
+
+    [Fact]
+    public async Task CompanyLocationContextPersistsWhenBuyerRepresentsTheCompany()
+    {
+        string email = $"rfq-co-{Guid.NewGuid():N}@example.test";
+        const string password = "password";
+        Assert.Equal(HttpStatusCode.Created, (await _client.PostAsJsonAsync("/api/v1/auth/register/buyer", new { email, password })).StatusCode);
+        TokenResponse login = (await (await _client.PostAsJsonAsync("/api/v1/auth/login", new { email, password })).Content.ReadFromJsonAsync<TokenResponse>())!;
+        Guid buyerId = UserId(login.AccessToken);
+        _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", login.AccessToken);
+        Assert.Equal(HttpStatusCode.OK, (await _client.PutAsJsonAsync($"/api/v1/buyers/{buyerId}", new {
+            displayName = "Cumpărător Test", buyerType = "Company", companyName = "Test SRL", taxIdentifier = "RO123",
+            phoneNumber = "0700000000", defaultAddress = "Strada Test 1", defaultCity = "Iași", defaultCounty = "Iași"
+        })).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await _client.PutAsJsonAsync($"/api/v1/suppliers/{buyerId}", new {
+            tradingName = "Furnizor Test SRL", companyRegistrationNumber = "J40/999/2024", taxIdentifier = (string?)null,
+            contactPerson = "Reprezentant Test", contactEmail = email, phoneNumber = "0700000000",
+            website = (string?)null, address = "Strada Furnizor 2", city = "Suceava", county = "Suceava",
+            country = "România", marketRadiusKm = 50, description = (string?)null
+        })).StatusCode);
+        CategoryResponse[] categories = (await _client.GetFromJsonAsync<CategoryResponse[]>("/api/v1/categories"))!;
+        Guid categoryId = categories.First(category => category.ParentId is not null).Id;
+
+        HttpResponseMessage created = await _client.PostAsJsonAsync("/api/v1/rfqs", new {
+            source = "Manual", inputType = "StructuredForm", title = "Cerere pentru firmă", projectName = (string?)null, description = "Necesar test",
+            primaryCategoryId = categoryId, locationContext = "Company", buyingCompanyId = buyerId,
+            deliveryAddress = "Strada Furnizor 2", deliveryLocality = "Suceava", county = "Suceava", latitude = (decimal?)null, longitude = (decimal?)null,
+            preferredDeliveryDate = (DateOnly?)null, quotationDeadline = DateTimeOffset.UtcNow.AddDays(2), alternativeProductsAccepted = true,
+            estimatedBudget = 5000m, buyerNotes = (string?)null, items = new[] {
+                new { kind = "Product", productName = "Ciment", manufacturerOrBrand = (string?)null, specification = "40 kg", quantity = 10m, unit = "Bag", alternativesAccepted = true, buyerNotes = (string?)null }
+            }
+        });
+        Assert.Equal(HttpStatusCode.Created, created.StatusCode);
+        Guid rfqId = (await created.Content.ReadFromJsonAsync<RfqResponse>())!.Id;
+
+        RfqResponse reloaded = (await _client.GetFromJsonAsync<RfqResponse>($"/api/v1/rfqs/{rfqId}"))!;
+        Assert.Equal("Company", reloaded.LocationContext);
+        Assert.Equal(buyerId, reloaded.BuyingCompanyId);
+    }
+
     private static object Request(Guid categoryId, string title, decimal quantity, bool includeSecondItem = false) => new {
         source="Manual",inputType="StructuredForm",title,projectName="Renovare",description="Necesar test",primaryCategoryId=categoryId,
         deliveryAddress="Strada Test 1",deliveryLocality="Iași",county="Iași",latitude=(decimal?)null,longitude=(decimal?)null,
@@ -153,7 +219,7 @@ public sealed class RfqEndpointTests : IClassFixture<MarketplaceWebApplicationFa
     private sealed record TokenResponse(string AccessToken, DateTimeOffset ExpiresAt);
     private sealed record CategoryResponse(Guid Id, Guid? ParentId, string Name, string Slug);
     private sealed record RfqResponse(
-        Guid Id, string Status, string Source, string InputType, string NeedStatus, string LocationContext,
+        Guid Id, string Status, string Source, string InputType, string NeedStatus, string LocationContext, Guid? BuyingCompanyId,
         ProjectContextResponse? ProjectContext, DeliveryConstraintsResponse DeliveryConstraints,
         string? Outcome, string? OutcomeReason, int SupplierSearchRadiusKm, DateTimeOffset QuotationDeadline, RfqItemResponse[] Items);
     private sealed record ProjectContextResponse(string? Name, string? Description);

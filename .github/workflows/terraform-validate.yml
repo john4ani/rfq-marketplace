@@ -34,12 +34,6 @@ jobs:
           terraform init -backend=false
           terraform validate
 
-      - name: Validate staging
-        working-directory: infra/environments/staging
-        run: |
-          terraform init -backend=false
-          terraform validate
-
       - name: Validate production
         working-directory: infra/environments/production
         run: |

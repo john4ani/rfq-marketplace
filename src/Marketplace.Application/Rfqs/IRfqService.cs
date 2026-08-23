@@ -11,6 +11,7 @@ public interface IRfqService
     Task<Rfq?> UpdateAsync(Guid buyerId, Guid rfqId, RfqDraft draft, CancellationToken cancellationToken);
     Task<Rfq?> PublishAsync(Guid buyerId, Guid rfqId, CancellationToken cancellationToken);
     Task<Rfq?> CancelAsync(Guid buyerId, Guid rfqId, CancellationToken cancellationToken);
+    Task<bool> DeleteDraftAsync(Guid buyerId, Guid rfqId, CancellationToken cancellationToken);
     Task<Rfq?> RecordOutcomeAsync(Guid buyerId, Guid rfqId, ProcurementOutcome outcome, string? reason, CancellationToken cancellationToken);
     Task<Rfq?> ExtendQuotationDeadlineAsync(Guid buyerId, Guid rfqId, DateTimeOffset newDeadline, CancellationToken cancellationToken);
     Task<IReadOnlyCollection<OpenRfq>> GetOpenAsync(Guid supplierId, Guid actorId, string? search, Guid? categoryId, CancellationToken cancellationToken);

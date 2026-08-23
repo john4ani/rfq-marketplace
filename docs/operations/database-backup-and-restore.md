@@ -3,7 +3,7 @@
 ## Backup policy
 
 - Every deployment creates a PostgreSQL custom-format backup before migration when an active database exists.
-- The `Database backup` GitHub workflow runs daily at 02:17 UTC for production and can be run manually for staging or production.
+- The `Database backup` GitHub workflow runs daily at 02:17 UTC for production and can be run manually for either environment. The current single live environment is production.
 - Each dump has a SHA-256 checksum that is verified before upload.
 - Backups are stored in the environment's private S3 backup bucket with server-side AES-256 encryption and bucket versioning.
 - Host copies older than seven days are removed. S3 lifecycle policy is the longer-term retention authority.
@@ -22,7 +22,7 @@ Never download production data to an unmanaged machine.
 
 ## Restore rehearsal
 
-Use staging or an isolated recovery host. Restoring replaces the target database.
+Use a non-production recovery host (Staging once it exists, or an isolated recovery host). Restoring replaces the target database.
 
 1. Record the target environment, current release SHA, backup key, approver, and start time.
 2. Download the dump and checksum from the correct environment bucket.
