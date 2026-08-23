@@ -2,7 +2,8 @@ name: rfq-marketplace
 
 services:
   postgres:
-    image: postgres:17.10-alpine3.24
+    # pgvector image: the V3 migrations create the 'vector' extension (AddCompanyVaultAndVectorSearch).
+    image: pgvector/pgvector:pg17-alpine
     environment:
       POSTGRES_DB: ${POSTGRES_DB}
       POSTGRES_USER: ${POSTGRES_USER}
