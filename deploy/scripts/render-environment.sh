@@ -21,6 +21,8 @@ parameter_path="${1%/}"
 api_image="$2"
 output_dir="$3"
 
+mkdir -p "${output_dir}"
+
 get_parameter() {
   local name="$1"
   local decrypt="${2:-false}"
