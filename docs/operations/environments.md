@@ -95,8 +95,23 @@ After the new topology is verified live on `compaspot.com` via Caddy:
 > The old `marketplace` database and the `d282vqj7an62u8.cloudfront.net` distribution remain intact until the
 > cutover checklist above is executed; they are simply no longer referenced.
 
-## Cloudflare R2 storage setup (optional, for V3 storage)
+## Granting Administrator access
 
+The `Administrator` Identity role gates the operational workspace. Assignment is an explicit, audited
+database action (ADR-0021); the application never elevates a configured e-mail automatically. The account
+must already exist — register it through the UI first if needed. The deploy pipeline uploads
+`deploy/scripts/grant-admin.sh` to every release; run it on the host from a release directory:
+
+```bash
+cd /opt/rfq-marketplace/releases/<sha>
+bash scripts/grant-admin.sh john4ani@gmail.com          # compaspot_prod
+bash scripts/grant-admin.sh john4ani@gmail.com staging  # compaspot_staging
+```
+
+The script is idempotent (re-running is a no-op), matches the account by normalized e-mail, and exits
+with a clear message when the account or the role is missing.
+
+## Cloudflare R2 storage setup (optional, for V3 storage)
 The .NET S3 client targets R2 when `S3__ServiceUrl` is set; until then it stays on the AWS IAM chain / OFF.
 Create an R2 bucket (e.g. `compaspot-data`) and an API token (Object Read & Write for that bucket), then store
 the credentials under the Prod SSM path (Staging reads the same values):
