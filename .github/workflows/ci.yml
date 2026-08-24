@@ -14,7 +14,9 @@ jobs:
 
     services:
       postgres:
-        image: postgres:17.10-alpine3.24
+        # Must carry the pgvector extension: the V3 migrations run CREATE EXTENSION vector.
+        # Same image family as deploy/docker-compose.yml and the Testcontainers fixtures.
+        image: pgvector/pgvector:pg17
         env:
           POSTGRES_DB: marketplace
           POSTGRES_USER: marketplace
