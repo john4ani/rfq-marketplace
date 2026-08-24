@@ -52,8 +52,10 @@ Rendered by `render-environment.sh` (all values are Prod + Staging shared, excep
 `PasswordReset__ResetPageUrl = <frontend-origin>/reset-password`, `EmailVerification__ConfirmationPageUrl =
 <frontend-origin>/verify-email`, and `Stripe__{Success,Cancel}Url = <frontend-origin>/seap/tenders`. Prod
 `AllowedHosts` = `compaspot.com;www.compaspot.com;<ip>.sslip.io` (the sslip host is the legacy CloudFront
-origin, kept during the cutover window). Staging `AllowedHosts` = `<static-ip>:8081;127.0.0.1:8080` (the
-second entry lets the in-container healthcheck probe `127.0.0.1:8080`).
+origin, kept during the cutover window). Staging `AllowedHosts` = `<static-ip>;127.0.0.1` — **hostnames only,
+without ports**: ASP.NET Core's host filtering compares the request host *without* the port, so port-bearing
+entries never match (the in-container healthcheck probes `127.0.0.1:8080` and external requests carry
+`<static-ip>:8081`; both are covered by the bare hostnames).
 
 The API startup validation (`ProductionReadiness`) requires HTTPS origins **only in Production**. Staging is an
 internal-only plain-HTTP site, so its HTTP frontend origin and matching reset/verify URLs are accepted; all

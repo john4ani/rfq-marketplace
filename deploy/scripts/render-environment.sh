@@ -264,7 +264,7 @@ emit_backend_env "${output_dir}/.env.prod" \
 
 emit_backend_env "${output_dir}/.env.staging" \
   "compaspot_staging" "${s3_root_prefix_staging}" \
-  "${staging_api_origin_host}" "${staging_frontend_origin}" "${staging_api_origin_host};127.0.0.1:8080" \
+  "${staging_api_origin_host}" "${staging_frontend_origin}" "${instance_ip};127.0.0.1" \
   "${staging_features_seap_enabled}" "${staging_features_auto_bidding_enabled}"
 
 chmod 600 "${output_dir}/.env" "${output_dir}/.env.prod" "${output_dir}/.env.staging"
