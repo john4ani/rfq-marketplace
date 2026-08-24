@@ -174,12 +174,15 @@ for attempt in {1..24}; do
       sh -c 'curl --fail --silent --show-error http://127.0.0.1:8080/health/ready' >/dev/null; then
     trap - ERR
     echo "Release ${release_id} is ready (Prod + Staging)."
+    # Rotate old release directories. sudo is required because earlier buggy deploys let Docker
+    # auto-create root-owned release/shared/* mount sources that are no longer referenced; cleanup
+    # is best-effort so it can never fail an already-live release.
     find "${application_root}/releases" -mindepth 1 -maxdepth 1 -type d -printf '%T@ %p\n' \
       | sort -nr \
       | tail -n +4 \
       | cut -d' ' -f2- \
-      | xargs --no-run-if-empty rm -rf
-    docker image prune --force --filter "until=168h" >/dev/null
+      | xargs --no-run-if-empty sudo rm -rf || true
+    docker image prune --force --filter "until=168h" >/dev/null || true
     exit 0
   fi
   echo "Readiness attempt ${attempt}/24 has not passed yet."
