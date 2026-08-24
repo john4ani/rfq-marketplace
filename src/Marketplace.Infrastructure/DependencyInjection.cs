@@ -30,6 +30,8 @@ using Marketplace.Infrastructure.Seap;
 using Marketplace.Infrastructure.Bidding;
 using Marketplace.Infrastructure.Documents;
 using Marketplace.Infrastructure.Embeddings;
+using Marketplace.Infrastructure.Storage;
+
 using Marketplace.Application.Bidding;
 using Marketplace.Application.Billing;
 using Marketplace.Infrastructure.Billing;
@@ -159,6 +161,12 @@ public static class DependencyInjection
             // AWS S3 via the default IAM credential chain.
             return new AmazonS3Client(Amazon.RegionEndpoint.GetBySystemName(region));
         });
+        services.Configure<LocalStorageOptions>(configuration.GetSection(LocalStorageOptions.SectionName));
+        LocalStorageOptions localStorage = configuration.GetSection(LocalStorageOptions.SectionName).Get<LocalStorageOptions>() ?? new();
+        if (localStorage.UseLocalStorage)
+            services.AddScoped<IStorageService, LocalFileStorageService>();
+        else
+            services.AddScoped<IStorageService, CloudflareR2StorageService>();
         services.AddScoped<ISeapApiClient, SeapApiClient>();
         services.AddScoped<ISeapAttachmentStorage, SeapAttachmentStorage>();
         services.AddScoped<ISeapIngestionService, SeapIngestionService>();
@@ -168,7 +176,12 @@ public static class DependencyInjection
         services.AddHttpClient("claude");
         services.AddScoped<IEmbeddingService, OpenAiEmbeddingService>();
         services.AddScoped<IDocumentExtractionService, AzureDocumentIntelligenceExtractionService>();
-        services.AddScoped<ILlmProvider, AnthropicClaudeProvider>();
+        // AI:UseMockProvider swaps the LLM to a deterministic preset-JSON provider for zero-cost local
+        // debugging; prod/staging keep the real Anthropic Claude provider (which hard-caps max_tokens).
+        if (configuration.GetValue<bool>("AI:UseMockProvider"))
+            services.AddScoped<ILlmProvider>(_ => new StaticMockLlmProvider(StaticMockLlmProvider.RomanianProcurementExpertProposal));
+        else
+            services.AddScoped<ILlmProvider, AnthropicClaudeProvider>();
         services.AddScoped<IDocumentGenerator, DocumentGenerator>();
         services.AddScoped<IBiddingGenerationService, BiddingGenerationService>();
         services.Configure<StripeOptions>(configuration.GetSection(StripeOptions.SectionName));

@@ -52,3 +52,5 @@ Thumbs.db
 # Rendered deployment environment files (render-environment.sh output - contains secrets).
 .deployment/
 
+# Local-first storage (files written by LocalFileStorageService in Development).
+src/Marketplace.Api/App_Data/Storage/

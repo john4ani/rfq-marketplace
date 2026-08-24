@@ -1,10 +1,10 @@
-# RFQ Marketplace
+﻿# RFQ Marketplace
 
 A production-oriented, industry-neutral marketplace for requests for quotation. Buyers publish structured needs, relevant providers submit comparable offers, and buyers select the best fit. Construction materials are the first category, while the product model is designed to expand across markets and industries.
 
-The current MVP journey centers on **Piața Live**: providers discover matched open requests, inspect the need, submit or revise an offer, and Buyers receive an in-app notification that links to side-by-side offer comparison. The account dashboard separates day-to-day activity from profile and matching settings, while the participant directory lives on its own focused page.
+The current MVP journey centers on **PiaÈ›a Live**: providers discover matched open requests, inspect the need, submit or revise an offer, and Buyers receive an in-app notification that links to side-by-side offer comparison. The account dashboard separates day-to-day activity from profile and matching settings, while the participant directory lives on its own focused page.
 
-The repository foundation, identity, Buyer/Supplier profiles, supplier settings, “Piața Live”, RFQ publication, provider offers, buyer comparison, winner selection, in-app notifications, private offer messaging, production hardening, password recovery, and the repeatable MVP acceptance gate are complete through Milestone 7. Milestone 8 adds the implemented AWS deployment foundation and the live production environment. See [the Milestone 8 record](docs/milestones/milestone-8-aws-deployment.md) and the [environment naming note](docs/operations/environments.md).
+The repository foundation, identity, Buyer/Supplier profiles, supplier settings, â€œPiaÈ›a Liveâ€, RFQ publication, provider offers, buyer comparison, winner selection, in-app notifications, private offer messaging, production hardening, password recovery, and the repeatable MVP acceptance gate are complete through Milestone 7. Milestone 8 adds the implemented AWS deployment foundation and the live production environment. See [the Milestone 8 record](docs/milestones/milestone-8-aws-deployment.md) and the [environment naming note](docs/operations/environments.md).
 
 ## Technology baseline
 
@@ -24,6 +24,11 @@ Angular 21 is intentionally pinned because the available Node 24.14 runtime does
 
 ## Start locally
 
+The local-first developer experience (`appsettings.Development.json`) runs without any cloud
+credentials: files go to a local directory, the LLM is a deterministic mock, and the SEAP importer
+falls back to golden payloads when the live endpoint is unreachable. Infrastructure is the single
+`compose.yaml` — PostgreSQL 17 + pgvector on port 5432.
+
 1. Copy `.env.example` to `.env`.
 2. Replace the local database password in `.env`.
 3. Start PostgreSQL:
@@ -32,33 +37,40 @@ Angular 21 is intentionally pinned because the available Node 24.14 runtime does
    docker compose up -d postgres
    ```
 
-4. Apply database migrations:
-
-   ```powershell
-   dotnet tool restore
-   dotnet ef database update --project src/Marketplace.Infrastructure --startup-project src/Marketplace.Api
-   ```
-
-5. Store the development OpenAI key outside the repository:
-
-   ```powershell
-   dotnet user-secrets set "AiIntake:ApiKey" "<your-api-key>" --project src/Marketplace.Api
-   dotnet user-secrets set "GooglePlaces:ApiKey" "<your-google-places-api-key>" --project src/Marketplace.Api
-   ```
-
-6. Start the API:
+4. Start the API — in Development it applies the EF migrations automatically at startup, so no
+   manual `dotnet ef database update` is required (you can still run it explicitly if you prefer):
 
    ```powershell
    dotnet run --project src/Marketplace.Api
    ```
 
-7. Install and start Angular:
+5. Store development keys **outside the repository** only when you want real external calls instead
+   of the local-first defaults:
+
+   ```powershell
+   dotnet user-secrets set "AiIntake:ApiKey" "<your-api-key>" --project src/Marketplace.Api
+   dotnet user-secrets set "GooglePlaces:ApiKey" "<your-google-places-api-key>" --project src/Marketplace.Api
+   dotnet user-secrets set "AutoBidding:ApiKey" "<your-claude-api-key>" --project src/Marketplace.Api
+   ```
+
+6. Install and start Angular:
 
    ```powershell
    cd src/marketplace-web
    pnpm install
    pnpm start
    ```
+
+### Local provider matrix (Development)
+
+| Concern | Local default (zero cost) | Switch to the real service |
+|---|---|---|
+| Object storage | `Storage:UseLocalStorage=true` → files under `App_Data/Storage/` (e.g. `C:\CompaSpotStorage\`) | Set `Storage:UseLocalStorage=false` + `S3:*` (Cloudflare R2 or AWS S3) |
+| LLM (auto-bidding) | `AI:UseMockProvider=true` → preset JSON from `StaticMockLlmProvider` | Set `AI:UseMockProvider=false` + `AutoBidding:ApiKey` (Anthropic Claude) |
+| AI intake (OpenAI) | disabled (no key) — falls back to manual need entry | `AiIntake:ApiKey` |
+| SEAP live endpoint | `Seap:LocalFallbackEnabled=true` → `App_Data/SeapMocks/*.json` when the live API is unreachable | Set `Seap:LocalFallbackEnabled=false` for strict live-only behavior |
+| Embeddings / OCR | skipped (chunks stored without vectors) | `AutoBidding:EmbeddingApiKey`, `DocumentIntelligence:*` |
+| Database | `compose.yaml` PostgreSQL 17 + pgvector on `localhost:5432`, migrated automatically at API startup | point `ConnectionStrings:MarketplaceDatabase` elsewhere |
 
 Local endpoints:
 

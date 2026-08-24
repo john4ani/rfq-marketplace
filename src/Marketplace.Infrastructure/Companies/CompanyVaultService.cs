@@ -1,12 +1,12 @@
-using Amazon.S3;
-using Amazon.S3.Model;
 using Marketplace.Application.Companies;
+
 using Marketplace.Domain.Profiles;
 using Marketplace.Domain.Vault;
 using Marketplace.Infrastructure.Bidding;
 using Marketplace.Infrastructure.Documents;
 using Marketplace.Infrastructure.Embeddings;
 using Marketplace.Infrastructure.Persistence;
+using Marketplace.Infrastructure.Storage;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -21,9 +21,9 @@ namespace Marketplace.Infrastructure.Companies;
 public sealed partial class CompanyVaultService : ICompanyVaultService
 {
     private readonly MarketplaceDbContext dbContext;
-    private readonly IAmazonS3 s3;
+    private readonly IStorageService storage;
+    private readonly bool useLocalStorage;
     private readonly AutoBiddingOptions autoBiddingOptions;
-    private readonly string rootPrefix;
     private readonly IDocumentExtractionService extractionService;
     private readonly IEmbeddingService embeddingService;
     private readonly TimeProvider timeProvider;
@@ -31,18 +31,18 @@ public sealed partial class CompanyVaultService : ICompanyVaultService
 
     public CompanyVaultService(
         MarketplaceDbContext dbContext,
-        IAmazonS3 s3,
+        IStorageService storage,
+        IOptions<LocalStorageOptions> localStorage,
         IOptions<AutoBiddingOptions> autoBiddingOptions,
-        IOptions<S3Options> s3Options,
         IDocumentExtractionService extractionService,
         IEmbeddingService embeddingService,
         TimeProvider timeProvider,
         ILogger<CompanyVaultService> logger)
     {
         this.dbContext = dbContext;
-        this.s3 = s3;
+        this.storage = storage;
+        useLocalStorage = localStorage.Value.UseLocalStorage;
         this.autoBiddingOptions = autoBiddingOptions.Value;
-        rootPrefix = s3Options.Value.NormalizedRootPrefix;
         this.extractionService = extractionService;
         this.embeddingService = embeddingService;
         this.timeProvider = timeProvider;
@@ -102,17 +102,11 @@ public sealed partial class CompanyVaultService : ICompanyVaultService
 
     private async Task<string> UploadToStorageAsync(Guid companyId, string fileName, Stream content, CancellationToken cancellationToken)
     {
+        if (useLocalStorage)
+            return await storage.UploadAsync("vault", $"vault/{companyId}", fileName, content, "application/octet-stream", cancellationToken);
         if (string.IsNullOrWhiteSpace(autoBiddingOptions.DocumentsBucket))
             return $"memory://vault/{companyId}/{fileName}";
-        content.Position = 0;
-        await s3.PutObjectAsync(new PutObjectRequest
-        {
-            BucketName = autoBiddingOptions.DocumentsBucket,
-            Key = $"{rootPrefix}vault/{companyId}/{Guid.NewGuid():N}/{fileName}",
-            InputStream = content,
-            ContentType = "application/octet-stream"
-        }, cancellationToken);
-        return $"s3://{autoBiddingOptions.DocumentsBucket}/{rootPrefix}vault/{companyId}/{fileName}";
+        return await storage.UploadAsync(autoBiddingOptions.DocumentsBucket, $"vault/{companyId}", fileName, content, "application/octet-stream", cancellationToken);
     }
 
     private async Task ExtractAndEmbedAsync(VaultDocument document, Stream content, CancellationToken cancellationToken)

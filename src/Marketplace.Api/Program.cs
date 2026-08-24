@@ -8,9 +8,11 @@ using Marketplace.Api.Health;
 using Marketplace.Api.Middleware;
 using Marketplace.Infrastructure;
 using Marketplace.Infrastructure.Identity;
+using Marketplace.Infrastructure.Persistence;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Microsoft.AspNetCore.HttpOverrides;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 
 WebApplicationBuilder builder = WebApplication.CreateBuilder(args);
@@ -78,6 +80,16 @@ app.UseAuthorization();
 app.MapControllers();
 app.MapHealthChecks("/health/live", new HealthCheckOptions { Predicate = registration => registration.Tags.Contains("live"), ResponseWriter = HealthResponseWriter.WriteAsync });
 app.MapHealthChecks("/health/ready", new HealthCheckOptions { Predicate = registration => registration.Tags.Contains("ready"), ResponseWriter = HealthResponseWriter.WriteAsync });
+// Local-first developer experience: in Development the database schema is applied automatically at
+// startup (idempotent) so `dotnet run` works right after `docker compose up -d postgres`, without
+// requiring a manual `dotnet ef database update`. Prod/Staging migrate through the explicit migration
+// bundle (migrate-prod / migrate-staging) before the API starts.
+if (app.Environment.IsDevelopment())
+{
+    using IServiceScope scope = app.Services.CreateScope();
+    MarketplaceDbContext dbContext = scope.ServiceProvider.GetRequiredService<MarketplaceDbContext>();
+    await dbContext.Database.MigrateAsync();
+}
 await IdentitySeeder.SeedRolesAsync(app.Services);
 app.Run();
 public partial class Program;

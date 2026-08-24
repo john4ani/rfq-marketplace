@@ -1,36 +1,30 @@
-using Amazon.S3;
-using Amazon.S3.Model;
-using Marketplace.Application.Seap;
+﻿using Marketplace.Application.Seap;
+using Marketplace.Infrastructure.Storage;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
 namespace Marketplace.Infrastructure.Seap;
 
-// S3 uploads go through this interface; the AWS SDK is only referenced here (Infrastructure).
+// File uploads go through the shared IStorageService abstraction; the S3 SDK is only referenced by
+// CloudflareR2StorageService (Infrastructure). In local development Storage:UseLocalStorage swaps to
+// the local file system so SEAP attachments never require R2/S3 credentials.
 public sealed partial class SeapAttachmentStorage(
-    IAmazonS3 s3,
+    IStorageService storage,
     IOptions<SeapStorageOptions> options,
-    IOptions<S3Options> s3Options,
+    IOptions<LocalStorageOptions> localStorage,
     ILogger<SeapAttachmentStorage> logger) : ISeapAttachmentStorage
 {
     private readonly SeapStorageOptions settings = options.Value;
-    private readonly string rootPrefix = s3Options.Value.NormalizedRootPrefix;
+    private readonly bool useLocalStorage = localStorage.Value.UseLocalStorage;
 
     public async Task<string> UploadAsync(string tenderId, string fileName, Stream content, CancellationToken cancellationToken)
     {
-        if (!settings.Enabled || string.IsNullOrWhiteSpace(settings.Bucket))
+        if (!useLocalStorage && (!settings.Enabled || string.IsNullOrWhiteSpace(settings.Bucket)))
             throw new InvalidOperationException("Stocarea SEAP nu este configurată.");
-        string key = $"{rootPrefix}seap/{tenderId}/{Guid.NewGuid():N}/{Sanitize(fileName)}";
-        PutObjectRequest request = new()
-        {
-            BucketName = settings.Bucket,
-            Key = key,
-            InputStream = content,
-            ContentType = DetectContentType(fileName)
-        };
-        await s3.PutObjectAsync(request, cancellationToken);
-        LogSeapUploaded(logger, key);
-        return $"s3://{settings.Bucket}/{key}";
+        string reference = await storage.UploadAsync(
+            settings.Bucket, $"seap/{tenderId}", Sanitize(fileName), content, DetectContentType(fileName), cancellationToken);
+        LogSeapUploaded(logger, useLocalStorage);
+        return reference;
     }
 
     private static string Sanitize(string fileName) =>
@@ -46,6 +40,6 @@ public sealed partial class SeapAttachmentStorage(
             _ => "application/octet-stream"
         };
 
-    [LoggerMessage(EventId = 5102, Level = LogLevel.Information, Message = "SEAP attachment uploaded to {Key}.")]
-    private static partial void LogSeapUploaded(ILogger logger, string key);
+    [LoggerMessage(EventId = 5102, Level = LogLevel.Information, Message = "SEAP attachment stored (local={UseLocalStorage}).")]
+    private static partial void LogSeapUploaded(ILogger logger, bool useLocalStorage);
 }

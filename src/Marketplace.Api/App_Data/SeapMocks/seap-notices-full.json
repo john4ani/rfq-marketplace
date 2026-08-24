@@ -1,0 +1,162 @@
+﻿{
+    "total":  3000,
+    "items":  [
+                  {
+                      "cNoticeId":  100053648,
+                      "noticeId":  100159118,
+                      "procedureId":  100068106,
+                      "noticeNo":  "CN1010402",
+                      "sysNoticeTypeId":  2,
+                      "sysNoticeState":  {
+                                             "id":  2,
+                                             "text":  "Publicat",
+                                             "localeKey":  null,
+                                             "apiActionResult":  null
+                                         },
+                      "sysProcedureState":  {
+                                                "id":  5,
+                                                "text":  "Atribuita",
+                                                "localeKey":  null,
+                                                "apiActionResult":  null
+                                            },
+                      "contractingAuthorityNameAndFN":  "4374873 - SPITALUL DE URGENTA PETROSANI",
+                      "contractTitle":  "Acord-cadru furnizare de produse â€“ MEDICAMENTE necesare tratamentului pacientilor cu afectiuni oncologice (2019-2021)",
+                      "sysAcquisitionContractType":  {
+                                                         "id":  1,
+                                                         "text":  "Furnizare",
+                                                         "localeKey":  null,
+                                                         "apiActionResult":  null
+                                                     },
+                      "sysProcedureType":  {
+                                               "id":  1,
+                                               "text":  "Licitatie deschisa",
+                                               "localeKey":  null,
+                                               "apiActionResult":  null
+                                           },
+                      "sysContractAssigmentType":  {
+                                                       "id":  3,
+                                                       "text":  "Acord-cadru",
+                                                       "localeKey":  null,
+                                                       "apiActionResult":  null
+                                                   },
+                      "cpvCodeAndName":  "33652100-6 - Antineoplazice (Rev.2)",
+                      "estimatedValueRon":  14867462.0,
+                      "isOnline":  true,
+                      "hasLots":  true,
+                      "noticeStateDate":  "2019-04-02T01:35:01+03:00",
+                      "minTenderReceiptDeadline":  "2019-05-09T15:00:00+03:00",
+                      "maxTenderReceiptDeadline":  "2019-05-09T15:00:00+03:00",
+                      "errataNo":  0,
+                      "sysNoticeVersionId":  2,
+                      "tenderReceiptDeadlineExport":  "09.05.2019 15:00",
+                      "estimatedValueExport":  "14867462 RON",
+                      "sadId":  null,
+                      "hasAppeal":  false
+                  },
+                  {
+                      "cNoticeId":  100053977,
+                      "noticeId":  100160077,
+                      "procedureId":  100068314,
+                      "noticeNo":  "CN1010447",
+                      "sysNoticeTypeId":  2,
+                      "sysNoticeState":  {
+                                             "id":  2,
+                                             "text":  "Publicat",
+                                             "localeKey":  null,
+                                             "apiActionResult":  null
+                                         },
+                      "sysProcedureState":  {
+                                                "id":  5,
+                                                "text":  "Atribuita",
+                                                "localeKey":  null,
+                                                "apiActionResult":  null
+                                            },
+                      "contractingAuthorityNameAndFN":  "RO 18264854 - Administratia Nationala \"Apele Romane\" - Administratia Bazinala de Apa Siret",
+                      "contractTitle":  "Servicii de reparatii, revizii tehnice periodice si Ã®ntretinere a autovehiculelor si utilajelor din parcul auto al S.G.A. Vrancea",
+                      "sysAcquisitionContractType":  {
+                                                         "id":  2,
+                                                         "text":  "Servicii",
+                                                         "localeKey":  null,
+                                                         "apiActionResult":  null
+                                                     },
+                      "sysProcedureType":  {
+                                               "id":  1,
+                                               "text":  "Licitatie deschisa",
+                                               "localeKey":  null,
+                                               "apiActionResult":  null
+                                           },
+                      "sysContractAssigmentType":  {
+                                                       "id":  1,
+                                                       "text":  "Contract de achizitii publice",
+                                                       "localeKey":  null,
+                                                       "apiActionResult":  null
+                                                   },
+                      "cpvCodeAndName":  "50110000-9 - Servicii de reparare si de intretinere a autovehiculelor si a echipamentelor conexe (Rev.2)",
+                      "estimatedValueRon":  299500.0,
+                      "isOnline":  true,
+                      "hasLots":  true,
+                      "noticeStateDate":  "2019-04-02T15:27:13+03:00",
+                      "minTenderReceiptDeadline":  "2019-05-09T15:00:00+03:00",
+                      "maxTenderReceiptDeadline":  "2019-05-09T15:00:00+03:00",
+                      "errataNo":  0,
+                      "sysNoticeVersionId":  2,
+                      "tenderReceiptDeadlineExport":  "09.05.2019 15:00",
+                      "estimatedValueExport":  "299500 RON",
+                      "sadId":  null,
+                      "hasAppeal":  false
+                  },
+                  {
+                      "cNoticeId":  100054485,
+                      "noticeId":  100161457,
+                      "procedureId":  100069409,
+                      "noticeNo":  "CN1010518",
+                      "sysNoticeTypeId":  2,
+                      "sysNoticeState":  {
+                                             "id":  2,
+                                             "text":  "Publicat",
+                                             "localeKey":  null,
+                                             "apiActionResult":  null
+                                         },
+                      "sysProcedureState":  {
+                                                "id":  5,
+                                                "text":  "Atribuita",
+                                                "localeKey":  null,
+                                                "apiActionResult":  null
+                                            },
+                      "contractingAuthorityNameAndFN":  "RO 7796899 - REGIA AUTONOMA JUDETEANA DRUMURI SI PODURI VALCEA RA",
+                      "contractTitle":  "ACHIZITIONARE STAÅ¢IE DE PRODUCÈšIE MIXTURI ASFALTICE IN LEASING FINANCIAR",
+                      "sysAcquisitionContractType":  {
+                                                         "id":  1,
+                                                         "text":  "Furnizare",
+                                                         "localeKey":  null,
+                                                         "apiActionResult":  null
+                                                     },
+                      "sysProcedureType":  {
+                                               "id":  1,
+                                               "text":  "Licitatie deschisa",
+                                               "localeKey":  null,
+                                               "apiActionResult":  null
+                                           },
+                      "sysContractAssigmentType":  {
+                                                       "id":  1,
+                                                       "text":  "Contract de achizitii publice",
+                                                       "localeKey":  null,
+                                                       "apiActionResult":  null
+                                                   },
+                      "cpvCodeAndName":  "42000000-6 - Echipamente industriale (Rev.2)",
+                      "estimatedValueRon":  7618240.0,
+                      "isOnline":  true,
+                      "hasLots":  false,
+                      "noticeStateDate":  "2019-04-09T01:35:04+03:00",
+                      "minTenderReceiptDeadline":  "2019-05-15T15:00:00+03:00",
+                      "maxTenderReceiptDeadline":  "2019-05-15T15:00:00+03:00",
+                      "errataNo":  1,
+                      "sysNoticeVersionId":  2,
+                      "tenderReceiptDeadlineExport":  "15.05.2019 15:00",
+                      "estimatedValueExport":  "7618240 RON",
+                      "sadId":  null,
+                      "hasAppeal":  false
+                  }
+              ],
+    "searchTooLong":  true
+}
