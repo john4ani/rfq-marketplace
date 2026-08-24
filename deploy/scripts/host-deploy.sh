@@ -104,9 +104,17 @@ docker load --input "${image_tar}"
 
 staging_tmp="$(mktemp -d)"
 tar -xzf "${frontend_tar}" -C "${staging_tmp}"
+if [[ ! -f "${staging_tmp}/index.html" ]]; then
+  echo "Frontend archive does not contain index.html (empty build output?)." >&2
+  exit 66
+fi
 for frontend_dir in "${application_root}/shared/frontend-prod" "${application_root}/shared/frontend-staging"; do
   sudo find "${frontend_dir}" -mindepth 1 -maxdepth 1 -exec rm -rf {} +
   sudo cp -a "${staging_tmp}/." "${frontend_dir}/"
+  if [[ ! -f "${frontend_dir}/index.html" ]]; then
+    echo "Frontend copy to ${frontend_dir} is missing index.html." >&2
+    exit 66
+  fi
 done
 rm -rf "${staging_tmp}"
 
@@ -141,6 +149,17 @@ docker compose --project-name rfq-marketplace \
   --file docker-compose.yml \
   --env-file .env \
   up --detach --remove-orphans postgres backend-prod backend-staging caddy
+
+# Fail fast if Caddy's frontend bind mounts resolve to empty directories (the Verify workflow step
+# would otherwise loop on 404 and only show that after the whole release has been activated).
+if ! docker compose --project-name rfq-marketplace \
+    --file docker-compose.yml \
+    --env-file .env \
+    exec -T caddy \
+    sh -c 'test -f /srv/www-prod/index.html && test -f /srv/www-staging/index.html'; then
+  echo "Caddy frontend mounts are missing index.html (mount source differs from the shared dirs?)." >&2
+  exit 1
+fi
 
 for attempt in {1..24}; do
   if docker compose --project-name rfq-marketplace \

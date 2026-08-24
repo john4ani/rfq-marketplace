@@ -201,15 +201,30 @@ jobs:
         run: |
           set -Eeuo pipefail
           instance_ip='${{ steps.ssh.outputs.instance_ip }}'
+          probe() {
+            local label="$1" url="$2" host_header="${3:-}"
+            local out code
+            if [[ -n "${host_header}" ]]; then
+              out="$(curl --silent --show-error --max-time 10 -H "Host: ${host_header}" -w $'\n%{http_code}' "${url}" 2>&1 || true)"
+            else
+              out="$(curl --silent --show-error --max-time 10 -w $'\n%{http_code}' "${url}" 2>&1 || true)"
+            fi
+            code="${out##*$'\n'}"
+            echo "[${label}] HTTP ${code} :: $(printf '%s' "${out}" | head -c 160)"
+          }
           for attempt in {1..24}; do
-            if curl --fail --silent --show-error -H "Host: compaspot.com" "http://${instance_ip}/health/ready" >/dev/null \
-              && curl --fail --silent --show-error -H "Host: compaspot.com" "http://${instance_ip}/" >/dev/null \
-              && curl --fail --silent --show-error "http://${instance_ip}:8081/health/ready" >/dev/null \
-              && curl --fail --silent --show-error "http://${instance_ip}:8081/" >/dev/null; then
+            if curl --fail --silent --show-error --max-time 10 -H "Host: compaspot.com" "http://${instance_ip}/health/ready" >/dev/null \
+              && curl --fail --silent --show-error --max-time 10 -H "Host: compaspot.com" "http://${instance_ip}/" >/dev/null \
+              && curl --fail --silent --show-error --max-time 10 "http://${instance_ip}:8081/health/ready" >/dev/null \
+              && curl --fail --silent --show-error --max-time 10 "http://${instance_ip}:8081/" >/dev/null; then
               echo "Deployment verified: Prod (compaspot.com via Caddy) and Staging (:8081)."
               exit 0
             fi
             echo "Verification attempt ${attempt}/24 has not passed yet."
+            probe "prod /health/ready" "http://${instance_ip}/health/ready" "compaspot.com"
+            probe "prod /" "http://${instance_ip}/" "compaspot.com"
+            probe "staging /health/ready" "http://${instance_ip}:8081/health/ready"
+            probe "staging /" "http://${instance_ip}:8081/"
             sleep 10
           done
           echo "Deployment did not pass readiness within four minutes." >&2
