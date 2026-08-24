@@ -48,3 +48,7 @@ crash.log
 # OS
 .DS_Store
 Thumbs.db
+
+# Rendered deployment environment files (render-environment.sh output - contains secrets).
+.deployment/
+
