@@ -45,20 +45,25 @@ rollback() {
     return
   fi
 
-  echo "Deployment failed. Returning to the previous application release." >&2
+  echo "Deployment failed (exit ${exit_code}); rolling back to the previous release." >&2
   if [[ -n "${previous_release}" && -d "${previous_release}" ]]; then
     ln -sfn "${previous_release}" "${current_link}"
     cd "${previous_release}"
     local compose_file
+    local services
     if [[ -f docker-compose.yml ]]; then
+      # Current dual-environment topology.
       compose_file="docker-compose.yml"
+      services="postgres backend-prod backend-staging caddy"
     else
+      # Pre-dual-environment releases used compose.production.yaml with a single `api` service.
       compose_file="compose.production.yaml"
+      services="postgres api caddy"
     fi
     docker compose --project-name rfq-marketplace \
       --file "${compose_file}" \
       --env-file .env \
-      up --detach --remove-orphans postgres backend-prod backend-staging caddy api || true
+      up --detach --remove-orphans ${services} || true
   else
     rm -f "${current_link}"
     cd "${release_directory}"
@@ -147,4 +152,12 @@ for attempt in {1..24}; do
 done
 
 echo "Release ${release_id} did not become ready within 120 seconds." >&2
+{
+  echo '--- docker compose ps ---'
+  docker compose --project-name rfq-marketplace --file docker-compose.yml --env-file .env ps || true
+  echo '--- backend-prod logs (tail 60) ---'
+  docker compose --project-name rfq-marketplace --file docker-compose.yml --env-file .env logs --tail=60 backend-prod || true
+  echo '--- backend-staging logs (tail 60) ---'
+  docker compose --project-name rfq-marketplace --file docker-compose.yml --env-file .env logs --tail=60 backend-staging || true
+} >&2
 exit 1
