@@ -10,6 +10,7 @@ describe('LiveMarketComponent', () => {
   let fixture: ComponentFixture<LiveMarketComponent>;
 
   beforeEach(async () => {
+    localStorage.setItem('compaspot.language', 'ro');
     const profiles = [
       { userId: 'user-id', email: 'dual@example.test', accountType: 'Buyer' as const },
       { userId: 'user-id', email: 'dual@example.test', accountType: 'Supplier' as const }

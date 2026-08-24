@@ -1,7 +1,7 @@
 @if (auth.isAuthenticated() && !isAuthRoute()) {
   <div class="app-frame">
     <header class="app-masthead">
-      <a class="brand" routerLink="/dashboard" aria-label="CompaSpot — Acasă">
+      <a class="brand" routerLink="/dashboard" [attr.aria-label]="i18n.t('CompaSpot — Acasă')">
         <svg class="brand-logo" aria-hidden="true" viewBox="0 0 64 64">
           <circle class="brand-person" cx="16" cy="14" r="7" />
           <circle class="brand-person" cx="48" cy="14" r="7" />
@@ -10,62 +10,68 @@
           <path class="brand-handshake" d="m24 39 7 7c2 2 4 2 6 0l5-5-7-6-5 4-4-1-2 1Z" />
           <path class="brand-cuff" d="m8 28 6-3 5 8-6 4m43-9-6-3-5 8 6 4" />
         </svg>
-        <span><strong>CompaSpot</strong><small>Nevoi. Oameni. Valoare.</small></span>
+        <span><strong>CompaSpot</strong><small>{{ i18n.t('Nevoi. Oameni. Valoare.') }}</small></span>
       </a>
-      <button class="mobile-menu-toggle" type="button" (click)="toggleMobileNavigation()"
-        [attr.aria-expanded]="mobileNavigationOpen()" aria-controls="primary-navigation">
-        <span aria-hidden="true">{{ mobileNavigationOpen() ? '×' : '☰' }}</span>
-        <span>{{ mobileNavigationOpen() ? 'Închide' : 'Meniu' }}</span>
-      </button>
+      <div class="masthead-actions">
+        <app-language-toggle />
+        <button class="mobile-menu-toggle" type="button" (click)="toggleMobileNavigation()"
+          [attr.aria-expanded]="mobileNavigationOpen()" aria-controls="primary-navigation">
+          <span aria-hidden="true">{{ mobileNavigationOpen() ? '×' : '☰' }}</span>
+          <span>{{ i18n.t(mobileNavigationOpen() ? 'Închide' : 'Meniu') }}</span>
+        </button>
+      </div>
     </header>
-    @if (mobileNavigationOpen()) { <button class="navigation-scrim" type="button" aria-label="Închide meniul" (click)="closeMobileNavigation()"></button> }
-    <aside id="primary-navigation" class="side-rail" [class.mobile-open]="mobileNavigationOpen()" aria-label="Navigare principală">
+    @if (mobileNavigationOpen()) { <button class="navigation-scrim" type="button" [attr.aria-label]="i18n.t('Închide meniul')" (click)="closeMobileNavigation()"></button> }
+    <aside id="primary-navigation" class="side-rail" [class.mobile-open]="mobileNavigationOpen()" [attr.aria-label]="i18n.t('Navigare principală')">
       <div class="side-nav" [class.has-admin-navigation]="auth.isAdministrator()">
-      <nav aria-label="Meniu principal">
+      <nav [attr.aria-label]="i18n.t('Meniu principal')">
         @switch (navContext()) {
           @case ('company') {
-            <span class="nav-section-label">Firma ta</span>
-            <a class="nav-link" routerLink="/opportunities" [queryParams]="companyContextParams()" routerLinkActive="active" ariaCurrentWhenActive="page" (click)="closeMobileNavigation()"><span aria-hidden="true">⌕</span> Oportunități</a>
-            <a class="nav-link" routerLink="/company/offers" [queryParams]="companyContextParams()" routerLinkActive="active" ariaCurrentWhenActive="page" (click)="closeMobileNavigation()"><span aria-hidden="true">◌</span> Ofertele firmei</a>
-            <a class="nav-link" routerLink="/seap/tenders" routerLinkActive="active" [routerLinkActiveOptions]="{ exact: true }" ariaCurrentWhenActive="page" (click)="closeMobileNavigation()"><span aria-hidden="true">⚑</span> Anunțuri SEAP</a>
+            <span class="nav-section-label">{{ i18n.t('Firma ta') }}</span>
+            <a class="nav-link" routerLink="/opportunities" [queryParams]="companyContextParams()" routerLinkActive="active" ariaCurrentWhenActive="page" (click)="closeMobileNavigation()"><span aria-hidden="true">⌕</span> {{ i18n.t('Oportunități') }}</a>
+            <a class="nav-link" routerLink="/company/offers" [queryParams]="companyContextParams()" routerLinkActive="active" ariaCurrentWhenActive="page" (click)="closeMobileNavigation()"><span aria-hidden="true">◌</span> {{ i18n.t('Ofertele firmei') }}</a>
+            <a class="nav-link" routerLink="/seap/tenders" routerLinkActive="active" [routerLinkActiveOptions]="{ exact: true }" ariaCurrentWhenActive="page" (click)="closeMobileNavigation()"><span aria-hidden="true">⚑</span> {{ i18n.t('Anunțuri SEAP') }}</a>
             <app-messages-menu />
-            <a class="nav-link" [routerLink]="companyLink()" routerLinkActive="active" ariaCurrentWhenActive="page" (click)="closeMobileNavigation()"><span aria-hidden="true">♧</span> Firma</a>
-            <a class="nav-link back-to-app" routerLink="/dashboard" (click)="closeMobileNavigation()"><span aria-hidden="true">←</span> Înapoi în CompaSpot</a>
+            <a class="nav-link" [routerLink]="companyLink()" routerLinkActive="active" ariaCurrentWhenActive="page" (click)="closeMobileNavigation()"><span aria-hidden="true">♧</span> {{ i18n.t('Firma') }}</a>
+            <a class="nav-link back-to-app" routerLink="/dashboard" (click)="closeMobileNavigation()"><span aria-hidden="true">←</span> {{ i18n.t('Înapoi în CompaSpot') }}</a>
           }
           @case ('admin') {
-            <span class="nav-section-label">Administrare CompaSpot</span>
-            <a class="nav-link admin-link" routerLink="/admin/concierge" routerLinkActive="active" ariaCurrentWhenActive="page" (click)="closeMobileNavigation()"><span aria-hidden="true">☷</span> Intervenții</a>
-            <a class="nav-link admin-link" routerLink="/admin/supplier-discovery" routerLinkActive="active" [routerLinkActiveOptions]="{ exact: true }" ariaCurrentWhenActive="page" (click)="closeMobileNavigation()"><span aria-hidden="true">⌕</span> Supplier Discovery</a>
-            <a class="nav-link admin-link" routerLink="/admin/supplier-discovery/acquisition" routerLinkActive="active" ariaCurrentWhenActive="page" (click)="closeMobileNavigation()"><span aria-hidden="true">↗</span> Achiziție furnizori</a>
-            <a class="nav-link admin-link" routerLink="/admin/companies" routerLinkActive="active" ariaCurrentWhenActive="page" (click)="closeMobileNavigation()"><span aria-hidden="true">✓</span> Firme</a>
-            <a class="nav-link back-to-app" routerLink="/dashboard" (click)="closeMobileNavigation()"><span aria-hidden="true">←</span> Înapoi în CompaSpot</a>
+            <span class="nav-section-label">{{ i18n.t('Administrare CompaSpot') }}</span>
+            <a class="nav-link admin-link" routerLink="/admin/concierge" routerLinkActive="active" ariaCurrentWhenActive="page" (click)="closeMobileNavigation()"><span aria-hidden="true">☷</span> {{ i18n.t('Intervenții') }}</a>
+            <a class="nav-link admin-link" routerLink="/admin/supplier-discovery" routerLinkActive="active" [routerLinkActiveOptions]="{ exact: true }" ariaCurrentWhenActive="page" (click)="closeMobileNavigation()"><span aria-hidden="true">⌕</span> {{ i18n.t('Supplier Discovery') }}</a>
+            <a class="nav-link admin-link" routerLink="/admin/supplier-discovery/acquisition" routerLinkActive="active" ariaCurrentWhenActive="page" (click)="closeMobileNavigation()"><span aria-hidden="true">↗</span> {{ i18n.t('Achiziție furnizori') }}</a>
+            <a class="nav-link admin-link" routerLink="/admin/companies" routerLinkActive="active" ariaCurrentWhenActive="page" (click)="closeMobileNavigation()"><span aria-hidden="true">♧</span> {{ i18n.t('Firme') }}</a>
+            <a class="nav-link admin-link" routerLink="/admin/users" routerLinkActive="active" ariaCurrentWhenActive="page" (click)="closeMobileNavigation()"><span aria-hidden="true">◉</span> {{ i18n.t('Utilizatori') }}</a>
+            <a class="nav-link back-to-app" routerLink="/dashboard" (click)="closeMobileNavigation()"><span aria-hidden="true">←</span> {{ i18n.t('Înapoi în CompaSpot') }}</a>
           }
           @default {
-            <a class="nav-link" routerLink="/dashboard" routerLinkActive="active" [routerLinkActiveOptions]="{ exact: true }" ariaCurrentWhenActive="page" (click)="closeMobileNavigation()"><span aria-hidden="true">⌂</span> Acasă</a>
-            <a class="nav-link" routerLink="/requests" routerLinkActive="active" ariaCurrentWhenActive="page" (click)="closeMobileNavigation()"><span aria-hidden="true">☷</span> Cererile mele</a>
-            <a class="nav-link" routerLink="/offers" routerLinkActive="active" ariaCurrentWhenActive="page" (click)="closeMobileNavigation()"><span aria-hidden="true">◌</span> Oferte</a>
-            <a class="nav-link" routerLink="/seap/tenders" routerLinkActive="active" [routerLinkActiveOptions]="{ exact: true }" ariaCurrentWhenActive="page" (click)="closeMobileNavigation()"><span aria-hidden="true">⚑</span> Anunțuri SEAP</a>
-            <a class="nav-link" routerLink="/account" routerLinkActive="active" ariaCurrentWhenActive="page" (click)="closeMobileNavigation()"><span aria-hidden="true">◉</span> Cont</a>
-            @if (auth.isAdministrator()) { <a class="nav-link admin-link" routerLink="/admin/supplier-discovery" (click)="closeMobileNavigation()"><span aria-hidden="true">⚙</span> Administrare</a> }
+            <span class="nav-section-label">{{ i18n.t('Profilul tău') }}</span>
+            <a class="nav-link" routerLink="/dashboard" routerLinkActive="active" [routerLinkActiveOptions]="{ exact: true }" ariaCurrentWhenActive="page" (click)="closeMobileNavigation()"><span aria-hidden="true">⌂</span> {{ i18n.t('Acasă') }}</a>
+            <a class="nav-link" routerLink="/rfqs/new" routerLinkActive="active" [routerLinkActiveOptions]="{ exact: true }" ariaCurrentWhenActive="page" (click)="closeMobileNavigation()"><span aria-hidden="true">✛</span> {{ i18n.t('Cerere nouă') }}</a>
+            <a class="nav-link" routerLink="/requests" routerLinkActive="active" [routerLinkActiveOptions]="{ exact: true }" ariaCurrentWhenActive="page" (click)="closeMobileNavigation()"><span aria-hidden="true">☷</span> {{ i18n.t('Cererile mele') }}</a>
+            <a class="nav-link" routerLink="/offers" routerLinkActive="active" ariaCurrentWhenActive="page" (click)="closeMobileNavigation()"><span aria-hidden="true">◌</span> {{ i18n.t('Oferte') }}</a>
+            <a class="nav-link" routerLink="/seap/tenders" routerLinkActive="active" [routerLinkActiveOptions]="{ exact: true }" ariaCurrentWhenActive="page" (click)="closeMobileNavigation()"><span aria-hidden="true">⚑</span> {{ i18n.t('Anunțuri SEAP') }}</a>
+            <a class="nav-link" routerLink="/account" routerLinkActive="active" ariaCurrentWhenActive="page" (click)="closeMobileNavigation()"><span aria-hidden="true">◉</span> {{ i18n.t('Cont') }}</a>
+            @if (auth.isAdministrator()) { <a class="nav-link admin-link" routerLink="/admin/supplier-discovery" (click)="closeMobileNavigation()"><span aria-hidden="true">⚙</span> {{ i18n.t('Administrare') }}</a> }
           }
         }
       </nav>
       @if (navContext() === 'buyer') { <div class="messages-slot"><app-messages-menu /></div> }
       <div class="notification-slot"><app-notification-menu /></div>
       <div class="side-nav-footer">
-        <button class="side-sign-out" type="button" (click)="signOut()" [disabled]="signingOut()"><span aria-hidden="true">↪</span>{{ signingOut() ? 'Se închide sesiunea…' : 'Deconectare' }}</button>
+        <button class="side-sign-out" type="button" (click)="signOut()" [disabled]="signingOut()"><span aria-hidden="true">↪</span>{{ i18n.t(signingOut() ? 'Se închide sesiunea…' : 'Deconectare') }}</button>
       </div>
       </div>
     </aside>
     <div class="workspace-frame">
-      @if (backend.status() === 'unavailable') { <aside class="service-status" role="alert"><div><strong>Serviciul este temporar indisponibil</strong><span>Poți naviga în continuare. Datele se încarcă după reconectare.</span></div><button type="button" [disabled]="backend.retrying()" (click)="backend.retry()">{{ backend.retrying() ? 'Se verifică…' : 'Reîncearcă' }}</button></aside> }
+      @if (backend.status() === 'unavailable') { <aside class="service-status" role="alert"><div><strong>{{ i18n.t('Serviciul este temporar indisponibil') }}</strong><span>{{ i18n.t('Poți naviga în continuare. Datele se încarcă după reconectare.') }}</span></div><button type="button" [disabled]="backend.retrying()" (click)="backend.retry()">{{ i18n.t(backend.retrying() ? 'Se verifică…' : 'Reîncearcă') }}</button></aside> }
       <main class="shell-content"><router-outlet /></main>
     </div>
   </div>
 } @else if (isAuthRoute()) {
-  <main class="auth-layout"><a class="brand" routerLink="/" aria-label="Pagina principală CompaSpot"><svg class="brand-logo" aria-hidden="true" viewBox="0 0 64 64"><circle class="brand-person" cx="16" cy="14" r="7"/><circle class="brand-person" cx="48" cy="14" r="7"/><path class="brand-body" d="M4 37c1-10 5-15 12-15 5 0 9 3 11 9M60 37c-1-10-5-15-12-15-5 0-9 3-11 9"/><path class="brand-arm" d="m12 30 14 11 7-5 6 4 13-10"/><path class="brand-handshake" d="m24 39 7 7c2 2 4 2 6 0l5-5-7-6-5 4-4-1-2 1Z"/><path class="brand-cuff" d="m8 28 6-3 5 8-6 4m43-9-6-3-5 8 6 4"/></svg><span><strong>CompaSpot</strong><small>Nevoi. Oameni. Valoare.</small></span></a><router-outlet /></main>
+  <main class="auth-layout"><a class="brand" routerLink="/" [attr.aria-label]="i18n.t('Pagina principală CompaSpot')"><svg class="brand-logo" aria-hidden="true" viewBox="0 0 64 64"><circle class="brand-person" cx="16" cy="14" r="7"/><circle class="brand-person" cx="48" cy="14" r="7"/><path class="brand-body" d="M4 37c1-10 5-15 12-15 5 0 9 3 11 9M60 37c-1-10-5-15-12-15-5 0-9 3-11 9"/><path class="brand-arm" d="m12 30 14 11 7-5 6 4 13-10"/><path class="brand-handshake" d="m24 39 7 7c2 2 4 2 6 0l5-5-7-6-5 4-4-1-2 1Z"/><path class="brand-cuff" d="m8 28 6-3 5 8-6 4m43-9-6-3-5 8 6 4"/></svg><span><strong>CompaSpot</strong><small>{{ i18n.t('Nevoi. Oameni. Valoare.') }}</small></span></a><app-language-toggle /><router-outlet /></main>
 } @else {
-  <header class="public-header"><a class="brand" routerLink="/" aria-label="Pagina principală CompaSpot"><svg class="brand-logo" aria-hidden="true" viewBox="0 0 64 64"><circle class="brand-person" cx="16" cy="14" r="7"/><circle class="brand-person" cx="48" cy="14" r="7"/><path class="brand-body" d="M4 37c1-10 5-15 12-15 5 0 9 3 11 9M60 37c-1-10-5-15-12-15-5 0-9 3-11 9"/><path class="brand-arm" d="m12 30 14 11 7-5 6 4 13-10"/><path class="brand-handshake" d="m24 39 7 7c2 2 4 2 6 0l5-5-7-6-5 4-4-1-2 1Z"/><path class="brand-cuff" d="m8 28 6-3 5 8-6 4m43-9-6-3-5 8 6 4"/></svg><span><strong>CompaSpot</strong><small>Nevoi. Oameni. Valoare.</small></span></a><nav><a routerLink="/" routerLinkActive="active" [routerLinkActiveOptions]="{exact:true}">Piața Live</a><a class="account-link" routerLink="/sign-in">Autentificare</a></nav></header>
-  @if (backend.status() === 'unavailable') { <aside class="service-status" role="alert"><div><strong>Serviciul este temporar indisponibil</strong><span>Poți naviga în continuare. Datele se încarcă după reconectare.</span></div><button type="button" [disabled]="backend.retrying()" (click)="backend.retry()">{{ backend.retrying() ? 'Se verifică…' : 'Reîncearcă' }}</button></aside> }
+  <header class="public-header"><a class="brand" routerLink="/" [attr.aria-label]="i18n.t('Pagina principală CompaSpot')"><svg class="brand-logo" aria-hidden="true" viewBox="0 0 64 64"><circle class="brand-person" cx="16" cy="14" r="7"/><circle class="brand-person" cx="48" cy="14" r="7"/><path class="brand-body" d="M4 37c1-10 5-15 12-15 5 0 9 3 11 9M60 37c-1-10-5-15-12-15-5 0-9 3-11 9"/><path class="brand-arm" d="m12 30 14 11 7-5 6 4 13-10"/><path class="brand-handshake" d="m24 39 7 7c2 2 4 2 6 0l5-5-7-6-5 4-4-1-2 1Z"/><path class="brand-cuff" d="m8 28 6-3 5 8-6 4m43-9-6-3-5 8 6 4"/></svg><span><strong>CompaSpot</strong><small>{{ i18n.t('Nevoi. Oameni. Valoare.') }}</small></span></a><nav><a routerLink="/" routerLinkActive="active" [routerLinkActiveOptions]="{exact:true}">{{ i18n.t('Piața Live') }}</a><a class="account-link" routerLink="/sign-in">{{ i18n.t('Autentificare') }}</a></nav><app-language-toggle /></header>
+  @if (backend.status() === 'unavailable') { <aside class="service-status" role="alert"><div><strong>{{ i18n.t('Serviciul este temporar indisponibil') }}</strong><span>{{ i18n.t('Poți naviga în continuare. Datele se încarcă după reconectare.') }}</span></div><button type="button" [disabled]="backend.retrying()" (click)="backend.retry()">{{ i18n.t(backend.retrying() ? 'Se verifică…' : 'Reîncearcă') }}</button></aside> }
   <main class="shell-content public-content"><router-outlet /></main>
 }

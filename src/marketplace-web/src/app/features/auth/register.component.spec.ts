@@ -11,6 +11,7 @@ describe('RegisterComponent', () => {
   let registerCalls: number;
 
   beforeEach(async () => {
+    localStorage.setItem('compaspot.language', 'ro');
     response = new Subject<void>();
     registerCalls = 0;
     await TestBed.configureTestingModule({

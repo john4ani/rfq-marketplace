@@ -4,15 +4,18 @@ import { NavigationEnd, Router, RouterLink, RouterLinkActive, RouterOutlet } fro
 import { filter } from 'rxjs';
 import { AuthService } from './core/auth/auth.service';
 import { BackendAvailabilityService } from './core/connectivity/backend-availability.service';
+import { LanguageService } from './core/i18n/language.service';
 import { NotificationMenuComponent } from './features/notifications/notification-menu.component';
 import { MessagesMenuComponent } from './features/messaging/messages-menu.component';
+import { LanguageToggleComponent } from './shared/language-toggle.component';
 
 type NavContext = 'buyer' | 'company' | 'admin';
 
-@Component({ selector: 'app-root', imports: [RouterLink, RouterLinkActive, RouterOutlet, NotificationMenuComponent, MessagesMenuComponent], templateUrl: './app.html', styleUrl: './app.scss', changeDetection: ChangeDetectionStrategy.OnPush })
+@Component({ selector: 'app-root', imports: [RouterLink, RouterLinkActive, RouterOutlet, NotificationMenuComponent, MessagesMenuComponent, LanguageToggleComponent], templateUrl: './app.html', styleUrl: './app.scss', changeDetection: ChangeDetectionStrategy.OnPush })
 export class App {
   readonly auth = inject(AuthService);
   readonly backend = inject(BackendAvailabilityService);
+  readonly i18n = inject(LanguageService);
   private readonly router = inject(Router);
   readonly signingOut = signal(false);
   readonly mobileNavigationOpen = signal(false);

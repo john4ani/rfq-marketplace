@@ -11,6 +11,7 @@ class SeapStubComponent {}
 
 describe('App', () => {
   beforeEach(async () => {
+    localStorage.setItem('compaspot.language', 'ro');
     await TestBed.configureTestingModule({ imports: [App], providers: [provideRouter([{ path: 'seap/tenders', component: SeapStubComponent }]), provideHttpClient()] }).compileComponents();
   });
   it('creates the application shell', () => {
@@ -21,6 +22,18 @@ describe('App', () => {
     const homeLink = (fixture.nativeElement as HTMLElement).querySelector<HTMLAnchorElement>('.public-header nav a[href="/"]');
     expect(homeLink?.textContent).toContain('Piața Live');
     expect(homeLink?.getAttribute('href')).toBe('/');
+  });
+
+  it('switches the shell to English via the language toggle', () => {
+    const fixture = TestBed.createComponent(App);
+    fixture.detectChanges();
+    const enButton = (fixture.nativeElement as HTMLElement).querySelector<HTMLButtonElement>('.language-toggle button:nth-child(2)');
+    expect(enButton).toBeTruthy();
+    enButton!.click();
+    fixture.detectChanges();
+    const homeLink = (fixture.nativeElement as HTMLElement).querySelector<HTMLAnchorElement>('.public-header nav a[href="/"]');
+    expect(homeLink?.textContent).toContain('Live Marketplace');
+    expect(localStorage.getItem('compaspot.language')).toBe('en');
   });
 
   it('shows one actionable status when the backend is unavailable', () => {

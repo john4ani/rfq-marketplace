@@ -4,43 +4,45 @@ import { FormControl, FormGroup, ReactiveFormsModule, Validators } from '@angula
 import { RouterLink } from '@angular/router';
 import { finalize } from 'rxjs';
 import { AuthService } from '../../core/auth/auth.service';
+import { LanguageService } from '../../core/i18n/language.service';
 
 @Component({
   selector: 'app-forgot-password',
   imports: [ReactiveFormsModule, RouterLink],
   template: `<section class="auth-card">
-    <h1>Resetați parola</h1>
-    <p>Introduceți adresa contului. Dacă există, vă trimitem un link securizat pentru alegerea unei parole noi.</p>
+    <h1>{{ i18n.t('Resetați parola') }}</h1>
+    <p>{{ i18n.t('Introduceți adresa contului. Dacă există, vă trimitem un link securizat pentru alegerea unei parole noi.') }}</p>
     <form [formGroup]="form" (ngSubmit)="submit()">
-      <label>E-mail
+      <label>{{ i18n.t('E-mail') }}
         <input type="email" formControlName="email" autocomplete="email">
         @if (form.controls.email.touched && form.controls.email.invalid) {
-          <small class="error">Introduceți o adresă de e-mail validă.</small>
+          <small class="error">{{ i18n.t('Introduceți o adresă de e-mail validă.') }}</small>
         }
       </label>
       @if (message()) { <p class="success" role="status">{{ message() }}</p> }
       @if (error()) { <p class="error" role="alert">{{ error() }}</p> }
       <button type="submit" [disabled]="form.invalid || submitting()">
-        {{ submitting() ? 'Se trimite…' : 'Trimite linkul de resetare' }}
+        {{ i18n.t(submitting() ? 'Se trimite…' : 'Trimite linkul de resetare') }}
       </button>
     </form>
     @if (developmentToken()) {
       <details class="development-note">
-        <summary>Opțiune doar pentru dezvoltare</summary>
+        <summary>{{ i18n.t('Opțiune doar pentru dezvoltare') }}</summary>
         <p role="status">
-        {{ emailSent() ? 'E-mailul de test a fost trimis. Verifică inboxul.' : (emailTransportEnabled() ? 'E-mailul de test nu a putut fi trimis. Verifică jurnalul API-ului.' : 'Trimiterea de e-mail nu este activată în configurația acestui API local.') }}
+        {{ emailSent() ? i18n.t('E-mailul de test a fost trimis. Verifică inboxul.') : (emailTransportEnabled() ? i18n.t('E-mailul de test nu a putut fi trimis. Verifică jurnalul API-ului.') : i18n.t('Trimiterea de e-mail nu este activată în configurația acestui API local.')) }}
         <a routerLink="/reset-password" [queryParams]="{ email: form.controls.email.value, token: developmentToken() }">
-          Continuați cu tokenul de dezvoltare
+          {{ i18n.t('Continuați cu tokenul de dezvoltare') }}
         </a>
         </p>
       </details>
     }
-    <a routerLink="/sign-in">Înapoi la autentificare</a>
+    <a routerLink="/sign-in">{{ i18n.t('Înapoi la autentificare') }}</a>
   </section>`,
   changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class ForgotPasswordComponent {
   private readonly auth = inject(AuthService);
+  readonly i18n = inject(LanguageService);
   readonly submitting = signal(false);
   readonly message = signal('');
   readonly error = signal('');
@@ -68,15 +70,15 @@ export class ForgotPasswordComponent {
       .pipe(finalize(() => this.submitting.set(false)))
       .subscribe({
         next: response => {
-          this.message.set('Dacă adresa aparține unui cont, veți primi în scurt timp instrucțiunile de resetare.');
+          this.message.set(this.i18n.t('Dacă adresa aparține unui cont, veți primi în scurt timp instrucțiunile de resetare.'));
           this.developmentToken.set(response?.token ?? null);
           this.emailTransportEnabled.set(response?.emailTransportEnabled === true);
           this.emailSent.set(response?.emailSent === true);
         },
         error: (response: HttpErrorResponse) => this.error.set(
           response.status === 429
-            ? 'Au fost prea multe solicitări. Așteptați un minut și încercați din nou.'
-            : 'Solicitarea nu a putut fi trimisă. Verificați conexiunea și încercați din nou.')
+            ? this.i18n.t('Au fost prea multe solicitări. Așteptați un minut și încercați din nou.')
+            : this.i18n.t('Solicitarea nu a putut fi trimisă. Verificați conexiunea și încercați din nou.'))
       });
   }
 }

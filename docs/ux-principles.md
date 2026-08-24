@@ -52,3 +52,11 @@ Comparison emphasises total, coverage, delivery, condition, warranty, transport 
 ## Visual direction
 
 Forest Warm remains the MVP direction: warm, calm, trustworthy, premium through restraint, human Romanian, readable Inter typography, generous whitespace and accessible status labels. Standardize only real reused components touched by the current slice.
+
+## Language
+
+Romanian remains the main product language and the source of truth for UI text. The app offers English for users from other countries:
+
+- **Default by locale**: a Romanian browser (`navigator.language` starting with `ro`) sees Romanian; everyone else sees English. An explicit user choice in `localStorage` (`compaspot.language`) always wins.
+- **Toggle**: an RO/EN selector is shown in the app masthead, the public header and the auth layout so the language is switchable from anywhere at the top of the page. The choice persists for the next visit and sets `document.documentElement.lang`.
+- **Mechanism**: `LanguageService.t(key)` translates Romanian source text via the `core/i18n/translations.ts` dictionary (Romanian text is the key; English is the value). UI bindings read the language signal so templates re-render immediately on change. Missing translations fall back to the Romanian source, so feature pages can be translated incrementally without breaking the toggle.
