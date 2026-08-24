@@ -13,6 +13,10 @@ name: rfq-marketplace
 # Compose interpolation file .env holds shared values (API_IMAGE, POSTGRES_USER/PASSWORD, ACME_EMAIL,
 # PROD_SITE). Backend container environments come from env_file .env.prod / .env.staging (rendered by
 # deploy/scripts/render-environment.sh from AWS SSM).
+#
+# Mount paths: this file is uploaded to /opt/rfq-marketplace/releases/<sha>/docker-compose.yml, so
+# "../../shared/..." resolves to /opt/rfq-marketplace/shared/... (where host-deploy.sh keeps the
+# per-environment Data Protection keys and the SPA static files). "./" resolves to the release dir.
 
 services:
   postgres:
@@ -121,7 +125,7 @@ services:
       marketplace:
         ipv4_address: 172.28.0.3
     volumes:
-      - ../shared/data-protection-keys-prod:/var/lib/marketplace/data-protection-keys
+      - ../../shared/data-protection-keys-prod:/var/lib/marketplace/data-protection-keys
     read_only: true
     tmpfs:
       - /tmp:size=128m,mode=1777
@@ -154,7 +158,7 @@ services:
       marketplace:
         ipv4_address: 172.28.0.6
     volumes:
-      - ../shared/data-protection-keys-staging:/var/lib/marketplace/data-protection-keys
+      - ../../shared/data-protection-keys-staging:/var/lib/marketplace/data-protection-keys
     read_only: true
     tmpfs:
       - /tmp:size=128m,mode=1777
@@ -190,8 +194,8 @@ services:
       - "8081:8081"
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
-      - ../shared/frontend-prod:/srv/www-prod:ro
-      - ../shared/frontend-staging:/srv/www-staging:ro
+      - ../../shared/frontend-prod:/srv/www-prod:ro
+      - ../../shared/frontend-staging:/srv/www-staging:ro
       - caddy_data:/data
       - caddy_config:/config
     networks:
