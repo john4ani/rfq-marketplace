@@ -185,7 +185,7 @@ emit_backend_env() {
 
   {
     printf 'API_ORIGIN_HOST=%s\n' "${api_host}"
-    printf 'FRONTEND_ORIGIN=%s\n' "${frontend_origin_value}"
+    printf 'Frontend__Origin=%s\n' "${frontend_origin_value}"
     printf 'PasswordReset__ResetPageUrl=%s/reset-password\n' "${frontend_origin_value%/}"
     printf 'EmailVerification__ConfirmationPageUrl=%s/verify-email\n' "${frontend_origin_value%/}"
     printf 'Stripe__SuccessUrl=%s/seap/tenders\n' "${frontend_origin_value%/}"

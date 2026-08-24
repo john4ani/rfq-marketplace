@@ -46,6 +46,7 @@ rollback() {
   fi
 
   echo "Deployment failed (exit ${exit_code}); rolling back to the previous release." >&2
+  dump_diagnostics
   if [[ -n "${previous_release}" && -d "${previous_release}" ]]; then
     ln -sfn "${previous_release}" "${current_link}"
     cd "${previous_release}"
@@ -75,6 +76,21 @@ rollback() {
   exit "${exit_code}"
 }
 trap rollback ERR
+
+# Best-effort capture of the failing containers before the previous release is restored.
+# shellcheck disable=SC2329
+dump_diagnostics() {
+  {
+    echo '--- docker compose ps ---'
+    docker compose --project-name rfq-marketplace --file docker-compose.yml --env-file .env ps || true
+    echo '--- backend-prod state ---'
+    docker inspect rfq-marketplace-backend-prod-1 --format '{{json .State}}' 2>/dev/null || true
+    echo '--- backend-prod logs (tail 100) ---'
+    docker compose --project-name rfq-marketplace --file docker-compose.yml --env-file .env logs --tail=100 backend-prod || true
+    echo '--- backend-staging logs (tail 40) ---'
+    docker compose --project-name rfq-marketplace --file docker-compose.yml --env-file .env logs --tail=40 backend-staging || true
+  } >&2 || true
+}
 
 # Shared state: per-environment Data Protection keys (isolated cookie/data-protection realms) and the
 # SPA static files served by Caddy. Frontend dirs are never replaced as a whole (bind mounts keep
