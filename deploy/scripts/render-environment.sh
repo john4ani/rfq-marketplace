@@ -186,6 +186,10 @@ emit_backend_env() {
   {
     printf 'API_ORIGIN_HOST=%s\n' "${api_host}"
     printf 'FRONTEND_ORIGIN=%s\n' "${frontend_origin_value}"
+    printf 'PasswordReset__ResetPageUrl=%s/reset-password\n' "${frontend_origin_value%/}"
+    printf 'EmailVerification__ConfirmationPageUrl=%s/verify-email\n' "${frontend_origin_value%/}"
+    printf 'Stripe__SuccessUrl=%s/seap/tenders\n' "${frontend_origin_value%/}"
+    printf 'Stripe__CancelUrl=%s/seap/tenders\n' "${frontend_origin_value%/}"
     printf 'AllowedHosts=%s\n' "${allowed_hosts}"
     printf 'ConnectionStrings__MarketplaceDatabase=Host=postgres;Port=5432;Database=%s;Username=%s;Password=%s\n' \
       "${database}" "${postgres_user}" "${postgres_password}"
@@ -255,12 +259,12 @@ emit_backend_env() {
 
 emit_backend_env "${output_dir}/.env.prod" \
   "${postgres_database}" "${s3_root_prefix_prod}" \
-  "${api_origin_host}" "${frontend_origin}" "${api_origin_host};${legacy_api_origin}" \
+  "${api_origin_host}" "${frontend_origin}" "${api_origin_host};www.${api_origin_host};${legacy_api_origin}" \
   "${features_seap_enabled}" "${features_auto_bidding_enabled}"
 
 emit_backend_env "${output_dir}/.env.staging" \
   "compaspot_staging" "${s3_root_prefix_staging}" \
-  "${staging_api_origin_host}" "${staging_frontend_origin}" "" \
+  "${staging_api_origin_host}" "${staging_frontend_origin}" "${staging_api_origin_host};127.0.0.1:8080" \
   "${staging_features_seap_enabled}" "${staging_features_auto_bidding_enabled}"
 
 chmod 600 "${output_dir}/.env" "${output_dir}/.env.prod" "${output_dir}/.env.staging"

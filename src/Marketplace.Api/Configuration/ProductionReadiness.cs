@@ -10,6 +10,11 @@ public static class ProductionReadiness
     {
         if (environment.IsDevelopment()) return;
 
+        // Staging is an internal-only plain-HTTP site (:8081, admin CIDR); the strict HTTPS origin
+        // contract (ADR-0014) applies to Production. Placeholder and completeness checks stay active
+        // for every non-Development environment.
+        bool requiresHttpsOrigins = environment.IsProduction();
+
         var errors = new List<string>();
         string connectionString = configuration.GetConnectionString("MarketplaceDatabase") ?? string.Empty;
         string frontendOrigin = configuration["Frontend:Origin"] ?? string.Empty;
@@ -21,14 +26,14 @@ public static class ProductionReadiness
             || ContainsPlaceholder(connectionString))
             errors.Add("ConnectionStrings__MarketplaceDatabase must use a production credential.");
         if (!Uri.TryCreate(frontendOrigin, UriKind.Absolute, out Uri? frontendUri)
-            || frontendUri.Scheme != Uri.UriSchemeHttps)
-            errors.Add("Frontend__Origin must be an absolute HTTPS origin.");
+            || (requiresHttpsOrigins && frontendUri.Scheme != Uri.UriSchemeHttps))
+            errors.Add("Frontend__Origin must be an absolute URL (HTTPS required in Production).");
         if (Encoding.UTF8.GetByteCount(signingKey) < 32 || ContainsPlaceholder(signingKey))
             errors.Add("Jwt__SigningKey must contain at least 32 non-placeholder bytes.");
         if (string.IsNullOrWhiteSpace(allowedHosts)
             || allowedHosts is "*" or "localhost"
             || allowedHosts.Contains("example.com", StringComparison.OrdinalIgnoreCase))
-            errors.Add("AllowedHosts must list the production API host.");
+            errors.Add("AllowedHosts must list the API host(s).");
         if (string.IsNullOrWhiteSpace(dataProtectionKeysPath)
             || !Path.IsPathRooted(dataProtectionKeysPath))
             errors.Add("DataProtection__KeysPath must be an absolute persistent directory.");
@@ -36,8 +41,8 @@ public static class ProductionReadiness
         Require(configuration, errors, "PasswordReset:ResetPageUrl");
         string resetPageUrl = configuration["PasswordReset:ResetPageUrl"] ?? string.Empty;
         if (!Uri.TryCreate(resetPageUrl, UriKind.Absolute, out Uri? resetUri)
-            || resetUri.Scheme != Uri.UriSchemeHttps)
-            errors.Add("PasswordReset__ResetPageUrl must be an absolute HTTPS URL.");
+            || (requiresHttpsOrigins && resetUri.Scheme != Uri.UriSchemeHttps))
+            errors.Add("PasswordReset__ResetPageUrl must be an absolute URL (HTTPS required in Production).");
         else if (frontendUri is not null
                  && !string.Equals(resetUri.GetLeftPart(UriPartial.Authority), frontendUri.GetLeftPart(UriPartial.Authority), StringComparison.OrdinalIgnoreCase))
             errors.Add("PasswordReset__ResetPageUrl must use the configured frontend origin.");
@@ -57,8 +62,8 @@ public static class ProductionReadiness
 
             string confirmationPageUrl = configuration["EmailVerification:ConfirmationPageUrl"] ?? string.Empty;
             if (!Uri.TryCreate(confirmationPageUrl, UriKind.Absolute, out Uri? confirmationUri)
-                || confirmationUri.Scheme != Uri.UriSchemeHttps)
-                errors.Add("EmailVerification__ConfirmationPageUrl must be an absolute HTTPS URL.");
+                || (requiresHttpsOrigins && confirmationUri.Scheme != Uri.UriSchemeHttps))
+                errors.Add("EmailVerification__ConfirmationPageUrl must be an absolute URL (HTTPS required in Production).");
             else if (frontendUri is not null
                      && !string.Equals(confirmationUri.GetLeftPart(UriPartial.Authority), frontendUri.GetLeftPart(UriPartial.Authority), StringComparison.OrdinalIgnoreCase))
                 errors.Add("EmailVerification__ConfirmationPageUrl must use the configured frontend origin.");
