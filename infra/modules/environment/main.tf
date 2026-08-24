@@ -96,33 +96,33 @@ resource "aws_iam_user_policy" "ses_smtp" {
 
 locals {
   runtime_parameters = {
-    "acme-email"                          = var.acme_email
-    "admin-cidr"                          = var.admin_cidr
+    "acme-email" = var.acme_email
+    "admin-cidr" = var.admin_cidr
     # Single-host dual topology: the same Caddy serves the SPA and the API on compaspot.com
     # (no separate api subdomain / CloudFront anymore). Staging uses the Lightsail static IP :8081.
-    "api-origin-host"                     = "compaspot.com"
-    "attachments-bucket"                  = module.storage.attachments_bucket_id
-    "backups-bucket"                      = module.storage.backups_bucket_id
-    "cloudfront-distribution-id"          = module.frontend.distribution_id
-    "frontend-bucket"                     = module.storage.frontend_bucket_id
-    "frontend-origin"                     = "https://compaspot.com"
-    "instance-name"                       = module.host.instance_name
-    "jwt-audience"                        = "rfq-marketplace-web"
-    "jwt-issuer"                          = "rfq-marketplace-api"
-    "postgres-database"                   = "compaspot_prod"
-    "postgres-user"                       = "marketplace"
-    "email-enabled"                       = "true"
-    "email-host"                          = "smtp-relay.gmail.com"
-    "email-port"                          = "587"
-    "email-use-tls"                       = "true"
-    "email-from-address"                  = var.smtp_from_address
-    "email-from-name"                     = var.smtp_from_name
-    "email-reply-to-address"              = var.smtp_reply_to_address
+    "api-origin-host"            = "compaspot.com"
+    "attachments-bucket"         = module.storage.attachments_bucket_id
+    "backups-bucket"             = module.storage.backups_bucket_id
+    "cloudfront-distribution-id" = module.frontend.distribution_id
+    "frontend-bucket"            = module.storage.frontend_bucket_id
+    "frontend-origin"            = "https://compaspot.com"
+    "instance-name"              = module.host.instance_name
+    "jwt-audience"               = "rfq-marketplace-web"
+    "jwt-issuer"                 = "rfq-marketplace-api"
+    "postgres-database"          = "compaspot_prod"
+    "postgres-user"              = "marketplace"
+    "email-enabled"              = "true"
+    "email-host"                 = "smtp-relay.gmail.com"
+    "email-port"                 = "587"
+    "email-use-tls"              = "true"
+    "email-from-address"         = var.smtp_from_address
+    "email-from-name"            = var.smtp_from_name
+    "email-reply-to-address"     = var.smtp_reply_to_address
     # V3 feature toggles — Prod and Staging have separate switches (both OFF by default).
-    "features-seap-ingestion-enabled"     = "false"
-    "features-auto-bidding-enabled"       = "false"
-    "staging-features-seap-ingestion-enabled"   = "false"
-    "staging-features-auto-bidding-enabled"     = "false"
+    "features-seap-ingestion-enabled"         = "false"
+    "features-auto-bidding-enabled"           = "false"
+    "staging-features-seap-ingestion-enabled" = "false"
+    "staging-features-auto-bidding-enabled"   = "false"
   }
 }
 
