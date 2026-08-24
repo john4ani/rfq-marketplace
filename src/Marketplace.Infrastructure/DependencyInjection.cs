@@ -139,11 +139,24 @@ public static class DependencyInjection
         services.Configure<SeapOptions>(configuration.GetSection(SeapOptions.SectionName));
         services.Configure<SeapStorageOptions>(configuration.GetSection("Seap:Storage"));
         services.Configure<AutoBiddingOptions>(configuration.GetSection(AutoBiddingOptions.SectionName));
+        services.Configure<S3Options>(configuration.GetSection(S3Options.SectionName));
         services.AddHttpClient("seap");
         services.AddSingleton<IAmazonS3>(provider =>
         {
-            SeapStorageOptions options = provider.GetRequiredService<Microsoft.Extensions.Options.IOptions<SeapStorageOptions>>().Value;
+            S3Options options = provider.GetRequiredService<Microsoft.Extensions.Options.IOptions<S3Options>>().Value;
             string region = string.IsNullOrWhiteSpace(options.Region) ? "eu-central-1" : options.Region;
+            if (!string.IsNullOrWhiteSpace(options.ServiceUrl))
+            {
+                // Cloudflare R2 (S3-compatible): static credentials + path-style addressing (no virtual-host buckets).
+                AmazonS3Config r2Config = new()
+                {
+                    ServiceURL = options.ServiceUrl,
+                    ForcePathStyle = true,
+                    AuthenticationRegion = region
+                };
+                return new AmazonS3Client(options.AccessKeyId, options.SecretAccessKey, r2Config);
+            }
+            // AWS S3 via the default IAM credential chain.
             return new AmazonS3Client(Amazon.RegionEndpoint.GetBySystemName(region));
         });
         services.AddScoped<ISeapApiClient, SeapApiClient>();

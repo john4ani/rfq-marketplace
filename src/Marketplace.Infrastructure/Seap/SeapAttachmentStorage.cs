@@ -10,15 +10,17 @@ namespace Marketplace.Infrastructure.Seap;
 public sealed partial class SeapAttachmentStorage(
     IAmazonS3 s3,
     IOptions<SeapStorageOptions> options,
+    IOptions<S3Options> s3Options,
     ILogger<SeapAttachmentStorage> logger) : ISeapAttachmentStorage
 {
     private readonly SeapStorageOptions settings = options.Value;
+    private readonly string rootPrefix = s3Options.Value.NormalizedRootPrefix;
 
     public async Task<string> UploadAsync(string tenderId, string fileName, Stream content, CancellationToken cancellationToken)
     {
         if (!settings.Enabled || string.IsNullOrWhiteSpace(settings.Bucket))
             throw new InvalidOperationException("Stocarea SEAP nu este configurată.");
-        string key = $"seap/{tenderId}/{Guid.NewGuid():N}/{Sanitize(fileName)}";
+        string key = $"{rootPrefix}seap/{tenderId}/{Guid.NewGuid():N}/{Sanitize(fileName)}";
         PutObjectRequest request = new()
         {
             BucketName = settings.Bucket,

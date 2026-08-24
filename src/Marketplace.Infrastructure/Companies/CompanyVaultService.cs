@@ -23,6 +23,7 @@ public sealed partial class CompanyVaultService : ICompanyVaultService
     private readonly MarketplaceDbContext dbContext;
     private readonly IAmazonS3 s3;
     private readonly AutoBiddingOptions autoBiddingOptions;
+    private readonly string rootPrefix;
     private readonly IDocumentExtractionService extractionService;
     private readonly IEmbeddingService embeddingService;
     private readonly TimeProvider timeProvider;
@@ -32,6 +33,7 @@ public sealed partial class CompanyVaultService : ICompanyVaultService
         MarketplaceDbContext dbContext,
         IAmazonS3 s3,
         IOptions<AutoBiddingOptions> autoBiddingOptions,
+        IOptions<S3Options> s3Options,
         IDocumentExtractionService extractionService,
         IEmbeddingService embeddingService,
         TimeProvider timeProvider,
@@ -40,6 +42,7 @@ public sealed partial class CompanyVaultService : ICompanyVaultService
         this.dbContext = dbContext;
         this.s3 = s3;
         this.autoBiddingOptions = autoBiddingOptions.Value;
+        rootPrefix = s3Options.Value.NormalizedRootPrefix;
         this.extractionService = extractionService;
         this.embeddingService = embeddingService;
         this.timeProvider = timeProvider;
@@ -105,11 +108,11 @@ public sealed partial class CompanyVaultService : ICompanyVaultService
         await s3.PutObjectAsync(new PutObjectRequest
         {
             BucketName = autoBiddingOptions.DocumentsBucket,
-            Key = $"vault/{companyId}/{Guid.NewGuid():N}/{fileName}",
+            Key = $"{rootPrefix}vault/{companyId}/{Guid.NewGuid():N}/{fileName}",
             InputStream = content,
             ContentType = "application/octet-stream"
         }, cancellationToken);
-        return $"s3://{autoBiddingOptions.DocumentsBucket}/vault/{companyId}/{fileName}";
+        return $"s3://{autoBiddingOptions.DocumentsBucket}/{rootPrefix}vault/{companyId}/{fileName}";
     }
 
     private async Task ExtractAndEmbedAsync(VaultDocument document, Stream content, CancellationToken cancellationToken)

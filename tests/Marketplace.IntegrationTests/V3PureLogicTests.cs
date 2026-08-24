@@ -1,6 +1,7 @@
 using Marketplace.Application.Billing;
 using Marketplace.Application.Seap;
 using Marketplace.Domain.Seap;
+using Marketplace.Infrastructure;
 using Marketplace.Infrastructure.Bidding;
 using Marketplace.Infrastructure.Documents;
 using Marketplace.Infrastructure.Seap;
@@ -75,5 +76,30 @@ public sealed class V3PureLogicTests
         Assert.Equal(250_000m, tender.EstimatedValue);
         Assert.Equal("Primăria Municipiului Iași", tender.BuyerName);
         Assert.Equal(SeapTenderStatus.Imported, tender.Status);
+    }
+
+    [Theory]
+    [InlineData("prod", "prod/")]
+    [InlineData("staging", "staging/")]
+    [InlineData("/prod/", "prod/")]
+    [InlineData("", "")]
+    [InlineData(null, "")]
+    [InlineData("   ", "")]
+    [InlineData(" prod/ ", "prod/")]
+    public void S3RootPrefixIsNormalized(string? configured, string expected)
+    {
+        S3Options options = new() { RootPrefix = configured ?? string.Empty };
+        Assert.Equal(expected, options.NormalizedRootPrefix);
+    }
+
+    [Theory]
+    [InlineData("prod", "prod/seap/123/abc.zip")]
+    [InlineData("staging", "staging/seap/123/abc.zip")]
+    [InlineData("", "seap/123/abc.zip")]
+    public void S3RootPrefixAppliesToObjectKeys(string prefix, string expectedKey)
+    {
+        S3Options options = new() { RootPrefix = prefix };
+        string key = $"{options.NormalizedRootPrefix}seap/123/abc.zip";
+        Assert.Equal(expectedKey, key);
     }
 }

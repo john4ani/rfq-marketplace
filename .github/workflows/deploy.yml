@@ -11,9 +11,10 @@ on:
         options:
           - production
           - staging
-# The current single live environment is PRODUCTION. The legacy AWS resources keep "staging" names
-# (Lightsail host, buckets, SSM path) until they are migrated — see docs/operations/environments.md.
-# A separate Staging environment will be added later.
+# Single-host dual-environment topology (Prod + Staging) — see deploy/docker-compose.yml and
+# docs/operations/environments.md. Prod is public on compaspot.com; Staging is internal-only
+# (Lightsail static IP :8081, firewall restricted to the admin CIDR). Both environments share the
+# same API credentials; isolation is by database, S3 root prefix and feature flags.
 
 permissions:
   contents: read
@@ -66,21 +67,22 @@ jobs:
           }
           {
             echo "instance_name=$(get_parameter instance-name)"
-            echo "frontend_bucket=$(get_parameter frontend-bucket)"
             echo "backups_bucket=$(get_parameter backups-bucket)"
-            echo "distribution_id=$(get_parameter cloudfront-distribution-id)"
-            echo "frontend_origin=$(get_parameter frontend-origin)"
             echo "admin_cidr=$(get_parameter admin-cidr)"
           } >> "$GITHUB_OUTPUT"
 
-      - name: Render production environment
-        run: bash deploy/scripts/render-environment.sh "$PARAMETER_PATH" "$API_IMAGE" .deployment.env
+      - name: Render environment files
+        run: bash deploy/scripts/render-environment.sh "$PARAMETER_PATH" "$API_IMAGE" .deployment
 
       - name: Build Angular
         working-directory: src/marketplace-web
         run: |
           pnpm install --frozen-lockfile
           pnpm build
+
+      - name: Package frontend
+        run: |
+          tar -C src/marketplace-web/dist/marketplace-web/browser -czf frontend.tar.gz .
 
       - name: Build API image
         run: |
@@ -102,7 +104,8 @@ jobs:
             {"fromPort":22,"toPort":22,"protocol":"tcp","cidrs":["${runner_ip}/32"]},
             {"fromPort":80,"toPort":80,"protocol":"tcp","cidrs":["0.0.0.0/0"]},
             {"fromPort":443,"toPort":443,"protocol":"tcp","cidrs":["0.0.0.0/0"]},
-            {"fromPort":443,"toPort":443,"protocol":"udp","cidrs":["0.0.0.0/0"]}
+            {"fromPort":443,"toPort":443,"protocol":"udp","cidrs":["0.0.0.0/0"]},
+            {"fromPort":8081,"toPort":8081,"protocol":"tcp","cidrs":["${runner_ip}/32"]}
           ]
           JSON
           aws lightsail put-instance-public-ports \
@@ -139,82 +142,77 @@ jobs:
           ssh -i /tmp/lightsail-key "$destination" \
             "mkdir -p /opt/rfq-marketplace/releases/${RELEASE_ID}/scripts"
           scp -i /tmp/lightsail-key \
-            deploy/compose.production.yaml \
+            deploy/docker-compose.yml \
             deploy/Caddyfile \
-            .deployment.env \
+            .deployment/.env \
+            .deployment/.env.prod \
+            .deployment/.env.staging \
             api-image.tar.gz \
+            frontend.tar.gz \
             "$destination:/opt/rfq-marketplace/releases/${RELEASE_ID}/"
           scp -i /tmp/lightsail-key deploy/scripts/*.sh \
             "$destination:/opt/rfq-marketplace/releases/${RELEASE_ID}/scripts/"
           ssh -i /tmp/lightsail-key "$destination" \
-            "mv /opt/rfq-marketplace/releases/${RELEASE_ID}/.deployment.env /opt/rfq-marketplace/releases/${RELEASE_ID}/.env \
-             && chmod 600 /opt/rfq-marketplace/releases/${RELEASE_ID}/.env \
+            "chmod 600 /opt/rfq-marketplace/releases/${RELEASE_ID}/.env \
+              /opt/rfq-marketplace/releases/${RELEASE_ID}/.env.prod \
+              /opt/rfq-marketplace/releases/${RELEASE_ID}/.env.staging \
              && chmod +x /opt/rfq-marketplace/releases/${RELEASE_ID}/scripts/*.sh"
 
-      - name: Back up database off-instance
+      - name: Back up databases off-instance
         shell: bash
         run: |
           set -Eeuo pipefail
           destination="${{ steps.ssh.outputs.username }}@${{ steps.ssh.outputs.instance_ip }}"
-          backup_path="$(ssh -i /tmp/lightsail-key "$destination" \
+          backup_paths="$(ssh -i /tmp/lightsail-key "$destination" \
             '/opt/rfq-marketplace/releases/${{ github.sha }}/scripts/database-backup.sh')"
-          if [[ "$backup_path" != "FIRST_DEPLOYMENT" ]]; then
-            scp -i /tmp/lightsail-key \
-              "$destination:$backup_path" \
-              "$destination:${backup_path}.sha256" \
-              /tmp/
-            (
-              cd /tmp
-              sha256sum --check "$(basename "${backup_path}.sha256")"
-            )
-            aws s3 cp "/tmp/$(basename "$backup_path")" \
-              "s3://${{ steps.config.outputs.backups_bucket }}/database/$(basename "$backup_path")" \
-              --sse AES256
-            aws s3 cp "/tmp/$(basename "${backup_path}.sha256")" \
-              "s3://${{ steps.config.outputs.backups_bucket }}/database/$(basename "${backup_path}.sha256")" \
-              --sse AES256
+          if [[ "$backup_paths" != "FIRST_DEPLOYMENT" ]]; then
+            while IFS= read -r backup_path; do
+              [[ -z "$backup_path" ]] && continue
+              scp -i /tmp/lightsail-key \
+                "$destination:$backup_path" \
+                "$destination:${backup_path}.sha256" \
+                /tmp/
+              (
+                cd /tmp
+                sha256sum --check "$(basename "${backup_path}.sha256")"
+              )
+              aws s3 cp "/tmp/$(basename "$backup_path")" \
+                "s3://${{ steps.config.outputs.backups_bucket }}/database/$(basename "$backup_path")" \
+                --sse AES256
+              aws s3 cp "/tmp/$(basename "${backup_path}.sha256")" \
+                "s3://${{ steps.config.outputs.backups_bucket }}/database/$(basename "${backup_path}.sha256")" \
+                --sse AES256
+            done <<< "$backup_paths"
           fi
 
-      - name: Deploy API release
+
+      - name: Deploy release
         shell: bash
         run: |
           destination="${{ steps.ssh.outputs.username }}@${{ steps.ssh.outputs.instance_ip }}"
           ssh -i /tmp/lightsail-key "$destination" \
             "/opt/rfq-marketplace/releases/${RELEASE_ID}/scripts/host-deploy.sh \
              ${RELEASE_ID} \
-             /opt/rfq-marketplace/releases/${RELEASE_ID}/api-image.tar.gz"
-
-      - name: Publish frontend
-        shell: bash
-        run: |
-          frontend_dir="src/marketplace-web/dist/marketplace-web/browser"
-          aws s3 sync "$frontend_dir/" "s3://${{ steps.config.outputs.frontend_bucket }}/" \
-            --delete \
-            --exclude "index.html" \
-            --cache-control "public,max-age=31536000,immutable"
-          aws s3 cp "$frontend_dir/index.html" \
-            "s3://${{ steps.config.outputs.frontend_bucket }}/index.html" \
-            --cache-control "no-cache,no-store,must-revalidate" \
-            --content-type "text/html"
-          aws cloudfront create-invalidation \
-            --distribution-id '${{ steps.config.outputs.distribution_id }}' \
-            --paths '/*'
+             /opt/rfq-marketplace/releases/${RELEASE_ID}/api-image.tar.gz \
+             /opt/rfq-marketplace/releases/${RELEASE_ID}/frontend.tar.gz"
 
       - name: Verify deployed application
         shell: bash
         run: |
           set -Eeuo pipefail
-          origin='${{ steps.config.outputs.frontend_origin }}'
+          instance_ip='${{ steps.ssh.outputs.instance_ip }}'
           for attempt in {1..24}; do
-            if curl --fail --silent --show-error "${origin}/health/ready" >/dev/null \
-              && curl --fail --silent --show-error "${origin}/" >/dev/null; then
-              echo "Deployment verified at ${origin}"
+            if curl --fail --silent --show-error -H "Host: compaspot.com" "http://${instance_ip}/health/ready" >/dev/null \
+              && curl --fail --silent --show-error -H "Host: compaspot.com" "http://${instance_ip}/" >/dev/null \
+              && curl --fail --silent --show-error "http://${instance_ip}:8081/health/ready" >/dev/null \
+              && curl --fail --silent --show-error "http://${instance_ip}:8081/" >/dev/null; then
+              echo "Deployment verified: Prod (compaspot.com via Caddy) and Staging (:8081)."
               exit 0
             fi
-            echo "CloudFront verification attempt ${attempt}/24 has not passed yet."
+            echo "Verification attempt ${attempt}/24 has not passed yet."
             sleep 10
           done
-          echo "CloudFront deployment did not pass readiness within four minutes." >&2
+          echo "Deployment did not pass readiness within four minutes." >&2
           exit 1
 
       - name: Restore restricted SSH access
@@ -226,10 +224,12 @@ jobs:
             {"fromPort":22,"toPort":22,"protocol":"tcp","cidrs":["${{ steps.config.outputs.admin_cidr }}"]},
             {"fromPort":80,"toPort":80,"protocol":"tcp","cidrs":["0.0.0.0/0"]},
             {"fromPort":443,"toPort":443,"protocol":"tcp","cidrs":["0.0.0.0/0"]},
-            {"fromPort":443,"toPort":443,"protocol":"udp","cidrs":["0.0.0.0/0"]}
+            {"fromPort":443,"toPort":443,"protocol":"udp","cidrs":["0.0.0.0/0"]},
+            {"fromPort":8081,"toPort":8081,"protocol":"tcp","cidrs":["${{ steps.config.outputs.admin_cidr }}"]}
           ]
           JSON
           aws lightsail put-instance-public-ports \
             --instance-name '${{ steps.config.outputs.instance_name }}' \
             --port-infos file:///tmp/ports-restricted.json
-          rm -f /tmp/lightsail-key /tmp/lightsail-key-cert.pub .deployment.env
+          rm -f /tmp/lightsail-key /tmp/lightsail-key-cert.pub
+          rm -rf .deployment frontend.tar.gz api-image.tar.gz

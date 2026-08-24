@@ -1,13 +1,14 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
 
-if [[ $# -ne 2 ]]; then
-  echo "Usage: host-deploy.sh <release-id> <api-image-tar>" >&2
+if [[ $# -ne 3 ]]; then
+  echo "Usage: host-deploy.sh <release-id> <api-image-tar> <frontend-tar>" >&2
   exit 64
 fi
 
 release_id="$1"
 image_tar="$2"
+frontend_tar="$3"
 application_root="${APPLICATION_ROOT:-/opt/rfq-marketplace}"
 release_directory="${application_root}/releases/${release_id}"
 current_link="${application_root}/current"
@@ -19,10 +20,13 @@ if [[ ! "${release_id}" =~ ^[0-9a-f]{7,40}$ ]]; then
 fi
 
 for required_file in \
-  "${release_directory}/compose.production.yaml" \
+  "${release_directory}/docker-compose.yml" \
   "${release_directory}/Caddyfile" \
   "${release_directory}/.env" \
-  "${image_tar}"; do
+  "${release_directory}/.env.prod" \
+  "${release_directory}/.env.staging" \
+  "${image_tar}" \
+  "${frontend_tar}"; do
   if [[ ! -f "${required_file}" ]]; then
     echo "Required deployment file is missing: ${required_file}" >&2
     exit 66
@@ -45,52 +49,91 @@ rollback() {
   if [[ -n "${previous_release}" && -d "${previous_release}" ]]; then
     ln -sfn "${previous_release}" "${current_link}"
     cd "${previous_release}"
+    local compose_file
+    if [[ -f docker-compose.yml ]]; then
+      compose_file="docker-compose.yml"
+    else
+      compose_file="compose.production.yaml"
+    fi
     docker compose --project-name rfq-marketplace \
-      --file compose.production.yaml \
+      --file "${compose_file}" \
       --env-file .env \
-      up --detach --remove-orphans postgres api caddy || true
+      up --detach --remove-orphans postgres backend-prod backend-staging caddy api || true
   else
     rm -f "${current_link}"
     cd "${release_directory}"
     docker compose --project-name rfq-marketplace \
-      --file compose.production.yaml \
+      --file docker-compose.yml \
       --env-file .env \
-      stop api caddy || true
+      stop backend-prod backend-staging caddy || true
   fi
   exit "${exit_code}"
 }
 trap rollback ERR
 
-sudo install -d -m 0700 -o 1654 -g 1654 "${application_root}/shared/data-protection-keys"
+# Shared state: per-environment Data Protection keys (isolated cookie/data-protection realms) and the
+# SPA static files served by Caddy. Frontend dirs are never replaced as a whole (bind mounts keep
+# their inode); files are swapped in-place instead.
+sudo install -d -m 0700 -o 1654 -g 1654 "${application_root}/shared/data-protection-keys-prod"
+sudo install -d -m 0700 -o 1654 -g 1654 "${application_root}/shared/data-protection-keys-staging"
+sudo install -d -m 0755 -o 1654 -g 1654 "${application_root}/shared/frontend-prod"
+sudo install -d -m 0755 -o 1654 -g 1654 "${application_root}/shared/frontend-staging"
+
 docker load --input "${image_tar}"
+
+staging_tmp="$(mktemp -d)"
+tar -xzf "${frontend_tar}" -C "${staging_tmp}"
+for frontend_dir in "${application_root}/shared/frontend-prod" "${application_root}/shared/frontend-staging"; do
+  sudo find "${frontend_dir}" -mindepth 1 -maxdepth 1 -exec rm -rf {} +
+  sudo cp -a "${staging_tmp}/." "${frontend_dir}/"
+done
+rm -rf "${staging_tmp}"
 
 cd "${release_directory}"
 docker compose --project-name rfq-marketplace \
-  --file compose.production.yaml \
+  --file docker-compose.yml \
   --env-file .env \
   config --quiet
 
+# Create the two databases (idempotent), then apply migrations to each.
 docker compose --project-name rfq-marketplace \
-  --file compose.production.yaml \
+  --file docker-compose.yml \
   --env-file .env \
   --profile tools \
-  run --rm migrate
+  run --rm init-db
+
+docker compose --project-name rfq-marketplace \
+  --file docker-compose.yml \
+  --env-file .env \
+  --profile tools \
+  run --rm migrate-prod
+
+docker compose --project-name rfq-marketplace \
+  --file docker-compose.yml \
+  --env-file .env \
+  --profile tools \
+  run --rm migrate-staging
 
 ln -sfn "${release_directory}" "${current_link}"
 
 docker compose --project-name rfq-marketplace \
-  --file compose.production.yaml \
+  --file docker-compose.yml \
   --env-file .env \
-  up --detach --remove-orphans postgres api caddy
+  up --detach --remove-orphans postgres backend-prod backend-staging caddy
 
 for attempt in {1..24}; do
   if docker compose --project-name rfq-marketplace \
-      --file compose.production.yaml \
+      --file docker-compose.yml \
       --env-file .env \
-      exec -T api \
-      sh -c 'curl --fail --silent --show-error --header "Host: $API_ORIGIN_HOST" http://127.0.0.1:8080/health/ready' >/dev/null; then
+      exec -T backend-prod \
+      sh -c 'curl --fail --silent --show-error --header "Host: $API_ORIGIN_HOST" http://127.0.0.1:8080/health/ready' >/dev/null \
+    && docker compose --project-name rfq-marketplace \
+      --file docker-compose.yml \
+      --env-file .env \
+      exec -T backend-staging \
+      sh -c 'curl --fail --silent --show-error http://127.0.0.1:8080/health/ready' >/dev/null; then
     trap - ERR
-    echo "Release ${release_id} is ready."
+    echo "Release ${release_id} is ready (Prod + Staging)."
     find "${application_root}/releases" -mindepth 1 -maxdepth 1 -type d -printf '%T@ %p\n' \
       | sort -nr \
       | tail -n +4 \

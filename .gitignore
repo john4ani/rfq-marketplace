@@ -22,7 +22,8 @@ coverage/
 .env
 .env.*
 !.env.example
-!.env.production.example
+!.env.prod.example
+!.env.staging.example
 appsettings.Local.json
 **/appsettings.Local.json
 *.pfx

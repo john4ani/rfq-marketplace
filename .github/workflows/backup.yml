@@ -110,26 +110,29 @@ jobs:
           set -Eeuo pipefail
           destination="${{ steps.ssh.outputs.username }}@${{ steps.ssh.outputs.instance_ip }}"
           backup_script="/opt/rfq-marketplace/current/scripts/database-backup.sh"
-          backup_path="$(ssh -i /tmp/lightsail-key "$destination" "$backup_script")"
-          if [[ "$backup_path" == "FIRST_DEPLOYMENT" ]]; then
+          backup_paths="$(ssh -i /tmp/lightsail-key "$destination" "$backup_script")"
+          if [[ "$backup_paths" == "FIRST_DEPLOYMENT" ]]; then
             echo "No deployed database exists yet; backup was skipped."
             exit 0
           fi
 
-          scp -i /tmp/lightsail-key \
-            "$destination:$backup_path" \
-            "$destination:${backup_path}.sha256" \
-            /tmp/
-          (
-            cd /tmp
-            sha256sum --check "$(basename "${backup_path}.sha256")"
-          )
-          aws s3 cp "/tmp/$(basename "$backup_path")" \
-            "s3://${{ steps.config.outputs.backups_bucket }}/database/$(basename "$backup_path")" \
-            --sse AES256
-          aws s3 cp "/tmp/$(basename "${backup_path}.sha256")" \
-            "s3://${{ steps.config.outputs.backups_bucket }}/database/$(basename "${backup_path}.sha256")" \
-            --sse AES256
+          while IFS= read -r backup_path; do
+            [[ -z "$backup_path" ]] && continue
+            scp -i /tmp/lightsail-key \
+              "$destination:$backup_path" \
+              "$destination:${backup_path}.sha256" \
+              /tmp/
+            (
+              cd /tmp
+              sha256sum --check "$(basename "${backup_path}.sha256")"
+            )
+            aws s3 cp "/tmp/$(basename "$backup_path")" \
+              "s3://${{ steps.config.outputs.backups_bucket }}/database/$(basename "$backup_path")" \
+              --sse AES256
+            aws s3 cp "/tmp/$(basename "${backup_path}.sha256")" \
+              "s3://${{ steps.config.outputs.backups_bucket }}/database/$(basename "${backup_path}.sha256")" \
+              --sse AES256
+          done <<< "$backup_paths"
 
           ssh -i /tmp/lightsail-key "$destination" \
             "find /opt/rfq-marketplace/backups -type f -mtime +7 -delete"

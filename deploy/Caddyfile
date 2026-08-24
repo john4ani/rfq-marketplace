@@ -7,7 +7,11 @@
 	}
 }
 
-{$API_ORIGIN_HOST} {
+# Public Prod site: SPA served by Caddy, API + health proxied to backend-prod.
+# Let's Encrypt issues the certificate automatically for both names.
+# "3-64-174-227.sslip.io" is the legacy CloudFront origin hostname — it keeps the live API working
+# during the cutover window (CloudFront → Lightsail). Remove it after the DNS repoint + CloudFront cleanup.
+{$PROD_SITE:compaspot.com}, www.compaspot.com, 3-64-174-227.sslip.io {
 	encode zstd gzip
 
 	header {
@@ -19,7 +23,46 @@
 		Permissions-Policy "camera=(), microphone=(), geolocation=()"
 	}
 
-	reverse_proxy api:8080
+	root * /srv/www-prod
+
+	@api path /api/* /health/*
+	handle @api {
+		reverse_proxy backend-prod:8080
+	}
+
+	handle {
+		try_files {path} /index.html
+		file_server
+	}
+
+	log {
+		output stdout
+		format json
+	}
+}
+
+# Staging site: NOT public — plain HTTP on :8081, reachable only from the admin CIDR
+# (Lightsail firewall rule). No TLS because no public domain is attached to Staging.
+:8081 {
+	encode zstd gzip
+
+	header {
+		-Server
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "DENY"
+	}
+
+	root * /srv/www-staging
+
+	@api path /api/* /health/*
+	handle @api {
+		reverse_proxy backend-staging:8080
+	}
+
+	handle {
+		try_files {path} /index.html
+		file_server
+	}
 
 	log {
 		output stdout

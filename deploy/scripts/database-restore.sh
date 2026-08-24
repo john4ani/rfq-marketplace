@@ -1,13 +1,20 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
 
-if [[ $# -ne 1 || "${CONFIRM_DATABASE_RESTORE:-}" != "RESTORE" ]]; then
-  echo "Usage: CONFIRM_DATABASE_RESTORE=RESTORE database-restore.sh <backup.dump>" >&2
-  echo "This operation replaces the current marketplace database." >&2
+if [[ $# -ne 2 || "${CONFIRM_DATABASE_RESTORE:-}" != "RESTORE" ]]; then
+  echo "Usage: CONFIRM_DATABASE_RESTORE=RESTORE database-restore.sh <database> <backup.dump>" >&2
+  echo "  <database>   compaspot_prod or compaspot_staging" >&2
+  echo "This operation replaces the given database." >&2
   exit 64
 fi
 
-backup_path="$(readlink -f "$1")"
+database="$1"
+case "${database}" in
+  compaspot_prod|compaspot_staging) ;;
+  *) echo "Unknown database '${database}'. Expected compaspot_prod or compaspot_staging." >&2; exit 64 ;;
+esac
+
+backup_path="$(readlink -f "$2")"
 application_root="${APPLICATION_ROOT:-/opt/rfq-marketplace}"
 current_release="${application_root}/current"
 
@@ -17,18 +24,18 @@ if [[ ! -s "${backup_path}" || ! -L "${current_release}" ]]; then
 fi
 
 cd "${current_release}"
-compose=(docker compose --project-name rfq-marketplace --file compose.production.yaml --env-file .env)
+compose=(docker compose --project-name rfq-marketplace --file docker-compose.yml --env-file .env)
 
-"${compose[@]}" stop api caddy
+"${compose[@]}" stop backend-prod backend-staging caddy
 # These variables intentionally expand inside the PostgreSQL container.
 # shellcheck disable=SC2016
-"${compose[@]}" exec -T postgres sh -c 'dropdb --if-exists --maintenance-db=postgres --username "$POSTGRES_USER" "$POSTGRES_DB"'
+"${compose[@]}" exec -T postgres sh -c 'dropdb --if-exists --maintenance-db=postgres --username "$POSTGRES_USER" "'"${database}"'"'
 # shellcheck disable=SC2016
-"${compose[@]}" exec -T postgres sh -c 'createdb --username "$POSTGRES_USER" "$POSTGRES_DB"'
+"${compose[@]}" exec -T postgres sh -c 'createdb --username "$POSTGRES_USER" "'"${database}"'"'
 # shellcheck disable=SC2016
 "${compose[@]}" exec -T postgres sh -c \
-  'pg_restore --exit-on-error --clean --if-exists --no-owner --no-privileges --username "$POSTGRES_USER" --dbname "$POSTGRES_DB"' \
+  'pg_restore --exit-on-error --clean --if-exists --no-owner --no-privileges --username "$POSTGRES_USER" --dbname "'"${database}"'"' \
   < "${backup_path}"
-"${compose[@]}" up --detach api caddy
+"${compose[@]}" up --detach backend-prod backend-staging caddy
 
-echo "Database restored from ${backup_path}. Run the acceptance smoke tests immediately."
+echo "Database ${database} restored from ${backup_path}. Run the acceptance smoke tests immediately."

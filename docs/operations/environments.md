@@ -1,82 +1,104 @@
 # Environments (MVP)
 
-## Decision (2026-08-23)
+## Decision (2026-08-23, updated)
 
-CompaSpot MVP runs a **single live environment, and that environment is PRODUCTION**. A separate **Staging**
-(pre-production test) environment will be added later when it is needed.
+CompaSpot runs a **single cost-optimized host** (AWS Lightsail VPS) with **two environments that share one
+PostgreSQL instance and identical API credentials**:
 
-## Current state (2026-08-23) — clean recreation complete
+| Environment | URL | Public | Database | S3/R2 root prefix | Feature flags |
+|---|---|---|---|---|---|
+| **Prod** | `https://compaspot.com` (+ `www`) | ✅ | `compaspot_prod` | `prod/` | SSM `features-*` (default OFF) |
+| **Staging** | `http://<lightsail-static-ip>:8081` | ❌ (admin CIDR only) | `compaspot_staging` | `staging/` | SSM `staging-features-*` (default OFF) |
 
-The environment was **fully recreated clean**: the legacy `rfq-marketplace-staging-*` resources (Lightsail
-host, buckets, CloudFront, IAM, SSM) were destroyed and a fresh **`rfq-marketplace-production-*`** environment
-was provisioned from `infra/environments/production` with state key `production/terraform.tfstate` and SSM path
-`/rfq-marketplace/production`. The obsolete `infra/environments/staging` Terraform root was removed; a real
-Staging environment will be created from scratch when it is needed.
+Rationale (`docs/adr/` + the environment addendum): no duplicate paid API accounts for Staging — isolation is
+**configuration/DB-only**: separate databases, separate S3/R2 object prefixes, separate feature toggles.
 
-Production facts (from `terraform output -json deployment`):
+## Topology (single `deploy/docker-compose.yml`)
+
+- **PostgreSQL 17 + pgvector** — one instance, two databases created idempotently by the `init-db` one-shot
+  (`deploy/scripts/init-databases.sh`). The legacy `marketplace` database from the pre-dual era is preserved
+  untouched in the same data volume (no data was deleted).
+- **`backend-prod` / `backend-staging`** — two parallel API containers (`env_file: .env.prod` / `.env.staging`,
+  rendered from AWS SSM `/rfq-marketplace/production/*` by `deploy/scripts/render-environment.sh`).
+- **Caddy** — reverse proxy + automatic Let's Encrypt for `compaspot.com` (SPA static files + `/api/*` +
+  `/health/*` → `backend-prod`), and plain HTTP `:8081` for Staging (SPA + `/api/*` → `backend-staging`).
+  The Lightsail firewall opens `:8081` only to the admin CIDR (see `infra/modules/lightsail-host`).
+- **Frontend** — the built Angular SPA is uploaded to `/opt/rfq-marketplace/shared/frontend-{prod,staging}`
+  and served by Caddy. CloudFront/S3 for the frontend is no longer used.
+- **Storage** — the .NET `IAmazonS3` client targets **Cloudflare R2** when `S3__ServiceUrl` is set
+  (`S3Options`; path-style + static credentials). Environments are separated by `S3__RootPrefix`
+  (`prod/` vs `staging/`) inside the same bucket. Keys: `prod/seap/...`, `prod/bids/...`, `prod/vault/...`,
+  `staging/...` accordingly. When `S3__ServiceUrl` is empty, the default AWS IAM chain is used (backward
+  compatible).
+- **Backups** — `database-backup.sh` dumps **both** databases; the Deploy and Backup workflows copy them to
+  the `backups-bucket` S3 bucket (kept). `database-restore.sh` restores a single named database.
+
+## Secrets & SSM (path `/rfq-marketplace/production`)
+
+Rendered by `render-environment.sh` (all values are Prod + Staging shared, except where noted):
+
+- Required: `api-origin-host` (= `compaspot.com`), `frontend-origin`, `postgres-database`
+  (= `compaspot_prod`), `postgres-user`, `postgres-password` (SecureString), `jwt-issuer`,
+  `jwt-audience`, `jwt-signing-key` (SecureString), `acme-email`, `instance-name`, `email-*`,
+  `admin-cidr`, `backups-bucket`.
+- Optional (defaults when absent): `ai-intake-*`, `google-places-*`, `seap-*`, `auto-bidding-*`,
+  `stripe-*`, `document-intelligence-*`, `s3-*` (ServiceUrl/AccessKeyId/SecretAccessKey/Region/prefixes),
+  `email-username`/`email-password`.
+- Feature toggles (separate per env, default OFF): `features-seap-ingestion-enabled`,
+  `features-auto-bidding-enabled`, `staging-features-seap-ingestion-enabled`,
+  `staging-features-auto-bidding-enabled`.
+
+## Production facts (2026-08-23)
 
 | Resource | Value |
 |---|---|
 | Lightsail instance | `rfq-marketplace-production` (static IP `3.64.174.227`) |
-| Buckets | `rfq-marketplace-production-eu-central-1-{frontend,attachments,backups}` |
-| CloudFront distribution | `E1GKUUITW7X8T8` → `https://d282vqj7an62u8.cloudfront.net` (custom domain pending DNS repoint) |
 | Deploy role | `arn:aws:iam::513193776478:role/rfq-marketplace-production-github-deploy` |
 | SSM path | `/rfq-marketplace/production` |
 | SES SMTP user | `rfq-marketplace-production-ses-smtp` |
+| Databases | `compaspot_prod`, `compaspot_staging` (shared pgvector:pg17 instance) |
+| Staging URL | `http://3.64.174.227:8081` (admin CIDR only) |
 
-## Remaining steps before the first `production` deploy (user-executed)
+## Deploy flow
 
-1. **Secrets — DONE (2026-08-23)**: all parameters were copied from `/rfq-marketplace/staging/*` to
-   `/rfq-marketplace/production/*` via `scripts/migrate-env-staging-to-production.ps1` (AI intake, Google
-   Places, PostgreSQL password, JWT key). The old SES SMTP credentials were **not** copied (their IAM user was
-   destroyed); fresh credentials for `rfq-marketplace-production-ses-smtp` were generated and stored as both
-   `email-username`/`email-password` (what `render-environment.sh` reads) and `smtp-username`/`smtp-password`.
-   The legacy `/rfq-marketplace/staging/*` path was left empty.
-2. **GitHub**: create a `production` environment with `AWS_REGION=eu-central-1`, `AWS_ACCOUNT_ID=513193776478`
-   and `AWS_DEPLOY_ROLE_ARN=arn:aws:iam::513193776478:role/rfq-marketplace-production-github-deploy`;
-   remove the old `staging` environment.
-3. **SES**: verify the new email identity (`john4ani@gmail.com`) and confirm the SNS subscription on the
-   `rfq-marketplace-production-alerts` topic.
-4. **DNS (Cloudflare)**: point `compaspot.com` and `www.compaspot.com` to `d282vqj7an62u8.cloudfront.net`,
-   then re-enable the custom domain in `infra/environments/production/terraform.tfvars`
-   (`frontend_domain = "compaspot.com"`, `frontend_aliases = ["www.compaspot.com"]`,
-   `frontend_certificate_arn = "<the us-east-1 ACM ARN>"`) and re-apply Terraform.
-5. **Deploy**: run the `Deploy` workflow with `production`.
+1. Run the **Deploy** workflow (environment `production`). It renders `.env`/`.env.prod`/`.env.staging`,
+   builds the Angular SPA + API image, uploads them to the host, runs `init-db` + `migrate-prod` +
+   `migrate-staging`, brings up `postgres backend-prod backend-staging caddy` and verifies both health
+   endpoints.
+2. Prod is served directly by Caddy → DNS (Cloudflare) must point `compaspot.com` / `www.compaspot.com`
+   to the Lightsail static IP `3.64.174.227` (A records; previously a CNAME to CloudFront).
+3. Staging: `http://<static-ip>:8081` from the admin IP only.
 
-## Why some names still say "staging"
+## Cutover / cleanup of the CloudFront era
 
-The production environment was provisioned before this decision using the legacy "staging" identifiers.
-The following AWS-side names are load-bearing — renaming them is a coordinated migration, not a text
-replacement:
+After the new topology is verified live on `compaspot.com` via Caddy:
 
-| What | Current value |
-|---|---|
-| Lightsail instance / S3 buckets / IAM role | `rfq-marketplace-staging-*` |
-| SSM Parameter Store path | `/rfq-marketplace/staging/*` |
-| GitHub Actions OIDC trust | `repo:…:environment:staging` |
-| Terraform state key | `staging/terraform.tfstate` |
-| Deploy/backup workflow choice | `staging` — this deploys the live production environment |
+- [ ] Cloudflare DNS: `A` (not CNAME) → `3.64.174.227` for `compaspot.com` and `www`.
+- [ ] `terraform apply` to drop the obsolete `module.frontend` (CloudFront distribution + frontend bucket)
+      and `module.storage` attachments/frontend buckets (keep the backups bucket), and remove the
+      `attachments-bucket` / `cloudfront-distribution-id` / `frontend-bucket` SSM params.
+- [ ] Delete the obsolete `api` service references and old `compose.production.yaml` from older releases.
 
-## Migrating the naming to "production" — status
+> The old `marketplace` database and the `d282vqj7an62u8.cloudfront.net` distribution remain intact until the
+> cutover checklist above is executed; they are simply no longer referenced.
 
-The repository side is done (2026-08-23):
+## Cloudflare R2 storage setup (optional, for V3 storage)
 
-- `.github/workflows/deploy.yml` and `.github/workflows/backup.yml` now list `production` (default) first and reserve `staging` for the future test environment.
-- `scripts/Set-DeploymentSecrets.ps1` and `scripts/Initialize-SesSmtpCredentials.ps1` accept `production` first (they write under `/rfq-marketplace/production/…`).
-- Terraform: the environment module now trusts the GitHub `production` environment (`github_environment = "production"`) and the deploy role may read parameters under `/rfq-marketplace/*`; `infra/environments/staging/main.tf` documents that it manages production with legacy resource names.
-- `scripts/migrate-env-staging-to-production.ps1` copies every SSM parameter from `/rfq-marketplace/staging/*` to `/rfq-marketplace/production/*` (idempotent).
+The .NET S3 client targets R2 when `S3__ServiceUrl` is set; until then it stays on the AWS IAM chain / OFF.
+Create an R2 bucket (e.g. `compaspot-data`) and an API token (Object Read & Write for that bucket), then store
+the credentials under the Prod SSM path (Staging reads the same values):
 
-The workflows read SSM parameters by environment name and the GitHub OIDC role must trust `environment:production`,
-so before the first `production` deploy, run the AWS-side steps in this order:
+```powershell
+$P = '/rfq-marketplace/production'
+aws ssm put-parameter --name "$P/s3-service-url"          --type String      --value "https://<ACCOUNT_ID>.r2.cloudflarestorage.com"
+aws ssm put-parameter --name "$P/s3-access-key-id"        --type String      --value "<R2_ACCESS_KEY_ID>"
+aws ssm put-parameter --name "$P/s3-secret-access-key"    --type SecureString --value "<R2_SECRET_ACCESS_KEY>"
+aws ssm put-parameter --name "$P/s3-region"               --type String      --value "auto"
+aws ssm put-parameter --name "$P/seap-storage-bucket"     --type String      --value "compaspot-data"
+aws ssm put-parameter --name "$P/seap-storage-enabled"    --type String      --value "false"
+aws ssm put-parameter --name "$P/auto-bidding-documents-bucket" --type String --value "compaspot-data"
+```
 
-1. **Terraform apply** in `infra/environments/staging`: updates the deploy role trust to accept the GitHub `production` environment and broadens SSM read access to `/rfq-marketplace/*` (no resource recreation).
-2. **SSM migration**: run `scripts/migrate-env-staging-to-production.ps1` with AWS administrator credentials.
-3. **Deploy**: run the `Deploy` workflow with `production` (default).
-
-> This is a cutover: after step 1, the legacy `staging` deploy choice no longer authenticates (the role trusts
-> only `environment:production`), so the migration should be completed in one session. Deploying as `staging`
-> remains only for the future separate Staging environment.
-
-Terraform root and state key still use the legacy `staging` name because renaming the Lightsail host/buckets in
-place would be destructive (the host holds the PostgreSQL data volume); that rename is deferred to when a real
-Staging environment is introduced.
+Object keys are automatically separated per environment: `prod/seap/...`, `prod/bids/...`, `prod/vault/...`
+versus `staging/...` (see `S3Options`). Toggle `seap-storage-enabled`/`features-seap-ingestion-enabled` only
+when the module is ready.

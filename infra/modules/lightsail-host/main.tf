@@ -46,4 +46,12 @@ resource "aws_lightsail_instance_public_ports" "this" {
     to_port   = 443
     cidrs     = ["0.0.0.0/0"]
   }
+
+  # Staging site (:8081) is internal-only — reachable only from the admin CIDR (like SSH).
+  port_info {
+    protocol  = "tcp"
+    from_port = 8081
+    to_port   = 8081
+    cidrs     = [var.admin_cidr]
+  }
 }

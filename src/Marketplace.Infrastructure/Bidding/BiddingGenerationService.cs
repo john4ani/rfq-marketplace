@@ -30,6 +30,7 @@ public sealed partial class BiddingGenerationService : IBiddingGenerationService
     private readonly IEmbeddingService embeddingService;
     private readonly AutoBiddingOptions settings;
     private readonly IAmazonS3 s3;
+    private readonly string rootPrefix;
     private readonly TimeProvider timeProvider;
     private readonly ILogger<BiddingGenerationService> logger;
 
@@ -39,6 +40,7 @@ public sealed partial class BiddingGenerationService : IBiddingGenerationService
         IDocumentGenerator documentGenerator,
         IEmbeddingService embeddingService,
         IOptions<AutoBiddingOptions> options,
+        IOptions<S3Options> s3Options,
         IAmazonS3 s3,
         TimeProvider timeProvider,
         ILogger<BiddingGenerationService> logger)
@@ -48,6 +50,7 @@ public sealed partial class BiddingGenerationService : IBiddingGenerationService
         this.documentGenerator = documentGenerator;
         this.embeddingService = embeddingService;
         settings = options.Value;
+        rootPrefix = s3Options.Value.NormalizedRootPrefix;
         this.s3 = s3;
         this.timeProvider = timeProvider;
         this.logger = logger;
@@ -118,11 +121,11 @@ public sealed partial class BiddingGenerationService : IBiddingGenerationService
         await s3.PutObjectAsync(new PutObjectRequest
         {
             BucketName = settings.DocumentsBucket,
-            Key = $"bids/{tenderId}/{document.FileName}",
+            Key = $"{rootPrefix}bids/{tenderId}/{document.FileName}",
             InputStream = stream,
             ContentType = document.ContentType
         }, cancellationToken);
-        return $"s3://{settings.DocumentsBucket}/bids/{tenderId}/{document.FileName}";
+        return $"s3://{settings.DocumentsBucket}/{rootPrefix}bids/{tenderId}/{document.FileName}";
     }
 
     [LoggerMessage(EventId = 5302, Level = LogLevel.Information, Message = "Auto-bid generated for SEAP tender {TenderId} (shadow mode: {ShadowMode}).")]
