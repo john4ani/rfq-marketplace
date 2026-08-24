@@ -24,7 +24,12 @@ if [[ ! -s "${backup_path}" || ! -L "${current_release}" ]]; then
 fi
 
 cd "${current_release}"
-compose=(docker compose --project-name rfq-marketplace --file docker-compose.yml --env-file .env)
+compose_file="docker-compose.yml"
+if [[ ! -f "${compose_file}" ]]; then
+  # Transition safety: the previous topology release still ships compose.production.yaml.
+  compose_file="compose.production.yaml"
+fi
+compose=(docker compose --project-name rfq-marketplace --file "${compose_file}" --env-file .env)
 
 "${compose[@]}" stop backend-prod backend-staging caddy
 # These variables intentionally expand inside the PostgreSQL container.
