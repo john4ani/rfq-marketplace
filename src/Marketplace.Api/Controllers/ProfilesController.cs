@@ -78,8 +78,13 @@ public sealed class ProfilesController(
     {
         string? subject = User.FindFirstValue(JwtRegisteredClaimNames.Sub) ?? User.FindFirstValue(ClaimTypes.NameIdentifier);
         if (!Guid.TryParse(subject, out Guid userId)) return false;
-        return await companyAuthorizationService.CanRepresentCompanyAsync(userId, companyId, cancellationToken)
-            || await companyAuthorizationService.CanCreateLegacyCompanyAsync(userId, companyId, cancellationToken);
+        // Evaluate the first-time/legacy backfill path first: it can safely say "yes" while no profile
+        // exists yet. Once it says "no" (a profile exists), the represent check runs on a later snapshot
+        // and - because the supplier profile and its Owner membership commit atomically in SaveSupplierAsync -
+        // it must observe the membership. The reverse order raced two snapshots (no membership yet, but a
+        // just-committed profile) and wrongly returned 404 for a concurrent first-time registration.
+        return await companyAuthorizationService.CanCreateLegacyCompanyAsync(userId, companyId, cancellationToken)
+            || await companyAuthorizationService.CanRepresentCompanyAsync(userId, companyId, cancellationToken);
     }
 
     private async Task<bool> CanRepresentCompany(Guid companyId, CancellationToken cancellationToken)
