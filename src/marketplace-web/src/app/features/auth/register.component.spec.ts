@@ -36,6 +36,8 @@ describe('RegisterComponent', () => {
     fixture.detectChanges();
   });
 
+  afterEach(() => localStorage.removeItem('compaspot.language'));
+
   it('submits only once while registration is in progress', () => {
     component.submit();
     component.submit();

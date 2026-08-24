@@ -40,6 +40,8 @@ describe('LiveMarketComponent', () => {
     fixture.detectChanges();
   });
 
+  afterEach(() => localStorage.removeItem('compaspot.language'));
+
   it('shows both roles and counts the signed-in identity online in each role', () => {
     const text = fixture.nativeElement.textContent;
     expect(text).toContain('Tu ești online ca');

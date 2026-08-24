@@ -14,6 +14,8 @@ describe('App', () => {
     localStorage.setItem('compaspot.language', 'ro');
     await TestBed.configureTestingModule({ imports: [App], providers: [provideRouter([{ path: 'seap/tenders', component: SeapStubComponent }]), provideHttpClient()] }).compileComponents();
   });
+
+  afterEach(() => localStorage.removeItem('compaspot.language'));
   it('creates the application shell', () => {
     const fixture = TestBed.createComponent(App);
     fixture.detectChanges();

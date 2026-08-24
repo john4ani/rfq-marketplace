@@ -6,6 +6,17 @@ describe('LanguageService', () => {
     return new LanguageService();
   }
 
+  beforeEach(() => {
+    // Other spec files set the stored language to 'ro' for their assertions; make each test here
+    // deterministic by starting from a clean storage state.
+    try {
+      localStorage.removeItem('compaspot.language');
+    } catch {
+      // ignore
+    }
+  });
+
+
   afterEach(() => {
     try {
       localStorage.removeItem('compaspot.language');
