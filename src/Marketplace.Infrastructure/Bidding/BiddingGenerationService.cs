@@ -1,10 +1,9 @@
-using Amazon.S3;
-using Amazon.S3.Model;
 using Marketplace.Application.Bidding;
 using Marketplace.Domain.Seap;
 using Marketplace.Domain.Vault;
 using Marketplace.Infrastructure.Embeddings;
 using Marketplace.Infrastructure.Persistence;
+using Marketplace.Infrastructure.Storage;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -28,9 +27,9 @@ public sealed partial class BiddingGenerationService : IBiddingGenerationService
     private readonly ILlmProvider llmProvider;
     private readonly IDocumentGenerator documentGenerator;
     private readonly IEmbeddingService embeddingService;
+    private readonly IStorageService storage;
+    private readonly bool useLocalStorage;
     private readonly AutoBiddingOptions settings;
-    private readonly IAmazonS3 s3;
-    private readonly string rootPrefix;
     private readonly TimeProvider timeProvider;
     private readonly ILogger<BiddingGenerationService> logger;
 
@@ -40,8 +39,8 @@ public sealed partial class BiddingGenerationService : IBiddingGenerationService
         IDocumentGenerator documentGenerator,
         IEmbeddingService embeddingService,
         IOptions<AutoBiddingOptions> options,
-        IOptions<S3Options> s3Options,
-        IAmazonS3 s3,
+        IOptions<LocalStorageOptions> localStorage,
+        IStorageService storage,
         TimeProvider timeProvider,
         ILogger<BiddingGenerationService> logger)
     {
@@ -49,9 +48,9 @@ public sealed partial class BiddingGenerationService : IBiddingGenerationService
         this.llmProvider = llmProvider;
         this.documentGenerator = documentGenerator;
         this.embeddingService = embeddingService;
+        this.storage = storage;
+        useLocalStorage = localStorage.Value.UseLocalStorage;
         settings = options.Value;
-        rootPrefix = s3Options.Value.NormalizedRootPrefix;
-        this.s3 = s3;
         this.timeProvider = timeProvider;
         this.logger = logger;
     }
@@ -64,20 +63,11 @@ public sealed partial class BiddingGenerationService : IBiddingGenerationService
             ?? throw new KeyNotFoundException("Anunțul SEAP nu există.");
 
         string requirements = BuildRequirementsText(tender);
-        float[] queryEmbedding = await embeddingService.EmbedAsync(requirements, cancellationToken);
-        Vector vector = new(queryEmbedding);
-        List<DocumentChunk> chunks = await dbContext.DocumentChunks
-            .FromSqlInterpolated($"""
-                SELECT * FROM "DocumentChunks"
-                ORDER BY "Embedding" <=> {vector}
-                LIMIT {Math.Max(1, settings.TopChunks)}
-                """)
-            .ToListAsync(cancellationToken);
-        string vaultContext = string.Join("\n\n", chunks.Select(chunk => chunk.Content));
+        string vaultContext = await BuildVaultContextAsync(requirements, cancellationToken);
 
-        string userPrompt =
-            $"Cerințele anunțului:\n{requirements}\n\n" +
-            $"Date despre firmă (top {chunks.Count} fragmente relevante din CompanyVault):\n{vaultContext}";
+        string userPrompt = string.IsNullOrWhiteSpace(vaultContext)
+            ? $"Cerințele anunțului:\n{requirements}\n\nDate despre firmă: (nu sunt disponibile documente în CompanyVault)."
+            : $"Cerințele anunțului:\n{requirements}\n\nDate despre firmă (fragmente relevante din CompanyVault):\n{vaultContext}";
         string llmJson = await llmProvider.CompleteAsync(RomanianProcurementExpertSystemPrompt, userPrompt, cancellationToken);
         BiddingProposal proposal = BiddingJsonParser.Parse(llmJson);
 
@@ -113,21 +103,46 @@ public sealed partial class BiddingGenerationService : IBiddingGenerationService
         return string.Join("\n", parts);
     }
 
-    private async Task<string> UploadDocumentAsync(Guid tenderId, GeneratedDocument document, CancellationToken cancellationToken)
+    /// <summary>
+    /// RAG over CompanyVault chunks. When embeddings are not configured (no OpenAI key), the flow
+    /// degrades to a plain LLM generation without company context instead of failing the request —
+    /// mirroring CompanyVaultService.TryEmbedAsync.
+    /// </summary>
+    private async Task<string> BuildVaultContextAsync(string requirements, CancellationToken cancellationToken)
     {
-        if (string.IsNullOrWhiteSpace(settings.DocumentsBucket))
-            return $"memory://bids/{tenderId}/{document.FileName}";
-        using MemoryStream stream = new(document.Content);
-        await s3.PutObjectAsync(new PutObjectRequest
+        try
         {
-            BucketName = settings.DocumentsBucket,
-            Key = $"{rootPrefix}bids/{tenderId}/{document.FileName}",
-            InputStream = stream,
-            ContentType = document.ContentType
-        }, cancellationToken);
-        return $"s3://{settings.DocumentsBucket}/{rootPrefix}bids/{tenderId}/{document.FileName}";
+            float[] queryEmbedding = await embeddingService.EmbedAsync(requirements, cancellationToken);
+            Vector vector = new(queryEmbedding);
+            List<DocumentChunk> chunks = await dbContext.DocumentChunks
+                .FromSqlInterpolated($"""
+                    SELECT * FROM "DocumentChunks"
+                    ORDER BY "Embedding" <=> {vector}
+                    LIMIT {Math.Max(1, settings.TopChunks)}
+                    """)
+                .ToListAsync(cancellationToken);
+            return string.Join("\n\n", chunks.Select(chunk => chunk.Content));
+        }
+        catch (InvalidOperationException exception)
+        {
+            LogEmbeddingsUnavailable(logger, exception.Message);
+            return string.Empty;
+        }
     }
 
+    private async Task<string> UploadDocumentAsync(Guid tenderId, GeneratedDocument document, CancellationToken cancellationToken)
+    {
+        if (useLocalStorage)
+            return await storage.UploadAsync("bids", $"bids/{tenderId}", document.FileName,
+                new MemoryStream(document.Content), document.ContentType, cancellationToken);
+        if (string.IsNullOrWhiteSpace(settings.DocumentsBucket))
+            return $"memory://bids/{tenderId}/{document.FileName}";
+        return await storage.UploadAsync(settings.DocumentsBucket, $"bids/{tenderId}", document.FileName,
+            new MemoryStream(document.Content), document.ContentType, cancellationToken);
+    }
+
+    [LoggerMessage(EventId = 5301, Level = LogLevel.Warning, Message = "Embeddings unavailable ({Reason}); generating the bid without CompanyVault context.")]
+    private static partial void LogEmbeddingsUnavailable(ILogger logger, string reason);
     [LoggerMessage(EventId = 5302, Level = LogLevel.Information, Message = "Auto-bid generated for SEAP tender {TenderId} (shadow mode: {ShadowMode}).")]
     private static partial void LogBidGenerated(ILogger logger, Guid tenderId, bool shadowMode);
 }

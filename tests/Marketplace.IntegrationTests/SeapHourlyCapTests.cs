@@ -1,4 +1,5 @@
 using Marketplace.Application.Seap;
+using Marketplace.Domain.Seap;
 using Marketplace.Infrastructure.Persistence;
 using Marketplace.Infrastructure.Seap;
 using Microsoft.EntityFrameworkCore;
@@ -73,6 +74,45 @@ public sealed class SeapHourlyCapTests
         int thirdPoll = await service.PollAndImportAsync(CancellationToken.None);
         Assert.Equal(HourlyCap, thirdPoll);
         Assert.Equal(HourlyCap * 2, await db.SeapTenders.CountAsync());
+    }
+
+    [Fact]
+    public async Task RealPayloadWithNonUtcOffsetsPersistsAsUtc()
+    {
+        await using PostgreSqlContainer postgres = new PostgreSqlBuilder("pgvector/pgvector:pg17")
+            .WithDatabase("marketplace_seap_utc_test")
+            .Build();
+        await postgres.StartAsync();
+
+        DbContextOptions<MarketplaceDbContext> options = new DbContextOptionsBuilder<MarketplaceDbContext>()
+            .UseNpgsql(postgres.GetConnectionString(), npgsql =>
+            {
+                npgsql.EnableRetryOnFailure(5, TimeSpan.FromSeconds(5), null);
+                npgsql.MigrationsAssembly(typeof(MarketplaceDbContext).Assembly.FullName);
+                npgsql.UseVector();
+            })
+            .Options;
+        await using MarketplaceDbContext db = new(options);
+        await db.Database.MigrateAsync();
+
+        // The live e-licitatie.ro fixture carries Romania's local offset (+03:00); Npgsql requires
+        // UTC (offset 0) when persisting `timestamp with time zone`.
+        string json = File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "Fixtures", "seap-notices-full.json"));
+        SeapTenderNoticeDto notice = SeapNoticeParser.ParseNotices(json).First();
+        Assert.NotEqual(TimeSpan.Zero, notice.PublicationDate.Offset);
+
+        SeapOptions seapOptions = new() { MaxNewNoticesPerHour = HourlyCap };
+        SeapIngestionService service = new(
+            db, new StubSeapApiClient([]), new StubAttachmentStorage(), Options.Create(seapOptions),
+            new FakeTimeProvider(), NullLogger<SeapIngestionService>.Instance);
+
+        SeapTenderImportResult result = await service.ImportNoticeAsync(notice, CancellationToken.None);
+
+        Assert.NotNull(result.Tender);
+        SeapTender saved = await db.SeapTenders.SingleAsync(tender => tender.SeapExternalId == notice.Id);
+        Assert.Equal(TimeSpan.Zero, saved.PublicationDate.Offset);
+        Assert.Equal(notice.PublicationDate.ToUniversalTime(), saved.PublicationDate);
+        Assert.Equal(notice.Deadline.ToUniversalTime(), saved.Deadline);
     }
 
     private sealed class StubSeapApiClient(IReadOnlyCollection<SeapTenderNoticeDto> notices) : ISeapApiClient

@@ -18,7 +18,10 @@ public static class SeapTenderMapper
             notice.EstimatedValue,
             notice.Currency,
             notice.BuyerName,
-            notice.PublicationDate,
-            notice.Deadline,
+            // The live e-licitatie.ro payload carries Romania's local offset (+03:00 / +02:00).
+            // Npgsql only writes offset 0 (UTC) into `timestamp with time zone`, so normalize at the
+            // wire boundary before persistence.
+            notice.PublicationDate.ToUniversalTime(),
+            notice.Deadline.ToUniversalTime(),
             now);
 }
