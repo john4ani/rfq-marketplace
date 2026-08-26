@@ -38,6 +38,9 @@ using Marketplace.Infrastructure.Billing;
 using Amazon.S3;
 using Marketplace.Application.Companies;
 using Marketplace.Infrastructure.Companies;
+using Marketplace.Application.AutoBidding;
+using Marketplace.Infrastructure.AutoBidding;
+
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
@@ -187,6 +190,7 @@ public static class DependencyInjection
         services.Configure<StripeOptions>(configuration.GetSection(StripeOptions.SectionName));
         services.AddScoped<IStripeGateway, StripeGateway>();
         services.AddScoped<ICompanyVaultService, CompanyVaultService>();
+        services.AddScoped<IAutoBiddingService, AutoBiddingService>();
         return services;
     }
 }

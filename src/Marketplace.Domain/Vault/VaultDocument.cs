@@ -1,6 +1,6 @@
 namespace Marketplace.Domain.Vault;
 
-public enum VaultDocumentType { TechnicalProposal, Certificate, FinancialStatement, Other }
+public enum VaultDocumentType { Specification, TechnicalProposal, Certificate, FinancialStatement, Other }
 
 /// <summary>One uploaded vault document. Content lives in S3; the vault stores the URI and OCR/embedding state.</summary>
 public sealed class VaultDocument
@@ -15,6 +15,12 @@ public sealed class VaultDocument
     public VaultDocumentType DocumentType { get; private set; }
     public bool Extracted { get; private set; }
     public int? PageCount { get; private set; }
+    /// <summary>Markdown text extracted from the source PDF by Azure Document Intelligence (prebuilt-layout).</summary>
+    public string? ExtractedMarkdown { get; private set; }
+    /// <summary>Auto-bid proposal generated from the specification (Caiet de sarcini).</summary>
+    public string? ProposalTitle { get; private set; }
+    public string? TechnicalProposalUrl { get; private set; }
+    public string? BillOfQuantitiesUrl { get; private set; }
     public Guid UploadedBy { get; private set; }
     public DateTimeOffset UploadedAt { get; private set; }
     public IReadOnlyCollection<DocumentChunk> Chunks => _chunks;
@@ -41,6 +47,16 @@ public sealed class VaultDocument
     {
         Extracted = true;
         PageCount = pageCount;
+    }
+
+    public void SetExtractedMarkdown(string markdown) =>
+        ExtractedMarkdown = string.IsNullOrWhiteSpace(markdown) ? null : markdown.Trim();
+
+    public void RecordGeneratedProposal(string title, string technicalUrl, string billOfQuantitiesUrl)
+    {
+        ProposalTitle = Required(title, "Titlul propunerii este obligatoriu.");
+        TechnicalProposalUrl = Required(technicalUrl, "Adresa propunerii tehnice este obligatorie.");
+        BillOfQuantitiesUrl = Required(billOfQuantitiesUrl, "Adresa devizului este obligatorie.");
     }
 
     private static string Required(string value, string message) =>

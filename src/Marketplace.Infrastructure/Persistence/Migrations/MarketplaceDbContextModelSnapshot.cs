@@ -2038,6 +2038,9 @@ namespace Marketplace.Infrastructure.Persistence.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
+                    b.Property<string>("BillOfQuantitiesUrl")
+                        .HasColumnType("text");
+
                     b.Property<string>("DocumentType")
                         .IsRequired()
                         .HasMaxLength(32)
@@ -2045,6 +2048,9 @@ namespace Marketplace.Infrastructure.Persistence.Migrations
 
                     b.Property<bool>("Extracted")
                         .HasColumnType("boolean");
+
+                    b.Property<string>("ExtractedMarkdown")
+                        .HasColumnType("text");
 
                     b.Property<string>("FileName")
                         .IsRequired()
@@ -2054,10 +2060,16 @@ namespace Marketplace.Infrastructure.Persistence.Migrations
                     b.Property<int?>("PageCount")
                         .HasColumnType("integer");
 
+                    b.Property<string>("ProposalTitle")
+                        .HasColumnType("text");
+
                     b.Property<string>("S3Url")
                         .IsRequired()
                         .HasMaxLength(1024)
                         .HasColumnType("character varying(1024)");
+
+                    b.Property<string>("TechnicalProposalUrl")
+                        .HasColumnType("text");
 
                     b.Property<DateTimeOffset>("UploadedAt")
                         .HasColumnType("timestamp with time zone");

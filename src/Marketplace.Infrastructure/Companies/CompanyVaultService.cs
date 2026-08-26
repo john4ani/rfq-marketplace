@@ -1,4 +1,4 @@
-using Marketplace.Application.Companies;
+﻿using Marketplace.Application.Companies;
 
 using Marketplace.Domain.Profiles;
 using Marketplace.Domain.Vault;
@@ -14,8 +14,8 @@ using Microsoft.Extensions.Options;
 namespace Marketplace.Infrastructure.Companies;
 
 /// <summary>
-/// Company Vault: upload → persist metadata → optional Azure OCR extraction → overlapping chunking →
-/// optional OpenAI embeddings → pgvector chunks. Every external step is interface-gated so the flow
+/// Company Vault: upload â†’ persist metadata â†’ optional Azure OCR extraction â†’ overlapping chunking â†’
+/// optional OpenAI embeddings â†’ pgvector chunks. Every external step is interface-gated so the flow
 /// degrades gracefully when credentials are missing.
 /// </summary>
 public sealed partial class CompanyVaultService : ICompanyVaultService
@@ -83,7 +83,8 @@ public sealed partial class CompanyVaultService : ICompanyVaultService
         buffer.Position = 0;
         string s3Url = await UploadToStorageAsync(companyId, fileName, buffer, cancellationToken);
         VaultDocument document = vault.AddDocument(fileName, s3Url, documentType, actorId, now);
-        if (vault.Id == Guid.Empty) dbContext.CompanyVaults.Add(vault);
+        // CompanyVault.Create assigns a new Guid, so a fresh vault must be attached explicitly.
+        if (dbContext.Entry(vault).State == EntityState.Detached) dbContext.CompanyVaults.Add(vault);
 
         try
         {
@@ -112,6 +113,7 @@ public sealed partial class CompanyVaultService : ICompanyVaultService
     private async Task ExtractAndEmbedAsync(VaultDocument document, Stream content, CancellationToken cancellationToken)
     {
         DocumentExtractionResult extraction = await extractionService.ExtractAsync(content, document.FileName, cancellationToken);
+        document.SetExtractedMarkdown(MarkdownConverter.ToMarkdown(extraction));
         IReadOnlyCollection<string> chunks = TextChunker.Chunk(extraction.FullText);
         int index = 0;
         foreach (string chunk in chunks)
@@ -130,7 +132,7 @@ public sealed partial class CompanyVaultService : ICompanyVaultService
         }
         catch (InvalidOperationException)
         {
-            return null; // embeddings not configured — the chunk is stored without a vector.
+            return null; // embeddings not configured â€” the chunk is stored without a vector.
         }
     }
 
@@ -139,4 +141,5 @@ public sealed partial class CompanyVaultService : ICompanyVaultService
     [LoggerMessage(EventId = 5502, Level = LogLevel.Warning, Message = "Vault extraction skipped for {FileName}: {Reason}")]
     private static partial void LogExtractionSkipped(ILogger logger, string fileName, string reason);
 }
+
 
