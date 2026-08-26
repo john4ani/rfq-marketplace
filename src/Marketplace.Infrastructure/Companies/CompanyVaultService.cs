@@ -141,5 +141,3 @@ public sealed partial class CompanyVaultService : ICompanyVaultService
     [LoggerMessage(EventId = 5502, Level = LogLevel.Warning, Message = "Vault extraction skipped for {FileName}: {Reason}")]
     private static partial void LogExtractionSkipped(ILogger logger, string fileName, string reason);
 }
-
-

@@ -190,4 +190,3 @@ public sealed partial class AutoBiddingService : IAutoBiddingService
     [LoggerMessage(EventId = 6109, Level = LogLevel.Information, Message = "[AutoBid] Pipeline completed for {DocumentId}: {Title}.")]
     private static partial void LogPipelineCompleted(ILogger logger, Guid documentId, string title);
 }
-
