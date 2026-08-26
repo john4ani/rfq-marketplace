@@ -16,7 +16,7 @@ describe('CompanyRegistrationComponent', () => {
       address: 'Strada Principală 1', city: 'Suceava', county: 'Suceava', country: 'România', latitude: null,
       longitude: null, marketRadiusKm: 30, description: null, approvalStatus: 'Pending', isActive: true
     };
-    const profiles = { saveSupplier: vi.fn().mockReturnValue(of(company)) };
+    const profiles = { saveSupplier: vi.fn().mockReturnValue(of(company)), getMyCompanies: vi.fn().mockReturnValue(of([])) };
     const auth = {
       identity: () => ({ userId: company.id, email: 'ion@example.test', roles: [] }),
       session: () => ({ userId: company.id, email: 'ion@example.test', roles: [], accountType: 'Buyer' })

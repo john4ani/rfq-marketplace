@@ -3,7 +3,7 @@ import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@a
 import { FormControl, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
 import { ActivatedRoute, RouterLink } from '@angular/router';
 import { AuthService } from '../../core/auth/auth.service';
-import { ProfileService, SupplierProfile } from '../../core/profiles/profile.service';
+import { ProfileService, RepresentedCompany, SupplierProfile } from '../../core/profiles/profile.service';
 import { CategoryOption, SupplierSettingsService } from '../../core/suppliers/supplier-settings.service';
 import { ROMANIAN_COUNTIES } from '../../shared/romanian-counties';
 import { SupplierSettingsComponent } from './supplier-settings.component';
@@ -13,8 +13,15 @@ import { SupplierSettingsComponent } from './supplier-settings.component';
   imports: [ReactiveFormsModule, RouterLink, SupplierSettingsComponent],
   template: `<section class="registration-shell">
     <a class="back" routerLink="/account">← Înapoi la cont</a>
-    <header><p class="eyebrow">Firma ta</p><h1>Adaugă firma</h1>
-      <p>Înregistrează firma pe care o reprezinți. Contul tău personal rămâne același și îl poți folosi în continuare pentru achiziții.</p></header>
+    <header><p class="eyebrow">Firma ta</p><h1>{{ existingCompany() ? 'Editează firma' : 'Adaugă firma' }}</h1>
+      <p>Contul tău personal rămâne același și îl poți folosi în continuare pentru achiziții.</p></header>
+
+    @if (existingCompany()) {
+      <div class="single-company-banner" role="status">
+        <p><strong>Ai deja înregistrată firma „{{ existingCompany()!.name }}".</strong> Momentan este suportată o singură firmă per cont — poți edita firma existentă sau o poți vizualiza.</p>
+        <a routerLink="/account/company/{{ existingCompany()!.id }}">Vezi firma</a>
+      </div>
+    }
 
     @if (!createdCompany()) {
       <form class="company-form" [formGroup]="form" (ngSubmit)="createCompany()" novalidate>
@@ -94,6 +101,8 @@ export class CompanyRegistrationComponent {
   readonly saving = signal(false);
   readonly error = signal('');
   readonly createdCompany = signal<SupplierProfile | null>(null);
+  readonly existingCompany = signal<RepresentedCompany | null>(null);
+  readonly companiesLoading = signal(false);
   readonly categoriesConfigured = signal(false);
   readonly deliveryConfigured = signal(false);
   readonly matchingReady = computed(() => this.categoriesConfigured() && this.deliveryConfigured());
@@ -126,6 +135,15 @@ export class CompanyRegistrationComponent {
 
   constructor() {
     this.loadCategories();
+    this.loadExistingCompany();
+  }
+
+  private loadExistingCompany(): void {
+    this.companiesLoading.set(true);
+    this.profiles.getMyCompanies().subscribe({
+      next: values => { this.existingCompany.set(values.length > 0 ? values[0] : null); this.companiesLoading.set(false); },
+      error: () => this.companiesLoading.set(false)
+    });
   }
 
   toggleCategory(categoryId: string): void {
