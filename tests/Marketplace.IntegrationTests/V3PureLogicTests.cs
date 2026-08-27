@@ -84,6 +84,25 @@ public sealed class V3PureLogicTests
     }
 
     [Fact]
+    public void ParserReadsFinancialSummaryRecap()
+    {
+        BiddingProposal proposal = BiddingJsonParser.Parse(
+            """
+            {"title":"Ofertă","technicalProposal":{"sections":[{"heading":"H","content":"C"}]},
+             "billOfQuantities":[{"position":1,"description":"Ciment","unit":"buc","quantity":2,"unitPrice":120,"total":240}],
+             "financialSummary":[
+               {"label":"TOTAL GENERAL (fără TVA)","value":1500000,"note":null},
+               {"label":"TVA (21.00%)","value":315000,"note":null},
+               {"label":"TOTAL GENERAL (inclusiv TVA)","value":1815000,"note":"T4 = T3 + beneficiu"}
+             ]}
+            """);
+        Assert.Equal(3, proposal.FinancialSummary.Count);
+        Assert.Equal("TVA (21.00%)", proposal.FinancialSummary.ElementAt(1).Label);
+        Assert.Equal(315000m, proposal.FinancialSummary.ElementAt(1).Value);
+        Assert.Equal("T4 = T3 + beneficiu", proposal.FinancialSummary.ElementAt(2).Note);
+    }
+
+    [Fact]
     public void ClaudeResponseExtractsTextBlockAfterThinkingBlock()
     {
         const string body =
@@ -105,7 +124,10 @@ public sealed class V3PureLogicTests
                 new ProposalSection("1. Prezentare generală", "Firma își asumă toate cerințele din caietul de sarcini."),
                 new ProposalSection("2. Descrierea lucrărilor", "2.1. Prima lucrare conform proiectului.\n\n2.2. A doua lucrare, cu materiale certificate.\n\n2.3. A treia lucrare.")
             ],
-            [new BoqLine(1, "Ciment", "buc", 2, 250m, 500m)]);
+            [new BoqLine(1, "Ciment", "buc", 2, 250m, 500m)],
+            [new FinancialSummaryLine("TOTAL GENERAL (fără TVA)", 1500000m, null),
+             new FinancialSummaryLine("TVA (21.00%)", 315000m, null),
+             new FinancialSummaryLine("TOTAL GENERAL (inclusiv TVA)", 1815000m, "T4 = T3 + beneficiu")]);
 
         DocumentGenerator generator = new();
 
@@ -125,9 +147,19 @@ public sealed class V3PureLogicTests
         using var workbook = new ClosedXML.Excel.XLWorkbook(new MemoryStream(xlsx.Content));
         ClosedXML.Excel.IXLWorksheet sheet = workbook.Worksheet(1);
         int lastRow = sheet.LastRowUsed()!.RowNumber();
-        Assert.Equal("TOTAL", sheet.Cell(lastRow, 2).GetString());
-        Assert.StartsWith("SUM(F", sheet.Cell(lastRow, 6).FormulaA1, StringComparison.OrdinalIgnoreCase);
         Assert.True(sheet.Cell(1, 1).Style.Font.Bold, "header must be bold");
+        // The TOTAL row carries the SUM formula; the financial recap is rendered below it.
+        int totalRow = -1;
+        for (int r = 2; r <= lastRow; r++)
+        {
+            if (sheet.Cell(r, 2).GetString().Trim() == "TOTAL") { totalRow = r; break; }
+        }
+        Assert.True(totalRow > 0, "TOTAL row not found");
+        Assert.StartsWith("SUM(F", sheet.Cell(totalRow, 6).FormulaA1, StringComparison.OrdinalIgnoreCase);
+        string sheetText = string.Join(" ", sheet.RowsUsed().Select(row => row.Cell(2).GetString()));
+        Assert.Contains("Recapitulație financiară", sheetText, StringComparison.Ordinal);
+        Assert.Contains("TOTAL GENERAL (fără TVA)", sheetText, StringComparison.Ordinal);
+        Assert.Contains("TVA (21.00%)", sheetText, StringComparison.Ordinal);
     }
 
     [Fact]

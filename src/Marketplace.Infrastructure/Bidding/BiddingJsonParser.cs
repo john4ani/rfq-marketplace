@@ -51,7 +51,20 @@ public static class BiddingJsonParser
         if (boq.Count == 0)
             throw new InvalidOperationException("Răspunsul LLM nu conține nicio linie pentru lista de cantități.");
 
-        return new(title, sections, boq);
+        List<FinancialSummaryLine> financialSummary = [];
+        if (root.TryGetProperty("financialSummary", out JsonElement summaryList) && summaryList.ValueKind == JsonValueKind.Array)
+        {
+            foreach (JsonElement line in summaryList.EnumerateArray())
+            {
+                string label = Read(line, "label") ?? string.Empty;
+                if (string.IsNullOrWhiteSpace(label)) continue;
+                string? note = Read(line, "note");
+                financialSummary.Add(new(label, OptionalDecimal(line, "value") ?? 0m,
+                    string.IsNullOrWhiteSpace(note) ? null : note));
+            }
+        }
+
+        return new(title, sections, boq, financialSummary);
     }
 
     private static string? Read(JsonElement element, string property) =>

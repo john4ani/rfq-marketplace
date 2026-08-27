@@ -29,7 +29,11 @@ public sealed partial class AutoBiddingService : IAutoBiddingService
         "Răspunde DOAR cu JSON valid, în limba română, fără text înainte sau după, cu structura: " +
         "{\"title\": string, \"technicalProposal\": {\"sections\": [{\"heading\": string, \"content\": string}]}, " +
         "\"billOfQuantities\": [{\"position\": int, \"description\": string, \"unit\": string, " +
-        "\"quantity\": number, \"unitPrice\": number, \"total\": number}]}. " +
+        "\"quantity\": number, \"unitPrice\": number, \"total\": number}], " +
+        "\"financialSummary\": [{\"label\": string, \"value\": number, \"note\": string}]}. " +
+        "Lista de cantități trebuie să conțină TOATE punctele numerotate din caiet, fără excepție. " +
+        "financialSummary: copiază valorile din recapitulația financiară a caietului (ex: TOTAL 1 Cheltuieli directe, " +
+        "T2, T3, TOTAL GENERAL fără TVA, TVA, TOTAL GENERAL cu TVA, T4 = T3 + beneficiu); dacă nu există, returnează []. " +
         "Nu inventa certificări, prețuri sau capacități care nu sunt susținute de Caietul de Sarcini.";
 
     private readonly MarketplaceDbContext dbContext;

@@ -128,6 +128,26 @@ public sealed partial class DocumentGenerator : IDocumentGenerator
         sheet.Column(5).Width = 16;
         sheet.Column(6).Width = 16;
 
+        // Financial recap copied from the Caiet de sarcini (TOTAL GENERAL, TVA, T4 + beneficiu, …).
+        if (proposal.FinancialSummary.Count > 0)
+        {
+            int summaryStart = totalRow + 2;
+            sheet.Cell(summaryStart, 2).Value = "Recapitulație financiară";
+            sheet.Range(summaryStart, 1, summaryStart, 6).Style.Font.Bold = true;
+            int summaryRow = summaryStart + 1;
+            foreach (FinancialSummaryLine line in proposal.FinancialSummary)
+            {
+                sheet.Cell(summaryRow, 2).Value = string.IsNullOrWhiteSpace(line.Note)
+                    ? line.Label
+                    : $"{line.Label} — {line.Note}";
+                sheet.Cell(summaryRow, 6).Value = line.Value;
+                sheet.Cell(summaryRow, 6).Style.NumberFormat.Format = "#,##0.00";
+                sheet.Cell(summaryRow, 6).Style.Font.Bold = true;
+                sheet.Range(summaryRow, 2, summaryRow, 6).Style.Border.SetOutsideBorder(XLBorderStyleValues.Thin);
+                summaryRow++;
+            }
+        }
+
         using MemoryStream stream = new();
         workbook.SaveAs(stream);
         stream.Position = 0;

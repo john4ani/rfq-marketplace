@@ -1,4 +1,4 @@
-﻿using System.Text;
+using System.Text;
 using Marketplace.Application.AutoBidding;
 using Marketplace.Domain.Profiles;
 using Marketplace.Domain.Vault;
@@ -231,6 +231,28 @@ public sealed class AutoBiddingPipelineTests
         Assert.Contains("| Ciment | 120 |", markdown, StringComparison.Ordinal);
         Assert.Contains("| Beton | 250 |", markdown, StringComparison.Ordinal);
         Assert.Contains("Text pagina 1", markdown, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void MergeAndOrderPagesDeduplicatesAndKeepsMoreCompleteExtraction()
+    {
+        // Two chunks may return the same page with different completeness (e.g. full-doc truncation overlap).
+        List<ExtractedPage> chunks =
+        [
+            new(3, "Pagina 3 scurta", []),
+            new(1, "Pagina 1", []),
+            new(2, "Pagina 2", []),
+            new(3, "Pagina 3 completa cu Y BOI si TOTAL GENERAL", [])
+        ];
+
+        List<ExtractedPage> merged = AzureDocumentIntelligenceExtractionService.MergeAndOrderPages(chunks);
+
+        Assert.Equal(3, merged.Count);
+        Assert.Equal(1, merged[0].PageNumber);
+        Assert.Equal(2, merged[1].PageNumber);
+        Assert.Equal(3, merged[2].PageNumber);
+        // Page 3 keeps the more complete text (the deduplication winner).
+        Assert.Equal("Pagina 3 completa cu Y BOI si TOTAL GENERAL", merged[2].Text);
     }
 
     private sealed class StubExtractionService : IDocumentExtractionService
