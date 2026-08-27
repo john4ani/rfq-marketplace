@@ -157,7 +157,12 @@ public static class DependencyInjection
                 {
                     ServiceURL = options.ServiceUrl,
                     ForcePathStyle = true,
-                    AuthenticationRegion = region
+                    AuthenticationRegion = region,
+                    // Cloudflare R2 does not implement AWS SigV4 streaming signing (it rejects both
+                    // STREAMING-AWS4-HMAC-SHA256-PAYLOAD and the -TRAILER variant). Disable the automatic
+                    // flexible checksum that would add the trailer header R2 also rejects; the full-payload
+                    // signing itself is set per request in CloudflareR2StorageService (UseChunkEncoding=false).
+                    RequestChecksumCalculation = Amazon.Runtime.RequestChecksumCalculation.WHEN_REQUIRED
                 };
                 return new AmazonS3Client(options.AccessKeyId, options.SecretAccessKey, r2Config);
             }

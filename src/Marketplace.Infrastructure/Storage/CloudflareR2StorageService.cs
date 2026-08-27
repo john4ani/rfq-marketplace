@@ -19,13 +19,22 @@ public sealed partial class CloudflareR2StorageService(
     public async Task<string> UploadAsync(
         string bucket, string key, string fileName, Stream content, string contentType, CancellationToken cancellationToken)
     {
+        // R2 requires full-payload SigV4 signing (chunked streaming is not implemented), so the SDK must
+        // compute the payload hash up front; buffer non-seekable streams so the length/hash are available.
+        using MemoryStream buffer = new();
+        if (content.CanSeek) content.Position = 0;
+        await content.CopyToAsync(buffer, cancellationToken);
+        buffer.Position = 0;
+
         string fullKey = $"{s3Options.Value.NormalizedRootPrefix}{key}/{Guid.NewGuid():N}/{Sanitize(fileName)}";
         await s3.PutObjectAsync(new PutObjectRequest
         {
             BucketName = bucket,
             Key = fullKey,
-            InputStream = content,
-            ContentType = contentType
+            InputStream = buffer,
+            ContentType = contentType,
+            // R2 has no SigV4 streaming implementation; sign with the full payload hash instead.
+            UseChunkEncoding = false
         }, cancellationToken);
         LogUploaded(logger, fullKey);
         return $"s3://{bucket}/{fullKey}";
