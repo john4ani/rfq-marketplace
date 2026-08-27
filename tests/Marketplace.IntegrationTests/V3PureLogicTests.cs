@@ -71,6 +71,19 @@ public sealed class V3PureLogicTests
             """));
 
     [Fact]
+    public void ParserStripsMarkdownCodeFences()
+    {
+        string fenced =
+            "```json\n" +
+            StaticMockLlmProvider.RomanianProcurementExpertProposal.Trim() +
+            "\n```";
+        BiddingProposal proposal = BiddingJsonParser.Parse(fenced);
+        Assert.Equal("Ofertă tehnică — Lucrări de construcții", proposal.Title);
+        Assert.NotEmpty(proposal.Sections);
+        Assert.Single(proposal.BillOfQuantities);
+    }
+
+    [Fact]
     public void ClaudeResponseExtractsTextBlockAfterThinkingBlock()
     {
         const string body =

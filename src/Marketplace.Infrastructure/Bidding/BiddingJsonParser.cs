@@ -9,7 +9,7 @@ public static class BiddingJsonParser
 {
     public static BiddingProposal Parse(string json)
     {
-        using JsonDocument document = JsonDocument.Parse(json);
+        using JsonDocument document = JsonDocument.Parse(Normalize(json));
         JsonElement root = document.RootElement;
 
         string title = Read(root, "title") ?? string.Empty;
@@ -58,6 +58,18 @@ public static class BiddingJsonParser
         element.TryGetProperty(property, out JsonElement value) && value.ValueKind is JsonValueKind.String
             ? value.GetString()
             : null;
+
+    /// <summary>LLMs sometimes wrap the JSON answer in Markdown code fences (```json … ```); strip them so
+    /// the response parses as raw JSON. Only a single leading fence block is removed.</summary>
+    private static string Normalize(string json)
+    {
+        string trimmed = json.Trim();
+        if (!trimmed.StartsWith("```", StringComparison.Ordinal)) return trimmed;
+        int firstNewline = trimmed.IndexOf('\n');
+        int lastFence = trimmed.LastIndexOf("```", StringComparison.Ordinal);
+        if (firstNewline <= 0 || lastFence <= firstNewline) return trimmed;
+        return trimmed[(firstNewline + 1)..lastFence].Trim();
+    }
 
     private static decimal RequiredDecimal(JsonElement element, string property, int position)
     {
