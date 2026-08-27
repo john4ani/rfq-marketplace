@@ -1,5 +1,6 @@
 using System.Net.Http.Json;
 using System.Text.Json;
+using Marketplace.Application.AutoBidding;
 using Marketplace.Infrastructure.Resilience;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -11,7 +12,7 @@ namespace Marketplace.Infrastructure.Bidding;
 // consecutive failures open a one-hour circuit breaker so a misbehaving API cannot burn spend.
 public sealed partial class AnthropicClaudeProvider : ILlmProvider
 {
-    private const int MaxTokensCap = 4000;
+    private const int MaxTokensCap = 16000;
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
     private readonly IHttpClientFactory httpClientFactory;
     private readonly AutoBiddingOptions settings;
@@ -33,9 +34,9 @@ public sealed partial class AnthropicClaudeProvider : ILlmProvider
     public async Task<string> CompleteAsync(string systemPrompt, string userPrompt, CancellationToken cancellationToken)
     {
         if (string.IsNullOrWhiteSpace(settings.ApiKey))
-            throw new InvalidOperationException("Cheia API Anthropic nu este configurată.");
+            throw new AutoBiddingPipelineException(503, "Cheia API Anthropic nu este configurată în acest mediu.");
         if (circuitBreaker.IsOpen)
-            throw new InvalidOperationException("Serviciul Claude este temporar indisponibil (circuit deschis). Reîncearcă peste aproximativ o oră.");
+            throw new AutoBiddingPipelineException(503, "Serviciul Claude este temporar indisponibil (circuit deschis). Reîncearcă peste aproximativ o oră.");
 
         try
         {

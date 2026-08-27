@@ -148,9 +148,10 @@ public sealed class AutoBiddingPipelineTests
                 NullLogger<AutoBiddingService>.Instance);
 
             using MemoryStream pdf = new(Encoding.UTF8.GetBytes("%PDF-scan-doar-imagini"));
-            InvalidOperationException exception = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            AutoBiddingPipelineException exception = await Assert.ThrowsAsync<AutoBiddingPipelineException>(() =>
                 service.ProcessSpecificationAsync(companyId, "scan.pdf", pdf, companyId, CancellationToken.None));
             Assert.Contains("insuficient", exception.Message, StringComparison.OrdinalIgnoreCase);
+            Assert.Equal(422, exception.StatusCode);
         }
         finally
         {
@@ -253,6 +254,41 @@ public sealed class AutoBiddingPipelineTests
         Assert.Equal(3, merged[2].PageNumber);
         // Page 3 keeps the more complete text (the deduplication winner).
         Assert.Equal("Pagina 3 completa cu Y BOI si TOTAL GENERAL", merged[2].Text);
+    }
+
+    [Fact]
+    public void PipelineProgressStoreTracksStagesAndBoundaries()
+    {
+        PipelineProgressStore store = new();
+        Guid requestId = Guid.NewGuid();
+
+        Assert.Null(store.Find(requestId));
+        store.Report(requestId, PipelineStage.Extracting, "Se extrag tabelele…");
+        Assert.Equal(PipelineStage.Extracting, store.Find(requestId)!.Stage);
+        store.Report(requestId, PipelineStage.Generating, "Claude redactează…");
+        Assert.Equal(PipelineStage.Generating, store.Find(requestId)!.Stage);
+        store.Report(requestId, PipelineStage.Failed, "Eroare");
+        Assert.Equal(PipelineStage.Failed, store.Find(requestId)!.Stage);
+    }
+
+    [Fact]
+    public void ParserAcceptsCompleteJsonWhenClosingFenceIsMissing()
+    {
+        // Some models emit the opening ```json fence but omit the closing one; the JSON body itself is
+        // complete and must parse (Normalize keeps everything after the opening fence line).
+        string fenced = "```json\n" + StaticMockLlmProvider.RomanianProcurementExpertProposal.Trim();
+        BiddingProposal proposal = BiddingJsonParser.Parse(fenced);
+        Assert.Equal("Ofertă tehnică — Lucrări de construcții", proposal.Title);
+    }
+
+    [Fact]
+    public void ParserReportsTruncatedJsonAsActionableError()
+    {
+        // Claude sometimes emits ```json ... without a closing fence when the response is truncated.
+        string truncated = "```json\n{\"title\":\"Ofertă\",\"technicalProposal\":{\"sections\":[{\"heading\":\"H\",\"content\":\"C\"}]},";
+        AutoBiddingPipelineException exception = Assert.Throws<AutoBiddingPipelineException>(() => BiddingJsonParser.Parse(truncated));
+        Assert.Contains("trunchiat", exception.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.Equal(422, exception.StatusCode);
     }
 
     private sealed class StubExtractionService : IDocumentExtractionService

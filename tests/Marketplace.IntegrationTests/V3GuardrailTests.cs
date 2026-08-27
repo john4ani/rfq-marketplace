@@ -1,6 +1,7 @@
 using System.Net;
 using System.Text;
 using System.Text.Json;
+using Marketplace.Application.AutoBidding;
 using Marketplace.Domain.Seap;
 using Marketplace.Infrastructure.Bidding;
 using Marketplace.Infrastructure.Resilience;
@@ -54,7 +55,7 @@ public sealed class V3GuardrailTests
         {
             ApiKey = "test-key",
             ApiUrl = "https://api.anthropic.com/v1/messages",
-            MaxRequestTokens = 8000 // must be capped down to 4000 in code
+            MaxRequestTokens = 32_000 // must be capped down to 16000 in code
         });
 
         AnthropicClaudeProvider provider = new(factory, options, NullLogger<AnthropicClaudeProvider>.Instance, new FakeTimeProvider());
@@ -63,7 +64,7 @@ public sealed class V3GuardrailTests
 
         Assert.Equal("raspuns", result);
         using JsonDocument body = JsonDocument.Parse(handler.LastRequestBody!);
-        Assert.Equal(4000, body.RootElement.GetProperty("max_tokens").GetInt32());
+        Assert.Equal(16000, body.RootElement.GetProperty("max_tokens").GetInt32());
     }
 
     [Fact]
@@ -71,7 +72,7 @@ public sealed class V3GuardrailTests
     {
         RecordingClaudeHandler handler = new(HttpStatusCode.InternalServerError);
         StubHttpClientFactory factory = new(handler);
-        IOptions<AutoBiddingOptions> options = Options.Create(new AutoBiddingOptions { ApiKey = "test-key", MaxRequestTokens = 4000 });
+        IOptions<AutoBiddingOptions> options = Options.Create(new AutoBiddingOptions { ApiKey = "test-key", MaxRequestTokens = 8000 });
 
         AnthropicClaudeProvider provider = new(factory, options, NullLogger<AnthropicClaudeProvider>.Instance, new FakeTimeProvider());
 
@@ -79,7 +80,8 @@ public sealed class V3GuardrailTests
             await Assert.ThrowsAsync<HttpRequestException>(() => provider.CompleteAsync("sys", "user", CancellationToken.None));
 
         Assert.Equal(3, handler.CallCount);
-        InvalidOperationException fourth = await Assert.ThrowsAsync<InvalidOperationException>(() => provider.CompleteAsync("sys", "user", CancellationToken.None));
+        // The circuit-open guard surfaces as an AutoBiddingPipelineException (subclass of InvalidOperationException).
+        AutoBiddingPipelineException fourth = await Assert.ThrowsAsync<AutoBiddingPipelineException>(() => provider.CompleteAsync("sys", "user", CancellationToken.None));
         Assert.Contains("circuit", fourth.Message, StringComparison.OrdinalIgnoreCase);
         Assert.Equal(3, handler.CallCount); // no further HTTP calls while the circuit is open
     }

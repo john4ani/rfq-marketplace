@@ -21,9 +21,10 @@ public interface IAutoBiddingService
 {
     /// <summary>Uploads a specification PDF and runs the full pipeline (storage → Markdown → LLM proposal).</summary>
     Task<SpecificationBidResult> ProcessSpecificationAsync(
-        Guid companyId, string fileName, Stream content, Guid actorId, CancellationToken cancellationToken);
+        Guid companyId, string fileName, Stream content, Guid actorId, CancellationToken cancellationToken,
+        Guid? progressRequestId = null);
 
     /// <summary>Re-runs the LLM proposal step for an already-extracted specification document.</summary>
     Task<SpecificationBidResult> GenerateFromSpecificationAsync(
-        Guid companyId, Guid documentId, CancellationToken cancellationToken);
+        Guid companyId, Guid documentId, CancellationToken cancellationToken, Guid? progressRequestId = null);
 }

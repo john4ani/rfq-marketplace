@@ -2,6 +2,7 @@ using System.Globalization;
 using System.Text;
 using Azure;
 using Azure.AI.FormRecognizer.DocumentAnalysis;
+using Marketplace.Application.AutoBidding;
 using Marketplace.Infrastructure.Resilience;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -28,9 +29,9 @@ public sealed partial class AzureDocumentIntelligenceExtractionService : IDocume
     public async Task<DocumentExtractionResult> ExtractAsync(Stream document, string fileName, CancellationToken cancellationToken)
     {
         if (!settings.Enabled || string.IsNullOrWhiteSpace(settings.Endpoint) || string.IsNullOrWhiteSpace(settings.ApiKey))
-            throw new InvalidOperationException("Azure Document Intelligence nu este configurat.");
+            throw new AutoBiddingPipelineException(503, "Serviciul Azure Document Intelligence nu este configurat în acest mediu.");
         if (circuitBreaker.IsOpen)
-            throw new InvalidOperationException("Serviciul Azure Document Intelligence este temporar indisponibil (circuit deschis). Reîncearcă peste aproximativ o oră.");
+            throw new AutoBiddingPipelineException(503, "Serviciul Azure Document Intelligence este temporar indisponibil (circuit deschis). Reîncearcă peste aproximativ o oră.");
 
         // Azure DI and PdfPig both need to re-read the stream from the start, so buffer into a seekable MemoryStream.
         using var buffer = new MemoryStream();

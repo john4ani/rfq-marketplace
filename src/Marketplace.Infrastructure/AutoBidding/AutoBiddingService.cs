@@ -45,6 +45,8 @@ public sealed partial class AutoBiddingService : IAutoBiddingService
     private readonly bool useLocalStorage;
     private readonly TimeProvider timeProvider;
     private readonly ILogger<AutoBiddingService> logger;
+    private readonly IPipelineProgressStore? progressStore;
+    private Guid? _activeProgressRequestId;
 
     public AutoBiddingService(
         MarketplaceDbContext dbContext,
@@ -55,7 +57,8 @@ public sealed partial class AutoBiddingService : IAutoBiddingService
         IOptions<AutoBiddingOptions> options,
         IOptions<LocalStorageOptions> localStorage,
         TimeProvider timeProvider,
-        ILogger<AutoBiddingService> logger)
+        ILogger<AutoBiddingService> logger,
+        IPipelineProgressStore? progressStore = null)
     {
         this.dbContext = dbContext;
         this.storage = storage;
@@ -66,11 +69,14 @@ public sealed partial class AutoBiddingService : IAutoBiddingService
         useLocalStorage = localStorage.Value.UseLocalStorage;
         this.timeProvider = timeProvider;
         this.logger = logger;
+        this.progressStore = progressStore;
     }
 
     public async Task<SpecificationBidResult> ProcessSpecificationAsync(
-        Guid companyId, string fileName, Stream content, Guid actorId, CancellationToken cancellationToken)
+        Guid companyId, string fileName, Stream content, Guid actorId, CancellationToken cancellationToken,
+        Guid? progressRequestId = null)
     {
+        _activeProgressRequestId = progressRequestId;
         LogUploadStarted(logger, fileName);
         using MemoryStream buffer = new();
         await content.CopyToAsync(buffer, cancellationToken);
@@ -95,6 +101,7 @@ public sealed partial class AutoBiddingService : IAutoBiddingService
 
         // Step 2 — extract text/tables as Markdown via Azure Document Intelligence.
         LogExtractionStarted(logger, fileName);
+        ReportProgress(PipelineStage.Extracting, "Se extrag tabelele și textul din Caietul de Sarcini…");
         buffer.Position = 0;
         DocumentExtractionResult extraction = await extractionService.ExtractAsync(buffer, fileName, cancellationToken);
         string markdown = MarkdownConverter.ToMarkdown(extraction);
@@ -109,8 +116,9 @@ public sealed partial class AutoBiddingService : IAutoBiddingService
     }
 
     public async Task<SpecificationBidResult> GenerateFromSpecificationAsync(
-        Guid companyId, Guid documentId, CancellationToken cancellationToken)
+        Guid companyId, Guid documentId, CancellationToken cancellationToken, Guid? progressRequestId = null)
     {
+        _activeProgressRequestId = progressRequestId;
         CompanyVault vault = await dbContext.CompanyVaults
             .Include(item => item.Documents)
             .SingleOrDefaultAsync(item => item.SupplierId == companyId, cancellationToken)
@@ -133,6 +141,7 @@ public sealed partial class AutoBiddingService : IAutoBiddingService
         string userPrompt = $"Caiet de sarcini (extras automat, format Markdown):\n\n{markdown}";
         LogGenerationStarted(logger, document.Id, settings.Model);
         LogLlmRequest(logger, document.Id, SpecificationPrompt.Length, userPrompt.Length, settings.Model);
+        ReportProgress(PipelineStage.Generating, "Claude redactează propunerea tehnică…");
         string llmJson = await llmProvider.CompleteAsync(SpecificationPrompt, userPrompt, cancellationToken);
         LogLlmRawResponse(logger, document.Id, llmJson.Length, llmJson);
 
@@ -152,6 +161,7 @@ public sealed partial class AutoBiddingService : IAutoBiddingService
         LogProposalGenerated(logger, document.Id, proposal.Title);
 
         // Generate and store the technical proposal (.docx) and bill of quantities (.xlsx).
+        ReportProgress(PipelineStage.Finalizing, "Se generează documentele (.docx / .xlsx)…");
         GeneratedDocument technical = await documentGenerator.GenerateTechnicalProposalAsync(proposal, cancellationToken);
         GeneratedDocument boq = await documentGenerator.GenerateBillOfQuantitiesAsync(proposal, cancellationToken);
         LogDocumentsGenerated(logger, document.Id, technical.FileName, technical.Content.Length, boq.FileName, boq.Content.Length);
@@ -184,10 +194,17 @@ public sealed partial class AutoBiddingService : IAutoBiddingService
         if (string.IsNullOrWhiteSpace(markdown) || markdown.Length < 200)
         {
             LogInsufficientOcrText(logger, documentId, fileName, markdown.Length);
-            throw new InvalidOperationException(
-                "Azure OCR a returnat text insuficient (sub 200 de caractere). Verifică PDF-ul: dacă este scanat " +
-                "sau conține doar imagini, pipeline-ul nu poate genera o propunere completă.");
+            throw new AutoBiddingPipelineException(422,
+                "PDF-ul pare scanat ilizibil sau protejat (textul extras este insuficient). " +
+                "Verifică dacă fișierul conține text selectabil; dacă este un scan, mărește rezoluția și încearcă din nou.");
         }
+    }
+
+    /// <summary>Publishes the current pipeline stage so the UI can show real per-step progress.</summary>
+    private void ReportProgress(PipelineStage stage, string message)
+    {
+        if (progressStore is not null && _activeProgressRequestId is Guid requestId)
+            progressStore.Report(requestId, stage, message);
     }
 
     private async Task<string> UploadSpecificationAsync(Guid companyId, string fileName, Stream content, CancellationToken cancellationToken)

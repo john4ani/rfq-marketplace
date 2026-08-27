@@ -1,6 +1,7 @@
 using Marketplace.Application.AutoBidding;
 using Marketplace.Application.Companies;
 using Marketplace.Domain.Vault;
+using Marketplace.Infrastructure.AutoBidding;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using System.Security.Claims;
@@ -13,7 +14,8 @@ namespace Marketplace.Api.Controllers;
 public sealed class CompanyVaultController(
     ICompanyVaultService vaultService,
     IAutoBiddingService autoBiddingService,
-    ICompanyAuthorizationService companyAuthorizationService) : ControllerBase
+    ICompanyAuthorizationService companyAuthorizationService,
+    IPipelineProgressStore progressStore) : ControllerBase
 {
     // MapInboundClaims (default) remaps the JWT "sub" claim to ClaimTypes.NameIdentifier, so read both.
     private Guid UserId => Guid.TryParse(
@@ -47,10 +49,13 @@ public sealed class CompanyVaultController(
     /// <summary>
     /// Auto-bidding pipeline for a Caiet de sarcini: upload the PDF (R2) → extract Markdown via Azure
     /// Document Intelligence → persist it → generate a basic technical proposal through the LLM.
+    /// The optional <paramref name="progressRequestId"/> lets the frontend poll real per-stage progress
+    /// while the request is still running (see <c>GET specifications/progress/{requestId}</c>).
     /// </summary>
     [HttpPost("specifications")]
     [RequestSizeLimit(25 * 1024 * 1024)]
-    public async Task<IActionResult> UploadSpecification(Guid companyId, IFormFile file, CancellationToken cancellationToken)
+    public async Task<IActionResult> UploadSpecification(
+        Guid companyId, IFormFile file, [FromQuery] Guid? progressRequestId, CancellationToken cancellationToken)
     {
         if (UserId == Guid.Empty || !await companyAuthorizationService.CanRepresentCompanyAsync(UserId, companyId, cancellationToken))
             return NotFound();
@@ -58,20 +63,53 @@ public sealed class CompanyVaultController(
         if (!Path.GetExtension(file.FileName).Equals(".pdf", StringComparison.OrdinalIgnoreCase))
             return DocumentValidationProblem("Încarcă un fișier PDF (Caiet de sarcini).");
 
-        await using Stream content = file.OpenReadStream();
-        SpecificationBidResult result = await autoBiddingService.ProcessSpecificationAsync(
-            companyId, file.FileName, content, UserId, cancellationToken);
-        return Ok(result);
+        try
+        {
+            await using Stream content = file.OpenReadStream();
+            SpecificationBidResult result = await autoBiddingService.ProcessSpecificationAsync(
+                companyId, file.FileName, content, UserId, cancellationToken, progressRequestId);
+            if (progressRequestId is Guid requestId)
+                progressStore.Report(requestId, PipelineStage.Completed, "Propunerea a fost generată.");
+            return Ok(result);
+        }
+        catch (Exception exception) when (exception is not OperationCanceledException)
+        {
+            if (progressRequestId is Guid failedRequestId)
+                progressStore.Report(failedRequestId, PipelineStage.Failed, exception.Message);
+            throw;
+        }
     }
 
     /// <summary>Re-runs the LLM proposal step for an already-extracted Caiet de sarcini document.</summary>
     [HttpPost("specifications/{documentId:guid}/generate")]
-    public async Task<IActionResult> GenerateFromSpecification(Guid companyId, Guid documentId, CancellationToken cancellationToken)
+    public async Task<IActionResult> GenerateFromSpecification(
+        Guid companyId, Guid documentId, [FromQuery] Guid? progressRequestId, CancellationToken cancellationToken)
     {
         if (UserId == Guid.Empty || !await companyAuthorizationService.CanRepresentCompanyAsync(UserId, companyId, cancellationToken))
             return NotFound();
-        SpecificationBidResult result = await autoBiddingService.GenerateFromSpecificationAsync(companyId, documentId, cancellationToken);
-        return Ok(result);
+        try
+        {
+            SpecificationBidResult result = await autoBiddingService.GenerateFromSpecificationAsync(
+                companyId, documentId, cancellationToken, progressRequestId);
+            if (progressRequestId is Guid requestId)
+                progressStore.Report(requestId, PipelineStage.Completed, "Propunerea a fost regenerată.");
+            return Ok(result);
+        }
+        catch (Exception exception) when (exception is not OperationCanceledException)
+        {
+            if (progressRequestId is Guid failedRequestId)
+                progressStore.Report(failedRequestId, PipelineStage.Failed, exception.Message);
+            throw;
+        }
+    }
+
+    /// <summary>Returns the current stage of a running auto-bidding pipeline (frontend polls this while the
+    /// upload/generate request is in flight to show real progress instead of an endless spinner).</summary>
+    [HttpGet("specifications/progress/{requestId:guid}")]
+    public IActionResult GetPipelineProgress(Guid requestId)
+    {
+        PipelineProgress? progress = progressStore.Find(requestId);
+        return progress is null ? NotFound() : Ok(progress);
     }
 
     /// <summary>

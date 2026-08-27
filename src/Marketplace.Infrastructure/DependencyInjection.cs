@@ -197,6 +197,7 @@ public static class DependencyInjection
         services.AddScoped<IStripeGateway, StripeGateway>();
         services.AddScoped<ICompanyVaultService, CompanyVaultService>();
         services.AddScoped<IAutoBiddingService, AutoBiddingService>();
+        services.AddSingleton<IPipelineProgressStore, PipelineProgressStore>();
         return services;
     }
 }

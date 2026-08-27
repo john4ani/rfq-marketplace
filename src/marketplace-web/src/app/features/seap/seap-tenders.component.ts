@@ -1,8 +1,10 @@
 import { DatePipe, DecimalPipe } from '@angular/common';
-import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, DestroyRef, inject, signal } from '@angular/core';
 import { RouterLink } from '@angular/router';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { timer } from 'rxjs';
 import { AuthService } from '../../core/auth/auth.service';
-import { CompanyVaultService, SpecificationBidResult } from '../../core/companies/company-vault.service';
+import { CompanyVaultService, SpecificationBidResult, PIPELINE_STAGE_LABELS } from '../../core/companies/company-vault.service';
 import { ProfileService } from '../../core/profiles/profile.service';
 import { SeapService, SeapTender } from '../../core/seap/seap.service';
 import { CategoryOption, SupplierSettingsService } from '../../core/suppliers/supplier-settings.service';
@@ -11,7 +13,7 @@ import { CategoryOption, SupplierSettingsService } from '../../core/suppliers/su
   selector: 'app-seap-tenders',
   imports: [RouterLink, DatePipe, DecimalPipe],
   changeDetection: ChangeDetectionStrategy.OnPush,
-  styles: [`:host{display:block}.page{display:grid;gap:1.2rem;max-width:76rem}.back-link{display:inline-flex;align-items:center;gap:.4rem;width:fit-content;color:var(--forest);font-weight:750;text-decoration:none;font-size:.92rem}.eyebrow{margin:0;color:var(--forest-light);font-size:.76rem;font-weight:800;letter-spacing:.1em;text-transform:uppercase}h1{margin:.15rem 0;font-size:clamp(1.9rem,4vw,2.8rem);letter-spacing:-.04em}.page>p{margin:0;color:var(--muted);line-height:1.5}.card,.state,.filters{padding:1.15rem 1.25rem;border:1px solid var(--border);border-radius:1rem;background:var(--surface);box-shadow:var(--shadow-soft)}.card{display:flex;justify-content:space-between;gap:1.25rem;align-items:center;text-decoration:none;color:inherit;transition:border-color .15s}.card:hover{border-color:color-mix(in srgb,var(--forest) 45%,var(--border))}.card h2{margin:0;font-size:1.1rem}.card p{margin:.2rem 0 0;color:var(--muted);font-size:.9rem}.pill{display:inline-flex;align-items:center;padding:.3rem .72rem;border-radius:999px;font-size:.78rem;font-weight:800}.pill.ready{color:#176b52;background:#e3f2ea}.pill.done{color:var(--forest);background:color-mix(in srgb,var(--sand) 60%,white)}.arrow{flex:0 0 auto;color:var(--forest);font-weight:800}.state{justify-items:center;padding:2rem;text-align:center;color:var(--muted)}.state strong{color:var(--ink)}.state button{min-height:2.6rem;padding:.6rem 1.05rem;border:0;border-radius:.6rem;color:#fff;background:var(--forest);font:inherit;font-weight:800;cursor:pointer}.filters{display:grid;gap:.7rem}.filters-header{display:flex;align-items:baseline;gap:.6rem;flex-wrap:wrap}.filters-header strong{font-size:.95rem}.filters-header .company{color:var(--forest);font-weight:750;font-size:.85rem}.checks{display:flex;flex-wrap:wrap;gap:.5rem}.check{display:inline-flex;align-items:center;gap:.4rem;padding:.42rem .8rem;border:1px solid var(--border);border-radius:999px;background:var(--warm-white);font-size:.86rem;font-weight:650;cursor:pointer}.check input{accent-color:var(--forest)}.check.radius{border-style:dashed}.check:has(input:disabled){opacity:.6;cursor:not-allowed}.hint{margin:0;color:var(--muted);font-size:.82rem;line-height:1.45}.upload{display:flex;gap:.7rem;flex-wrap:wrap;align-items:center}.upload input{flex:1 1 18rem}.upload button{min-height:2.6rem;padding:.6rem 1.05rem;border:0;border-radius:.6rem;color:#fff;background:var(--forest);font:inherit;font-weight:800;cursor:pointer}.upload button:disabled{opacity:.55;cursor:not-allowed}.spec-result{display:grid;gap:.6rem;padding:.85rem .95rem;border:1px solid var(--border);border-radius:.8rem;background:var(--warm-white)}.spec-result strong{font-size:.95rem}.downloads{display:flex;flex-wrap:wrap;gap:.6rem}.downloads button{display:inline-flex;padding:.5rem .85rem;border:0;border-radius:.6rem;color:var(--forest);background:color-mix(in srgb,var(--sand) 45%,white);font:inherit;font-weight:800;text-decoration:none;font-size:.85rem;cursor:pointer}.spec-result button{min-height:2.3rem;padding:.4rem .8rem;border:0;border-radius:.6rem;color:var(--forest);background:var(--sand);font:inherit;font-weight:800;cursor:pointer;width:fit-content}.note{padding:.75rem .95rem;border-radius:.7rem;line-height:1.5;font-size:.86rem}.note:not(.error){background:#edf6f1;color:#315947}.note.error{background:#fff0f0;color:#8b2222}`],
+  styles: [`:host{display:block}.page{display:grid;gap:1.2rem;max-width:76rem}.back-link{display:inline-flex;align-items:center;gap:.4rem;width:fit-content;color:var(--forest);font-weight:750;text-decoration:none;font-size:.92rem}.eyebrow{margin:0;color:var(--forest-light);font-size:.76rem;font-weight:800;letter-spacing:.1em;text-transform:uppercase}h1{margin:.15rem 0;font-size:clamp(1.9rem,4vw,2.8rem);letter-spacing:-.04em}.page>p{margin:0;color:var(--muted);line-height:1.5}.card,.state,.filters{padding:1.15rem 1.25rem;border:1px solid var(--border);border-radius:1rem;background:var(--surface);box-shadow:var(--shadow-soft)}.card{display:flex;justify-content:space-between;gap:1.25rem;align-items:center;text-decoration:none;color:inherit;transition:border-color .15s}.card:hover{border-color:color-mix(in srgb,var(--forest) 45%,var(--border))}.card h2{margin:0;font-size:1.1rem}.card p{margin:.2rem 0 0;color:var(--muted);font-size:.9rem}.pill{display:inline-flex;align-items:center;padding:.3rem .72rem;border-radius:999px;font-size:.78rem;font-weight:800}.pill.ready{color:#176b52;background:#e3f2ea}.pill.done{color:var(--forest);background:color-mix(in srgb,var(--sand) 60%,white)}.arrow{flex:0 0 auto;color:var(--forest);font-weight:800}.state{justify-items:center;padding:2rem;text-align:center;color:var(--muted)}.state strong{color:var(--ink)}.state button{min-height:2.6rem;padding:.6rem 1.05rem;border:0;border-radius:.6rem;color:#fff;background:var(--forest);font:inherit;font-weight:800;cursor:pointer}.filters{display:grid;gap:.7rem}.filters-header{display:flex;align-items:baseline;gap:.6rem;flex-wrap:wrap}.filters-header strong{font-size:.95rem}.filters-header .company{color:var(--forest);font-weight:750;font-size:.85rem}.checks{display:flex;flex-wrap:wrap;gap:.5rem}.check{display:inline-flex;align-items:center;gap:.4rem;padding:.42rem .8rem;border:1px solid var(--border);border-radius:999px;background:var(--warm-white);font-size:.86rem;font-weight:650;cursor:pointer}.check input{accent-color:var(--forest)}.check.radius{border-style:dashed}.check:has(input:disabled){opacity:.6;cursor:not-allowed}.hint{margin:0;color:var(--muted);font-size:.82rem;line-height:1.45}.upload{display:flex;gap:.7rem;flex-wrap:wrap;align-items:center}.upload input{flex:1 1 18rem}.upload button{min-height:2.6rem;padding:.6rem 1.05rem;border:0;border-radius:.6rem;color:#fff;background:var(--forest);font:inherit;font-weight:800;cursor:pointer}.upload button:disabled{opacity:.55;cursor:not-allowed}.spec-result{display:grid;gap:.6rem;padding:.85rem .95rem;border:1px solid var(--border);border-radius:.8rem;background:var(--warm-white)}.spec-result strong{font-size:.95rem}.downloads{display:flex;flex-wrap:wrap;gap:.6rem}.downloads button{display:inline-flex;padding:.5rem .85rem;border:0;border-radius:.6rem;color:var(--forest);background:color-mix(in srgb,var(--sand) 45%,white);font:inherit;font-weight:800;text-decoration:none;font-size:.85rem;cursor:pointer}.spec-result button{min-height:2.3rem;padding:.4rem .8rem;border:0;border-radius:.6rem;color:var(--forest);background:var(--sand);font:inherit;font-weight:800;cursor:pointer;width:fit-content}.pipeline-progress{display:grid;gap:.45rem;padding:.75rem .95rem;border:1px solid var(--border);border-radius:.7rem;background:var(--warm-white)}.pipeline-progress p{margin:0;color:var(--forest);font-size:.86rem;font-weight:650}.progress-track{height:.5rem;border-radius:999px;background:color-mix(in srgb,var(--sand) 70%,white);overflow:hidden}.progress-bar{height:100%;width:100%;border-radius:999px;background:var(--forest-light);transform-origin:0 50%;animation:pipeline-slide 1.6s ease-in-out infinite}@keyframes pipeline-slide{0%{transform:scaleX(.15)}50%{transform:scaleX(.65)}100%{transform:scaleX(.15)}}.note{padding:.75rem .95rem;border-radius:.7rem;line-height:1.5;font-size:.86rem}.note:not(.error){background:#edf6f1;color:#315947}.note.error{background:#fff0f0;color:#8b2222}`],
   template: `<section class="page">
     <a class="back-link" routerLink="/dashboard">← Înapoi acasă</a>
     <header><p class="eyebrow">Achiziții publice</p><h1>Anunțuri SEAP</h1>
@@ -23,8 +25,14 @@ import { CategoryOption, SupplierSettingsService } from '../../core/suppliers/su
         @if (companyId(); as companyId) {
           <div class="upload"><input type="file" accept="application/pdf" (change)="onSpecFileSelected($any($event.target).files?.[0])" aria-label="Alege PDF-ul Caietului de sarcini">
             <button type="button" [disabled]="!specFile() || specBusy()" (click)="uploadSpecification()">{{ specBusy() ? 'Se procesează…' : 'Încarcă Caietul de sarcini și generează oferta' }}</button></div>
-          <p class="hint">Upload PDF → Azure Document Intelligence → Markdown → propunere tehnică (.docx) + listă de cantități (.xlsx).</p>
-          @if (specMessage()) { <p class="note" [class.error]="specError()" role="status">{{ specMessage() }}</p> }
+          <p class="hint">Upload PDF → Azure Document Intelligence → Markdown → propunere tehnică (.docx) + listă de cantități (.xlsx). Procesarea durează de obicei 30–60 de secunde.</p>
+          @if (specBusy()) {
+            <div class="pipeline-progress" role="status" aria-live="polite">
+              <div class="progress-track"><div class="progress-bar"></div></div>
+              <p>{{ specStageLabel() }}</p>
+            </div>
+          }
+          @if (specMessage()) { <p class="note" [class.error]="specError()" role="alert">{{ specMessage() }}</p> }
           @if (specResult(); as result) {
             <div class="spec-result">
               <strong>{{ result.proposalTitle }}</strong>
@@ -102,6 +110,11 @@ export class SeapTendersComponent {
   readonly specMessage = signal('');
   readonly specError = signal(false);
   readonly specResult = signal<SpecificationBidResult | null>(null);
+  readonly specStage = signal<string>('Se trimite fișierul…');
+  private progressRequestId: string | null = null;
+  private readonly destroyRef = inject(DestroyRef);
+
+  readonly specStageLabel = computed(() => this.specStage());
 
   constructor() { this.loadProfile(); }
 
@@ -176,8 +189,13 @@ export class SeapTendersComponent {
     if (!companyId || !file || this.specBusy()) return;
     this.specBusy.set(true);
     this.specMessage.set('');
-    this.vault.uploadSpecification(companyId, file).subscribe({
+    this.specError.set(false);
+    this.specStage.set('Etapa 1/3 — se trimite fișierul și se extrag tabelele din Caietul de Sarcini…');
+    this.progressRequestId = crypto.randomUUID();
+    this.startProgressPolling(companyId);
+    this.vault.uploadSpecification(companyId, file, this.progressRequestId).subscribe({
       next: result => {
+        this.stopProgressPolling();
         this.specBusy.set(false);
         this.specFile.set(null);
         this.specResult.set(result);
@@ -185,12 +203,10 @@ export class SeapTendersComponent {
         this.specMessage.set('Pipeline-ul a rulat cu succes' + (result.shadowMode ? ' (Shadow Mode — fără plată).' : '.'));
       },
       error: error => {
+        this.stopProgressPolling();
         this.specBusy.set(false);
         this.specError.set(true);
-        this.specMessage.set(
-          error?.error?.detail ??
-          error?.error?.errors?.document?.[0] ??
-          'Pipeline-ul nu a putut rula. Verifică configurarea Azure Document Intelligence / LLM în mediul curent.');
+        this.specMessage.set(this.pipelineErrorMessage(error));
       }
     });
   }
@@ -200,19 +216,58 @@ export class SeapTendersComponent {
     if (!result || this.specBusy()) return;
     this.specBusy.set(true);
     this.specMessage.set('');
-    this.vault.generateFromSpecification(companyId, result.documentId).subscribe({
+    this.specError.set(false);
+    this.specStage.set('Etapa 1/3 — se pregătește regenerarea…');
+    this.progressRequestId = crypto.randomUUID();
+    this.startProgressPolling(companyId);
+    this.vault.generateFromSpecification(companyId, result.documentId, this.progressRequestId).subscribe({
       next: updated => {
+        this.stopProgressPolling();
         this.specBusy.set(false);
         this.specResult.set(updated);
         this.specError.set(false);
         this.specMessage.set('Propunerea a fost regenerată.');
       },
       error: error => {
+        this.stopProgressPolling();
         this.specBusy.set(false);
         this.specError.set(true);
-        this.specMessage.set(error?.error?.detail ?? 'Propunerea nu a putut fi regenerată.');
+        this.specMessage.set(this.pipelineErrorMessage(error));
       }
     });
+  }
+
+  /** Polls the real per-stage pipeline progress while the upload/generate request is in flight. */
+  private startProgressPolling(companyId: string): void {
+    const requestId = this.progressRequestId;
+    if (!requestId) return;
+    timer(0, 2000)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe(() => {
+        this.vault.getSpecificationProgress(companyId, requestId).subscribe({
+          next: progress => {
+            const label = PIPELINE_STAGE_LABELS[progress.stage];
+            if (label) this.specStage.set(label);
+            if (progress.stage === 'Failed') {
+              this.specStage.set(progress.message || 'Pipeline-ul a eșuat.');
+            }
+          },
+          // Polling a not-yet-registered key is expected at t=0; keep waiting until the request settles.
+          error: () => undefined
+        });
+      });
+  }
+
+  private stopProgressPolling(): void {
+    this.progressRequestId = null;
+  }
+
+  /** Turns an HTTP/API failure into a friendly, specific message (backend ProblemDetails.detail wins). */
+  private pipelineErrorMessage(error: unknown): string {
+    const problem = (error as { error?: { detail?: string; errors?: { document?: string[] } } })?.error;
+    const detail = problem?.detail ?? problem?.errors?.document?.[0];
+    if (detail) return detail;
+    return 'Pipeline-ul nu a putut rula. Verifică dacă serviciile Azure Document Intelligence și Claude sunt configurate în acest mediu, apoi încearcă din nou.';
   }
 
   /** Downloads a generated proposal file (technical .docx or bill of quantities .xlsx) with the auth header. */

@@ -28,6 +28,7 @@ if (!string.IsNullOrWhiteSpace(dataProtectionKeysPath))
 builder.Logging.ClearProviders();
 builder.Logging.AddJsonConsole(options => { options.IncludeScopes = true; options.TimestampFormat = "O"; options.JsonWriterOptions = new JsonWriterOptions { Indented = false }; });
 builder.Services.AddProblemDetails();
+builder.Services.AddExceptionHandler<AutoBiddingExceptionHandler>();
 builder.Services.AddControllers().AddJsonOptions(options =>
     options.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter()));
 builder.Services.AddOpenApi();

@@ -11,7 +11,7 @@ public sealed class AutoBiddingOptions
     public string Model { get; init; } = "claude-sonnet-5";
     public string ApiKey { get; init; } = string.Empty;
     public string ApiUrl { get; init; } = "https://api.anthropic.com/v1/messages";
-    public int MaxRequestTokens { get; init; } = 4000;
+    public int MaxRequestTokens { get; init; } = 8000;
     public int TopChunks { get; init; } = 10;
     public string EmbeddingModel { get; init; } = "text-embedding-3-small";
     public string EmbeddingEndpoint { get; init; } = "https://api.openai.com/v1/embeddings";

@@ -3,7 +3,7 @@ import localeRo from '@angular/common/locales/ro';
 import { computed } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
-import { of } from 'rxjs';
+import { of, throwError } from 'rxjs';
 import { AuthService } from '../../core/auth/auth.service';
 import { CompanyVaultService, SpecificationBidResult } from '../../core/companies/company-vault.service';
 import { ProfileService } from '../../core/profiles/profile.service';
@@ -138,10 +138,12 @@ describe('SeapTendersComponent', () => {
     const listTenders = vi.fn().mockReturnValue(of([tender]));
     const uploadSpecification = vi.fn().mockReturnValue(of(specResult));
     const generateFromSpecification = vi.fn();
+    const getSpecificationProgress = vi.fn().mockReturnValue(of({ stage: 'Generating', message: 'Etapa 2/3 — Claude redactează…' }));
     const downloadGeneratedFile = vi.fn().mockReturnValue(of(new Blob(['content'])));
-    // jsdom does not implement object URLs; stub them so the download path is exercised.
+    // jsdom does not implement object URLs or crypto.randomUUID; stub them so the download path is exercised.
     Object.defineProperty(URL, 'createObjectURL', { value: vi.fn(() => 'blob:mock'), configurable: true });
     Object.defineProperty(URL, 'revokeObjectURL', { value: vi.fn(), configurable: true });
+    Object.defineProperty(crypto, 'randomUUID', { value: vi.fn(() => 'req-1234'), configurable: true });
     TestBed.configureTestingModule({
       imports: [SeapTendersComponent],
       providers: [
@@ -150,7 +152,7 @@ describe('SeapTendersComponent', () => {
         { provide: SupplierSettingsService, useValue: settings },
         { provide: SeapService, useValue: { listTenders } },
         { provide: AuthService, useValue: { isAdministrator: computed(() => true) } },
-        { provide: CompanyVaultService, useValue: { uploadSpecification, generateFromSpecification, downloadGeneratedFile } }
+        { provide: CompanyVaultService, useValue: { uploadSpecification, generateFromSpecification, getSpecificationProgress, downloadGeneratedFile } }
       ]
     });
     const fixture = TestBed.createComponent(SeapTendersComponent);
@@ -164,7 +166,7 @@ describe('SeapTendersComponent', () => {
     buttons.find(button => button.textContent?.includes('Încarcă'))?.click();
     fixture.detectChanges();
 
-    expect(uploadSpecification).toHaveBeenCalledWith(company.id, expect.any(File));
+    expect(uploadSpecification).toHaveBeenCalledWith(company.id, expect.any(File), 'req-1234');
     const text = (fixture.nativeElement as HTMLElement).textContent ?? '';
     expect(text).toContain('Ofertă tehnică');
     expect(text).toContain('Descarcă propunerea tehnică (.docx)');
@@ -175,5 +177,38 @@ describe('SeapTendersComponent', () => {
     expect(downloadGeneratedFile).toHaveBeenCalledWith(company.id, specResult.documentId, 'TechnicalProposal');
     buttons.find(button => button.textContent?.includes('Descarcă lista de cantități'))?.click();
     expect(downloadGeneratedFile).toHaveBeenCalledWith(company.id, specResult.documentId, 'BillOfQuantities');
+  });
+
+  it('shows a friendly error when the pipeline fails with a backend ProblemDetails detail', () => {
+    const listTenders = vi.fn().mockReturnValue(of([tender]));
+    const errorResponse = { error: { detail: 'PDF-ul pare scanat ilizibil sau protejat (textul extras este insuficient).' } };
+    const uploadSpecification = vi.fn().mockReturnValue(throwError(() => errorResponse));
+    const getSpecificationProgress = vi.fn().mockReturnValue(of({ stage: 'Failed', message: 'PDF-ul pare scanat ilizibil sau protejat.' }));
+    Object.defineProperty(crypto, 'randomUUID', { value: vi.fn(() => 'req-fail'), configurable: true });
+    TestBed.configureTestingModule({
+      imports: [SeapTendersComponent],
+      providers: [
+        provideRouter([]),
+        { provide: ProfileService, useValue: profiles },
+        { provide: SupplierSettingsService, useValue: settings },
+        { provide: SeapService, useValue: { listTenders } },
+        { provide: AuthService, useValue: { isAdministrator: computed(() => true) } },
+        { provide: CompanyVaultService, useValue: { uploadSpecification, generateFromSpecification: vi.fn(), getSpecificationProgress, downloadGeneratedFile: vi.fn() } }
+      ]
+    });
+    const fixture = TestBed.createComponent(SeapTendersComponent);
+    fixture.detectChanges();
+    const component = fixture.componentInstance;
+    component.onSpecFileSelected(new File(['pdf'], 'scan.pdf', { type: 'application/pdf' }));
+    fixture.detectChanges();
+
+    const buttons = Array.from((fixture.nativeElement as HTMLElement).querySelectorAll<HTMLButtonElement>('button'));
+    buttons.find(button => button.textContent?.includes('Încarcă'))?.click();
+    fixture.detectChanges();
+    fixture.detectChanges();
+
+    const text = (fixture.nativeElement as HTMLElement).textContent ?? '';
+    expect(text).toContain('scanat ilizibil sau protejat');
+    expect(uploadSpecification).toHaveBeenCalledWith(company.id, expect.any(File), 'req-fail');
   });
 });
