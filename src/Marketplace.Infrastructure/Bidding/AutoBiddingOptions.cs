@@ -8,7 +8,7 @@ public sealed class AutoBiddingOptions
 {
     public const string SectionName = "AutoBidding";
     public bool IsShadowMode { get; init; }
-    public string Model { get; init; } = "claude-3-5-sonnet";
+    public string Model { get; init; } = "claude-sonnet-5";
     public string ApiKey { get; init; } = string.Empty;
     public string ApiUrl { get; init; } = "https://api.anthropic.com/v1/messages";
     public int MaxRequestTokens { get; init; } = 4000;

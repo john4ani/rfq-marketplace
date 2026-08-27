@@ -3,7 +3,6 @@ using System.Text.Json;
 using Marketplace.Infrastructure.Resilience;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
-
 namespace Marketplace.Infrastructure.Bidding;
 
 // Anthropic Claude Messages API via direct HTTP (IHttpClientFactory). Code-complete; requires an API
@@ -48,6 +47,10 @@ public sealed partial class AnthropicClaudeProvider : ILlmProvider
             {
                 model = settings.Model,
                 max_tokens = Math.Min(Math.Max(256, settings.MaxRequestTokens), MaxTokensCap),
+                // The proposal must be a direct JSON answer. claude-sonnet-5 emits a "thinking" content block
+                // by default (breaking the content[0].text assumption); disable extended thinking so the first
+                // block is the text.
+                thinking = new { type = "disabled" },
                 system = systemPrompt,
                 messages = new[] { new { role = "user", content = userPrompt } }
             }, JsonOptions, cancellationToken);
@@ -57,11 +60,8 @@ public sealed partial class AnthropicClaudeProvider : ILlmProvider
                 LogClaudeFailed(logger, (int)response.StatusCode);
                 throw new HttpRequestException($"Claude returned {(int)response.StatusCode}.");
             }
-            using JsonDocument document = JsonDocument.Parse(body);
-            string text = document.RootElement.GetProperty("content")[0].GetProperty("text").GetString()
-                ?? throw new InvalidOperationException("Răspunsul Claude nu conține text.");
             circuitBreaker.RecordSuccess();
-            return text;
+            return ClaudeResponse.ExtractText(body);
         }
         catch
         {

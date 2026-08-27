@@ -48,7 +48,7 @@ public sealed class V3GuardrailTests
     [Fact]
     public async Task ClaudeProviderHardCapsMaxTokensRegardlessOfConfiguration()
     {
-        RecordingClaudeHandler handler = new("""{"content":[{"text":"raspuns"}]}""");
+        RecordingClaudeHandler handler = new("""{"content":[{"type":"text","text":"raspuns"}]}""");
         StubHttpClientFactory factory = new(handler);
         IOptions<AutoBiddingOptions> options = Options.Create(new AutoBiddingOptions
         {

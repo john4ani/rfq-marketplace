@@ -126,7 +126,7 @@ seap_storage_bucket="$(get_optional_parameter seap-storage-bucket)"
 seap_storage_region="$(get_optional_parameter seap-storage-region "" "eu-central-1")"
 
 auto_bidding_shadow_mode="$(get_optional_parameter auto-bidding-is-shadow-mode "" "true")"
-auto_bidding_model="$(get_optional_parameter auto-bidding-model "" "claude-3-5-sonnet")"
+auto_bidding_model="$(get_optional_parameter auto-bidding-model "" "claude-sonnet-5")"
 auto_bidding_api_key="$(get_optional_parameter auto-bidding-api-key true)"
 auto_bidding_api_url="$(get_optional_parameter auto-bidding-api-url "" "https://api.anthropic.com/v1/messages")"
 auto_bidding_max_request_tokens="$(get_optional_parameter auto-bidding-max-request-tokens "" "4000")"

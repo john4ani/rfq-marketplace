@@ -71,6 +71,19 @@ public sealed class V3PureLogicTests
             """));
 
     [Fact]
+    public void ClaudeResponseExtractsTextBlockAfterThinkingBlock()
+    {
+        const string body =
+            """{"content":[{"type":"thinking","thinking":"plan","signature":"sig"},{"type":"text","text":"{\"title\":\"OK\"}"}],"model":"claude-sonnet-5"}""";
+        Assert.Equal("{\"title\":\"OK\"}", ClaudeResponse.ExtractText(body));
+    }
+
+    [Fact]
+    public void ClaudeResponseThrowsWhenNoTextBlock() =>
+        Assert.Throws<InvalidOperationException>(() =>
+            ClaudeResponse.ExtractText("""{"content":[{"type":"thinking","thinking":"plan"}]}"""));
+
+    [Fact]
     public async Task DocumentGeneratorProducesOpenableDocxAndXlsxFromParsedProposal()
     {
         BiddingProposal proposal = BiddingJsonParser.Parse(StaticMockLlmProvider.RomanianProcurementExpertProposal);
