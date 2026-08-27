@@ -101,6 +101,64 @@ public sealed class AutoBiddingPipelineTests
     }
 
     [Fact]
+    public async Task ProcessSpecificationThrowsWhenOcrReturnsInsufficientText()
+    {
+        await using PostgreSqlContainer postgres = new PostgreSqlBuilder("pgvector/pgvector:pg17")
+            .WithDatabase("marketplace_autobid_ocr_guard_test")
+            .Build();
+        await postgres.StartAsync();
+
+        DbContextOptions<MarketplaceDbContext> options = new DbContextOptionsBuilder<MarketplaceDbContext>()
+            .UseNpgsql(postgres.GetConnectionString(), npgsql =>
+            {
+                npgsql.EnableRetryOnFailure(5, TimeSpan.FromSeconds(5), null);
+                npgsql.MigrationsAssembly(typeof(MarketplaceDbContext).Assembly.FullName);
+                npgsql.UseVector();
+            })
+            .Options;
+        await using MarketplaceDbContext db = new(options);
+        await db.Database.MigrateAsync();
+
+        Guid companyId = Guid.NewGuid();
+        db.Users.Add(new ApplicationUser
+        {
+            Id = companyId,
+            UserName = "spec-ocr", NormalizedUserName = "SPEC-OCR",
+            Email = "spec-ocr@example.test", NormalizedEmail = "SPEC-OCR@EXAMPLE.TEST",
+            EmailConfirmed = true, SecurityStamp = Guid.NewGuid().ToString(), ConcurrencyStamp = Guid.NewGuid().ToString()
+        });
+        db.SupplierProfiles.Add(SupplierProfile.Create(companyId, "Furnizor OCR SRL", "J40/3/2026", null,
+            "Persoană Contact", "spec-ocr@example.test", "0713333333", null,
+            new GeographicLocation("Strada 1", "Suceava", "Suceava", "România", 47.7m, 25.8m), 50, null, DateTimeOffset.UtcNow));
+        await db.SaveChangesAsync();
+
+        string tempRoot = Path.Combine(Path.GetTempPath(), "compaspot-autobid-ocr-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(tempRoot);
+        try
+        {
+            AutoBiddingService service = new(
+                db,
+                new LocalFileStorageService(Options.Create(new LocalStorageOptions { UseLocalStorage = true, LocalPath = tempRoot }), NullLogger<LocalFileStorageService>.Instance),
+                new ShortTextExtractionService(),
+                new StaticMockLlmProvider(StaticMockLlmProvider.RomanianProcurementExpertProposal),
+                new DocumentGenerator(),
+                Options.Create(new AutoBiddingOptions { IsShadowMode = true }),
+                Options.Create(new LocalStorageOptions { UseLocalStorage = true, LocalPath = tempRoot }),
+                TimeProvider.System,
+                NullLogger<AutoBiddingService>.Instance);
+
+            using MemoryStream pdf = new(Encoding.UTF8.GetBytes("%PDF-scan-doar-imagini"));
+            InvalidOperationException exception = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+                service.ProcessSpecificationAsync(companyId, "scan.pdf", pdf, companyId, CancellationToken.None));
+            Assert.Contains("insuficient", exception.Message, StringComparison.OrdinalIgnoreCase);
+        }
+        finally
+        {
+            if (Directory.Exists(tempRoot)) Directory.Delete(tempRoot, recursive: true);
+        }
+    }
+
+    [Fact]
     public async Task GenerateFromSpecificationRequiresExtractedMarkdown()
     {
         await using PostgreSqlContainer postgres = new PostgreSqlBuilder("pgvector/pgvector:pg17")
@@ -179,14 +237,31 @@ public sealed class AutoBiddingPipelineTests
     {
         public Task<DocumentExtractionResult> ExtractAsync(Stream document, string fileName, CancellationToken cancellationToken) =>
             Task.FromResult(new DocumentExtractionResult(
-                "Text pagina 1\ncontinut",
-                [new ExtractedPage(1, "Text pagina 1\ncontinut",
+                LongText,
+                [new ExtractedPage(1, LongText,
                     [new ExtractedTable("Tabel preturi", [["Produs", "Pret"], ["Ciment", "120"]])])]));
+    }
+
+    /// <summary>Realistic OCR output long enough to pass the 200-char pipeline guard.</summary>
+    private const string LongText =
+        "Text pagina 1\ncontinut\n" +
+        "Cerința: executare lucrări conform proiectului tehnic, normelor în vigoare și caietului de sarcini. " +
+        "Materialele utilizate trebuie să fie certificate și livrate cu documente de proveniență. " +
+        "Organizarea de șantier se realizează conform legislației aplicabile, cu păstrarea accesului publicului. " +
+        "Termenul de execuție este de 12 luni de la emiterea ordinului de începere a lucrărilor.";
+
+    /// <summary>OCR output far below the 200-char guard (image-only scan).</summary>
+    private sealed class ShortTextExtractionService : IDocumentExtractionService
+    {
+        public Task<DocumentExtractionResult> ExtractAsync(Stream document, string fileName, CancellationToken cancellationToken) =>
+            Task.FromResult(new DocumentExtractionResult("Text scurt.", [new ExtractedPage(1, "Text scurt.", [])]));
     }
 
     private sealed class MemoryStorageService : IStorageService
     {
         public Task<string> UploadAsync(string bucket, string key, string fileName, Stream content, string contentType, CancellationToken cancellationToken) =>
             Task.FromResult($"memory://{key}/{fileName}");
+        public Task<StorageObject?> OpenReadAsync(string reference, CancellationToken cancellationToken) =>
+            Task.FromResult<StorageObject?>(null);
     }
 }

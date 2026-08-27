@@ -57,7 +57,7 @@ public sealed class SeapHourlyCapTests
         SeapOptions seapOptions = new() { MaxNewNoticesPerHour = HourlyCap };
         FakeTimeProvider clock = new();
 
-        SeapIngestionService service = new(db, api, storage, Options.Create(seapOptions), clock, NullLogger<SeapIngestionService>.Instance);
+        SeapIngestionService service = new(db, api, storage, new NullSeapCategorizer(), Options.Create(seapOptions), clock, NullLogger<SeapIngestionService>.Instance);
 
         // First poll: the API returns 12 notices but only the configured cap may be imported.
         int firstPoll = await service.PollAndImportAsync(CancellationToken.None);
@@ -103,8 +103,8 @@ public sealed class SeapHourlyCapTests
 
         SeapOptions seapOptions = new() { MaxNewNoticesPerHour = HourlyCap };
         SeapIngestionService service = new(
-            db, new StubSeapApiClient([]), new StubAttachmentStorage(), Options.Create(seapOptions),
-            new FakeTimeProvider(), NullLogger<SeapIngestionService>.Instance);
+            db, new StubSeapApiClient([]), new StubAttachmentStorage(), new NullSeapCategorizer(),
+            Options.Create(seapOptions), new FakeTimeProvider(), NullLogger<SeapIngestionService>.Instance);
 
         SeapTenderImportResult result = await service.ImportNoticeAsync(notice, CancellationToken.None);
 
@@ -122,6 +122,12 @@ public sealed class SeapHourlyCapTests
 
         public Task<Stream> DownloadAttachmentAsync(string downloadUrl, CancellationToken cancellationToken) =>
             throw new NotSupportedException("Attachments are disabled in this test.");
+    }
+
+    private sealed class NullSeapCategorizer : ISeapCategorizer
+    {
+        public Task<SeapCategorizationResult?> CategorizeAsync(string? cpvCode, string? cpvName, string title, CancellationToken cancellationToken) =>
+            Task.FromResult<SeapCategorizationResult?>(null);
     }
 
     private sealed class StubAttachmentStorage : ISeapAttachmentStorage

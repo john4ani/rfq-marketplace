@@ -23,4 +23,27 @@ public interface IStorageService
         Stream content,
         string contentType,
         CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Opens a previously stored object by its persisted reference URI (<c>local://…</c> or
+    /// <c>s3://bucket/…</c>). Returns <c>null</c> when the reference scheme is unknown or the object
+    /// does not exist. The caller owns the returned stream.
+    /// </summary>
+    Task<StorageObject?> OpenReadAsync(string reference, CancellationToken cancellationToken);
+}
+
+/// <summary>An object opened for reading from the active object-storage provider.</summary>
+public sealed record StorageObject(Stream Content, string ContentType)
+{
+    /// <summary>
+    /// Extracts the stored file name from a persisted reference URI
+    /// (<c>local://…/name.docx</c> or <c>s3://bucket/…/name.docx</c>).
+    /// </summary>
+    public static string FileNameFromReference(string reference)
+    {
+        int separator = reference.LastIndexOf('/');
+        string segment = separator >= 0 ? reference[(separator + 1)..] : reference;
+        int query = segment.IndexOf('?');
+        return query >= 0 ? segment[..query] : segment;
+    }
 }

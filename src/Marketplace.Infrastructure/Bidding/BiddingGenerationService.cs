@@ -7,6 +7,8 @@ using Marketplace.Infrastructure.Storage;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using Npgsql;
+using NpgsqlTypes;
 using Pgvector;
 
 namespace Marketplace.Infrastructure.Bidding;
@@ -82,14 +84,79 @@ public sealed partial class BiddingGenerationService : IBiddingGenerationService
         return new(tender.Id, proposal.Title, technicalUrl, boqUrl, settings.IsShadowMode, timeProvider.GetUtcNow());
     }
 
-    public Task<IReadOnlyCollection<SeapTender>> ListTendersAsync(CancellationToken cancellationToken) =>
-        dbContext.SeapTenders.AsNoTracking().Include(item => item.Attachments)
-            .OrderByDescending(item => item.PublicationDate)
-            .ToArrayAsync(cancellationToken)
-            .ContinueWith(task => (IReadOnlyCollection<SeapTender>)task.Result, cancellationToken);
+    public async Task<IReadOnlyCollection<SeapTender>> ListTendersAsync(
+        Guid[]? categoryIds, int? radiusKm, string? supplierCounty, CancellationToken cancellationToken)
+    {
+        IQueryable<SeapTender> query = dbContext.SeapTenders.AsNoTracking()
+            .Include(item => item.Attachments)
+            .Include(item => item.Category);
+
+        if (categoryIds is { Length: > 0 })
+        {
+            string[] cpvPrefixes = await dbContext.Categories.AsNoTracking()
+                .Where(category => categoryIds.Contains(category.Id))
+                .SelectMany(category => category.CpvPrefixes)
+                .Distinct()
+                .ToArrayAsync(cancellationToken);
+
+            if (cpvPrefixes.Length > 0)
+            {
+                // The AI-mapped CategoryId is authoritative; the CPV-prefix match is the fallback for
+                // tenders that are not yet categorized (LLM unavailable or code not seen before).
+                string[] likePatterns = cpvPrefixes.Select(prefix => prefix + "%").ToArray();
+                // NpgsqlParameter with an explicit array type: a bare string[] argument is sent as a
+                // scalar text and `LIKE ANY (CAST(...))` then fails to parse the value as an array.
+                NpgsqlParameter patterns = new()
+                {
+                    NpgsqlDbType = NpgsqlDbType.Array | NpgsqlDbType.Text,
+                    Value = likePatterns
+                };
+                Guid[] prefixMatchedIds = await dbContext.Database.SqlQueryRaw<Guid>(
+                    "SELECT t.\"Id\" FROM \"SeapTenders\" t " +
+                    "WHERE EXISTS (SELECT 1 FROM unnest(t.\"CpvCodes\") cpv WHERE cpv LIKE ANY ({0}))",
+                    patterns).ToArrayAsync(cancellationToken);
+                query = query.Where(tender =>
+                    (tender.CategoryId != null && categoryIds.Contains(tender.CategoryId.Value)) ||
+                    (tender.CategoryId == null && prefixMatchedIds.Contains(tender.Id)));
+            }
+            else
+            {
+                // No CPV prefixes configured on the selected categories (e.g. "Achiziții generale").
+                query = query.Where(tender => tender.CategoryId != null && categoryIds.Contains(tender.CategoryId.Value));
+            }
+        }
+
+        if (radiusKm is > 0)
+        {
+            if (string.IsNullOrWhiteSpace(supplierCounty))
+            {
+                LogRadiusFilterSkipped(logger, radiusKm.Value);
+            }
+            else
+            {
+                // County-seat-to-county-seat distance. Tenders without a recognizable county are excluded
+                // only while the radius filter is explicitly active.
+                var knownCountyIds = await dbContext.SeapTenders.AsNoTracking()
+                    .Where(tender => tender.County != null)
+                    .Select(tender => new { tender.Id, tender.County })
+                    .ToListAsync(cancellationToken);
+                HashSet<Guid> allowedIds = knownCountyIds
+                    .Where(item => item.County is not null &&
+                        CountyDistance.KilometersBetween(supplierCounty, item.County) is double distance &&
+                        distance <= radiusKm.Value)
+                    .Select(item => item.Id)
+                    .ToHashSet();
+                query = query.Where(tender => allowedIds.Contains(tender.Id));
+            }
+        }
+
+        return await query.OrderByDescending(item => item.PublicationDate).ToArrayAsync(cancellationToken);
+    }
 
     public Task<SeapTender?> GetTenderAsync(Guid tenderId, CancellationToken cancellationToken) =>
-        dbContext.SeapTenders.AsNoTracking().Include(item => item.Attachments)
+        dbContext.SeapTenders.AsNoTracking()
+            .Include(item => item.Attachments)
+            .Include(item => item.Category)
             .SingleOrDefaultAsync(item => item.Id == tenderId, cancellationToken);
 
     private static string BuildRequirementsText(SeapTender tender)
@@ -145,5 +212,7 @@ public sealed partial class BiddingGenerationService : IBiddingGenerationService
     private static partial void LogEmbeddingsUnavailable(ILogger logger, string reason);
     [LoggerMessage(EventId = 5302, Level = LogLevel.Information, Message = "Auto-bid generated for SEAP tender {TenderId} (shadow mode: {ShadowMode}).")]
     private static partial void LogBidGenerated(ILogger logger, Guid tenderId, bool shadowMode);
+    [LoggerMessage(EventId = 5303, Level = LogLevel.Warning, Message = "Radius filter ({RadiusKm} km) skipped: the supplier profile has no county to measure from.")]
+    private static partial void LogRadiusFilterSkipped(ILogger logger, int radiusKm);
 }
 

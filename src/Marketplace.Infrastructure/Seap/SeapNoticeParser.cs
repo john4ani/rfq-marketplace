@@ -1,5 +1,6 @@
 using System.Text.Json;
 using Marketplace.Application.Seap;
+using Marketplace.Domain.Seap;
 
 namespace Marketplace.Infrastructure.Seap;
 
@@ -41,9 +42,24 @@ public static class SeapNoticeParser
         item.ContractingAuthorityNameAndFN ?? string.Empty,
         item.NoticeStateDate,
         item.MaxTenderReceiptDeadline ?? item.MinTenderReceiptDeadline ?? DateTimeOffset.MinValue,
-        []);
+        [],
+        CpvNames: ParseCpvNames(item.CpvCodeAndName),
+        County: CountyParser.Parse(item.ContractingAuthorityNameAndFN));
 
     // Real SEAP CPV shape: "71319000-7 - Servicii de expertiza (Rev.2)" — keep the code, drop the label.
     private static IReadOnlyCollection<string> ParseCpvCodes(string? cpvCodeAndName) =>
         string.IsNullOrWhiteSpace(cpvCodeAndName) ? [] : [cpvCodeAndName.Split(" - ", 2)[0].Trim()];
+
+    // The human-readable CPV label ("Servicii de expertiza") is the input to the AI categorizer, so it is
+    // kept as well; the "(Rev.X)" suffix is dropped.
+    private static IReadOnlyCollection<string> ParseCpvNames(string? cpvCodeAndName)
+    {
+        if (string.IsNullOrWhiteSpace(cpvCodeAndName)) return [];
+        string[] parts = cpvCodeAndName.Split(" - ", 2);
+        if (parts.Length < 2) return [];
+        string name = parts[1];
+        int revisionIndex = name.IndexOf(" (Rev.", StringComparison.Ordinal);
+        if (revisionIndex > 0) name = name[..revisionIndex];
+        return [name.Trim()];
+    }
 }

@@ -31,9 +31,38 @@ public sealed partial class CloudflareR2StorageService(
         return $"s3://{bucket}/{fullKey}";
     }
 
+    public async Task<StorageObject?> OpenReadAsync(string reference, CancellationToken cancellationToken)
+    {
+        const string scheme = "s3://";
+        if (!reference.StartsWith(scheme, StringComparison.OrdinalIgnoreCase))
+            return null;
+
+        string path = reference[scheme.Length..];
+        int separator = path.IndexOf('/');
+        if (separator <= 0) return null;
+
+        try
+        {
+            GetObjectResponse response = await s3.GetObjectAsync(new GetObjectRequest
+            {
+                BucketName = path[..separator],
+                Key = path[(separator + 1)..]
+            }, cancellationToken);
+            string contentType = response.Headers.ContentType ?? StorageContentTypes.FromFileName(path);
+            return new StorageObject(response.ResponseStream, contentType);
+        }
+        catch (AmazonS3Exception exception) when (exception.StatusCode == System.Net.HttpStatusCode.NotFound)
+        {
+            LogObjectMissing(logger, path);
+            return null;
+        }
+    }
+
     private static string Sanitize(string fileName) =>
         string.Join('_', fileName.Split(Path.GetInvalidFileNameChars(), StringSplitOptions.RemoveEmptyEntries));
 
     [LoggerMessage(EventId = 5602, Level = LogLevel.Information, Message = "Object uploaded to {Key}.")]
     private static partial void LogUploaded(ILogger logger, string key);
+    [LoggerMessage(EventId = 5603, Level = LogLevel.Warning, Message = "Object {Key} not found for download.")]
+    private static partial void LogObjectMissing(ILogger logger, string key);
 }

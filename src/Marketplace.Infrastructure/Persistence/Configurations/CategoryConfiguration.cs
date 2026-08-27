@@ -16,6 +16,7 @@ public sealed class CategoryConfiguration : IEntityTypeConfiguration<Category>
         builder.HasOne<Vertical>().WithMany().HasForeignKey(category => category.VerticalId).OnDelete(DeleteBehavior.Restrict);
         builder.Property(category => category.Name).HasMaxLength(120).IsRequired();
         builder.Property(category => category.Slug).HasMaxLength(120).IsRequired();
+        builder.Property(category => category.CpvPrefixes).HasColumnType("text[]");
         builder.HasIndex(category => category.Slug).IsUnique();
         builder.HasOne<Category>().WithMany().HasForeignKey(category => category.ParentId).OnDelete(DeleteBehavior.Restrict);
         builder.HasData(

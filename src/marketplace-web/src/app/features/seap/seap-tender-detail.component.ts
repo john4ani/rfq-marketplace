@@ -15,10 +15,11 @@ import { AutoBidResponse, BidStatus, SeapService, SeapTender } from '../../core/
     @if (loading()) { <section class="state" role="status">Se încarcă anunțul…</section> }
     @else if (tender(); as tender) {
       <header><p class="eyebrow">Anunț SEAP · {{ tender.seapExternalId }}</p><h1>{{ tender.title }}</h1>
-        <p>{{ tender.buyerName }} · termen {{ tender.deadline | date:'dd.MM.yyyy, HH:mm' }}</p></header>
+        <p>{{ tender.buyerName }}{{ tender.county ? ' · ' + tender.county : '' }}{{ tender.category?.name ? ' · ' + tender.category?.name : '' }} · termen {{ tender.deadline | date:'dd.MM.yyyy, HH:mm' }}</p></header>
       <section class="card"><div class="facts">
         <div><span>Valoare estimată</span><strong>{{ tender.estimatedValue !== null ? (tender.estimatedValue | number:'1.0-0':'ro') + ' ' + (tender.currency ?? 'RON') : 'Nespecificată' }}</strong></div>
         <div><span>Coduri CPV</span><strong>{{ tender.cpvCodes.join(', ') || '—' }}</strong></div>
+        <div><span>Categorie</span><strong>{{ tender.category?.name || tender.cpvNames[0] || '—' }}</strong></div>
         <div><span>Publicat</span><strong>{{ tender.publicationDate | date:'dd.MM.yyyy' }}</strong></div>
       </div></section>
       @if (tender.description) { <section class="card"><h2>Descriere</h2><p>{{ tender.description }}</p></section> }

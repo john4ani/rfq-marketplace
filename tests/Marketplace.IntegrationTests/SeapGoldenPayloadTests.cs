@@ -49,6 +49,9 @@ public sealed class SeapGoldenPayloadTests
         Assert.Equal("RON", first.Currency);
         Assert.Null(first.Description);
         Assert.Empty(first.Attachments);
+        Assert.Equal("Antineoplazice", Assert.Single(first.CpvNames ?? []));
+        // Petroșani is not a county seat → no county is derivable; the tender is excluded only when a radius filter is active.
+        Assert.Null(first.County);
         Assert.Equal(new DateTimeOffset(2019, 4, 2, 1, 35, 1, TimeSpan.FromHours(3)), first.PublicationDate);
         Assert.Equal(new DateTimeOffset(2019, 5, 9, 15, 0, 0, TimeSpan.FromHours(3)), first.Deadline);
 
@@ -68,6 +71,7 @@ public sealed class SeapGoldenPayloadTests
         Assert.Contains("reparatii", notice.Title);
         Assert.Contains("Apele Romane", notice.BuyerName);
         Assert.Empty(notice.CpvCodes);
+        Assert.Null(notice.County);
         Assert.Null(notice.EstimatedValue);
         Assert.Equal("RON", notice.Currency);
         Assert.Equal(DateTimeOffset.MinValue, notice.Deadline);
@@ -101,12 +105,30 @@ public sealed class SeapGoldenPayloadTests
         Assert.Contains("cascaval", notice.Title);
         Assert.Contains("ECOVOL ILFOV", notice.BuyerName);
         Assert.Empty(notice.CpvCodes);
+        Assert.Equal("Ilfov", notice.County);
         Assert.Null(notice.EstimatedValue);
         Assert.Equal(DateTimeOffset.MinValue, notice.Deadline);
 
         SeapTender tender = SeapTenderMapper.MapNotice(notice, DateTimeOffset.UtcNow);
         Assert.Empty(tender.CpvCodes);
         Assert.Null(tender.EstimatedValue);
+    }
+
+    [Fact]
+    public void CpvLabelAndCountyAreExtractedFromRealWireShape()
+    {
+        string json = """
+            {"total":1,"items":[{"noticeNo":"CN-GARD-1","contractTitle":"Montare garduri","cpvCodeAndName":"45342000-6 - Montare de garduri (Rev.2)","contractingAuthorityNameAndFN":"17095927 - DIRECTIA GENERALA DE ASISTENTA SOCIALA SI PROTECTIA COPILULUI VASLUI","estimatedValueRon":1000,"noticeStateDate":"2019-04-02T01:35:01+03:00","maxTenderReceiptDeadline":"2019-05-09T15:00:00+03:00"}],"searchTooLong":false}
+            """;
+
+        SeapTenderNoticeDto notice = Assert.Single(SeapNoticeParser.ParseNotices(json));
+        Assert.Equal("45342000-6", Assert.Single(notice.CpvCodes));
+        Assert.Equal("Montare de garduri", Assert.Single(notice.CpvNames ?? []));
+        Assert.Equal("Vaslui", notice.County);
+
+        SeapTender tender = SeapTenderMapper.MapNotice(notice, DateTimeOffset.UtcNow);
+        Assert.Equal("Montare de garduri", Assert.Single(tender.CpvNames));
+        Assert.Equal("Vaslui", tender.County);
     }
 
     [Fact]

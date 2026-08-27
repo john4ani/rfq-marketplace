@@ -1,3 +1,5 @@
+using Marketplace.Domain.Suppliers;
+
 namespace Marketplace.Domain.Seap;
 
 public enum SeapTenderStatus { Imported, ReadyForBidding, BidGenerated, Failed }
@@ -17,9 +19,19 @@ public sealed class SeapTender
     public string Title { get; private set; } = string.Empty;
     public string? Description { get; private set; }
     public IReadOnlyCollection<string> CpvCodes { get; private set; } = [];
+    /// <summary>Human-readable CPV labels (e.g. "Montare de garduri"), aligned positionally with
+    /// <see cref="CpvCodes"/>. The AI categorizer maps them to CompaSpot categories.</summary>
+    public IReadOnlyCollection<string> CpvNames { get; private set; } = [];
     public decimal? EstimatedValue { get; private set; }
     public string? Currency { get; private set; }
     public string BuyerName { get; private set; } = string.Empty;
+    /// <summary>County of the contracting authority, derived deterministically from the buyer name
+    /// (e.g. "DIRECTIA ... VASLUI" → "Vaslui"). Null when the name carries no recognizable county.</summary>
+    public string? County { get; private set; }
+    /// <summary>CompaSpot category resolved by the AI categorizer from the CPV label. Null until the
+    /// tender is categorized; the CPV-prefix filter acts as fallback for uncategorized tenders.</summary>
+    public Guid? CategoryId { get; private set; }
+    public Category? Category { get; private set; }
     public DateTimeOffset PublicationDate { get; private set; }
     public DateTimeOffset Deadline { get; private set; }
     public SeapTenderStatus Status { get; private set; }
@@ -35,9 +47,11 @@ public sealed class SeapTender
         string title,
         string? description,
         IReadOnlyCollection<string> cpvCodes,
+        IReadOnlyCollection<string> cpvNames,
         decimal? estimatedValue,
         string? currency,
         string buyerName,
+        string? county,
         DateTimeOffset publicationDate,
         DateTimeOffset deadline,
         DateTimeOffset now) => new()
@@ -47,9 +61,11 @@ public sealed class SeapTender
             Title = Required(title, "Titlul anunțului este obligatoriu."),
             Description = NullIfBlank(description),
             CpvCodes = (cpvCodes ?? []).Distinct(StringComparer.OrdinalIgnoreCase).Order().ToArray(),
+            CpvNames = (cpvNames ?? []).Distinct(StringComparer.OrdinalIgnoreCase).Order().ToArray(),
             EstimatedValue = estimatedValue,
             Currency = NullIfBlank(currency),
             BuyerName = Required(buyerName, "Instituția contractantă este obligatorie."),
+            County = NullIfBlank(county),
             PublicationDate = publicationDate,
             Deadline = deadline,
             Status = SeapTenderStatus.Imported,
@@ -62,6 +78,13 @@ public sealed class SeapTender
         SeapTenderAttachment attachment = SeapTenderAttachment.Create(Id, fileName, s3Url, now);
         _attachments.Add(attachment);
         return attachment;
+    }
+
+    /// <summary>Assigns the CompaSpot category resolved by the AI categorizer (CPV label → category).</summary>
+    public void Categorize(Guid categoryId, DateTimeOffset now)
+    {
+        CategoryId = categoryId;
+        UpdatedAt = now;
     }
 
     public void MarkReadyForBidding(DateTimeOffset now)

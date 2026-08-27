@@ -22,8 +22,9 @@ public sealed partial class AutoBiddingController(
     ILogger<AutoBiddingController> logger) : ControllerBase
 {
     [HttpGet("tenders")]
-    public async Task<IActionResult> ListTenders(CancellationToken cancellationToken) =>
-        Ok(await biddingService.ListTendersAsync(cancellationToken));
+    public async Task<IActionResult> ListTenders(
+        [FromQuery] Guid[]? categoryIds, [FromQuery] int? radiusKm, [FromQuery] string? county, CancellationToken cancellationToken) =>
+        Ok(await biddingService.ListTendersAsync(categoryIds, radiusKm, county, cancellationToken));
 
     [HttpGet("tenders/{tenderId:guid}")]
     public async Task<IActionResult> GetTender(Guid tenderId, CancellationToken cancellationToken)

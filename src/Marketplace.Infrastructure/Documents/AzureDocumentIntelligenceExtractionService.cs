@@ -55,7 +55,7 @@ public sealed partial class AzureDocumentIntelligenceExtractionService : IDocume
                 fullText.AppendLine(text);
             }
             circuitBreaker.RecordSuccess();
-            LogExtractionCompleted(logger, pages.Count);
+            LogExtractionCompleted(logger, pages.Count, fullText.Length);
             return new(fullText.ToString(), pages);
         }
         catch
@@ -65,6 +65,6 @@ public sealed partial class AzureDocumentIntelligenceExtractionService : IDocume
         }
     }
 
-    [LoggerMessage(EventId = 5202, Level = LogLevel.Information, Message = "Document extraction completed with {PageCount} pages.")]
-    private static partial void LogExtractionCompleted(ILogger logger, int pageCount);
+    [LoggerMessage(EventId = 5202, Level = LogLevel.Information, Message = "Document extraction completed with {PageCount} pages, {TextLength} text chars.")]
+    private static partial void LogExtractionCompleted(ILogger logger, int pageCount, int textLength);
 }

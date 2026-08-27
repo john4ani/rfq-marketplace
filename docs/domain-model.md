@@ -84,3 +84,20 @@ optional MatchScore, AdminDecision, InvitationSent, Claimed, OfferSubmitted, Out
 Eligibility (`ISupplierDiscoveryService.SendEmailInvitationAsync`/`RecordManualContactAsync`) is centralized and re-checked on every attempt, never cached: the `OpportunityMatch` must be `Approved`, the Need must still be open, the Candidate must be unclaimed, the channel must have a usable destination, the Candidate/contact must not be suppressed, and — for `Email` — a prior `Sent` contact for the same `OpportunityMatch` blocks a duplicate send while `SupplierOutreach:EmailCooldownHours` blocks a new email to the same Candidate across opportunities. Suppression is evaluated before every outreach attempt, including after Supplier Discovery rediscovers the same Candidate, so opt-out cannot be bypassed by a new `OpportunityMatch`. Manual `Phone`/`InPerson` contact is recorded directly as `Recorded` and is exempt from the email cooldown, but an explicit "nu mai contacta" action still creates an `AllExternalContact` suppression.
 
 The existing `SupplierInvitation` is reused unchanged in shape, with an optional `OpportunityMatchId` link so an invitation always traces back to the real opportunity that justified contact. Claim continuity reuses the existing Claim Company flow: an authenticated `ApplicationUser` claims the `SupplierCandidate`'s `SupplierProfile`/`CompanyMembership` and is returned to the original opportunity, never to a generic dashboard. A successful Claim marks the Candidate `Claimed`, which the eligibility check above treats as terminal for further external contact — future opportunities for that company use registered-Provider matching and notifications, not Supplier Discovery outreach.
+
+## SEAP tenders (Anunțuri SEAP)
+
+`SeapTender` is a public procurement opportunity imported from e-licitatie.ro — a distinct aggregate, because the buying institution is an external authority, not an `ApplicationUser`, and must not pollute `Rfq`/`ProcurementNeed`.
+
+```text
+SeapTender
+├── SeapExternalId (unique), Title, Description, BuyerName
+├── CpvCodes + CpvNames (aligned: code + human-readable label, e.g. "45342000-6" + "Montare de garduri")
+├── County (nullable, deterministic from BuyerName — CountyParser, 42-county alias table)
+├── CategoryId (nullable → Category; AI-mapped from the CPV label)
+├── EstimatedValue, Currency, PublicationDate, Deadline, Status, attachments
+```
+
+- **County** is derived at import from the contracting-authority name ("... VASLUI" → Vaslui, "MUNICIPIUL CLUJ-NAPOCA" → Cluj, "COMUNA GIURGIU" → Giurgiu). No AI; authorities routinely end with the county seat or the county. A name that matches nothing (e.g. a locality that is not a county seat) yields `null`.
+- **Categorization** is enrichment, never a gate: `SeapCategorizerService` (an `ILlmProvider`) maps the CPV label to a CompaSpot `Category`; failures leave `CategoryId` null and the tender still imports. `CpvCategoryMapping` (CpvCode → CategoryId) is a persistent cache: because CPV codes are standardized, the LLM is called once per unique code, not once per tender. Unknown categories are auto-created under the "Achiziții generale" root (`GeneralProcurementRootId`), never inside the Construction domain.
+- **List filtering** (Anunțuri SEAP): the AI-mapped `CategoryId` is authoritative; the `Category.CpvPrefixes` prefix match remains the fallback for uncategorized tenders. `MarketRadiusKm` is measured county-seat-to-county-seat (`CountyDistance`, 42 county seats, great-circle); tenders with `County = null` are excluded only while a radius filter is explicitly active.

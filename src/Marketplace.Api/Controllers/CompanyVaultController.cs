@@ -15,7 +15,10 @@ public sealed class CompanyVaultController(
     IAutoBiddingService autoBiddingService,
     ICompanyAuthorizationService companyAuthorizationService) : ControllerBase
 {
-    private Guid UserId => Guid.TryParse(User.FindFirstValue("sub"), out Guid id) ? id : Guid.Empty;
+    // MapInboundClaims (default) remaps the JWT "sub" claim to ClaimTypes.NameIdentifier, so read both.
+    private Guid UserId => Guid.TryParse(
+        User.FindFirstValue("sub") ?? User.FindFirstValue(ClaimTypes.NameIdentifier),
+        out Guid id) ? id : Guid.Empty;
 
     [HttpGet]
     public async Task<IActionResult> GetVault(Guid companyId, CancellationToken cancellationToken)
@@ -69,6 +72,22 @@ public sealed class CompanyVaultController(
             return NotFound();
         SpecificationBidResult result = await autoBiddingService.GenerateFromSpecificationAsync(companyId, documentId, cancellationToken);
         return Ok(result);
+    }
+
+    /// <summary>
+    /// Streams one of the generated proposal files (technical .docx or bill of quantities .xlsx).
+    /// The persisted storage reference (<c>local://…</c> or <c>s3://…</c>) is resolved server-side, so
+    /// browsers never see a non-navigable scheme.
+    /// </summary>
+    [HttpGet("documents/{documentId:guid}/file")]
+    public async Task<IActionResult> DownloadGeneratedFile(
+        Guid companyId, Guid documentId, [FromQuery] GeneratedBidFileKind kind, CancellationToken cancellationToken)
+    {
+        if (UserId == Guid.Empty || !await companyAuthorizationService.CanRepresentCompanyAsync(UserId, companyId, cancellationToken))
+            return NotFound();
+        VaultDownload? download = await vaultService.DownloadGeneratedFileAsync(companyId, documentId, kind, cancellationToken);
+        if (download is null) return NotFound();
+        return File(download.Content, download.ContentType, download.FileName);
     }
 
     private ActionResult DocumentValidationProblem(string detail) =>

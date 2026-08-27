@@ -8,3 +8,4 @@ This directory contains the MVP v2 authoritative product decisions. Historical i
 - ADR-004 — Human-approved supplier discovery
 - ADR-005 — Projects generate Procurement Needs
 - ADR-006 — Company representation: single-company now, separate Company entity later
+- ADR-007 — SEAP categorization (CPV → CompaSpot category) and county-based filtering

@@ -47,6 +47,29 @@ public sealed class V3PureLogicTests
         Assert.Equal(500m, proposal.BillOfQuantities.Single().Total);
     }
 
+    [Theory]
+    [InlineData("{}")]
+    [InlineData("{\"title\":\"Doar titlu\"}")]
+    [InlineData("{\"title\":\"Fără deviz\",\"technicalProposal\":{\"sections\":[{\"heading\":\"H\",\"content\":\"C\"}]}}")]
+    public void ParserRejectsIncompleteLlmOutput(string json) =>
+        Assert.Throws<InvalidOperationException>(() => BiddingJsonParser.Parse(json));
+
+    [Fact]
+    public void ParserRejectsBoqLineWithoutQuantity() =>
+        Assert.Throws<InvalidOperationException>(() => BiddingJsonParser.Parse(
+            """
+            {"title":"Ofertă","technicalProposal":{"sections":[{"heading":"H","content":"C"}]},
+             "billOfQuantities":[{"position":1,"description":"Ciment","unit":"buc","unitPrice":120,"total":120}]}
+            """));
+
+    [Fact]
+    public void ParserRejectsBoqLineWithoutDescription() =>
+        Assert.Throws<InvalidOperationException>(() => BiddingJsonParser.Parse(
+            """
+            {"title":"Ofertă","technicalProposal":{"sections":[{"heading":"H","content":"C"}]},
+             "billOfQuantities":[{"position":1,"description":"","unit":"buc","quantity":2,"unitPrice":120,"total":240}]}
+            """));
+
     [Fact]
     public async Task DocumentGeneratorProducesOpenableDocxAndXlsxFromParsedProposal()
     {

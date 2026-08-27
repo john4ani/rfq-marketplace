@@ -172,6 +172,7 @@ public static class DependencyInjection
             services.AddScoped<IStorageService, CloudflareR2StorageService>();
         services.AddScoped<ISeapApiClient, SeapApiClient>();
         services.AddScoped<ISeapAttachmentStorage, SeapAttachmentStorage>();
+        services.AddScoped<ISeapCategorizer, SeapCategorizerService>();
         services.AddScoped<ISeapIngestionService, SeapIngestionService>();
         services.AddHostedService<SeapIngestionWorker>();
         services.Configure<DocumentIntelligenceOptions>(configuration.GetSection(DocumentIntelligenceOptions.SectionName));

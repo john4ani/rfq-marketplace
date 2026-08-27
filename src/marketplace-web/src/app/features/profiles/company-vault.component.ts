@@ -1,5 +1,5 @@
 import { DatePipe } from '@angular/common';
-import { ChangeDetectionStrategy, Component, inject, input, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, effect, inject, input, signal } from '@angular/core';
 import { CompanyVaultService, VaultDocumentView } from '../../core/companies/company-vault.service';
 
 @Component({
@@ -29,7 +29,11 @@ export class CompanyVaultComponent {
   readonly message = signal('');
   readonly messageError = signal(false);
 
-  constructor() { this.load(); }
+  constructor() {
+    // The required input is only available after Angular applies inputs; reading it in the
+    // constructor throws NG0950 and blanks the whole page. Load inside an effect instead.
+    effect(() => this.load());
+  }
 
   onFileSelected(file: File | undefined): void {
     this.selectedFile.set(file && file.size > 0 ? file : null);

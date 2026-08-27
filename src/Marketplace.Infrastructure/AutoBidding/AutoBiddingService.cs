@@ -1,4 +1,5 @@
-﻿using Marketplace.Application.AutoBidding;
+using System.Text.Json;
+using Marketplace.Application.AutoBidding;
 using Marketplace.Domain.Profiles;
 using Marketplace.Domain.Vault;
 using Marketplace.Infrastructure.Bidding;
@@ -82,6 +83,9 @@ public sealed partial class AutoBiddingService : IAutoBiddingService
         if (dbContext.Entry(vault).State == EntityState.Detached) dbContext.CompanyVaults.Add(vault);
 
         VaultDocument document = vault.AddDocument(fileName, documentUrl, VaultDocumentType.Specification, actorId, now);
+        // Discovery through the collection navigation can classify the new document as Modified instead of
+        // Added when the vault is already tracked; mark it explicitly so the save inserts rather than updates.
+        if (dbContext.Entry(document).State != EntityState.Added) dbContext.VaultDocuments.Add(document);
         await dbContext.SaveChangesAsync(cancellationToken);
         LogSpecificationSaved(logger, document.Id);
 
@@ -90,10 +94,11 @@ public sealed partial class AutoBiddingService : IAutoBiddingService
         buffer.Position = 0;
         DocumentExtractionResult extraction = await extractionService.ExtractAsync(buffer, fileName, cancellationToken);
         string markdown = MarkdownConverter.ToMarkdown(extraction);
+        LogExtractionCompleted(logger, document.Id, extraction.Pages.Count, markdown.Length);
+        EnsureSufficientMarkdown(document.Id, fileName, markdown);
         document.SetExtractedMarkdown(markdown);
         document.MarkExtracted(extraction.Pages.Count);
         await dbContext.SaveChangesAsync(cancellationToken);
-        LogExtractionCompleted(logger, document.Id, extraction.Pages.Count, markdown.Length);
 
         // Steps 3–4 — generate and store the proposal, then persist the outcome.
         return await GenerateProposalFromMarkdownAsync(document, markdown, cancellationToken);
@@ -112,6 +117,7 @@ public sealed partial class AutoBiddingService : IAutoBiddingService
             throw new InvalidOperationException("Documentul nu este un Caiet de sarcini.");
         if (string.IsNullOrWhiteSpace(document.ExtractedMarkdown))
             throw new InvalidOperationException("Markdown-ul nu a fost extras. Reîncarcă documentul pentru a rula pipeline-ul complet.");
+        EnsureSufficientMarkdown(document.Id, document.FileName, document.ExtractedMarkdown);
 
         return await GenerateProposalFromMarkdownAsync(document, document.ExtractedMarkdown, cancellationToken);
     }
@@ -120,17 +126,31 @@ public sealed partial class AutoBiddingService : IAutoBiddingService
         VaultDocument document, string markdown, CancellationToken cancellationToken)
     {
         // LLM proposal generation (Claude via ILlmProvider; deterministic mock in Development).
+        string userPrompt = $"Caiet de sarcini (extras automat, format Markdown):\n\n{markdown}";
         LogGenerationStarted(logger, document.Id, settings.Model);
-        string llmJson = await llmProvider.CompleteAsync(
-            SpecificationPrompt,
-            $"Caiet de sarcini (extras automat, format Markdown):\n\n{markdown}",
-            cancellationToken);
-        BiddingProposal proposal = BiddingJsonParser.Parse(llmJson);
+        LogLlmRequest(logger, document.Id, SpecificationPrompt.Length, userPrompt.Length, settings.Model);
+        string llmJson = await llmProvider.CompleteAsync(SpecificationPrompt, userPrompt, cancellationToken);
+        LogLlmRawResponse(logger, document.Id, llmJson.Length, llmJson);
+
+        // Structural parsing failure (missing sections/quantities or malformed JSON) must never result in
+        // silently empty documents: log the raw response and fail the pipeline.
+        BiddingProposal proposal;
+        try
+        {
+            proposal = BiddingJsonParser.Parse(llmJson);
+        }
+        catch (Exception exception) when (exception is InvalidOperationException or JsonException)
+        {
+            LogLlmParseFailed(logger, document.Id, exception.Message, llmJson);
+            throw;
+        }
+        LogProposalParsed(logger, document.Id, proposal.Title, proposal.Sections.Count, proposal.BillOfQuantities.Count);
         LogProposalGenerated(logger, document.Id, proposal.Title);
 
         // Generate and store the technical proposal (.docx) and bill of quantities (.xlsx).
         GeneratedDocument technical = await documentGenerator.GenerateTechnicalProposalAsync(proposal, cancellationToken);
         GeneratedDocument boq = await documentGenerator.GenerateBillOfQuantitiesAsync(proposal, cancellationToken);
+        LogDocumentsGenerated(logger, document.Id, technical.FileName, technical.Content.Length, boq.FileName, boq.Content.Length);
         string technicalUrl = await UploadGeneratedDocumentAsync(document.Id, technical, cancellationToken);
         string boqUrl = await UploadGeneratedDocumentAsync(document.Id, boq, cancellationToken);
         LogDocumentsStored(logger, document.Id, technicalUrl, boqUrl);
@@ -149,6 +169,21 @@ public sealed partial class AutoBiddingService : IAutoBiddingService
             boqUrl,
             settings.IsShadowMode,
             timeProvider.GetUtcNow());
+    }
+
+    /// <summary>
+    /// Guards the pipeline against OCR/PDFs that yield (almost) no text: generating an empty proposal
+    /// from a few characters is a silent data-loss failure, so fail explicitly with a clear error.
+    /// </summary>
+    private void EnsureSufficientMarkdown(Guid documentId, string fileName, string markdown)
+    {
+        if (string.IsNullOrWhiteSpace(markdown) || markdown.Length < 200)
+        {
+            LogInsufficientOcrText(logger, documentId, fileName, markdown.Length);
+            throw new InvalidOperationException(
+                "Azure OCR a returnat text insuficient (sub 200 de caractere). Verifică PDF-ul: dacă este scanat " +
+                "sau conține doar imagini, pipeline-ul nu poate genera o propunere completă.");
+        }
     }
 
     private async Task<string> UploadSpecificationAsync(Guid companyId, string fileName, Stream content, CancellationToken cancellationToken)
@@ -189,4 +224,16 @@ public sealed partial class AutoBiddingService : IAutoBiddingService
     private static partial void LogDocumentsStored(ILogger logger, Guid documentId, string technicalUrl, string boqUrl);
     [LoggerMessage(EventId = 6109, Level = LogLevel.Information, Message = "[AutoBid] Pipeline completed for {DocumentId}: {Title}.")]
     private static partial void LogPipelineCompleted(ILogger logger, Guid documentId, string title);
+    [LoggerMessage(EventId = 6110, Level = LogLevel.Error, Message = "[ERROR] Azure OCR returned insufficient text: {MarkdownLength} chars for document {DocumentId} ({FileName}).")]
+    private static partial void LogInsufficientOcrText(ILogger logger, Guid documentId, string fileName, int markdownLength);
+    [LoggerMessage(EventId = 6111, Level = LogLevel.Information, Message = "[AutoBid] LLM request for {DocumentId}: system {SystemPromptLength} chars, user {UserPromptLength} chars (model {Model}).")]
+    private static partial void LogLlmRequest(ILogger logger, Guid documentId, int systemPromptLength, int userPromptLength, string model);
+    [LoggerMessage(EventId = 6112, Level = LogLevel.Information, Message = "[AutoBid] LLM raw response for {DocumentId}: {ResponseLength} chars:\n{Response}")]
+    private static partial void LogLlmRawResponse(ILogger logger, Guid documentId, int responseLength, string response);
+    [LoggerMessage(EventId = 6113, Level = LogLevel.Error, Message = "[ERROR] LLM response for {DocumentId} failed structural parsing: {Reason}\nRaw response:\n{Response}")]
+    private static partial void LogLlmParseFailed(ILogger logger, Guid documentId, string reason, string response);
+    [LoggerMessage(EventId = 6114, Level = LogLevel.Information, Message = "[AutoBid] Proposal parsed for {DocumentId}: {Title} ({SectionCount} sections, {BoqLineCount} BOQ lines).")]
+    private static partial void LogProposalParsed(ILogger logger, Guid documentId, string title, int sectionCount, int boqLineCount);
+    [LoggerMessage(EventId = 6115, Level = LogLevel.Information, Message = "[AutoBid] Generated documents for {DocumentId}: {TechnicalFileName} ({TechnicalBytes} bytes), {BoqFileName} ({BoqBytes} bytes).")]
+    private static partial void LogDocumentsGenerated(ILogger logger, Guid documentId, string technicalFileName, int technicalBytes, string boqFileName, int boqBytes);
 }

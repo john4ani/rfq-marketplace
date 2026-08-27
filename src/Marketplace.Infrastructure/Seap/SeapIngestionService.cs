@@ -12,6 +12,7 @@ public sealed partial class SeapIngestionService(
     MarketplaceDbContext dbContext,
     ISeapApiClient apiClient,
     ISeapAttachmentStorage storage,
+    ISeapCategorizer categorizer,
     IOptions<SeapOptions> options,
     TimeProvider timeProvider,
     ILogger<SeapIngestionService> logger) : ISeapIngestionService
@@ -43,6 +44,15 @@ public sealed partial class SeapIngestionService(
         }
 
         dbContext.SeapTenders.Add(tender);
+
+        // Enrichment (never a gate): county already came from the parser; the AI categorizer resolves the
+        // CompaSpot category from the CPV label — first tender per CPV code pays one LLM call, the rest
+        // hit the persistent cache. On any failure the tender still imports, uncategorized (the CPV-prefix
+        // filter acts as fallback until the code is categorized).
+        SeapCategorizationResult? categorization = await categorizer.CategorizeAsync(
+            tender.CpvCodes.FirstOrDefault(), tender.CpvNames.FirstOrDefault(), tender.Title, cancellationToken);
+        if (categorization is not null)
+            tender.Categorize(categorization.CategoryId, now);
 
         int downloaded = 0;
         if (settings.Enabled)

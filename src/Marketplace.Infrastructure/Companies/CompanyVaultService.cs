@@ -85,6 +85,9 @@ public sealed partial class CompanyVaultService : ICompanyVaultService
         VaultDocument document = vault.AddDocument(fileName, s3Url, documentType, actorId, now);
         // CompanyVault.Create assigns a new Guid, so a fresh vault must be attached explicitly.
         if (dbContext.Entry(vault).State == EntityState.Detached) dbContext.CompanyVaults.Add(vault);
+        // Same guard as AutoBiddingService: discovery through the already-tracked Documents collection can
+        // classify the new document as Modified, turning its save into a no-op UPDATE.
+        if (dbContext.Entry(document).State != EntityState.Added) dbContext.VaultDocuments.Add(document);
 
         try
         {
@@ -99,6 +102,24 @@ public sealed partial class CompanyVaultService : ICompanyVaultService
         await dbContext.SaveChangesAsync(cancellationToken);
         LogDocumentUploaded(logger, fileName, vault.Id);
         return (await GetVaultAsync(companyId, cancellationToken)).Single(item => item.Id == document.Id);
+    }
+
+    public async Task<VaultDownload?> DownloadGeneratedFileAsync(
+        Guid companyId, Guid documentId, GeneratedBidFileKind kind, CancellationToken cancellationToken)
+    {
+        CompanyVault? vault = await dbContext.CompanyVaults.Include(item => item.Documents).AsNoTracking()
+            .SingleOrDefaultAsync(item => item.SupplierId == companyId, cancellationToken);
+        VaultDocument? document = vault?.Documents.SingleOrDefault(item => item.Id == documentId);
+        string? reference = kind switch
+        {
+            GeneratedBidFileKind.TechnicalProposal => document?.TechnicalProposalUrl,
+            _ => document?.BillOfQuantitiesUrl
+        };
+        if (string.IsNullOrWhiteSpace(reference)) return null;
+
+        StorageObject? stored = await storage.OpenReadAsync(reference, cancellationToken);
+        if (stored is null) return null;
+        return new VaultDownload(stored.Content, StorageObject.FileNameFromReference(reference), stored.ContentType);
     }
 
     private async Task<string> UploadToStorageAsync(Guid companyId, string fileName, Stream content, CancellationToken cancellationToken)

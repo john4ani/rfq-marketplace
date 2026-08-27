@@ -31,6 +31,23 @@ public sealed partial class LocalFileStorageService(
     private static string Sanitize(string fileName) =>
         string.Join('_', fileName.Split(Path.GetInvalidFileNameChars(), StringSplitOptions.RemoveEmptyEntries));
 
+    public Task<StorageObject?> OpenReadAsync(string reference, CancellationToken cancellationToken)
+    {
+        const string scheme = "local://";
+        if (!reference.StartsWith(scheme, StringComparison.OrdinalIgnoreCase))
+            return Task.FromResult<StorageObject?>(null);
+
+        string root = Path.GetFullPath(options.Value.LocalPath);
+        string relativePath = reference[scheme.Length..].Replace('/', Path.DirectorySeparatorChar);
+        string fullPath = Path.GetFullPath(Path.Combine(root, relativePath));
+        // Guard against references that escape the local storage root.
+        if (!fullPath.StartsWith(root, StringComparison.OrdinalIgnoreCase) || !File.Exists(fullPath))
+            return Task.FromResult<StorageObject?>(null);
+
+        FileStream stream = new(fullPath, FileMode.Open, FileAccess.Read, FileShare.Read);
+        return Task.FromResult<StorageObject?>(new StorageObject(stream, StorageContentTypes.FromFileName(fullPath)));
+    }
+
     [LoggerMessage(EventId = 5601, Level = LogLevel.Information, Message = "File stored locally at {RelativePath}.")]
     private static partial void LogStoredLocally(ILogger logger, string relativePath);
 }

@@ -1001,6 +1001,25 @@ namespace Marketplace.Infrastructure.Persistence.Migrations
                         });
                 });
 
+            modelBuilder.Entity("Marketplace.Domain.Seap.CpvCategoryMapping", b =>
+                {
+                    b.Property<string>("CpvCode")
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)");
+
+                    b.Property<Guid>("CategoryId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("CpvCode");
+
+                    b.HasIndex("CategoryId");
+
+                    b.ToTable("CpvCategoryMappings", (string)null);
+                });
+
             modelBuilder.Entity("Marketplace.Domain.Seap.SeapRawIngestion", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1051,7 +1070,18 @@ namespace Marketplace.Infrastructure.Persistence.Migrations
                         .HasMaxLength(300)
                         .HasColumnType("character varying(300)");
 
+                    b.Property<Guid?>("CategoryId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("County")
+                        .HasMaxLength(48)
+                        .HasColumnType("character varying(48)");
+
                     b.PrimitiveCollection<string[]>("CpvCodes")
+                        .IsRequired()
+                        .HasColumnType("text[]");
+
+                    b.PrimitiveCollection<string[]>("CpvNames")
                         .IsRequired()
                         .HasColumnType("text[]");
 
@@ -1100,6 +1130,10 @@ namespace Marketplace.Infrastructure.Persistence.Migrations
                         .HasColumnType("timestamp with time zone");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("CategoryId");
+
+                    b.HasIndex("County");
 
                     b.HasIndex("SeapExternalId")
                         .IsUnique();
@@ -1593,6 +1627,10 @@ namespace Marketplace.Infrastructure.Persistence.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
+                    b.PrimitiveCollection<string[]>("CpvPrefixes")
+                        .IsRequired()
+                        .HasColumnType("text[]");
+
                     b.Property<bool>("IsActive")
                         .HasColumnType("boolean");
 
@@ -1630,6 +1668,7 @@ namespace Marketplace.Infrastructure.Persistence.Migrations
                         new
                         {
                             Id = new Guid("10000000-0000-0000-0000-000000000001"),
+                            CpvPrefixes = new string[0],
                             IsActive = true,
                             Name = "Construcții",
                             Slug = "constructii",
@@ -1639,6 +1678,7 @@ namespace Marketplace.Infrastructure.Persistence.Migrations
                         new
                         {
                             Id = new Guid("10000000-0000-0000-0000-000000000002"),
+                            CpvPrefixes = new string[0],
                             IsActive = true,
                             Name = "Izolații",
                             ParentId = new Guid("10000000-0000-0000-0000-000000000001"),
@@ -1649,6 +1689,7 @@ namespace Marketplace.Infrastructure.Persistence.Migrations
                         new
                         {
                             Id = new Guid("10000000-0000-0000-0000-000000000003"),
+                            CpvPrefixes = new string[0],
                             IsActive = true,
                             Name = "Ciment și mortare",
                             ParentId = new Guid("10000000-0000-0000-0000-000000000001"),
@@ -1659,6 +1700,7 @@ namespace Marketplace.Infrastructure.Persistence.Migrations
                         new
                         {
                             Id = new Guid("10000000-0000-0000-0000-000000000004"),
+                            CpvPrefixes = new string[0],
                             IsActive = true,
                             Name = "Zidărie",
                             ParentId = new Guid("10000000-0000-0000-0000-000000000001"),
@@ -1669,6 +1711,7 @@ namespace Marketplace.Infrastructure.Persistence.Migrations
                         new
                         {
                             Id = new Guid("10000000-0000-0000-0000-000000000005"),
+                            CpvPrefixes = new string[0],
                             IsActive = true,
                             Name = "Acoperișuri",
                             ParentId = new Guid("10000000-0000-0000-0000-000000000001"),
@@ -1679,6 +1722,7 @@ namespace Marketplace.Infrastructure.Persistence.Migrations
                         new
                         {
                             Id = new Guid("10000000-0000-0000-0000-000000000006"),
+                            CpvPrefixes = new string[0],
                             IsActive = true,
                             Name = "Lemn și plăci",
                             ParentId = new Guid("10000000-0000-0000-0000-000000000001"),
@@ -1689,6 +1733,7 @@ namespace Marketplace.Infrastructure.Persistence.Migrations
                         new
                         {
                             Id = new Guid("10000000-0000-0000-0000-000000000007"),
+                            CpvPrefixes = new string[0],
                             IsActive = true,
                             Name = "Gips-carton",
                             ParentId = new Guid("10000000-0000-0000-0000-000000000001"),
@@ -1699,6 +1744,7 @@ namespace Marketplace.Infrastructure.Persistence.Migrations
                         new
                         {
                             Id = new Guid("10000000-0000-0000-0000-000000000008"),
+                            CpvPrefixes = new string[0],
                             IsActive = true,
                             Name = "Finisaje",
                             ParentId = new Guid("10000000-0000-0000-0000-000000000001"),
@@ -1709,6 +1755,7 @@ namespace Marketplace.Infrastructure.Persistence.Migrations
                         new
                         {
                             Id = new Guid("10000000-0000-0000-0000-000000000009"),
+                            CpvPrefixes = new string[0],
                             IsActive = true,
                             Name = "Instalații sanitare",
                             ParentId = new Guid("10000000-0000-0000-0000-000000000001"),
@@ -1719,6 +1766,7 @@ namespace Marketplace.Infrastructure.Persistence.Migrations
                         new
                         {
                             Id = new Guid("10000000-0000-0000-0000-000000000010"),
+                            CpvPrefixes = new string[0],
                             IsActive = true,
                             Name = "Instalații electrice",
                             ParentId = new Guid("10000000-0000-0000-0000-000000000001"),
@@ -1729,6 +1777,7 @@ namespace Marketplace.Infrastructure.Persistence.Migrations
                         new
                         {
                             Id = new Guid("10000000-0000-0000-0000-000000000011"),
+                            CpvPrefixes = new string[0],
                             IsActive = true,
                             Name = "Achiziții generale",
                             Slug = "achizitii-generale",
@@ -1738,6 +1787,7 @@ namespace Marketplace.Infrastructure.Persistence.Migrations
                         new
                         {
                             Id = new Guid("10000000-0000-0000-0000-000000000012"),
+                            CpvPrefixes = new string[0],
                             IsActive = true,
                             Name = "Piese auto",
                             ParentId = new Guid("10000000-0000-0000-0000-000000000011"),
@@ -1748,6 +1798,7 @@ namespace Marketplace.Infrastructure.Persistence.Migrations
                         new
                         {
                             Id = new Guid("10000000-0000-0000-0000-000000000014"),
+                            CpvPrefixes = new string[0],
                             IsActive = true,
                             Name = "Transport și logistică",
                             ParentId = new Guid("10000000-0000-0000-0000-000000000011"),
@@ -1758,6 +1809,7 @@ namespace Marketplace.Infrastructure.Persistence.Migrations
                         new
                         {
                             Id = new Guid("10000000-0000-0000-0000-000000000015"),
+                            CpvPrefixes = new string[0],
                             IsActive = true,
                             Name = "Închiriere utilaje",
                             ParentId = new Guid("10000000-0000-0000-0000-000000000011"),
@@ -1768,6 +1820,7 @@ namespace Marketplace.Infrastructure.Persistence.Migrations
                         new
                         {
                             Id = new Guid("10000000-0000-0000-0000-000000000016"),
+                            CpvPrefixes = new string[0],
                             IsActive = true,
                             Name = "Servicii specializate",
                             ParentId = new Guid("10000000-0000-0000-0000-000000000011"),
@@ -1778,6 +1831,7 @@ namespace Marketplace.Infrastructure.Persistence.Migrations
                         new
                         {
                             Id = new Guid("10000000-0000-0000-0000-000000000017"),
+                            CpvPrefixes = new string[0],
                             IsActive = true,
                             Name = "Materiale și consumabile",
                             ParentId = new Guid("10000000-0000-0000-0000-000000000011"),
@@ -1788,6 +1842,7 @@ namespace Marketplace.Infrastructure.Persistence.Migrations
                         new
                         {
                             Id = new Guid("10000000-0000-0000-0000-000000000018"),
+                            CpvPrefixes = new string[0],
                             IsActive = true,
                             Name = "Echipamente",
                             ParentId = new Guid("10000000-0000-0000-0000-000000000011"),
@@ -1798,6 +1853,7 @@ namespace Marketplace.Infrastructure.Persistence.Migrations
                         new
                         {
                             Id = new Guid("10000000-0000-0000-0000-000000000019"),
+                            CpvPrefixes = new string[0],
                             IsActive = true,
                             Name = "Combustibili și încălzire",
                             ParentId = new Guid("10000000-0000-0000-0000-000000000011"),
@@ -2549,6 +2605,27 @@ namespace Marketplace.Infrastructure.Persistence.Migrations
                         .HasForeignKey("_needCategoryId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
+                });
+
+            modelBuilder.Entity("Marketplace.Domain.Seap.CpvCategoryMapping", b =>
+                {
+                    b.HasOne("Marketplace.Domain.Suppliers.Category", "Category")
+                        .WithMany()
+                        .HasForeignKey("CategoryId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Category");
+                });
+
+            modelBuilder.Entity("Marketplace.Domain.Seap.SeapTender", b =>
+                {
+                    b.HasOne("Marketplace.Domain.Suppliers.Category", "Category")
+                        .WithMany()
+                        .HasForeignKey("CategoryId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.Navigation("Category");
                 });
 
             modelBuilder.Entity("Marketplace.Domain.Seap.SeapTenderAttachment", b =>

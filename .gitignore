@@ -54,3 +54,6 @@ Thumbs.db
 
 # Local-first storage (files written by LocalFileStorageService in Development).
 src/Marketplace.Api/App_Data/Storage/
+
+# Local test fixtures for the auto-bid pipeline (sample Caiet de sarcini + blank PDF).
+src/Marketplace.Api/App_Data/*.pdf
