@@ -60,3 +60,10 @@ src/Marketplace.Api/App_Data/*.pdf
 
 # Cline agent guardrails file (kept local; see .clineignore).
 .clineignore
+
+# Debugging artifacts that must never be committed (Lightsail key, OCR dumps).
+_lightsail-key*
+_markdown.txt
+azure_*.json
+azure_*.h
+user_caiet.pdf
