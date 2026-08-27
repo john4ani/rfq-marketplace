@@ -97,6 +97,40 @@ public sealed class V3PureLogicTests
             ClaudeResponse.ExtractText("""{"content":[{"type":"thinking","thinking":"plan"}]}"""));
 
     [Fact]
+    public async Task DocumentGeneratorFormatsProposalForHumanReadability()
+    {
+        BiddingProposal proposal = new(
+            "Ofertă tehnică — Lucrări de construcții",
+            [
+                new ProposalSection("1. Prezentare generală", "Firma își asumă toate cerințele din caietul de sarcini."),
+                new ProposalSection("2. Descrierea lucrărilor", "2.1. Prima lucrare conform proiectului.\n\n2.2. A doua lucrare, cu materiale certificate.\n\n2.3. A treia lucrare.")
+            ],
+            [new BoqLine(1, "Ciment", "buc", 2, 250m, 500m)]);
+
+        DocumentGenerator generator = new();
+
+        GeneratedDocument docx = await generator.GenerateTechnicalProposalAsync(proposal, CancellationToken.None);
+        using var word = DocumentFormat.OpenXml.Packaging.WordprocessingDocument.Open(new MemoryStream(docx.Content), false);
+        string xml = word.MainDocumentPart!.Document.OuterXml;
+        // Forest Green headings + 18pt bold title + footer page field + A4 section properties.
+        Assert.Contains("w:color w:val=\"1E3D2F\"", xml, StringComparison.Ordinal);
+        Assert.Contains("<w:sz w:val=\"36\"", xml, StringComparison.Ordinal);
+        Assert.NotEmpty(word.MainDocumentPart.FooterParts);
+        Assert.Contains("w:pgSz w:w=\"11906\"", xml, StringComparison.Ordinal);
+        // Multi-block content is split into separate paragraphs: heading (1) + 3 body paragraphs + title/meta/divider.
+        int paragraphs = System.Text.RegularExpressions.Regex.Count(xml, "<w:p>");
+        Assert.True(paragraphs >= 7, $"expected separate paragraphs, got {paragraphs}");
+
+        GeneratedDocument xlsx = await generator.GenerateBillOfQuantitiesAsync(proposal, CancellationToken.None);
+        using var workbook = new ClosedXML.Excel.XLWorkbook(new MemoryStream(xlsx.Content));
+        ClosedXML.Excel.IXLWorksheet sheet = workbook.Worksheet(1);
+        int lastRow = sheet.LastRowUsed()!.RowNumber();
+        Assert.Equal("TOTAL", sheet.Cell(lastRow, 2).GetString());
+        Assert.StartsWith("SUM(F", sheet.Cell(lastRow, 6).FormulaA1, StringComparison.OrdinalIgnoreCase);
+        Assert.True(sheet.Cell(1, 1).Style.Font.Bold, "header must be bold");
+    }
+
+    [Fact]
     public async Task DocumentGeneratorProducesOpenableDocxAndXlsxFromParsedProposal()
     {
         BiddingProposal proposal = BiddingJsonParser.Parse(StaticMockLlmProvider.RomanianProcurementExpertProposal);
