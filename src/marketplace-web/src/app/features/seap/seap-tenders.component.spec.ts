@@ -272,4 +272,70 @@ describe('SeapTendersComponent', () => {
 
     expect(saveMatchProfile).toHaveBeenCalledWith(company.id, [], []);
   });
+
+
+  it('explains the active filters in the empty state', async () => {
+    const listTenders = vi.fn().mockReturnValue(of([]));
+    const profilesWithFilters = {
+      getMyCompanies: vi.fn().mockReturnValue(of([company])),
+      getSupplier: vi.fn().mockReturnValue(of({ county: 'Cluj', marketRadiusKm: 30, seapCpvPrefixes: [], seapCounties: ['Cluj'] }))
+    };
+    TestBed.configureTestingModule({
+      imports: [SeapTendersComponent],
+      providers: [
+        provideRouter([]),
+        { provide: ProfileService, useValue: profilesWithFilters },
+        { provide: SupplierSettingsService, useValue: settings },
+        { provide: SeapService, useValue: { listTenders } },
+        { provide: AuthService, useValue: { isAdministrator: computed(() => false) } },
+        { provide: CompanyVaultService, useValue: { uploadSpecification: vi.fn(), generateFromSpecification: vi.fn(), downloadGeneratedFile: vi.fn() } }
+      ]
+    });
+    const fixture = TestBed.createComponent(SeapTendersComponent);
+    fixture.detectChanges();
+
+    const text = (fixture.nativeElement as HTMLElement).textContent ?? '';
+    expect(text).toContain('Nu există anunțuri potrivite.');
+    expect(text).toContain('Filtre active: județe: Cluj');
+  });
+
+  it('adds a county to the active filters and does not offer already-selected ones in the dropdown', async () => {
+    const listTenders = vi.fn().mockReturnValue(of([tender]));
+    const profilesWithFilters = {
+      getMyCompanies: vi.fn().mockReturnValue(of([company])),
+      getSupplier: vi.fn().mockReturnValue(of({ county: 'Cluj', marketRadiusKm: 30, seapCpvPrefixes: [], seapCounties: ['Cluj'] }))
+    };
+    TestBed.configureTestingModule({
+      imports: [SeapTendersComponent],
+      providers: [
+        provideRouter([]),
+        { provide: ProfileService, useValue: profilesWithFilters },
+        { provide: SupplierSettingsService, useValue: settings },
+        { provide: SeapService, useValue: { listTenders } },
+        { provide: AuthService, useValue: { isAdministrator: computed(() => false) } },
+        { provide: CompanyVaultService, useValue: { uploadSpecification: vi.fn(), generateFromSpecification: vi.fn(), downloadGeneratedFile: vi.fn() } }
+      ]
+    });
+    const fixture = TestBed.createComponent(SeapTendersComponent);
+    fixture.detectChanges();
+
+    const select = (fixture.nativeElement as HTMLElement).querySelector<HTMLSelectElement>('select[aria-label="Alege județul de adăugat"]')!;
+    const optionsBefore = Array.from(select.options).map(option => option.textContent?.trim());
+    expect(optionsBefore).not.toContain('Cluj');
+    expect(optionsBefore).toContain('Vâlcea');
+
+    select.value = 'Iași';
+    select.dispatchEvent(new Event('change'));
+    fixture.detectChanges();
+    const addButton = Array.from(fixture.nativeElement.querySelectorAll('button') as NodeListOf<HTMLButtonElement>)
+      .find(button => button.textContent?.includes('Adaugă') && !button.disabled)!;
+    addButton.click();
+    fixture.detectChanges();
+
+    expect(listTenders).toHaveBeenLastCalledWith(expect.objectContaining({ counties: ['Cluj', 'Iași'] }));
+    const text = (fixture.nativeElement as HTMLElement).textContent ?? '';
+    expect(text).toContain('Județul „Iași” a fost adăugat la filtrele active.');
+    const optionsAfter = Array.from(select.options).map(option => option.textContent?.trim());
+    expect(optionsAfter).not.toContain('Iași');
+  });
 });
