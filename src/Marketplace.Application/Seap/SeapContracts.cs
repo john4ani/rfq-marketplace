@@ -71,7 +71,9 @@ public interface ISeapIngestionService
     /// (CPV prefixes + counties), pages the live e-licitatie.ro search — optionally restricted to a
     /// publication-date window (default: the current year) — derives each notice's county deterministically,
     /// imports the notices matching the parameters (no LLM categorization, no attachment downloads), and
-    /// returns them. Bypasses the background hourly import cap because it is a user-initiated action.
+    /// returns them. Because the anonymous search caps wide windows at ~3000 notices with an unstable slice,
+    /// it additionally scans the trailing 30 days (clamped to the requested window) so recent matching
+    /// notices are found reliably. Bypasses the background hourly import cap because it is a user-initiated action.
     /// </summary>
     Task<IReadOnlyCollection<SeapTender>> SearchAndImportAsync(
         string[]? cpvPrefixes, string[]? counties, DateOnly? fromDate, DateOnly? toDate,

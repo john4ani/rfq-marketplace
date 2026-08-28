@@ -6,6 +6,7 @@ public sealed class CountyParserTests
 {
     [Theory]
     [InlineData("17095927 - DIRECTIA GENERALA DE ASISTENTA SOCIALA SI PROTECTIA COPILULUI VASLUI", "Vaslui")]
+    [InlineData("9870339 - Directia Generala de Asistenta Sociala si Protectia Copilului Brasov", "Brașov")]
     [InlineData("MUNICIPIUL CLUJ-NAPOCA", "Cluj")]
     [InlineData("PRIMARIA MUNICIPIULUI CLUJ-NAPOCA", "Cluj")]
     [InlineData("COMUNA GIURGIU", "Giurgiu")]

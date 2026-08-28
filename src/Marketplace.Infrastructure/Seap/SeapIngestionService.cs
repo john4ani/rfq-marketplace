@@ -167,19 +167,52 @@ public sealed partial class SeapIngestionService(
         int maxScanned = Math.Max(pageSize, settings.OnDemandSearchMaxScanned);
         DateTimeOffset now = timeProvider.GetUtcNow();
         var imported = new List<SeapTender>();
+        int scanned = await ScanAndImportAsync(cpvPrefixes2, canonicalCounties, fromDate, toDate,
+            pageSize, maxMatches, maxScanned, imported, now, cancellationToken);
+
+        // The anonymous e-licitatie.ro search caps wide publication windows at ~3000 notices and returns an
+        // unstable slice, so a recent matching notice (e.g. published this week) can be missed even though
+        // it exists — verified live: „SCN1179140" (Brașov, 45453000-7, published 26.08) was absent from the
+        // current-year slice on one call and present on the next. Scan the trailing 30 days — clamped to the
+        // requested window — as a reliable, uncapped complement; the importer skips duplicates, so merged
+        // results stay unique and never fall outside the requested range.
+        DateOnly today = DateOnly.FromDateTime(now.UtcDateTime);
+        DateOnly recentFrom = today.AddDays(-30);
+        if (fromDate is { } requestedFrom && requestedFrom > recentFrom) recentFrom = requestedFrom;
+        DateOnly recentTo = toDate is { } requestedTo && requestedTo < today ? requestedTo : today;
+        if (recentFrom <= recentTo)
+            scanned += await ScanAndImportAsync(cpvPrefixes2, canonicalCounties, recentFrom, recentTo,
+                pageSize, maxMatches, maxScanned, imported, now, cancellationToken);
+
+        if (imported.Count > 0)
+            LogSeapSearchImported(logger, imported.Count, scanned);
+        return imported;
+    }
+
+    /// <summary>Pages the live SEAP search for one publication-date window, importing the notices that match
+    /// the given CPV prefixes/counties, and returns how many notices were scanned. Each window gets its own
+    /// scan budget (<paramref name="maxScanned"/>) so a second (complement) window is never starved by a
+    /// capped first window.</summary>
+    private async Task<int> ScanAndImportAsync(
+        string[] cpvPrefixes, string[] counties, DateOnly? fromDate, DateOnly? toDate,
+        int pageSize, int maxMatches, int maxScanned, List<SeapTender> imported,
+        DateTimeOffset now, CancellationToken cancellationToken)
+    {
         int scanned = 0;
         for (int pageIndex = 0; pageIndex < Math.Max(1, settings.OnDemandSearchMaxPages); pageIndex++)
         {
+            if (imported.Count >= maxMatches || scanned >= maxScanned) break;
             IReadOnlyCollection<SeapTenderNoticeDto> notices = await apiClient.FetchNoticePageAsync(
                 pageIndex, pageSize, fromDate, toDate, cancellationToken);
             if (notices.Count == 0) break;
             foreach (SeapTenderNoticeDto notice in notices)
             {
+                if (imported.Count >= maxMatches || scanned >= maxScanned) break;
                 scanned++;
-                if (canonicalCounties.Length > 0 && (notice.County is null || !canonicalCounties.Contains(notice.County)))
+                if (counties.Length > 0 && (notice.County is null || !counties.Contains(notice.County)))
                     continue;
-                if (cpvPrefixes2.Length > 0 && !notice.CpvCodes.Any(code =>
-                        cpvPrefixes2.Any(prefix => code.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))))
+                if (cpvPrefixes.Length > 0 && !notice.CpvCodes.Any(code =>
+                        cpvPrefixes.Any(prefix => code.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))))
                     continue;
                 SeapTender? tender = await ImportSearchNoticeAsync(notice, now, cancellationToken);
                 if (tender is not null)
@@ -188,11 +221,8 @@ public sealed partial class SeapIngestionService(
                     if (imported.Count >= maxMatches) break;
                 }
             }
-            if (imported.Count >= maxMatches || scanned >= maxScanned) break;
         }
-        if (imported.Count > 0)
-            LogSeapSearchImported(logger, imported.Count, scanned);
-        return imported;
+        return scanned;
     }
 
     /// <summary>Persists a search-found notice without LLM categorization and without attachment downloads:

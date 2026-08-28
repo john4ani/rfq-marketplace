@@ -64,9 +64,11 @@ public sealed class SeapSearchTests
         Assert.Equal("Galați", saved.County);
         Assert.Contains("45214200-2", saved.CpvCodes);
 
-        // The publication-date window was forwarded to the platform client.
-        Assert.Equal(new DateOnly(2026, 1, 1), api.LastFrom);
-        Assert.Equal(new DateOnly(2026, 12, 31), api.LastTo);
+        // The publication-date window was forwarded to the platform client — once for the requested window,
+        // once for the recent (trailing 30 days) complement that guards the capped/rotating wide slice.
+        Assert.Contains((new DateOnly(2026, 1, 1), new DateOnly(2026, 12, 31)), api.Windows);
+        DateOnly today = DateOnly.FromDateTime(now.UtcDateTime);
+        Assert.Contains((today.AddDays(-30), today), api.Windows);
 
         // A second search for the same parameters skips duplicates (already imported).
         IReadOnlyCollection<SeapTender> second = await service.SearchAndImportAsync(
@@ -75,12 +77,53 @@ public sealed class SeapSearchTests
         Assert.Equal(2, await db.SeapTenders.CountAsync());
     }
 
+    [Fact]
+    public async Task SearchAlsoScansRecentWindowWhenTheRequestedWindowMissesRecentNotices()
+    {
+        await using PostgreSqlContainer postgres = new PostgreSqlBuilder("pgvector/pgvector:pg17")
+            .WithDatabase("marketplace_seap_search_recent_test")
+            .Build();
+        await postgres.StartAsync();
+
+        DbContextOptions<MarketplaceDbContext> options = new DbContextOptionsBuilder<MarketplaceDbContext>()
+            .UseNpgsql(postgres.GetConnectionString(), npgsql =>
+            {
+                npgsql.EnableRetryOnFailure(5, TimeSpan.FromSeconds(5), null);
+                npgsql.MigrationsAssembly(typeof(MarketplaceDbContext).Assembly.FullName);
+                npgsql.UseVector();
+            })
+            .Options;
+        await using MarketplaceDbContext db = new(options);
+        await db.Database.MigrateAsync();
+
+        DateTimeOffset now = DateTimeOffset.UtcNow;
+        DateOnly today = DateOnly.FromDateTime(now.UtcDateTime);
+        // The requested (current-year) window returns nothing — mirroring the live observation where
+        // „SCN1179140" (Brașov, 45453000-7) was missing from the capped current-year slice but present in
+        // the uncapped trailing-30-days window. The recent complement must recover it.
+        StubRecentWindowApiClient api = new(
+            [new SeapTenderNoticeDto("SCN1179140", "Lucrări de reparații interioare la Locuința Protejată „Sfântul Pavel”", null,
+                ["45453000-7"], 20_661m, "RON",
+                "Directia Generala de Asistenta Sociala si Protectia Copilului Brasov",
+                now.AddDays(-2), now.AddDays(20), [], County: "Brașov")],
+            new DateOnly(2026, 1, 1), new DateOnly(2026, 12, 31));
+
+        SeapIngestionService service = new(db, api, new StubAttachmentStorage(), new NullSeapCategorizer(),
+            Options.Create(new SeapOptions()), new FakeTimeProvider(), NullLogger<SeapIngestionService>.Instance);
+
+        IReadOnlyCollection<SeapTender> imported = await service.SearchAndImportAsync(
+            ["45453000"], ["Brașov"], new DateOnly(2026, 1, 1), new DateOnly(2026, 12, 31), CancellationToken.None);
+
+        Assert.Contains(imported, tender => tender.SeapExternalId == "SCN1179140");
+        Assert.Equal("Brașov", (await db.SeapTenders.SingleAsync(tender => tender.SeapExternalId == "SCN1179140")).County);
+        Assert.Contains((today.AddDays(-30), today), api.Windows);
+    }
+
     private sealed class StubSeapApiClient(
         IReadOnlyCollection<SeapTenderNoticeDto> page0,
         IReadOnlyCollection<SeapTenderNoticeDto> page1) : ISeapApiClient
     {
-        public DateOnly? LastFrom { get; private set; }
-        public DateOnly? LastTo { get; private set; }
+        public List<(DateOnly? From, DateOnly? To)> Windows { get; } = [];
 
         public Task<IReadOnlyCollection<SeapTenderNoticeDto>> FetchRecentNoticesAsync(CancellationToken cancellationToken) =>
             Task.FromResult(page0);
@@ -89,10 +132,35 @@ public sealed class SeapSearchTests
             int pageIndex, int pageSize, DateOnly? startPublicationDate, DateOnly? endPublicationDate,
             CancellationToken cancellationToken)
         {
-            LastFrom = startPublicationDate;
-            LastTo = endPublicationDate;
+            Windows.Add((startPublicationDate, endPublicationDate));
             return Task.FromResult<IReadOnlyCollection<SeapTenderNoticeDto>>(
                 pageIndex >= 2 ? Array.Empty<SeapTenderNoticeDto>() : pageIndex == 0 ? page0 : page1);
+        }
+
+        public Task<Stream> DownloadAttachmentAsync(string downloadUrl, CancellationToken cancellationToken) =>
+            throw new NotSupportedException("Attachments are disabled in this test.");
+    }
+
+    /// <summary>Returns nothing for the requested window but the recent notice for every other window —
+    /// simulating the platform's capped/rotating wide slice.</summary>
+    private sealed class StubRecentWindowApiClient(
+        IReadOnlyCollection<SeapTenderNoticeDto> recent,
+        DateOnly primaryFrom,
+        DateOnly primaryTo) : ISeapApiClient
+    {
+        public List<(DateOnly? From, DateOnly? To)> Windows { get; } = [];
+
+        public Task<IReadOnlyCollection<SeapTenderNoticeDto>> FetchRecentNoticesAsync(CancellationToken cancellationToken) =>
+            Task.FromResult(recent);
+
+        public Task<IReadOnlyCollection<SeapTenderNoticeDto>> FetchNoticePageAsync(
+            int pageIndex, int pageSize, DateOnly? startPublicationDate, DateOnly? endPublicationDate,
+            CancellationToken cancellationToken)
+        {
+            Windows.Add((startPublicationDate, endPublicationDate));
+            bool isPrimaryWindow = startPublicationDate == primaryFrom && endPublicationDate == primaryTo;
+            return Task.FromResult<IReadOnlyCollection<SeapTenderNoticeDto>>(
+                isPrimaryWindow ? Array.Empty<SeapTenderNoticeDto>() : pageIndex == 0 ? recent : Array.Empty<SeapTenderNoticeDto>());
         }
 
         public Task<Stream> DownloadAttachmentAsync(string downloadUrl, CancellationToken cancellationToken) =>
