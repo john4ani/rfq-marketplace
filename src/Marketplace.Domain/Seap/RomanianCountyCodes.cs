@@ -33,9 +33,62 @@ public static class RomanianCountyCodes
         .ToArray();
 
     /// <summary>
-    /// Returns the canonical county name for a code (e.g. "IS" → "Iași") or for a value that is already a
-    /// county name (diacritics-insensitive, e.g. "IASI" or "Iasi" → "Iași"), or null when the value is not
-    /// a recognized Romanian county.
+    /// Residence-city (and spelling) aliases per county, uppercase and diacritics-free (hyphens as
+    /// spaces). Shared with <see cref="CountyParser"/> so a value such as "Târgu-Mureș" or "Cluj-Napoca"
+    /// normalizes to the same canonical county the tender import produces ("Mureș", "Cluj") — the
+    /// authoritative alias vocabulary lives here exactly once.
+    /// </summary>
+    public static readonly (string County, string[] Aliases)[] CountyAliases =
+    [
+        ("Alba", ["ALBA IULIA", "ALBA"]),
+        ("Arad", ["ARAD"]),
+        ("Argeș", ["PITESTI", "ARGES"]),
+        ("Bacău", ["BACAU"]),
+        ("Bihor", ["ORADEA"]),
+        ("Bistrița-Năsăud", ["BISTRITA NASAUD", "BISTRITA"]),
+        ("Botoșani", ["BOTOSANI"]),
+        ("Brașov", ["BRASOV"]),
+        ("Brăila", ["BRAILA"]),
+        ("București", ["BUCURESTI", "BUCHAREST"]),
+        ("Buzău", ["BUZAU"]),
+        ("Caraș-Severin", ["RESITA", "CARAS SEVERIN"]),
+        ("Călărași", ["CALARASI"]),
+        ("Cluj", ["CLUJ NAPOCA", "CLUJ"]),
+        ("Constanța", ["CONSTANTA"]),
+        ("Covasna", ["SFANTU GHEORGHE", "SFANTUL GHEORGHE"]),
+        ("Dâmbovița", ["TARGOVISTE"]),
+        ("Dolj", ["CRAIOVA"]),
+        ("Galați", ["GALATI"]),
+        ("Giurgiu", ["GIURGIU"]),
+        ("Gorj", ["TARGU JIU"]),
+        ("Harghita", ["MIERCUREA CIUC"]),
+        ("Hunedoara", ["DEVA"]),
+        ("Ialomița", ["SLOBOZIA"]),
+        ("Iași", ["IASI"]),
+        ("Ilfov", ["ILFOV", "BUFTEA"]),
+        ("Maramureș", ["BAIA MARE"]),
+        ("Mehedinți", ["DROBETA TURNU SEVERIN"]),
+        ("Mureș", ["TARGU MURES"]),
+        ("Neamț", ["PIATRA NEAMT"]),
+        ("Olt", ["SLATINA"]),
+        ("Prahova", ["PLOIESTI"]),
+        ("Satu Mare", ["SATU MARE"]),
+        ("Sălaj", ["ZALAU"]),
+        ("Sibiu", ["SIBIU"]),
+        ("Suceava", ["SUCEAVA"]),
+        ("Teleorman", ["ALEXANDRIA"]),
+        ("Timiș", ["TIMISOARA", "TIMIS"]),
+        ("Tulcea", ["TULCEA"]),
+        ("Vaslui", ["VASLUI"]),
+        ("Vâlcea", ["RAMNICU VALCEA"]),
+        ("Vrancea", ["FOCSANI"])
+    ];
+
+    /// <summary>
+    /// Returns the canonical county name for a code (e.g. "IS" → "Iași"), for a value that is already a
+    /// county name (diacritics-insensitive, e.g. "IASI" or "Iasi" → "Iași"), or for a residence-city alias
+    /// of a county (e.g. "Cluj-Napoca" → "Cluj", "Târgu-Mureș" → "Mureș") — the same alias vocabulary the
+    /// SEAP tender import uses. Returns null when the value is not a recognized Romanian county.
     /// </summary>
     public static string? TryNormalize(string? value)
     {
@@ -46,6 +99,9 @@ public static class RomanianCountyCodes
         string folded = Fold(trimmed);
         foreach (string county in AllCounties)
             if (Fold(county) == folded) return county;
+        foreach ((string county, string[] aliases) in CountyAliases)
+            foreach (string alias in aliases)
+                if (alias == folded) return county;
         return null;
     }
 

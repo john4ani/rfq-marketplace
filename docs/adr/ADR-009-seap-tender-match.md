@@ -16,8 +16,11 @@ the represented company profile:
    time; when it is ready it returns the rigid parameters.
 3. **Deterministic normalization, never trusted LLM values**: `CpvPrefix.TryNormalize` extracts the digit
    CPV prefix (≤ 8 digits, e.g. `45233000-1` → `45233000`); `RomanianCountyCodes.TryNormalize` maps county
-   codes/names to the canonical county names the database stores (e.g. `IS` → `Iași`). The LLM can never
-   invent a county or prefix that the filter would not match.
+   codes/names **and residence-city aliases** to the canonical county names the database stores (e.g.
+   `IS` → `Iași`, `Cluj-Napoca` → `Cluj`, `Târgu-Mureș` → `Mureș`). The alias vocabulary is shared with
+   `CountyParser` (`RomanianCountyCodes.CountyAliases` is the single source of truth), so the chat filter
+   and the tender-import county always agree. The LLM can never invent a county or prefix that the filter
+   would not match.
 4. **Intent detection in the General interpreter**: `SuggestedProcurementMode` gains `SeapTenderSearch`;
    the General prompt detects SEAP-matching intent and returns a non-binding hint, so the General chat may
    suggest the SEAP match without auto-redirecting or converting the request.

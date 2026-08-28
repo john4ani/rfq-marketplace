@@ -21,6 +21,39 @@ public sealed class SeapFilterNormalizationTests
     }
 
     [Theory]
+    [InlineData("Cluj-Napoca", "Cluj")]
+    [InlineData("CLUJ NAPOCA", "Cluj")]
+    [InlineData("Targu Mures", "Mureș")]
+    [InlineData("Târgu-Mureș", "Mureș")]
+    [InlineData("Alba Iulia", "Alba")]
+    [InlineData("Baia Mare", "Maramureș")]
+    [InlineData("Oradea", "Bihor")]
+    [InlineData("Craiova", "Dolj")]
+    [InlineData("Ploiesti", "Prahova")]
+    [InlineData("Drobeta-Turnu Severin", "Mehedinți")]
+    [InlineData("Piatra Neamt", "Neamț")]
+    [InlineData("Sfantu Gheorghe", "Covasna")]
+    public void NormalizesResidenceCityAliasesToTheirCounty(string value, string expected)
+    {
+        // The import parser (CountyParser) and the SEAP Tender Match normalizer share one vocabulary,
+        // so a city like Cluj-Napoca must normalize to the same canonical county the tenders store.
+        Assert.Equal(expected, RomanianCountyCodes.TryNormalize(value));
+    }
+
+    [Fact]
+    public void CountyParserAndNormalizerShareTheSameAliasVocabulary()
+    {
+        // Every alias must map to a county that CountyParser can also derive from an authority name,
+        // i.e. the shared table is the single source of truth and stays consistent.
+        Assert.Equal(42, RomanianCountyCodes.CountyAliases.Length);
+        foreach ((string county, string[] aliases) in RomanianCountyCodes.CountyAliases)
+        {
+            Assert.Contains(county, RomanianCountyCodes.AllCounties);
+            Assert.All(aliases, alias => Assert.Equal(county, RomanianCountyCodes.TryNormalize(alias)));
+        }
+    }
+
+    [Theory]
     [InlineData("")]
     [InlineData("   ")]
     [InlineData(null)]

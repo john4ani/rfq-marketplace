@@ -15,53 +15,11 @@ namespace Marketplace.Domain.Seap;
 /// </summary>
 public static partial class CountyParser
 {
-    /// <summary>County name with its aliases (county name + residence city, all WITHOUT diacritics —
-    /// matching runs on the diacritics-stripped input).</summary>
-    private static readonly (string County, string[] Aliases)[] CountyAliases =
-    [
-        ("Alba", ["ALBA IULIA", "ALBA"]),
-        ("Arad", ["ARAD"]),
-        ("Argeș", ["PITESTI", "ARGES"]),
-        ("Bacău", ["BACAU"]),
-        ("Bihor", ["ORADEA"]),
-        ("Bistrița-Năsăud", ["BISTRITA NASAUD", "BISTRITA"]),
-        ("Botoșani", ["BOTOSANI"]),
-        ("Brașov", ["BRASOV"]),
-        ("Brăila", ["BRAILA"]),
-        ("București", ["BUCURESTI", "BUCHAREST"]),
-        ("Buzău", ["BUZAU"]),
-        ("Caraș-Severin", ["RESITA", "CARAS SEVERIN"]),
-        ("Călărași", ["CALARASI"]),
-        ("Cluj", ["CLUJ NAPOCA", "CLUJ"]),
-        ("Constanța", ["CONSTANTA"]),
-        ("Covasna", ["SFANTU GHEORGHE", "SFANTUL GHEORGHE"]),
-        ("Dâmbovița", ["TARGOVISTE"]),
-        ("Dolj", ["CRAIOVA"]),
-        ("Galați", ["GALATI"]),
-        ("Giurgiu", ["GIURGIU"]),
-        ("Gorj", ["TARGU JIU"]),
-        ("Harghita", ["MIERCUREA CIUC"]),
-        ("Hunedoara", ["DEVA"]),
-        ("Ialomița", ["SLOBOZIA"]),
-        ("Iași", ["IASI"]),
-        ("Ilfov", ["ILFOV", "BUFTEA"]),
-        ("Maramureș", ["BAIA MARE"]),
-        ("Mehedinți", ["DROBETA TURNU SEVERIN"]),
-        ("Mureș", ["TARGU MURES"]),
-        ("Neamț", ["PIATRA NEAMT"]),
-        ("Olt", ["SLATINA"]),
-        ("Prahova", ["PLOIESTI"]),
-        ("Satu Mare", ["SATU MARE"]),
-        ("Sălaj", ["ZALAU"]),
-        ("Sibiu", ["SIBIU"]),
-        ("Suceava", ["SUCEAVA"]),
-        ("Teleorman", ["ALEXANDRIA"]),
-        ("Timiș", ["TIMISOARA", "TIMIS"]),
-        ("Tulcea", ["TULCEA"]),
-        ("Vaslui", ["VASLUI"]),
-        ("Vâlcea", ["RAMNICU VALCEA"]),
-        ("Vrancea", ["FOCSANI"])
-    ];
+    /// <summary>County name with its aliases (county name + residence city, all WITHOUT diacritics). The
+    /// authoritative table lives in <see cref="RomanianCountyCodes.CountyAliases"/> so the import parser
+    /// and the SEAP Tender Match normalizer share exactly one vocabulary — e.g. "CLUJ NAPOCA" and
+    /// "Cluj-Napoca" both normalize to Cluj, "TARGU MURES" and "Târgu-Mureș" both to Mureș.</summary>
+    private static (string County, string[] Aliases)[] CountyAliases => RomanianCountyCodes.CountyAliases;
 
     /// <summary>Parses the county of a SEAP contracting-authority name, or null when none is recognizable.</summary>
     public static string? Parse(string? authorityName)
