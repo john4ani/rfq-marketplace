@@ -27,4 +27,24 @@ public static class CpvPrefix
         }
         return digits.Length > 0 ? digits.ToString() : null;
     }
+
+    /// <summary>
+    /// Returns the LIKE pattern used to match tender CPV codes. CPV representative/group codes are written
+    /// with trailing zeros (e.g. "45210000" for the 4521 buildings class, "45233000" for the 4523 roads
+    /// class, "15000000" for the 15 food division), so the pattern widens to the meaningful level instead of
+    /// demanding an exact 8-digit prefix that granular tender codes (45214200-2, 45215120-4, 45233100-2)
+    /// never share: the 4-digit CPV class for any code (2 digits only when the value is a whole division —
+    /// six+ trailing zeros, e.g. 15000000 → 15). A short prefix like "45" stays "45%". Returns "%" for
+    /// invalid values.
+    /// </summary>
+    public static string ToMatchPattern(string? value)
+    {
+        string? prefix = TryNormalize(value);
+        if (prefix is null) return "%";
+        int length = prefix.Length;
+        int trailingZeros = 0;
+        while (trailingZeros < length && prefix[length - 1 - trailingZeros] == '0') trailingZeros++;
+        int width = trailingZeros >= 6 ? 2 : Math.Min(4, length);
+        return prefix[..width] + "%";
+    }
 }

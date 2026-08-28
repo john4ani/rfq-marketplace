@@ -116,6 +116,46 @@ public sealed class SeapListFilterTests
         Assert.Empty(await service.ListTendersAsync(null, null, null, CancellationToken.None, null, ["Hunedoara"]));
     }
 
+    [Fact]
+    public async Task GroupCpvPrefixesMatchGranularTenderCodes()
+    {
+        await using PostgreSqlContainer postgres = new PostgreSqlBuilder("pgvector/pgvector:pg17")
+            .WithDatabase("marketplace_seap_group_prefix_test")
+            .Build();
+        await postgres.StartAsync();
+
+        DbContextOptions<MarketplaceDbContext> options = NewOptions(postgres);
+        await using MarketplaceDbContext db = new(options);
+        await db.Database.MigrateAsync();
+
+        DateTimeOffset now = DateTimeOffset.UtcNow;
+        db.SeapTenders.AddRange(
+            SeapTenderMapper.MapNotice(
+                new SeapTenderNoticeDto("CN-GRP-CL", "Construcții clădiri Cluj", null, ["45215120-4"], 1000m, "RON",
+                    "MUNICIPIUL CLUJ-NAPOCA", now, now.AddDays(30), [], County: "Cluj"), now),
+            SeapTenderMapper.MapNotice(
+                new SeapTenderNoticeDto("CN-GRP-PD", "Pod peste râu", null, ["45221111-2"], 2000m, "RON",
+                    "CONSILIUL JUDETEAN ALBA", now, now.AddDays(30), [], County: "Alba"), now),
+            SeapTenderMapper.MapNotice(
+                new SeapTenderNoticeDto("CN-GRP-MD", "Medicamente", null, ["33652100-6"], 500m, "RON",
+                    "SPITAL MURES", now, now.AddDays(30), [], County: "Mureș"), now));
+        await db.SaveChangesAsync();
+
+        BiddingGenerationService service = NewService(db);
+
+        // The 8-digit buildings-class prefix "45210000" matches the granular 45215120-4 code through the
+        // 4521 group (it used to be an exact-prefix miss), but not the 4522 bridge nor the 3365 medicine.
+        IReadOnlyCollection<SeapTender> buildings = await service.ListTendersAsync(null, null, null, CancellationToken.None, ["45210000"], null);
+        Assert.Equal(["CN-GRP-CL"], buildings.Select(item => item.SeapExternalId).ToArray());
+
+        // An exact granular code stays an exact prefix match.
+        IReadOnlyCollection<SeapTender> bridges = await service.ListTendersAsync(null, null, null, CancellationToken.None, ["45221111"], null);
+        Assert.Equal(["CN-GRP-PD"], bridges.Select(item => item.SeapExternalId).ToArray());
+
+        // A division reference like the food "15000000" matches nothing among these tenders.
+        Assert.Empty(await service.ListTendersAsync(null, null, null, CancellationToken.None, ["15000000"], null));
+    }
+
     private static async Task SeedTendersAsync(MarketplaceDbContext db, Guid constructiiId)
     {
         DateTimeOffset now = DateTimeOffset.UtcNow;

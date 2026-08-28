@@ -56,34 +56,40 @@ describe('SeapTendersComponent', () => {
     return TestBed.createComponent(SeapTendersComponent);
   }
 
-  it('loads the company categories and renders them as checkbox filters', () => {
+  it('shows SEAP filters only — the marketplace Category filter is not rendered', () => {
     const listTenders = vi.fn().mockReturnValue(of([tender]));
     const fixture = setup(listTenders);
     fixture.detectChanges();
 
     const text = (fixture.nativeElement as HTMLElement).textContent ?? '';
-    expect(text).toContain('Construcții');
-    expect(text).toContain('Transport și logistică');
+    // The SEAP page is isolated from the B2B Category entity: no product-category checkboxes.
+    expect(text).not.toContain('Categoriile firmei');
+    expect(text).not.toContain('Filtrează după categoriile firmei');
+    expect(text).toContain('Filtre SEAP');
     expect(text).toContain('Doar anunțurile în raza de 30 km de Cluj');
     // The tender card shows the derived county and category.
     expect(text).toContain('Cluj');
     expect(text).toContain('Montare de garduri');
-    // The first fetch has no category selection and no radius (the county resolves on a later tick,
-    // which is irrelevant while the radius filter is inactive).
-    expect(listTenders).toHaveBeenCalledWith(expect.objectContaining({ categoryIds: [], radiusKm: null }));
+    // The first fetch carries only SEAP filter params (radius inactive, profile county resolved).
+    expect(listTenders).toHaveBeenCalledWith({ radiusKm: null, county: 'Cluj', cpvPrefixes: [], counties: [] });
   });
 
-  it('refetches with the selected category ids when a checkbox is toggled', () => {
+  it('refetches with the new CPV prefix as soon as a prefix chip is added', () => {
     const listTenders = vi.fn().mockReturnValue(of([tender]));
     const fixture = setup(listTenders);
     fixture.detectChanges();
 
-    const checks = (fixture.nativeElement as HTMLElement).querySelectorAll<HTMLInputElement>('input[type="checkbox"]');
-    const firstCheck = Array.from(checks).find(check => check.id === undefined) ?? checks[0];
-    firstCheck.click();
+    const input = (fixture.nativeElement as HTMLElement).querySelector<HTMLInputElement>('input[aria-label="Adaugă prefix CPV"]')!;
+    input.value = '45233000';
+    input.dispatchEvent(new Event('input'));
+    fixture.detectChanges();
+    const addButton = Array.from(fixture.nativeElement.querySelectorAll('button') as NodeListOf<HTMLButtonElement>)
+      .find(button => button.textContent?.includes('Adaugă') && !button.disabled)!;
+    addButton.click();
     fixture.detectChanges();
 
-    expect(listTenders).toHaveBeenLastCalledWith({ categoryIds: [constructii.id], radiusKm: null, county: 'Cluj', cpvPrefixes: [], counties: [] });
+    // The feed is re-fetched immediately with the new query param.
+    expect(listTenders).toHaveBeenLastCalledWith(expect.objectContaining({ cpvPrefixes: ['45233000'], counties: [] }));
   });
 
   it('refetches with the profile radius when the radius filter is enabled', () => {
@@ -96,7 +102,7 @@ describe('SeapTendersComponent', () => {
     last.click();
     fixture.detectChanges();
 
-    expect(listTenders).toHaveBeenLastCalledWith({ categoryIds: [], radiusKm: 30, county: 'Cluj', cpvPrefixes: [], counties: [] });
+    expect(listTenders).toHaveBeenLastCalledWith({ radiusKm: 30, county: 'Cluj', cpvPrefixes: [], counties: [] });
   });
 
   it('still lists tenders when the user has no company (no filters shown)', () => {
@@ -271,6 +277,8 @@ describe('SeapTendersComponent', () => {
     fixture.detectChanges();
 
     expect(saveMatchProfile).toHaveBeenCalledWith(company.id, [], []);
+    // Saving re-applies the persisted filters and re-fetches the feed immediately.
+    expect(listTenders).toHaveBeenLastCalledWith(expect.objectContaining({ cpvPrefixes: ['45233000'], counties: ['Cluj'] }));
   });
 
 
@@ -337,5 +345,33 @@ describe('SeapTendersComponent', () => {
     expect(text).toContain('Județul „Iași” a fost adăugat la filtrele active.');
     const optionsAfter = Array.from(select.options).map(option => option.textContent?.trim());
     expect(optionsAfter).not.toContain('Iași');
+  });
+
+  it('refetches immediately when a saved county chip is removed', async () => {
+    const listTenders = vi.fn().mockReturnValue(of([tender]));
+    const profilesWithFilters = {
+      getMyCompanies: vi.fn().mockReturnValue(of([company])),
+      getSupplier: vi.fn().mockReturnValue(of({ county: 'Cluj', marketRadiusKm: 30, seapCpvPrefixes: [], seapCounties: ['Cluj'] }))
+    };
+    TestBed.configureTestingModule({
+      imports: [SeapTendersComponent],
+      providers: [
+        provideRouter([]),
+        { provide: ProfileService, useValue: profilesWithFilters },
+        { provide: SupplierSettingsService, useValue: settings },
+        { provide: SeapService, useValue: { listTenders } },
+        { provide: AuthService, useValue: { isAdministrator: computed(() => false) } },
+        { provide: CompanyVaultService, useValue: { uploadSpecification: vi.fn(), generateFromSpecification: vi.fn(), downloadGeneratedFile: vi.fn() } }
+      ]
+    });
+    const fixture = TestBed.createComponent(SeapTendersComponent);
+    fixture.detectChanges();
+
+    const removeButton = Array.from(fixture.nativeElement.querySelectorAll('button') as NodeListOf<HTMLButtonElement>)
+      .find(button => button.getAttribute('aria-label') === 'Șterge Cluj')!;
+    removeButton.click();
+    fixture.detectChanges();
+
+    expect(listTenders).toHaveBeenLastCalledWith(expect.objectContaining({ counties: [], cpvPrefixes: [] }));
   });
 });

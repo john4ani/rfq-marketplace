@@ -32,8 +32,13 @@ the represented company profile:
    `cpvPrefixes`/`counties`; CPV prefixes match the tender's own `CpvCodes` (prefix `LIKE ANY`, same
    NpgsqlParameter pattern as the category fallback) and apply to categorized and uncategorized tenders
    alike; counties match the canonical `SeapTender.County`. Both apply only when non-empty and compose with
-   the existing category/radius filters.
-7. **Stateless chat, no `AiIntakeSession`**: SEAP Tender Match does not produce a Procurement Need, so it
+   the existing category/radius filters. Matching is class-wide: `CpvPrefix.ToMatchPattern` widens any
+   prefix to the 4-digit CPV class (whole divisions like `15000000` → `15`) so representative 8-digit codes
+   (`45210000`, `45233000`) match the granular tender codes (`45214200-2`, `45233100-2`).
+7. **UI isolation from the B2B `Category` entity**: the Anunțuri SEAP page renders only SEAP filters
+   (CPV + counties chips and the optional SEAP interest radius); the marketplace product-category
+   checkboxes are not shown, so the feed is driven by `SeapCpvPrefixes`/`SeapCounties` alone.
+8. **Stateless chat, no `AiIntakeSession`**: SEAP Tender Match does not produce a Procurement Need, so it
    deliberately does not reuse `AiIntakeSession` (which is tied to `Rfq` approval). The chat is stateless —
    the request carries the accumulated clarification turns — and only the confirmed filters are persisted.
 

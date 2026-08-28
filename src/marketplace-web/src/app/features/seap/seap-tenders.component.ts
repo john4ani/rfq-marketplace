@@ -1,5 +1,5 @@
 import { DatePipe, DecimalPipe } from '@angular/common';
-import { ChangeDetectionStrategy, Component, computed, DestroyRef, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, DestroyRef, effect, inject, signal } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { timer } from 'rxjs';
@@ -8,7 +8,6 @@ import { FeaturesService } from '../../core/features/features.service';
 import { CompanyVaultService, SpecificationBidResult, PIPELINE_STAGE_LABELS } from '../../core/companies/company-vault.service';
 import { ProfileService } from '../../core/profiles/profile.service';
 import { SeapService, SeapTender } from '../../core/seap/seap.service';
-import { CategoryOption, SupplierSettingsService } from '../../core/suppliers/supplier-settings.service';
 import { ROMANIAN_COUNTIES } from '../../shared/romanian-counties';
 import { normalizeCounty, normalizeCpvPrefix } from '../../shared/seap-filters';
 
@@ -63,18 +62,8 @@ import { normalizeCounty, normalizeCpvPrefix } from '../../shared/seap-filters';
         </section>
       }
       <section class="filters" aria-label="Filtre anunțuri">
-        <div class="filters-header"><strong>Categoriile firmei</strong>
+        <div class="filters-header"><strong>Filtre SEAP</strong>
           @if (companyName(); as name) { <span class="company">{{ name }}</span> }</div>
-        @if (companyCategories().length > 0) {
-          <div class="checks">
-            @for (category of companyCategories(); track category.id) {
-              <label class="check"><input type="checkbox" [checked]="selectedCategoryIds().includes(category.id)" (change)="toggleCategory(category.id)" />{{ category.name }}</label>
-            }
-          </div>
-          <p class="hint">Filtrează după categoriile firmei; nicio bifă = toate categoriile. Anunțurile fără categorie rezolvată apar după potrivirea prefixului CPV.</p>
-        } @else {
-          <p class="hint">Firma nu are încă categorii active. Adaugă categorii în profilul firmei pentru a filtra anunțurile.</p>
-        }
         <label class="check radius">
           <input type="checkbox" [checked]="radiusActive()" [disabled]="!county()" (change)="toggleRadius()" />
           {{ county() ? 'Doar anunțurile în raza de ' + radiusKm() + ' km de ' + county() : 'Filtru pe rază indisponibil — firma nu are județ configurat' }}
@@ -138,7 +127,6 @@ import { normalizeCounty, normalizeCpvPrefix } from '../../shared/seap-filters';
 export class SeapTendersComponent {
   private readonly service = inject(SeapService);
   private readonly profiles = inject(ProfileService);
-  private readonly settings = inject(SupplierSettingsService);
   private readonly auth = inject(AuthService);
   readonly features = inject(FeaturesService);
   private readonly vault = inject(CompanyVaultService);
@@ -150,8 +138,6 @@ export class SeapTendersComponent {
   readonly isAdmin = computed(() => this.auth.isAdministrator());
   readonly companyId = signal<string | null>(null);
   readonly companyName = signal<string | null>(null);
-  readonly companyCategories = signal<CategoryOption[]>([]);
-  readonly selectedCategoryIds = signal<string[]>([]);
   readonly county = signal<string | null>(null);
   readonly radiusKm = signal(0);
   readonly radiusActive = signal(false);
@@ -170,10 +156,6 @@ export class SeapTendersComponent {
     if (this.counties().length) parts.push(`județe: ${this.counties().join(', ')}`);
     if (this.cpvPrefixes().length) parts.push(`CPV: ${this.cpvPrefixes().join(', ')}`);
     if (this.radiusActive()) parts.push(`rază: ${this.radiusKm()} km`);
-    const categories = this.companyCategories()
-      .filter(category => this.selectedCategoryIds().includes(category.id))
-      .map(category => category.name);
-    if (categories.length) parts.push(`categorii: ${categories.join(', ')}`);
     return parts.length ? parts.join('; ') : null;
   });
   readonly specFile = signal<File | null>(null);
@@ -188,66 +170,47 @@ export class SeapTendersComponent {
 
   readonly specStageLabel = computed(() => this.specStage());
 
-  constructor() { this.loadProfile(); }
+  constructor() {
+    this.loadProfile();
+    // Reactive feed: any filter change (CPV/county chips, radius toggle, saved profile) re-fetches the
+    // tenders with the current query params. profileLoaded gates the initial fetch so the saved SEAP
+    // Tender Match filters (CPV prefixes + counties) apply from the very first request.
+    effect(() => {
+      if (!this.profileLoaded()) return;
+      this.load();
+    });
+  }
 
   private loadProfile(): void {
     this.profiles.getMyCompanies().subscribe({
       next: companies => {
         const company = companies[0];
-        if (!company) { this.profileLoaded.set(true); this.load(); return; }
+        if (!company) { this.profileLoaded.set(true); return; }
         this.companyName.set(company.name);
         this.companyId.set(company.id);
-        // The first fetch waits for both the category selection and the supplier profile so the saved
-        // SEAP Tender Match filters (CPV prefixes + counties) are active from the very first load.
-        let pending = 2;
-        const ready = () => { if (--pending === 0) { this.profileLoaded.set(true); this.load(); } };
-        this.settings.getSupplierCategories(company.id).subscribe({
-          next: selection => {
-            this.settings.getCategories().subscribe({
-              next: all => {
-                const byId = new Map(all.map(category => [category.id, category]));
-                this.companyCategories.set(selection.categoryIds
-                  .map(id => byId.get(id))
-                  .filter((category): category is CategoryOption => !!category));
-                ready();
-              },
-              error: () => ready()
-            });
-          },
-          error: () => ready()
-        });
         this.profiles.getSupplier(company.id).subscribe({
           next: profile => {
             this.county.set(profile.county || null);
             this.radiusKm.set(profile.marketRadiusKm);
             this.cpvPrefixes.set(profile.seapCpvPrefixes ?? []);
             this.counties.set(profile.seapCounties ?? []);
+            this.profileLoaded.set(true);
           },
-          error: () => { /* filters stay empty; radius stays inactive */ },
-          complete: () => ready()
+          error: () => { this.profileLoaded.set(true); }
         });
       },
-      error: () => { this.profileLoaded.set(true); this.load(); }
+      error: () => { this.profileLoaded.set(true); }
     });
-  }
-
-  toggleCategory(categoryId: string): void {
-    const selected = this.selectedCategoryIds();
-    this.selectedCategoryIds.set(
-      selected.includes(categoryId) ? selected.filter(id => id !== categoryId) : [...selected, categoryId]);
-    this.load();
   }
 
   toggleRadius(): void {
     this.radiusActive.set(!this.radiusActive());
-    this.load();
   }
 
   load(): void {
     this.loading.set(true);
     this.error.set(false);
     this.service.listTenders({
-      categoryIds: this.selectedCategoryIds(),
       radiusKm: this.radiusActive() ? this.radiusKm() : null,
       county: this.county(),
       cpvPrefixes: this.cpvPrefixes(),
@@ -265,12 +228,10 @@ export class SeapTendersComponent {
     this.cpvInput.set('');
     this.advancedMessage.set(`Prefixul CPV ${value} a fost adăugat la filtrele active.`);
     this.advancedError.set(false);
-    this.load();
   }
 
   removeCpvPrefix(prefix: string): void {
     this.cpvPrefixes.update(prefixes => prefixes.filter(item => item !== prefix));
-    this.load();
   }
 
   addCounty(): void {
@@ -280,12 +241,10 @@ export class SeapTendersComponent {
     this.countyDraft.set('');
     this.advancedMessage.set(`Județul „${value}” a fost adăugat la filtrele active.`);
     this.advancedError.set(false);
-    this.load();
   }
 
   removeCounty(county: string): void {
     this.counties.update(counties => counties.filter(item => item !== county));
-    this.load();
   }
 
   saveAdvancedFilters(): void {
@@ -300,7 +259,6 @@ export class SeapTendersComponent {
         this.counties.set(saved.counties);
         this.advancedSaving.set(false);
         this.advancedMessage.set('Filtrele avansate au fost salvate pe profilul firmei.');
-        this.load();
       },
       error: () => {
         this.advancedSaving.set(false);

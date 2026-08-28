@@ -171,7 +171,7 @@ public sealed partial class BiddingGenerationService : IBiddingGenerationService
     /// <summary>Ids of tenders whose CPV codes start with any of the given prefixes.</summary>
     private async Task<Guid[]> FindCpvPrefixMatchedTenderIdsAsync(string[] prefixes, CancellationToken cancellationToken)
     {
-        string[] likePatterns = prefixes.Select(prefix => prefix + "%").ToArray();
+        string[] likePatterns = prefixes.Select(CpvPrefix.ToMatchPattern).ToArray();
         // NpgsqlParameter with an explicit array type: a bare string[] argument is sent as a
         // scalar text and `LIKE ANY (CAST(...))` then fails to parse the value as an array.
         NpgsqlParameter patterns = new()
