@@ -110,4 +110,3 @@ internal sealed class OpenAiSeapTenderMatchInterpreter(OpenAiResponsesTransport 
         IReadOnlyCollection<string> ExtractedCountyCodes,
         string? SummaryText);
 }
-
