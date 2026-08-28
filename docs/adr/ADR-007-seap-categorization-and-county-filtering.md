@@ -7,9 +7,13 @@ Anunțuri SEAP are **enriched at import time** and filtered by the supplier's co
 1. **CPV label is kept.** The parser retains both the code and the human-readable name
    (`SeapTender.CpvCodes` + `SeapTender.CpvNames`, e.g. `45342000-6` + "Montare de garduri").
 2. **County is derived deterministically, without AI.** `CountyParser` matches the contracting-authority
-   name against a 42-county alias table (county names + residence cities, diacritics-insensitive,
+   name in layers: the 42-county alias table (county names + residence cities, diacritics-insensitive,
    last-match-wins), e.g. "... VASLUI" → Vaslui, "MUNICIPIUL CLUJ-NAPOCA" → Cluj, "COMUNA GIURGIU" →
-   Giurgiu. A name that matches nothing yields `null`.
+   Giurgiu; then an explicit county code after "JUD" (e.g. "PRIMARIA COMUNEI MARGINEA, JUD. SV" →
+   Suceava); then an embedded **locality vocabulary** (`Seap/locality-counties.json`, SIRUTA-derived,
+   ~8.7k names) under a local-administration marker such as "COMUNA"/"ORASULUI"/"PRIMARIA" — only names
+   that map to exactly one county nationwide, so a commune/town can never be attributed to the wrong
+   county (e.g. "PRIMARIA ORASULUI DOROHOI" → Botoșani). A name that matches nothing yields `null`.
 3. **The AI categorizer maps the CPV label to a CompaSpot category.** `SeapCategorizerService` uses the
    existing `ILlmProvider`; the persistent `CpvCategoryMappings` (CpvCode → CategoryId) cache makes the
    LLM cost per standardized CPV code ≈ one call (CPV codes are standardized, so the same code always

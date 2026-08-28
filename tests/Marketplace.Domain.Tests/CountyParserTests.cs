@@ -32,9 +32,35 @@ public sealed class CountyParserTests
     [InlineData(null)]
     [InlineData("4374873 - SPITALUL DE URGENTA PETROSANI")]
     [InlineData("SERVICIUL PUBLIC DE ADMINISTRARE A PATRIMONIULUI")]
+    [InlineData("PRIMARIA COMUNEI MARGINEA")] // ambiguous (Bacău/Suceava) with no county hint → stays unknown
+    [InlineData("SC BRADUL SA")]               // company name, no local-administration marker
     public void ReturnsNullWhenNoCountyIsRecognizable(string? authorityName)
     {
         Assert.Null(CountyParser.Parse(authorityName));
+    }
+
+    [Theory]
+    [InlineData("PRIMARIA COMUNEI ARBORE", "Suceava")]            // unique commune under a marker
+    [InlineData("COMUNA CHIAJNA", "Ilfov")]                       // non-seat commune in Ilfov
+    [InlineData("PRIMARIA ORASULUI DOROHOI", "Botoșani")]         // non-seat town
+    [InlineData("PRIMARIA COMUNEI MARGINEA, JUD. SV", "Suceava")] // ambiguous commune + explicit county code
+    [InlineData("PRIMARIA COMUNEI MARGINEA, JUD SV", "Suceava")]
+    [InlineData("PRIMARIA COMUNEI MARGINEA, JUDETUL SV", "Suceava")]
+    [InlineData("PRIMARIA COMUNEI MARGINEA, JUDETUL SUCEAVA", "Suceava")] // spelled-out county wins
+    [InlineData("PRIMARIA COMUNEI MARGINEA PADURII", "Prahova")]         // 2-word unique locality
+    public void RecognizesCommuneLocalityNamesAndCountyCodes(string authorityName, string expectedCounty)
+    {
+        Assert.Equal(expectedCounty, CountyParser.Parse(authorityName));
+    }
+
+    [Fact]
+    public void LocalityVocabularyCoversCommunesAcrossCounties()
+    {
+        // The embedded resource (SIRUTA-derived, unambiguous names only) covers all counties, so a
+        // commune tender matches its county even without the county spelled out.
+        Assert.Equal("Suceava", CountyParser.Parse("PRIMARIA COMUNEI ARBORE"));
+        Assert.Equal("Ilfov", CountyParser.Parse("COMUNA CHIAJNA"));
+        Assert.Equal("Botoșani", CountyParser.Parse("PRIMARIA ORASULUI DOROHOI"));
     }
 
     [Fact]
