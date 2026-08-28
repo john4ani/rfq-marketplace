@@ -10,7 +10,8 @@ export interface SupplierProfile {
   id: string; tradingName: string; companyRegistrationNumber: string; taxIdentifier: string | null;
   contactPerson: string; contactEmail: string; phoneNumber: string; website: string | null;
   address: string; city: string; county: string; country: string; latitude: number | null; longitude: number | null; marketRadiusKm: number;
-  description: string | null; approvalStatus: 'Pending' | 'Approved' | 'Suspended'; isActive: boolean;
+  description: string | null; seapCpvPrefixes?: string[]; seapCounties?: string[];
+  approvalStatus: 'Pending' | 'Approved' | 'Suspended'; isActive: boolean;
 }
 export interface RepresentedCompany { id: string; name: string; role: 'Proprietar' | 'Reprezentant'; }
 export interface AccountTrustSummary {

@@ -18,6 +18,8 @@ General Procurement provides breadth: products, materials, parts, equipment, tra
 
 **Anunțuri SEAP** (public tender opportunities with AI-assisted auto-bidding, V3) is a **standalone product surface**, not a Buyer or Company workflow. It is a permanent **Main Menu** item for authenticated users — it must never be hidden behind contextual rails or the active profile. SEAP routes (`/seap/tenders`, `/seap/tenders/{id}`) also keep the company rail visible for continuity. SEAP tenders are public opportunities owned by external institutions and deliberately never become CompaSpot buyer needs.
 
+**SEAP Tender Match** (ADR-009) is the conversational entry into the Anunțuri SEAP filter profile: "Descrie ce licitații cauți" translates a natural-language description into rigid CPV-prefix and county filters through a third distinct AI interpretation workflow, asks exactly one clarification at a time when needed, and shows an editable synthesis card (coduri CPV + județe) before the user confirms. On confirmation the filters are saved on the represented company and the feed opens filtered; an "Editare avansată filtre" chip editor in the feed lets the consultant add/remove CPV codes and counties without re-entering the chat. The General chat may suggest the SEAP match without auto-redirecting.
+
 
 **General Procurement is an entry mode and generic flow, not an assumed permanent business Vertical.** Reuse the current Vertical/Category model pragmatically. If compatibility requires a general placeholder Vertical, mark it provisional, keep it free of business rules, and do not make future category or matching behaviour depend on it.
 

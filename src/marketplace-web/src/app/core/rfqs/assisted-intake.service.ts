@@ -7,7 +7,7 @@ export interface AssistedLine { kind: RequirementKind; name: string; specificati
 export interface AssistedDraft { inputType: ProcurementInputType; title: string; projectName: string | null; description: string | null; primaryCategoryId: string | null; deliveryAddress: string; deliveryLocality: string; county: string; supplierSearchRadiusKm: number; preferredDeliveryDate: string | null; quotationDeadline: string; alternativeProductsAccepted: boolean; allowSplit: boolean; deliveryRequired: boolean; estimatedBudget: number | null; buyerNotes: string | null; lines: AssistedLine[]; }
 export interface AssistedIntakeAnswer { field: string; question: string; answer: string; }
 export interface AssistedResearchSource { title: string; url: string; finding: string; }
-export type SuggestedProcurementMode = 'GeneralProcurement' | 'ConstructionProjects';
+export type SuggestedProcurementMode = 'GeneralProcurement' | 'ConstructionProjects' | 'SeapTenderSearch';
 export interface AssistedIntakeResult { sessionId: string; initialInput: string; status: AssistedIntakeStatus; mode: 'OpenAi'; provider: string; model: string; promptVersion: string; draft: AssistedDraft; assumptions: string[]; uncertainties: string[]; researchSources: AssistedResearchSource[]; clarification: { field: string; question: string; choices: string[] } | null; answers: AssistedIntakeAnswer[]; inputTokens: number; outputTokens: number; approvedRfqId: string | null; suggestedMode?: SuggestedProcurementMode | null; }
 export interface AssistedIntakeAvailability { enabled: boolean; modelAvailable: boolean; }
 

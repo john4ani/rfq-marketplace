@@ -20,8 +20,13 @@ public interface IBiddingGenerationService
     /// Lists SEAP tenders, optionally filtered by the CPV prefixes of the selected activity categories and
     /// by <paramref name="radiusKm"/> measured from <paramref name="supplierCounty"/> (county-seat distance).
     /// The AI-mapped CategoryId is authoritative; the CPV-prefix match is the fallback for uncategorized tenders.
+    /// <paramref name="cpvPrefixes"/> additionally restricts to tenders whose own CPV codes start with any
+    /// prefix (deterministic, applies to categorized and uncategorized tenders alike), and
+    /// <paramref name="counties"/> restricts to tenders whose county (normalized to a canonical name) is in
+    /// the set. Both are applied only when non-empty.
     /// </summary>
     Task<IReadOnlyCollection<SeapTender>> ListTendersAsync(
-        Guid[]? categoryIds, int? radiusKm, string? supplierCounty, CancellationToken cancellationToken);
+        Guid[]? categoryIds, int? radiusKm, string? supplierCounty, CancellationToken cancellationToken,
+        string[]? cpvPrefixes = null, string[]? counties = null);
     Task<SeapTender?> GetTenderAsync(Guid tenderId, CancellationToken cancellationToken);
 }

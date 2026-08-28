@@ -31,8 +31,8 @@ public sealed record GeneralNeedInterpretation(
     SuggestedProcurementMode? SuggestedMode = null);
 
 // A non-binding hint from the general interpreter. The caller keeps the current
-// flow until the user explicitly chooses the specialised Construction experience.
-public enum SuggestedProcurementMode { GeneralProcurement, ConstructionProjects }
+// flow until the user explicitly chooses the specialised experience.
+public enum SuggestedProcurementMode { GeneralProcurement, ConstructionProjects, SeapTenderSearch }
 
 public interface IGeneralNeedInterpreter
 {

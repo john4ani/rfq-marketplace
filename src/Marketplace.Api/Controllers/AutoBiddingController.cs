@@ -37,8 +37,9 @@ public sealed partial class AutoBiddingController(
 
     [HttpGet("tenders")]
     public async Task<IActionResult> ListTenders(
-        [FromQuery] Guid[]? categoryIds, [FromQuery] int? radiusKm, [FromQuery] string? county, CancellationToken cancellationToken) =>
-        Ok(await biddingService.ListTendersAsync(categoryIds, radiusKm, county, cancellationToken));
+        [FromQuery] Guid[]? categoryIds, [FromQuery] int? radiusKm, [FromQuery] string? county,
+        [FromQuery] string[]? cpvPrefixes, [FromQuery] string[]? counties, CancellationToken cancellationToken) =>
+        Ok(await biddingService.ListTendersAsync(categoryIds, radiusKm, county, cancellationToken, cpvPrefixes, counties));
 
     [HttpGet("tenders/{tenderId:guid}")]
     public async Task<IActionResult> GetTender(Guid tenderId, CancellationToken cancellationToken)

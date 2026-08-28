@@ -83,7 +83,7 @@ describe('SeapTendersComponent', () => {
     firstCheck.click();
     fixture.detectChanges();
 
-    expect(listTenders).toHaveBeenLastCalledWith({ categoryIds: [constructii.id], radiusKm: null, county: 'Cluj' });
+    expect(listTenders).toHaveBeenLastCalledWith({ categoryIds: [constructii.id], radiusKm: null, county: 'Cluj', cpvPrefixes: [], counties: [] });
   });
 
   it('refetches with the profile radius when the radius filter is enabled', () => {
@@ -96,7 +96,7 @@ describe('SeapTendersComponent', () => {
     last.click();
     fixture.detectChanges();
 
-    expect(listTenders).toHaveBeenLastCalledWith({ categoryIds: [], radiusKm: 30, county: 'Cluj' });
+    expect(listTenders).toHaveBeenLastCalledWith({ categoryIds: [], radiusKm: 30, county: 'Cluj', cpvPrefixes: [], counties: [] });
   });
 
   it('still lists tenders when the user has no company (no filters shown)', () => {
@@ -217,5 +217,59 @@ describe('SeapTendersComponent', () => {
     const text = (fixture.nativeElement as HTMLElement).textContent ?? '';
     expect(text).toContain('scanat ilizibil sau protejat');
     expect(uploadSpecification).toHaveBeenCalledWith(company.id, expect.any(File), 'req-fail');
+  });
+
+
+  it('loads saved SEAP profile filters and passes them to the first fetch', async () => {
+    const listTenders = vi.fn().mockReturnValue(of([tender]));
+    const profilesWithFilters = {
+      getMyCompanies: vi.fn().mockReturnValue(of([company])),
+      getSupplier: vi.fn().mockReturnValue(of({ county: 'Cluj', marketRadiusKm: 30, seapCpvPrefixes: ['45233000'], seapCounties: ['Cluj'] }))
+    };
+    TestBed.configureTestingModule({
+      imports: [SeapTendersComponent],
+      providers: [
+        provideRouter([]),
+        { provide: ProfileService, useValue: profilesWithFilters },
+        { provide: SupplierSettingsService, useValue: settings },
+        { provide: SeapService, useValue: { listTenders } },
+        { provide: AuthService, useValue: { isAdministrator: computed(() => false) } },
+        { provide: CompanyVaultService, useValue: { uploadSpecification: vi.fn(), generateFromSpecification: vi.fn(), downloadGeneratedFile: vi.fn() } }
+      ]
+    });
+    const fixture = TestBed.createComponent(SeapTendersComponent);
+    fixture.detectChanges();
+
+    // Saved profile filters are active from the very first fetch (no re-entry into the chat).
+    expect(listTenders).toHaveBeenLastCalledWith(expect.objectContaining({ cpvPrefixes: ['45233000'], counties: ['Cluj'] }));
+    const text = (fixture.nativeElement as HTMLElement).textContent ?? '';
+    expect(text).toContain('Filtre avansate');
+    expect(text).toContain('45233000');
+    expect(text).toContain('Configurează-ți potrivirea cu AI');
+  });
+
+  it('persists advanced filter chip edits to the company profile', async () => {
+    const listTenders = vi.fn().mockReturnValue(of([tender]));
+    const saveMatchProfile = vi.fn().mockReturnValue(of({ companyId: company.id, cpvPrefixes: ['45233000'], counties: ['Cluj'] }));
+    TestBed.configureTestingModule({
+      imports: [SeapTendersComponent],
+      providers: [
+        provideRouter([]),
+        { provide: ProfileService, useValue: profiles },
+        { provide: SupplierSettingsService, useValue: settings },
+        { provide: SeapService, useValue: { listTenders, saveMatchProfile } },
+        { provide: AuthService, useValue: { isAdministrator: computed(() => false) } },
+        { provide: CompanyVaultService, useValue: { uploadSpecification: vi.fn(), generateFromSpecification: vi.fn(), downloadGeneratedFile: vi.fn() } }
+      ]
+    });
+    const fixture = TestBed.createComponent(SeapTendersComponent);
+    fixture.detectChanges();
+
+    const saveButton = Array.from(fixture.nativeElement.querySelectorAll('button') as NodeListOf<HTMLButtonElement>)
+      .find(button => button.textContent?.includes('Salvează filtrele'))!;
+    saveButton.click();
+    fixture.detectChanges();
+
+    expect(saveMatchProfile).toHaveBeenCalledWith(company.id, [], []);
   });
 });

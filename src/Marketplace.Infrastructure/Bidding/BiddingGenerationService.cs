@@ -85,7 +85,8 @@ public sealed partial class BiddingGenerationService : IBiddingGenerationService
     }
 
     public async Task<IReadOnlyCollection<SeapTender>> ListTendersAsync(
-        Guid[]? categoryIds, int? radiusKm, string? supplierCounty, CancellationToken cancellationToken)
+        Guid[]? categoryIds, int? radiusKm, string? supplierCounty, CancellationToken cancellationToken,
+        string[]? cpvPrefixes = null, string[]? counties = null)
     {
         IQueryable<SeapTender> query = dbContext.SeapTenders.AsNoTracking()
             .Include(item => item.Attachments)
@@ -93,28 +94,17 @@ public sealed partial class BiddingGenerationService : IBiddingGenerationService
 
         if (categoryIds is { Length: > 0 })
         {
-            string[] cpvPrefixes = await dbContext.Categories.AsNoTracking()
+            string[] categoryCpvPrefixes = await dbContext.Categories.AsNoTracking()
                 .Where(category => categoryIds.Contains(category.Id))
                 .SelectMany(category => category.CpvPrefixes)
                 .Distinct()
                 .ToArrayAsync(cancellationToken);
 
-            if (cpvPrefixes.Length > 0)
+            if (categoryCpvPrefixes.Length > 0)
             {
                 // The AI-mapped CategoryId is authoritative; the CPV-prefix match is the fallback for
                 // tenders that are not yet categorized (LLM unavailable or code not seen before).
-                string[] likePatterns = cpvPrefixes.Select(prefix => prefix + "%").ToArray();
-                // NpgsqlParameter with an explicit array type: a bare string[] argument is sent as a
-                // scalar text and `LIKE ANY (CAST(...))` then fails to parse the value as an array.
-                NpgsqlParameter patterns = new()
-                {
-                    NpgsqlDbType = NpgsqlDbType.Array | NpgsqlDbType.Text,
-                    Value = likePatterns
-                };
-                Guid[] prefixMatchedIds = await dbContext.Database.SqlQueryRaw<Guid>(
-                    "SELECT t.\"Id\" FROM \"SeapTenders\" t " +
-                    "WHERE EXISTS (SELECT 1 FROM unnest(t.\"CpvCodes\") cpv WHERE cpv LIKE ANY ({0}))",
-                    patterns).ToArrayAsync(cancellationToken);
+                Guid[] prefixMatchedIds = await FindCpvPrefixMatchedTenderIdsAsync(categoryCpvPrefixes, cancellationToken);
                 query = query.Where(tender =>
                     (tender.CategoryId != null && categoryIds.Contains(tender.CategoryId.Value)) ||
                     (tender.CategoryId == null && prefixMatchedIds.Contains(tender.Id)));
@@ -150,7 +140,49 @@ public sealed partial class BiddingGenerationService : IBiddingGenerationService
             }
         }
 
+        // SEAP Tender Match profile filters: deterministic CPV-prefix match over the tender's own CPV codes
+        // (applies to categorized and uncategorized tenders alike) and an exact canonical-county match.
+        if (cpvPrefixes is { Length: > 0 })
+        {
+            string[] cleanPrefixes = cpvPrefixes
+                .Where(prefix => !string.IsNullOrWhiteSpace(prefix))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToArray();
+            if (cleanPrefixes.Length > 0)
+            {
+                Guid[] cpvMatchedIds = await FindCpvPrefixMatchedTenderIdsAsync(cleanPrefixes, cancellationToken);
+                query = query.Where(tender => cpvMatchedIds.Contains(tender.Id));
+            }
+        }
+
+        if (counties is { Length: > 0 })
+        {
+            string[] canonicalCounties = counties
+                .Select(RomanianCountyCodes.TryNormalize)
+                .Where(county => county is not null).Select(county => county!)
+                .Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
+            if (canonicalCounties.Length > 0)
+                query = query.Where(tender => tender.County != null && canonicalCounties.Contains(tender.County));
+        }
+
         return await query.OrderByDescending(item => item.PublicationDate).ToArrayAsync(cancellationToken);
+    }
+
+    /// <summary>Ids of tenders whose CPV codes start with any of the given prefixes.</summary>
+    private async Task<Guid[]> FindCpvPrefixMatchedTenderIdsAsync(string[] prefixes, CancellationToken cancellationToken)
+    {
+        string[] likePatterns = prefixes.Select(prefix => prefix + "%").ToArray();
+        // NpgsqlParameter with an explicit array type: a bare string[] argument is sent as a
+        // scalar text and `LIKE ANY (CAST(...))` then fails to parse the value as an array.
+        NpgsqlParameter patterns = new()
+        {
+            NpgsqlDbType = NpgsqlDbType.Array | NpgsqlDbType.Text,
+            Value = likePatterns
+        };
+        return await dbContext.Database.SqlQueryRaw<Guid>(
+            "SELECT t.\"Id\" FROM \"SeapTenders\" t " +
+            "WHERE EXISTS (SELECT 1 FROM unnest(t.\"CpvCodes\") cpv WHERE cpv LIKE ANY ({0}))",
+            patterns).ToArrayAsync(cancellationToken);
     }
 
     public Task<SeapTender?> GetTenderAsync(Guid tenderId, CancellationToken cancellationToken) =>

@@ -41,7 +41,9 @@ internal sealed class OpenAiNeedExtractionProvider(OpenAiResponsesTransport tran
             Pentru o lucrare completă păstrează serviciul ca opțiune; nu deduce materiale sau componente necerute.
             Marchează explicit presupunerile și aspectele de verificat.
             4. Mod sugerat: dacă descrierea pare un proiect de construcții, setează suggestedMode la ConstructionProjects;
-            nu schimba fluxul și nu transforma cererea. În toate celelalte cazuri setează GeneralProcurement sau null.
+            dacă descrierea vizează configurarea potrivirii de licitații publice/SEAP (anunțuri de licitație, achiziții
+            publice, coduri CPV, județe pentru licitații), setează suggestedMode la SeapTenderSearch; nu schimba fluxul
+            și nu transforma cererea. În toate celelalte cazuri setează GeneralProcurement sau null.
             5. Confirmare: când propunerea poate fi verificată de utilizator, setează clarification la null. Niciodată
             nu considera cererea publicată sau aprobată.
 
@@ -137,7 +139,7 @@ internal sealed class OpenAiNeedExtractionProvider(OpenAiResponsesTransport tran
         "lines":{"type":"array","items":{"type":"object","additionalProperties":false,"required":["kind","name","specification","quantity","unit","alternativesAccepted","categorySlug"],"properties":{"kind":{"type":"string","enum":["Product","Service"]},"name":{"type":"string"},"specification":{"type":["string","null"]},"quantity":{"type":["number","null"]},"unit":{"anyOf":[{"type":"null"},{"type":"string","enum":["Piece","Pack","Bag","Kilogram","Tonne","Metre","SquareMetre","CubicMetre","Litre","Pallet","Other"]}]},"alternativesAccepted":{"type":"boolean"},"categorySlug":{"type":["string","null"]}}}},
         "assumptions":{"type":"array","items":{"type":"string"}},"uncertainties":{"type":"array","items":{"type":"string"}},
         "clarification":{"anyOf":[{"type":"null"},{"type":"object","additionalProperties":false,"required":["field","question","choices"],"properties":{"field":{"type":"string","enum":["Category","Quantity","Specification","ProjectScope","DeliveryAddress","DeliveryDate"]},"question":{"type":"string"},"choices":{"type":"array","items":{"type":"string"}}}}]},
-        "suggestedMode":{"anyOf":[{"type":"null"},{"type":"string","enum":["GeneralProcurement","ConstructionProjects"]}]}
+        "suggestedMode":{"anyOf":[{"type":"null"},{"type":"string","enum":["GeneralProcurement","ConstructionProjects","SeapTenderSearch"]}]}
       }
     }
     """)!;

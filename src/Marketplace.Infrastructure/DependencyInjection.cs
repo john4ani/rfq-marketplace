@@ -122,8 +122,10 @@ public static class DependencyInjection
         services.AddScoped<ILocationGeocoder>(provider => provider.GetRequiredService<GoogleLocationGeocoder>());
         services.AddScoped<IGeneralNeedInterpreter, OpenAiNeedExtractionProvider>();
         services.AddScoped<IConstructionProjectInterpreter, OpenAiConstructionProjectInterpreter>();
+        services.AddScoped<ISeapTenderMatchInterpreter, OpenAiSeapTenderMatchInterpreter>();
         services.AddScoped<IAssistedIntakeService, AssistedIntakeService>();
         services.AddScoped<IConstructionIntakeService, ConstructionIntakeService>();
+        services.AddScoped<ISeapTenderMatchService, SeapTenderMatchService>();
         services.AddScoped<IProcurementNeedAuditTrail, ProcurementNeedAuditTrail>();
         services.AddScoped<IOfferService, OfferService>();
         services.AddScoped<ProcurementOutcomeReminderService>();

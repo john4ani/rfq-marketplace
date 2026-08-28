@@ -626,6 +626,14 @@ namespace Marketplace.Infrastructure.Persistence.Migrations
                         .HasMaxLength(32)
                         .HasColumnType("character varying(32)");
 
+                    b.PrimitiveCollection<string[]>("SeapCounties")
+                        .IsRequired()
+                        .HasColumnType("text[]");
+
+                    b.PrimitiveCollection<string[]>("SeapCpvPrefixes")
+                        .IsRequired()
+                        .HasColumnType("text[]");
+
                     b.Property<string>("TaxIdentifier")
                         .HasMaxLength(32)
                         .HasColumnType("character varying(32)");

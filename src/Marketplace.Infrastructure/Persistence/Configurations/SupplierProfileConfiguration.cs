@@ -26,6 +26,8 @@ public sealed class SupplierProfileConfiguration : IEntityTypeConfiguration<Supp
         builder.Property(profile => profile.Longitude).HasPrecision(9, 6);
         builder.Property(profile => profile.MarketRadiusKm).HasDefaultValue(30);
         builder.Property(profile => profile.Description).HasMaxLength(2000);
+        builder.Property(profile => profile.SeapCpvPrefixes).HasColumnType("text[]");
+        builder.Property(profile => profile.SeapCounties).HasColumnType("text[]");
         builder.HasOne<ApplicationUser>().WithOne().HasForeignKey<SupplierProfile>(profile => profile.Id).OnDelete(DeleteBehavior.Cascade);
     }
 }

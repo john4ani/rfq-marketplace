@@ -78,6 +78,44 @@ public sealed class SeapListFilterTests
         Assert.Equal(["CN-CAT-CL", "CN-CAT-VS", "CN-UNC-TR"], wide.Select(item => item.SeapExternalId).OrderBy(id => id).ToArray());
     }
 
+    [Fact]
+    public async Task ProfileCpvPrefixAndCountyFiltersAreDeterministic()
+    {
+        await using PostgreSqlContainer postgres = new PostgreSqlBuilder("pgvector/pgvector:pg17")
+            .WithDatabase("marketplace_seap_profile_filter_test")
+            .Build();
+        await postgres.StartAsync();
+
+        DbContextOptions<MarketplaceDbContext> options = NewOptions(postgres);
+        await using MarketplaceDbContext db = new(options);
+        await db.Database.MigrateAsync();
+
+        Guid constructiiId = await db.Categories.Where(category => category.Slug == "constructii").Select(category => category.Id).SingleAsync();
+        await SeedTendersAsync(db, constructiiId);
+
+        BiddingGenerationService service = NewService(db);
+
+        // CPV prefixes match categorized AND uncategorized tenders (they are not limited to the
+        // category-prefix fallback), so "452" keeps the two construction tenders only.
+        IReadOnlyCollection<SeapTender> byCpv = await service.ListTendersAsync(null, null, null, CancellationToken.None, ["452"], null);
+        Assert.Equal(["CN-CAT-CL", "CN-CAT-VS"], byCpv.Select(item => item.SeapExternalId).OrderBy(id => id).ToArray());
+
+        // County codes and names both normalize to the canonical county the tender stores.
+        IReadOnlyCollection<SeapTender> byCountyCode = await service.ListTendersAsync(null, null, null, CancellationToken.None, null, ["IS"]);
+        Assert.Equal(["CN-UNC-TR"], byCountyCode.Select(item => item.SeapExternalId).ToArray());
+        IReadOnlyCollection<SeapTender> byCountyName = await service.ListTendersAsync(null, null, null, CancellationToken.None, null, ["Iasi"]);
+        Assert.Equal(["CN-UNC-TR"], byCountyName.Select(item => item.SeapExternalId).ToArray());
+
+        // Both profile filters compose with each other.
+        IReadOnlyCollection<SeapTender> combined = await service.ListTendersAsync(null, null, null, CancellationToken.None, ["601"], ["IS"]);
+        Assert.Equal(["CN-UNC-TR"], combined.Select(item => item.SeapExternalId).ToArray());
+
+        // Unknown counties/prefixes exclude everything; a county that is not a county seat is excluded.
+        Assert.Empty(await service.ListTendersAsync(null, null, null, CancellationToken.None, null, ["Maramureș"]));
+        Assert.Empty(await service.ListTendersAsync(null, null, null, CancellationToken.None, ["99"], null));
+        Assert.Empty(await service.ListTendersAsync(null, null, null, CancellationToken.None, null, ["Hunedoara"]));
+    }
+
     private static async Task SeedTendersAsync(MarketplaceDbContext db, Guid constructiiId)
     {
         DateTimeOffset now = DateTimeOffset.UtcNow;
