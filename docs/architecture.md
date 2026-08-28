@@ -65,6 +65,8 @@ shared `IStorageService` (used by SEAP attachments and the Company Vault) to `Lo
 (disk under `App_Data/Storage/`) instead of `CloudflareR2StorageService` (R2/AWS S3); `AI:UseMockProvider`
 swaps `ILlmProvider` to `StaticMockLlmProvider` (preset JSON) instead of `AnthropicClaudeProvider`;
 `Seap:LocalFallbackEnabled=true` makes `SeapApiClient` read the golden payloads under
-`App_Data/SeapMocks/` when the live e-licitatie.ro endpoint is unreachable; and the EF migrations are
+`App_Data/SeapMocks/` when the live e-licitatie.ro endpoint is unreachable; Development additionally sets
+`Features:SeapIngestionEnabled=true` so the SEAP worker actually imports (golden payload offline, live
+notices online), while Prod/Staging keep every flag false at deploy; and the EF migrations are
 applied automatically at startup in Development (Prod/Staging migrate through the explicit migration
 bundle). See `README.md` → "Local provider matrix".

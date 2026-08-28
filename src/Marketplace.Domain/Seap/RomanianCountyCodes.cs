@@ -35,10 +35,12 @@ public static class RomanianCountyCodes
     /// <summary>
     /// Residence-city (and spelling) aliases per county, uppercase and diacritics-free (hyphens as
     /// spaces). Shared with <see cref="CountyParser"/> so a value such as "Târgu-Mureș" or "Cluj-Napoca"
-    /// normalizes to the same canonical county the tender import produces ("Mureș", "Cluj") — the
+    /// normalizes to the same canonical county the tender import produces ("Mureș", "Cluj"). Each
+    /// county's own name is appended automatically (e.g. "VALCEA" → Vâlcea, "MURES" → Mureș,
+    /// "BIHOR" → Bihor), so authorities that end with the county name are recognized too. The
     /// authoritative alias vocabulary lives here exactly once.
     /// </summary>
-    public static readonly (string County, string[] Aliases)[] CountyAliases =
+    private static readonly (string County, string[] Aliases)[] BaseCountyAliases =
     [
         ("Alba", ["ALBA IULIA", "ALBA"]),
         ("Arad", ["ARAD"]),
@@ -83,6 +85,16 @@ public static class RomanianCountyCodes
         ("Vâlcea", ["RAMNICU VALCEA"]),
         ("Vrancea", ["FOCSANI"])
     ];
+
+    /// <summary>
+    /// Effective alias vocabulary: the residence-city/spelling aliases plus each county's own name
+    /// (folded, e.g. "VALCEA"), deduplicated. This is the single source of truth used by both
+    /// <see cref="CountyParser"/> (tender import) and <see cref="TryNormalize"/> (SEAP Tender Match).
+    /// </summary>
+    public static (string County, string[] Aliases)[] CountyAliases { get; } = BaseCountyAliases
+        .Select(item => (item.County,
+            item.Aliases.Append(Fold(item.County)).Distinct(StringComparer.OrdinalIgnoreCase).ToArray()))
+        .ToArray();
 
     /// <summary>
     /// Returns the canonical county name for a code (e.g. "IS" → "Iași"), for a value that is already a

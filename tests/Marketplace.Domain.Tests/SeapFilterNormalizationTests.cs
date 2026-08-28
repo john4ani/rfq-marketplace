@@ -1,3 +1,4 @@
+using System.Globalization;
 using Marketplace.Domain.Seap;
 
 namespace Marketplace.Domain.Tests;
@@ -52,6 +53,27 @@ public sealed class SeapFilterNormalizationTests
             Assert.All(aliases, alias => Assert.Equal(county, RomanianCountyCodes.TryNormalize(alias)));
         }
     }
+
+    [Fact]
+    public void EveryCountyOwnNameIsAlwaysAnAlias()
+    {
+        // Authorities that end with the county name itself must parse to that county (e.g.
+        // "... PODURI VALCEA" → Vâlcea, "CONSILIUL JUDETEAN MURES" → Mureș), and the same value must
+        // normalize through the SEAP Tender Match helper.
+        foreach ((string county, string[] aliases) in RomanianCountyCodes.CountyAliases)
+        {
+            string foldedName = FoldForTest(county);
+            Assert.Contains(aliases, alias => alias == foldedName);
+            Assert.Equal(county, RomanianCountyCodes.TryNormalize(county));
+            Assert.Equal(county, RomanianCountyCodes.TryNormalize(foldedName));
+            Assert.Equal(county, CountyParser.Parse($"CONSILIUL JUDETEAN {foldedName}"));
+        }
+    }
+
+    private static string FoldForTest(string value) =>
+        string.Join(' ', new string(value.ToUpperInvariant().Replace('-', ' ').Normalize(System.Text.NormalizationForm.FormD)
+            .Where(character => CharUnicodeInfo.GetUnicodeCategory(character) != UnicodeCategory.NonSpacingMark)
+            .ToArray()).Split(' ', StringSplitOptions.RemoveEmptyEntries));
 
     [Theory]
     [InlineData("")]

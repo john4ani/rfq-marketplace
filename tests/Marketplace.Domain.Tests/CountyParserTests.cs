@@ -16,6 +16,11 @@ public sealed class CountyParserTests
     [InlineData("CONSILIUL JUDETEAN TIMIS", "Timiș")]
     [InlineData("SC ECOVOL ILFOV SA", "Ilfov")]
     [InlineData("4374873 - SPITALUL JUDETEAN DE URGENTA SFANTUL GHEORGHE", "Covasna")]
+    [InlineData("REGIA AUTONOMA JUDETEANA DRUMURI SI PODURI VALCEA", "Vâlcea")]
+    [InlineData("CONSILIUL JUDETEAN MURES", "Mureș")]
+    [InlineData("CONSILIUL JUDETEAN BIHOR", "Bihor")]
+    [InlineData("CONSILIUL JUDETEAN VRANCEA", "Vrancea")]
+    [InlineData("DIRECTIA JUDETEANA DE TRANSPORT NEAMT", "Neamț")]
     public void RecognizesCountyAndResidenceCityAliases(string authorityName, string expectedCounty)
     {
         Assert.Equal(expectedCounty, CountyParser.Parse(authorityName));
