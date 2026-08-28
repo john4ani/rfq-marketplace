@@ -374,4 +374,25 @@ describe('SeapTendersComponent', () => {
 
     expect(listTenders).toHaveBeenLastCalledWith(expect.objectContaining({ counties: [], cpvPrefixes: [] }));
   });
+
+  it('searches SEAP with the active parameters and the current-year window', async () => {
+    const listTenders = vi.fn().mockReturnValue(of([tender]));
+    const fixture = setup(listTenders);
+    fixture.detectChanges();
+
+    const searchButton = Array.from(fixture.nativeElement.querySelectorAll('button') as NodeListOf<HTMLButtonElement>)
+      .find(button => button.textContent?.includes('Caută în SEAP'))!;
+    expect(searchButton).toBeTruthy();
+    searchButton.click();
+    fixture.detectChanges();
+
+    const year = new Date().getFullYear();
+    expect(listTenders).toHaveBeenLastCalledWith(expect.objectContaining({
+      search: true,
+      from: `${year}-01-01`,
+      to: `${year}-12-31`,
+      cpvPrefixes: [],
+      counties: []
+    }));
+  });
 });

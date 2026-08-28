@@ -15,6 +15,12 @@ public sealed class SeapOptions
     public int MaxNoticesPerPoll { get; init; } = 20;
     /// <summary>Hard cap on new tenders imported per rolling hour (cost guardrail).</summary>
     public int MaxNewNoticesPerHour { get; init; } = 5;
+    /// <summary>On-demand „Caută în SEAP" search caps (per request): page size, max pages to scan,
+    /// max matching tenders to import.</summary>
+    public int OnDemandSearchPageSize { get; init; } = 100;
+    public int OnDemandSearchMaxPages { get; init; } = 6;
+    public int OnDemandSearchMaxMatches { get; init; } = 50;
+    public int OnDemandSearchMaxScanned { get; init; } = 600;
     public int RequestTimeoutSeconds { get; init; } = 60;
     /// <summary>
     /// When the live e-licitatie.ro endpoint is unreachable, rate-limited, or returns a non-JSON

@@ -183,7 +183,7 @@ All V3 endpoints require authentication unless noted. Shadow Mode (AutoBidding:I
 
 ```text
 GET  /api/v1/features                        [AllowAnonymous — SPA feature flags]
-GET  /api/v1/seap/tenders                    [also accepts cpvPrefixes[] and counties[] profile filters]
+GET  /api/v1/seap/tenders                    [also accepts cpvPrefixes[]/counties[] filters; search=true + from/to (yyyy-MM-dd) triggers an on-demand live SEAP search]
 GET  /api/v1/seap/tenders/{tenderId}
 GET  /api/v1/seap/tenders/{tenderId}/pricing  [fair-pricing preview: EUR value, price, free generations]
 POST /api/v1/seap/tenders/{tenderId}/auto-bid

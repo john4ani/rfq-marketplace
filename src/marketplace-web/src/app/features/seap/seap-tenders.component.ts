@@ -104,6 +104,15 @@ import { normalizeCounty, normalizeCpvPrefix } from '../../shared/seap-filters';
           } @else {
             <p class="hint">Adaugă o firmă pentru a salva filtre avansate.</p>
           }
+          <div style="display:flex;flex-wrap:wrap;gap:.6rem;align-items:center;margin-top:1rem">
+            <label for="seap-search-period" style="font-weight:700;font-size:.88rem">Perioadă</label>
+            <select id="seap-search-period" [value]="searchPeriod()" (change)="searchPeriod.set($any($event.target).value)" aria-label="Perioada căutării în SEAP">
+              <option value="current-year">Anul curent ({{ currentYear() }})</option>
+              <option value="all">Tot istoricul</option>
+            </select>
+            <button type="button" class="save" (click)="searchInSeap()" [disabled]="searching() || loading()">{{ searching() ? 'Se caută în SEAP…' : 'Caută în SEAP' }}</button>
+          </div>
+          @if (searchMessage()) { <p class="note" [class.error]="searchError()" role="status">{{ searchMessage() }}</p> }
         </div>
       </section>
     }
@@ -148,6 +157,11 @@ export class SeapTendersComponent {
   readonly advancedSaving = signal(false);
   readonly advancedMessage = signal('');
   readonly advancedError = signal(false);
+  readonly searchPeriod = signal<'current-year' | 'all'>('current-year');
+  readonly currentYear = computed(() => new Date().getFullYear());
+  readonly searching = signal(false);
+  readonly searchMessage = signal('');
+  readonly searchError = signal(false);
   readonly normalizeCpvPrefix = normalizeCpvPrefix;
   readonly countiesList = ROMANIAN_COUNTIES;
   readonly availableCounties = computed(() => this.countiesList.filter(county => !this.counties().includes(county)));
@@ -264,6 +278,40 @@ export class SeapTendersComponent {
         this.advancedSaving.set(false);
         this.advancedError.set(true);
         this.advancedMessage.set('Filtrele nu au putut fi salvate.');
+      }
+    });
+  }
+
+  /** „Caută în SEAP": takes the active filter parameters and the chosen period, fetches matching notices
+   * straight from the live e-licitatie.ro search, imports them, and shows the refreshed feed. Defaults to
+   * the current year; "Tot istoricul" leaves the date window open (older notices). */
+  searchInSeap(): void {
+    if (this.searching() || this.loading()) return;
+    this.searching.set(true);
+    this.searchError.set(false);
+    this.searchMessage.set('');
+    const year = new Date().getFullYear();
+    const currentYearOnly = this.searchPeriod() === 'current-year';
+    this.service.listTenders({
+      radiusKm: this.radiusActive() ? this.radiusKm() : null,
+      county: this.county(),
+      cpvPrefixes: this.cpvPrefixes(),
+      counties: this.counties(),
+      search: true,
+      from: currentYearOnly ? `${year}-01-01` : undefined,
+      to: currentYearOnly ? `${year}-12-31` : undefined
+    }).subscribe({
+      next: value => {
+        this.searching.set(false);
+        this.tenders.set(value);
+        this.loading.set(false);
+        this.searchMessage.set(`Căutarea în SEAP s-a încheiat — ${value.length} anunțuri potrivite.`);
+      },
+      error: () => {
+        this.searching.set(false);
+        this.loading.set(false);
+        this.searchError.set(true);
+        this.searchMessage.set('Căutarea în SEAP nu a putut rula. Încearcă din nou.');
       }
     });
   }

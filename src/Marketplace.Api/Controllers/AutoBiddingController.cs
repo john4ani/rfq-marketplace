@@ -1,5 +1,6 @@
 using Marketplace.Application.Bidding;
 using Marketplace.Application.Billing;
+using Marketplace.Application.Seap;
 using Marketplace.Domain.Seap;
 using Marketplace.Infrastructure;
 using Marketplace.Infrastructure.Bidding;
@@ -23,6 +24,7 @@ public sealed partial class AutoBiddingController(
     UserManager<ApplicationUser> userManager,
     IOptions<AutoBiddingOptions> autoBiddingOptions,
     IOptionsMonitor<FeaturesOptions> features,
+    ISeapIngestionService seapIngestionService,
     ILogger<AutoBiddingController> logger) : ControllerBase
 {
     // MapInboundClaims (default) remaps the JWT "sub" claim to ClaimTypes.NameIdentifier, so read both.
@@ -38,8 +40,17 @@ public sealed partial class AutoBiddingController(
     [HttpGet("tenders")]
     public async Task<IActionResult> ListTenders(
         [FromQuery] Guid[]? categoryIds, [FromQuery] int? radiusKm, [FromQuery] string? county,
-        [FromQuery] string[]? cpvPrefixes, [FromQuery] string[]? counties, CancellationToken cancellationToken) =>
-        Ok(await biddingService.ListTendersAsync(categoryIds, radiusKm, county, cancellationToken, cpvPrefixes, counties));
+        [FromQuery] string[]? cpvPrefixes, [FromQuery] string[]? counties,
+        CancellationToken cancellationToken,
+        [FromQuery] bool search = false, [FromQuery] DateOnly? from = null, [FromQuery] DateOnly? to = null)
+    {
+        // „Caută în SEAP": take the active parameters, fetch matching notices straight from the live
+        // e-licitatie.ro search (optionally within the publication-date window), import them, then return
+        // the local filtered list (which now includes the freshly imported tenders).
+        if (search)
+            await seapIngestionService.SearchAndImportAsync(cpvPrefixes, counties, from, to, cancellationToken);
+        return Ok(await biddingService.ListTendersAsync(categoryIds, radiusKm, county, cancellationToken, cpvPrefixes, counties));
+    }
 
     [HttpGet("tenders/{tenderId:guid}")]
     public async Task<IActionResult> GetTender(Guid tenderId, CancellationToken cancellationToken)

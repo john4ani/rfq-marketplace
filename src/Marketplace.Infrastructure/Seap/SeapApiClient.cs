@@ -1,4 +1,5 @@
-﻿using System.Net.Http.Json;
+﻿using System.Globalization;
+using System.Net.Http.Json;
 using System.Text.Json;
 using Marketplace.Application.Seap;
 using Microsoft.Extensions.Logging;
@@ -66,6 +67,30 @@ public sealed partial class SeapApiClient(
         return await response.Content.ReadAsStreamAsync(cancellationToken);
     }
 
+    public async Task<IReadOnlyCollection<SeapTenderNoticeDto>> FetchNoticePageAsync(
+        int pageIndex, int pageSize, DateOnly? startPublicationDate, DateOnly? endPublicationDate,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            HttpClient client = httpClientFactory.CreateClient("seap");
+            client.Timeout = TimeSpan.FromSeconds(Math.Clamp(settings.RequestTimeoutSeconds, 5, 300));
+            using HttpRequestMessage request = new(HttpMethod.Post, BuildUrl());
+            request.Headers.Referrer = new Uri(new Uri(settings.BaseUrl), $"/pub/notices/contract-notices/list/{FirstNoticeTypeId()}/0");
+            request.Content = JsonContent.Create(
+                BuildPageSearchFilter(pageIndex, pageSize, startPublicationDate, endPublicationDate), options: JsonOptions);
+            using HttpResponseMessage response = await client.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
+            string body = await response.Content.ReadAsStringAsync(cancellationToken);
+            response.EnsureSuccessStatusCode();
+            return SeapNoticeParser.ParseNotices(body);
+        }
+        catch (Exception exception)
+        {
+            LogSeapPageFetchFailed(logger, pageIndex, exception);
+            return [];
+        }
+    }
+
     private SeapTenderNoticeDto[] FilterTargetNotices(string json)
     {
         SeapTenderNoticeDto[] notices = SeapNoticeParser.ParseNotices(json).ToArray();
@@ -104,6 +129,26 @@ public sealed partial class SeapApiClient(
         pageIndex = 0
     };
 
+    // The live e-licitatie.ro search honors a publication-date window (verified empirically: a
+    // startPublicationDate of 2026-01-01 returns current-year notices instead of the stale unfiltered
+    // slice). Keys are added only when set so "all history" behaves exactly like the plain search.
+    private static Dictionary<string, object?> BuildPageSearchFilter(
+        int pageIndex, int pageSize, DateOnly? startPublicationDate, DateOnly? endPublicationDate)
+    {
+        var filter = new Dictionary<string, object?>
+        {
+            ["sysNoticeTypeIds"] = new[] { 2 },
+            ["sortProperties"] = Array.Empty<object>(),
+            ["pageSize"] = Math.Max(1, pageSize),
+            ["pageIndex"] = Math.Max(0, pageIndex)
+        };
+        if (startPublicationDate is not null)
+            filter["startPublicationDate"] = startPublicationDate.Value.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
+        if (endPublicationDate is not null)
+            filter["endPublicationDate"] = endPublicationDate.Value.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
+        return filter;
+    }
+
     private bool MatchesTargetCpv(SeapTenderNoticeDto notice)
     {
         if (settings.TargetCpvPrefixes.Length == 0) return true;
@@ -121,4 +166,6 @@ public sealed partial class SeapApiClient(
     private static partial void LogSeapFallbackEmpty(ILogger logger, string directory);
     [LoggerMessage(EventId = 5105, Level = LogLevel.Information, Message = "SEAP local fallback loaded {FileCount} payload file(s).")]
     private static partial void LogSeapFallbackLoaded(ILogger logger, int fileCount);
+    [LoggerMessage(EventId = 5110, Level = LogLevel.Warning, Message = "SEAP on-demand search page {PageIndex} failed; continuing.")]
+    private static partial void LogSeapPageFetchFailed(ILogger logger, int pageIndex, Exception exception);
 }

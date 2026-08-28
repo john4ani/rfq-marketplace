@@ -29,6 +29,11 @@ export interface SeapTenderFilter {
   county?: string | null;
   cpvPrefixes?: string[];
   counties?: string[];
+  /** On-demand „Caută în SEAP": fetch matching notices from the live platform first. */
+  search?: boolean;
+  /** Publication-date window (yyyy-MM-dd) for the on-demand search — defaults to the current year. */
+  from?: string;
+  to?: string;
 }
 
 export interface BidStatus {
@@ -89,6 +94,9 @@ export class SeapService {
     for (const county of filter.counties ?? []) params = params.append('counties', county);
     if (filter.radiusKm != null && filter.radiusKm > 0) params = params.set('radiusKm', String(filter.radiusKm));
     if (filter.county) params = params.set('county', filter.county);
+    if (filter.search) params = params.set('search', 'true');
+    if (filter.from) params = params.set('from', filter.from);
+    if (filter.to) params = params.set('to', filter.to);
     return this.http.get<SeapTender[]>('/api/v1/seap/tenders', { params });
   }
 

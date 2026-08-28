@@ -45,6 +45,14 @@ public sealed record SeapNoticeSearchItem(
 public interface ISeapApiClient
 {
     Task<IReadOnlyCollection<SeapTenderNoticeDto>> FetchRecentNoticesAsync(CancellationToken cancellationToken);
+
+    /// <summary>Fetches one page of notices from the live public SEAP search, optionally restricted to a
+    /// publication-date window. Live-only: the on-demand „Caută în SEAP" search never falls back to the
+    /// local golden payloads. Returns an empty collection on any failure.</summary>
+    Task<IReadOnlyCollection<SeapTenderNoticeDto>> FetchNoticePageAsync(
+        int pageIndex, int pageSize, DateOnly? startPublicationDate, DateOnly? endPublicationDate,
+        CancellationToken cancellationToken);
+
     Task<Stream> DownloadAttachmentAsync(string downloadUrl, CancellationToken cancellationToken);
 }
 
@@ -57,6 +65,17 @@ public interface ISeapIngestionService
 {
     Task<SeapTenderImportResult> ImportNoticeAsync(SeapTenderNoticeDto notice, CancellationToken cancellationToken);
     Task<int> PollAndImportAsync(CancellationToken cancellationToken);
+
+    /// <summary>
+    /// On-demand SEAP search (Anunțuri SEAP → „Caută în SEAP"): takes the active filter parameters
+    /// (CPV prefixes + counties), pages the live e-licitatie.ro search — optionally restricted to a
+    /// publication-date window (default: the current year) — derives each notice's county deterministically,
+    /// imports the notices matching the parameters (no LLM categorization, no attachment downloads), and
+    /// returns them. Bypasses the background hourly import cap because it is a user-initiated action.
+    /// </summary>
+    Task<IReadOnlyCollection<SeapTender>> SearchAndImportAsync(
+        string[]? cpvPrefixes, string[]? counties, DateOnly? fromDate, DateOnly? toDate,
+        CancellationToken cancellationToken);
 }
 
 /// <summary>Outcome of the AI categorizer for a standardized CPV code.</summary>

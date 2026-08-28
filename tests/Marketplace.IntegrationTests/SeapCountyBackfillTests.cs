@@ -61,6 +61,10 @@ public sealed class SeapCountyBackfillTests
     {
         public Task<IReadOnlyCollection<SeapTenderNoticeDto>> FetchRecentNoticesAsync(CancellationToken cancellationToken) =>
             Task.FromResult(notices);
+        public Task<IReadOnlyCollection<SeapTenderNoticeDto>> FetchNoticePageAsync(
+            int pageIndex, int pageSize, DateOnly? startPublicationDate, DateOnly? endPublicationDate,
+            CancellationToken cancellationToken) =>
+            Task.FromResult<IReadOnlyCollection<SeapTenderNoticeDto>>(Array.Empty<SeapTenderNoticeDto>());
         public Task<Stream> DownloadAttachmentAsync(string downloadUrl, CancellationToken cancellationToken) =>
             throw new NotSupportedException("Attachments are disabled in this test.");
     }

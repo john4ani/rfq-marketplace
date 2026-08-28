@@ -69,7 +69,10 @@ avoids non-reproducible AI filtering.
   `AddSeapTenderMatchProfile`); `GET /api/v1/suppliers/{id}` exposes them.
 - New endpoints: `GET /api/v1/seap/tender-match/availability`, `POST /api/v1/seap/tender-match`,
   `PUT /api/v1/seap/tender-match/profile`.
-- `GET /api/v1/seap/tenders` accepts `cpvPrefixes` and `counties` query parameters.
+- `GET /api/v1/seap/tenders` accepts `cpvPrefixes` and `counties` query parameters, and `search=true`
+  (plus an optional `from`/`to` publication-date window) triggers an **on-demand live SEAP search**: the
+  active parameters are sent back to the platform (paginated, current year by default), matching notices
+  are imported without LLM categorization or attachments, and the local filtered list is returned.
 - The Anunțuri SEAP feed shows an "Editare avansată filtre" chip editor (CPV + județe) persisted on the
   company profile, and a chat entry (`/seap/match`) that transitions to the filtered feed on confirmation.
 - The General chat may suggest `SeapTenderSearch` (transfers the description via `?description=`, no
