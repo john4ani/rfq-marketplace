@@ -7,8 +7,9 @@ public sealed class SeapOptions
     public string BaseUrl { get; init; } = string.Empty;
     /// <summary>Public SEAP notice-search endpoint (POST, JSON filter body).</summary>
     public string NoticesPath { get; init; } = "api-pub/NoticeCommon/GetCNoticeList/";
-    /// <summary>Notice types to import. 2 = contract notice (CN) on the public SEAP catalogue.</summary>
-    public int[] NoticeTypeIds { get; init; } = [2];
+    /// <summary>Notice types to import/search. 2 = contract notice (CN); 17 = simplified-procedure notice
+    /// (SCN) — the type where commune/town (e.g. "PRIMARIA COMUNEI POIANA, JUD. DB") tenders live.</summary>
+    public int[] NoticeTypeIds { get; init; } = [2, 17];
     public int NoticesPageSize { get; init; } = 20;
     public int PollingIntervalSeconds { get; init; } = 3600;
     public string[] TargetCpvPrefixes { get; init; } = [];
@@ -16,11 +17,12 @@ public sealed class SeapOptions
     /// <summary>Hard cap on new tenders imported per rolling hour (cost guardrail).</summary>
     public int MaxNewNoticesPerHour { get; init; } = 5;
     /// <summary>On-demand „Caută în SEAP" search caps (per request): page size, max pages to scan,
-    /// max matching tenders to import.</summary>
-    public int OnDemandSearchPageSize { get; init; } = 100;
+    /// max matching tenders to import. The anonymous e-licitatie.ro search honors a large pageSize (500),
+    /// so the whole capped slice (~3000 notices) is scanned with 6 requests.</summary>
+    public int OnDemandSearchPageSize { get; init; } = 500;
     public int OnDemandSearchMaxPages { get; init; } = 6;
     public int OnDemandSearchMaxMatches { get; init; } = 50;
-    public int OnDemandSearchMaxScanned { get; init; } = 600;
+    public int OnDemandSearchMaxScanned { get; init; } = 3000;
     public int RequestTimeoutSeconds { get; init; } = 60;
     /// <summary>
     /// When the live e-licitatie.ro endpoint is unreachable, rate-limited, or returns a non-JSON

@@ -132,12 +132,12 @@ public sealed partial class SeapApiClient(
     // The live e-licitatie.ro search honors a publication-date window (verified empirically: a
     // startPublicationDate of 2026-01-01 returns current-year notices instead of the stale unfiltered
     // slice). Keys are added only when set so "all history" behaves exactly like the plain search.
-    private static Dictionary<string, object?> BuildPageSearchFilter(
+    private Dictionary<string, object?> BuildPageSearchFilter(
         int pageIndex, int pageSize, DateOnly? startPublicationDate, DateOnly? endPublicationDate)
     {
         var filter = new Dictionary<string, object?>
         {
-            ["sysNoticeTypeIds"] = new[] { 2 },
+            ["sysNoticeTypeIds"] = settings.NoticeTypeIds is { Length: > 0 } noticeTypes ? noticeTypes : new[] { 2 },
             ["sortProperties"] = Array.Empty<object>(),
             ["pageSize"] = Math.Max(1, pageSize),
             ["pageIndex"] = Math.Max(0, pageIndex)
