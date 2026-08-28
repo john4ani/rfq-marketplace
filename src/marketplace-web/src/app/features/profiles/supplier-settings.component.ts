@@ -2,14 +2,18 @@
 import { FormControl, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
 import { AuthService } from '../../core/auth/auth.service';
 import { ProfileService, SupplierProfile } from '../../core/profiles/profile.service';
+import { FeaturesService } from '../../core/features/features.service';
+import { SeapService } from '../../core/seap/seap.service';
 
 import { CategoryOption, SupplierSettingsService } from '../../core/suppliers/supplier-settings.service';
 import { ROMANIAN_COUNTIES } from '../../shared/romanian-counties';
+import { normalizeCounty, normalizeCpvPrefix } from '../../shared/seap-filters';
 
 @Component({
   selector: 'app-supplier-settings',
   imports: [ReactiveFormsModule],
   template: `@if (companyId() || auth.session()?.accountType === 'Supplier') {
+    @if (features.marketplaceEnabled()) {
     <section class="profile-card settings-card">
       <div class="section-heading"><div><p class="eyebrow">Ce livrezi</p><h2>Categorii de produse</h2></div>
         <p>Alege produsele și serviciile pentru care vrei să primești cereri de ofertă.</p></div>
@@ -29,7 +33,41 @@ import { ROMANIAN_COUNTIES } from '../../shared/romanian-counties';
       </button></div>
       @if (categoryMessage()) { <p [class.error]="categoryError()" role="status">{{ categoryMessage() }}</p> }
     </section>
+    }
 
+    @if (companyId()) {
+    <section class="profile-card settings-card">
+      <div class="section-heading"><div><p class="eyebrow">Anunțuri SEAP</p><h2>Nișa ta SEAP</h2></div>
+        <p>Alege domeniile CPV și județele pentru anunțurile publice care te interesează. Salvate pe profilul firmei și folosite ca filtru implicit pe pagina Anunțuri SEAP.</p></div>
+      <div class="seap-field"><label>Coduri CPV</label>
+        <div class="chips">
+          @for (prefix of seapCpvPrefixes(); track prefix) {
+            <span class="chip">{{ prefix }}<button type="button" class="chip-remove" (click)="removeSeapCpvPrefix(prefix)" [attr.aria-label]="'Șterge ' + prefix">×</button></span>
+          }
+          @if (seapCpvPrefixes().length === 0) { <span class="chip-empty">Niciun prefix — toate domeniile</span> }
+        </div>
+        <div class="chip-input"><input [value]="seapCpvInput()" (input)="seapCpvInput.set($any($event.target).value)" placeholder="ex. 45233000" aria-label="Adaugă prefix CPV">
+          <button type="button" (click)="addSeapCpvPrefix()" [disabled]="!normalizeCpvPrefix(seapCpvInput())">Adaugă</button></div>
+      </div>
+      <div class="seap-field"><label>Județe</label>
+        <div class="chips">
+          @for (county of seapCounties(); track county) {
+            <span class="chip">{{ county }}<button type="button" class="chip-remove" (click)="removeSeapCounty(county)" [attr.aria-label]="'Șterge ' + county">×</button></span>
+          }
+          @if (seapCounties().length === 0) { <span class="chip-empty">Toată țara</span> }
+        </div>
+        <div class="chip-input"><select [value]="seapCountyDraft()" (change)="seapCountyDraft.set($any($event.target).value)" aria-label="Alege județul de adăugat">
+            <option value="">Alege județul</option>@for (county of availableSeapCounties(); track county) { <option [value]="county">{{ county }}</option> }</select>
+          <button type="button" (click)="addSeapCounty()" [disabled]="!seapCountyDraft()">Adaugă</button></div>
+      </div>
+      <div class="form-actions"><button type="button" (click)="saveSeapProfile()" [disabled]="seapSaving()">
+        {{ seapSaving() ? 'Se salvează…' : 'Salvează nișa SEAP' }}
+      </button></div>
+      @if (seapMessage()) { <p [class.error]="seapError()" role="status">{{ seapMessage() }}</p> }
+    </section>
+    }
+
+    @if (features.marketplaceEnabled()) {
     <section class="profile-card settings-card">
       <div class="section-heading"><div><p class="eyebrow">Unde livrezi</p><h2>Zonă și rază de livrare</h2></div>
         <p>Raza normală descrie zona ta obișnuită de livrare; nu este un filtru de vizibilitate sau clasare.</p></div>
@@ -60,6 +98,7 @@ import { ROMANIAN_COUNTIES } from '../../shared/romanian-counties';
       </form>
       @if (deliveryMessage()) { <p [class.error]="deliveryError()" role="status">{{ deliveryMessage() }}</p> }
     </section>
+    }
 
     <section class="profile-card settings-card">
       <div class="section-heading"><div><p class="eyebrow">Anunțuri SEAP</p><h2>Rază de interes pentru anunțuri</h2></div>
@@ -86,7 +125,18 @@ export class SupplierSettingsComponent {
 
   readonly auth = inject(AuthService);
   private readonly settings = inject(SupplierSettingsService);
+  readonly features = inject(FeaturesService);
+  private readonly seap = inject(SeapService);
   readonly counties = ROMANIAN_COUNTIES;
+  readonly seapCpvPrefixes = signal<string[]>([]);
+  readonly seapCounties = signal<string[]>([]);
+  readonly seapCpvInput = signal('');
+  readonly seapCountyDraft = signal('');
+  readonly seapSaving = signal(false);
+  readonly seapMessage = signal('');
+  readonly seapError = signal(false);
+  readonly normalizeCpvPrefix = normalizeCpvPrefix;
+  readonly availableSeapCounties = computed(() => this.counties.filter(county => !this.seapCounties().includes(county)));
   readonly categories = signal<CategoryOption[]>([]);
   readonly selectedCategoryIds = signal<string[]>([]);
   readonly selectedCounties = signal<string[]>([]);
@@ -142,6 +192,46 @@ export class SupplierSettingsComponent {
     const values = this.selectedCounties();
     this.selectedCounties.set(values.includes(county) ? values.filter(value => value !== county) : [...values, county]);
   }
+  addSeapCpvPrefix(): void {
+    const value = this.normalizeCpvPrefix(this.seapCpvInput());
+    if (!value) return;
+    this.seapCpvPrefixes.update(prefixes => prefixes.includes(value) ? prefixes : [...prefixes, value]);
+    this.seapCpvInput.set('');
+    this.seapMessage.set(`Prefixul CPV ${value} a fost adăugat la nișa SEAP.`);
+    this.seapError.set(false);
+  }
+  removeSeapCpvPrefix(prefix: string): void {
+    this.seapCpvPrefixes.update(prefixes => prefixes.filter(item => item !== prefix));
+  }
+  addSeapCounty(): void {
+    const value = normalizeCounty(this.seapCountyDraft());
+    if (!value) return;
+    this.seapCounties.update(counties => counties.includes(value) ? counties : [...counties, value]);
+    this.seapCountyDraft.set('');
+    this.seapMessage.set(`Județul „${value}” a fost adăugat la nișa SEAP.`);
+    this.seapError.set(false);
+  }
+  removeSeapCounty(county: string): void {
+    this.seapCounties.update(counties => counties.filter(item => item !== county));
+  }
+  saveSeapProfile(): void {
+    const id = this.companyId() || this.auth.session()?.userId;
+    if (!id || this.seapSaving()) return;
+    this.seapSaving.set(true); this.seapMessage.set(''); this.seapError.set(false);
+    this.seap.saveMatchProfile(id, this.seapCpvPrefixes(), this.seapCounties()).subscribe({
+      next: saved => {
+        this.seapCpvPrefixes.set(saved.cpvPrefixes);
+        this.seapCounties.set(saved.counties);
+        this.seapSaving.set(false);
+        this.seapMessage.set('Nișa SEAP a fost salvată pe profilul firmei.');
+      },
+      error: () => {
+        this.seapSaving.set(false);
+        this.seapError.set(true);
+        this.seapMessage.set('Nișa SEAP nu a putut fi salvată.');
+      }
+    });
+  }
   saveCategories(): void {
     const id = this.companyId() || this.auth.session()?.userId;
     if (!id || this.selectedCategoryIds().length === 0) return;
@@ -178,7 +268,11 @@ export class SupplierSettingsComponent {
       error: error => { if (error.status !== 404) { this.deliveryError.set(true); this.deliveryMessage.set('Setările de livrare nu au putut fi încărcate.'); } }
     });
     this.profiles.getSupplier(id).subscribe({
-      next: profile => this.interestRadiusForm.patchValue({ marketRadiusKm: profile.marketRadiusKm }),
+      next: profile => {
+        this.seapCpvPrefixes.set(profile.seapCpvPrefixes ?? []);
+        this.seapCounties.set(profile.seapCounties ?? []);
+        this.interestRadiusForm.patchValue({ marketRadiusKm: profile.marketRadiusKm });
+      },
       error: () => { /* raza rămâne la valoarea implicită dacă profilul nu e disponibil */ }
     });
   }
