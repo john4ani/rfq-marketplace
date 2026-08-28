@@ -4,6 +4,7 @@ import { RouterLink } from '@angular/router';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { timer } from 'rxjs';
 import { AuthService } from '../../core/auth/auth.service';
+import { FeaturesService } from '../../core/features/features.service';
 import { CompanyVaultService, SpecificationBidResult, PIPELINE_STAGE_LABELS } from '../../core/companies/company-vault.service';
 import { ProfileService } from '../../core/profiles/profile.service';
 import { SeapService, SeapTender } from '../../core/seap/seap.service';
@@ -13,9 +14,9 @@ import { CategoryOption, SupplierSettingsService } from '../../core/suppliers/su
   selector: 'app-seap-tenders',
   imports: [RouterLink, DatePipe, DecimalPipe],
   changeDetection: ChangeDetectionStrategy.OnPush,
-  styles: [`:host{display:block}.page{display:grid;gap:1.2rem;max-width:76rem}.back-link{display:inline-flex;align-items:center;gap:.4rem;width:fit-content;color:var(--forest);font-weight:750;text-decoration:none;font-size:.92rem}.eyebrow{margin:0;color:var(--forest-light);font-size:.76rem;font-weight:800;letter-spacing:.1em;text-transform:uppercase}h1{margin:.15rem 0;font-size:clamp(1.9rem,4vw,2.8rem);letter-spacing:-.04em}.page>p{margin:0;color:var(--muted);line-height:1.5}.card,.state,.filters{padding:1.15rem 1.25rem;border:1px solid var(--border);border-radius:1rem;background:var(--surface);box-shadow:var(--shadow-soft)}.card{display:flex;justify-content:space-between;gap:1.25rem;align-items:center;text-decoration:none;color:inherit;transition:border-color .15s}.card:hover{border-color:color-mix(in srgb,var(--forest) 45%,var(--border))}.card h2{margin:0;font-size:1.1rem}.card p{margin:.2rem 0 0;color:var(--muted);font-size:.9rem}.pill{display:inline-flex;align-items:center;padding:.3rem .72rem;border-radius:999px;font-size:.78rem;font-weight:800}.pill.ready{color:#176b52;background:#e3f2ea}.pill.done{color:var(--forest);background:color-mix(in srgb,var(--sand) 60%,white)}.arrow{flex:0 0 auto;color:var(--forest);font-weight:800}.state{justify-items:center;padding:2rem;text-align:center;color:var(--muted)}.state strong{color:var(--ink)}.state button{min-height:2.6rem;padding:.6rem 1.05rem;border:0;border-radius:.6rem;color:#fff;background:var(--forest);font:inherit;font-weight:800;cursor:pointer}.filters{display:grid;gap:.7rem}.filters-header{display:flex;align-items:baseline;gap:.6rem;flex-wrap:wrap}.filters-header strong{font-size:.95rem}.filters-header .company{color:var(--forest);font-weight:750;font-size:.85rem}.checks{display:flex;flex-wrap:wrap;gap:.5rem}.check{display:inline-flex;align-items:center;gap:.4rem;padding:.42rem .8rem;border:1px solid var(--border);border-radius:999px;background:var(--warm-white);font-size:.86rem;font-weight:650;cursor:pointer}.check input{accent-color:var(--forest)}.check.radius{border-style:dashed}.check:has(input:disabled){opacity:.6;cursor:not-allowed}.hint{margin:0;color:var(--muted);font-size:.82rem;line-height:1.45}.upload{display:flex;gap:.7rem;flex-wrap:wrap;align-items:center}.upload input{flex:1 1 18rem}.upload button{min-height:2.6rem;padding:.6rem 1.05rem;border:0;border-radius:.6rem;color:#fff;background:var(--forest);font:inherit;font-weight:800;cursor:pointer}.upload button:disabled{opacity:.55;cursor:not-allowed}.spec-result{display:grid;gap:.6rem;padding:.85rem .95rem;border:1px solid var(--border);border-radius:.8rem;background:var(--warm-white)}.spec-result strong{font-size:.95rem}.downloads{display:flex;flex-wrap:wrap;gap:.6rem}.downloads button{display:inline-flex;padding:.5rem .85rem;border:0;border-radius:.6rem;color:var(--forest);background:color-mix(in srgb,var(--sand) 45%,white);font:inherit;font-weight:800;text-decoration:none;font-size:.85rem;cursor:pointer}.spec-result button{min-height:2.3rem;padding:.4rem .8rem;border:0;border-radius:.6rem;color:var(--forest);background:var(--sand);font:inherit;font-weight:800;cursor:pointer;width:fit-content}.pipeline-progress{display:grid;gap:.45rem;padding:.75rem .95rem;border:1px solid var(--border);border-radius:.7rem;background:var(--warm-white)}.pipeline-progress p{margin:0;color:var(--forest);font-size:.86rem;font-weight:650}.progress-track{height:.5rem;border-radius:999px;background:color-mix(in srgb,var(--sand) 70%,white);overflow:hidden}.progress-bar{height:100%;width:100%;border-radius:999px;background:var(--forest-light);transform-origin:0 50%;animation:pipeline-slide 1.6s ease-in-out infinite}@keyframes pipeline-slide{0%{transform:scaleX(.15)}50%{transform:scaleX(.65)}100%{transform:scaleX(.15)}}.note{padding:.75rem .95rem;border-radius:.7rem;line-height:1.5;font-size:.86rem}.note:not(.error){background:#edf6f1;color:#315947}.note.error{background:#fff0f0;color:#8b2222}`],
+  styles: [`:host{display:block}.page{display:grid;gap:1.2rem;max-width:76rem}.back-link{display:inline-flex;align-items:center;gap:.4rem;width:fit-content;color:var(--forest);font-weight:750;text-decoration:none;font-size:.92rem}.eyebrow{margin:0;color:var(--forest-light);font-size:.76rem;font-weight:800;letter-spacing:.1em;text-transform:uppercase}h1{margin:.15rem 0;font-size:clamp(1.9rem,4vw,2.8rem);letter-spacing:-.04em}.page>p{margin:0;color:var(--muted);line-height:1.5}.card,.state,.filters{padding:1.15rem 1.25rem;border:1px solid var(--border);border-radius:1rem;background:var(--surface);box-shadow:var(--shadow-soft)}.card{display:flex;justify-content:space-between;gap:1.25rem;align-items:center;text-decoration:none;color:inherit;transition:border-color .15s}.card:hover{border-color:color-mix(in srgb,var(--forest) 45%,var(--border))}.card h2{margin:0;font-size:1.1rem}.card p{margin:.2rem 0 0;color:var(--muted);font-size:.9rem}.pill{display:inline-flex;align-items:center;padding:.3rem .72rem;border-radius:999px;font-size:.78rem;font-weight:800}.pill.ready{color:#176b52;background:#e3f2ea}.pill.done{color:var(--forest);background:color-mix(in srgb,var(--sand) 60%,white)}.arrow{flex:0 0 auto;color:var(--forest);font-weight:800}.state{justify-items:center;padding:2rem;text-align:center;color:var(--muted)}.state strong{color:var(--ink)}.state button{min-height:2.6rem;padding:.6rem 1.05rem;border:0;border-radius:.6rem;color:#fff;background:var(--forest);font:inherit;font-weight:800;cursor:pointer}.filters{display:grid;gap:.7rem}.filters-header{display:flex;align-items:baseline;gap:.6rem;flex-wrap:wrap}.filters-header strong{font-size:.95rem}.filters-header .company{color:var(--forest);font-weight:750;font-size:.85rem}.checks{display:flex;flex-wrap:wrap;gap:.5rem}.check{display:inline-flex;align-items:center;gap:.4rem;padding:.42rem .8rem;border:1px solid var(--border);border-radius:999px;background:var(--warm-white);font-size:.86rem;font-weight:650;cursor:pointer}.check input{accent-color:var(--forest)}.check.radius{border-style:dashed}.check:has(input:disabled){opacity:.6;cursor:not-allowed}.radius-hint{display:block;margin-top:.25rem;font-size:.74rem;color:var(--muted);font-weight:500}.hint{margin:0;color:var(--muted);font-size:.82rem;line-height:1.45}.upload{display:flex;gap:.7rem;flex-wrap:wrap;align-items:center}.upload input{flex:1 1 18rem}.upload button{min-height:2.6rem;padding:.6rem 1.05rem;border:0;border-radius:.6rem;color:#fff;background:var(--forest);font:inherit;font-weight:800;cursor:pointer}.upload button:disabled{opacity:.55;cursor:not-allowed}.spec-result{display:grid;gap:.6rem;padding:.85rem .95rem;border:1px solid var(--border);border-radius:.8rem;background:var(--warm-white)}.spec-result strong{font-size:.95rem}.downloads{display:flex;flex-wrap:wrap;gap:.6rem}.downloads button{display:inline-flex;padding:.5rem .85rem;border:0;border-radius:.6rem;color:var(--forest);background:color-mix(in srgb,var(--sand) 45%,white);font:inherit;font-weight:800;text-decoration:none;font-size:.85rem;cursor:pointer}.spec-result button{min-height:2.3rem;padding:.4rem .8rem;border:0;border-radius:.6rem;color:var(--forest);background:var(--sand);font:inherit;font-weight:800;cursor:pointer;width:fit-content}.pipeline-progress{display:grid;gap:.45rem;padding:.75rem .95rem;border:1px solid var(--border);border-radius:.7rem;background:var(--warm-white)}.pipeline-progress p{margin:0;color:var(--forest);font-size:.86rem;font-weight:650}.progress-track{height:.5rem;border-radius:999px;background:color-mix(in srgb,var(--sand) 70%,white);overflow:hidden}.progress-bar{height:100%;width:100%;border-radius:999px;background:var(--forest-light);transform-origin:0 50%;animation:pipeline-slide 1.6s ease-in-out infinite}@keyframes pipeline-slide{0%{transform:scaleX(.15)}50%{transform:scaleX(.65)}100%{transform:scaleX(.15)}}.note{padding:.75rem .95rem;border-radius:.7rem;line-height:1.5;font-size:.86rem}.note:not(.error){background:#edf6f1;color:#315947}.note.error{background:#fff0f0;color:#8b2222}.no-company{display:flex;justify-content:space-between;gap:1.1rem;align-items:center;padding:1.05rem 1.25rem;border:1px solid color-mix(in srgb,var(--warm-amber) 55%,var(--border));border-radius:1rem;background:color-mix(in srgb,var(--warm-amber) 12%,var(--surface));box-shadow:var(--shadow-soft)}.no-company strong{display:block;font-size:.98rem}.no-company p{margin:.25rem 0 0;color:var(--muted);font-size:.88rem;line-height:1.5}.no-company a{flex:0 0 auto;display:inline-flex;padding:.6rem 1rem;border-radius:.6rem;color:#fff;background:var(--forest);font-weight:800;text-decoration:none}`],
   template: `<section class="page">
-    <a class="back-link" routerLink="/dashboard">← Înapoi acasă</a>
+    <a class="back-link" [routerLink]="features.marketplaceEnabled() ? ['/dashboard'] : ['/account']">← Înapoi</a>
     <header><p class="eyebrow">Achiziții publice</p><h1>Anunțuri SEAP</h1>
       <p>Oportunități publice din e-licitatie.ro, cu ofertare automată asistată de AI.</p></header>
 
@@ -37,9 +38,11 @@ import { CategoryOption, SupplierSettingsService } from '../../core/suppliers/su
             <div class="spec-result">
               <strong>{{ result.proposalTitle }}</strong>
               <div class="downloads">
-                <button type="button" (click)="downloadSpecFile('TechnicalProposal')">Descarcă propunerea tehnică (.docx)</button>
-                <button type="button" (click)="downloadSpecFile('BillOfQuantities')">Descarcă lista de cantități (.xlsx)</button>
+                <button type="button" [disabled]="!acceptsSpecResponsibility()" (click)="downloadSpecFile('TechnicalProposal')">Descarcă propunerea tehnică (.docx)</button>
+                <button type="button" [disabled]="!acceptsSpecResponsibility()" (click)="downloadSpecFile('BillOfQuantities')">Descarcă lista de cantități (.xlsx)</button>
               </div>
+              <label class="acceptance"><input type="checkbox" [checked]="acceptsSpecResponsibility()" (change)="acceptsSpecResponsibility.set($any($event.target).checked)" />
+                <span>Îmi asum responsabilitatea verificării și asumării conținutului înainte de semnarea electronică și depunerea în SEAP. CompaSpot este un instrument software de redactare asistată, nu consultanță juridică sau tehnică.</span></label>
               <button type="button" [disabled]="specBusy()" (click)="regenerateSpecification(companyId)">Regenerează propunerea</button>
             </div>
           }
@@ -50,6 +53,13 @@ import { CategoryOption, SupplierSettingsService } from '../../core/suppliers/su
     }
 
     @if (profileLoaded()) {
+      @if (!companyId()) {
+        <section class="no-company" role="status">
+          <div><strong>Înregistrează firma pe care o reprezinți</strong>
+            <p>Ofertarea automată folosește datele firmei tale (Company Vault, categorii, județ). Adaugă firma ca să poți genera propuneri tehnice și devize pentru anunțurile SEAP.</p></div>
+          <a routerLink="/account/company/new">Adaugă firma</a>
+        </section>
+      }
       <section class="filters" aria-label="Filtre anunțuri">
         <div class="filters-header"><strong>Categoriile firmei</strong>
           @if (companyName(); as name) { <span class="company">{{ name }}</span> }</div>
@@ -66,6 +76,7 @@ import { CategoryOption, SupplierSettingsService } from '../../core/suppliers/su
         <label class="check radius">
           <input type="checkbox" [checked]="radiusActive()" [disabled]="!county()" (change)="toggleRadius()" />
           {{ county() ? 'Doar anunțurile în raza de ' + radiusKm() + ' km de ' + county() : 'Filtru pe rază indisponibil — firma nu are județ configurat' }}
+          <small class="radius-hint">Raza se editează din Cont → Firma → setările firmei.</small>
         </label>
       </section>
     }
@@ -91,6 +102,7 @@ export class SeapTendersComponent {
   private readonly profiles = inject(ProfileService);
   private readonly settings = inject(SupplierSettingsService);
   private readonly auth = inject(AuthService);
+  readonly features = inject(FeaturesService);
   private readonly vault = inject(CompanyVaultService);
 
   readonly tenders = signal<SeapTender[]>([]);
@@ -109,6 +121,7 @@ export class SeapTendersComponent {
   readonly specBusy = signal(false);
   readonly specMessage = signal('');
   readonly specError = signal(false);
+  readonly acceptsSpecResponsibility = signal(false);
   readonly specResult = signal<SpecificationBidResult | null>(null);
   readonly specStage = signal<string>('Se trimite fișierul…');
   private progressRequestId: string | null = null;

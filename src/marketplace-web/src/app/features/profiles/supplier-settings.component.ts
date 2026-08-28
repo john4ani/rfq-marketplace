@@ -1,6 +1,8 @@
-import { ChangeDetectionStrategy, Component, computed, effect, inject, input, output, signal } from '@angular/core';
+﻿import { ChangeDetectionStrategy, Component, computed, effect, inject, input, output, signal } from '@angular/core';
 import { FormControl, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
 import { AuthService } from '../../core/auth/auth.service';
+import { ProfileService, SupplierProfile } from '../../core/profiles/profile.service';
+
 import { CategoryOption, SupplierSettingsService } from '../../core/suppliers/supplier-settings.service';
 import { ROMANIAN_COUNTIES } from '../../shared/romanian-counties';
 
@@ -10,9 +12,9 @@ import { ROMANIAN_COUNTIES } from '../../shared/romanian-counties';
   template: `@if (companyId() || auth.session()?.accountType === 'Supplier') {
     <section class="profile-card settings-card">
       <div class="section-heading"><div><p class="eyebrow">Ce livrezi</p><h2>Categorii de produse</h2></div>
-        <p>Alege produsele și serviciile pentru care vrei să primești cereri de ofertă.</p></div>
-      @if (loadingCategories()) { <p role="status">Se încarcă categoriile…</p> }
-      @else if (categoryLoadFailed()) { <div class="state-error" role="alert"><p>Categoriile nu sunt disponibile momentan.</p><button type="button" class="secondary" (click)="loadCategories()">Încearcă din nou</button></div> }
+        <p>Alege produsele È™i serviciile pentru care vrei sÄƒ primeÈ™ti cereri de ofertÄƒ.</p></div>
+      @if (loadingCategories()) { <p role="status">Se Ã®ncarcÄƒ categoriileâ€¦</p> }
+      @else if (categoryLoadFailed()) { <div class="state-error" role="alert"><p>Categoriile nu sunt disponibile momentan.</p><button type="button" class="secondary" (click)="loadCategories()">ÃŽncearcÄƒ din nou</button></div> }
       @else { <div class="choice-grid" role="group" aria-label="Categorii de produse">
         @for (category of selectableCategories(); track category.id) {
           <label class="choice-card" [class.selected]="selectedCategoryIds().includes(category.id)">
@@ -21,28 +23,28 @@ import { ROMANIAN_COUNTIES } from '../../shared/romanian-counties';
           </label>
         }
       </div> }
-      <p class="field-help">Nu găsești o categorie potrivită? Trimite administratorului denumirea pieței lipsă; catalogul este comun tuturor participanților.</p>
+      <p class="field-help">Nu gÄƒseÈ™ti o categorie potrivitÄƒ? Trimite administratorului denumirea pieÈ›ei lipsÄƒ; catalogul este comun tuturor participanÈ›ilor.</p>
       <div class="form-actions"><button type="button" (click)="saveCategories()" [disabled]="categoryLoadFailed() || selectedCategoryIds().length === 0 || savingCategories()">
-        {{ savingCategories() ? 'Se salvează…' : 'Salvează categoriile' }}
+        {{ savingCategories() ? 'Se salveazÄƒâ€¦' : 'SalveazÄƒ categoriile' }}
       </button></div>
       @if (categoryMessage()) { <p [class.error]="categoryError()" role="status">{{ categoryMessage() }}</p> }
     </section>
 
     <section class="profile-card settings-card">
-      <div class="section-heading"><div><p class="eyebrow">Unde livrezi</p><h2>Zonă și rază de livrare</h2></div>
-        <p>Raza normală descrie zona ta obișnuită de livrare; nu este un filtru de vizibilitate sau clasare.</p></div>
+      <div class="section-heading"><div><p class="eyebrow">Unde livrezi</p><h2>ZonÄƒ È™i razÄƒ de livrare</h2></div>
+        <p>Raza normalÄƒ descrie zona ta obiÈ™nuitÄƒ de livrare; nu este un filtru de vizibilitate sau clasare.</p></div>
       <form [formGroup]="deliveryForm" (ngSubmit)="saveDelivery()">
         <div class="form-row">
-          <label>Rază normală (km) *<input type="number" min="1" max="1000" formControlName="normalDeliveryRadiusKm">
-            <small>Distanța în care livrezi în mod obișnuit.</small></label>
-          <label>Rază maximă (km) *<input type="number" min="1" max="1000" formControlName="maximumDeliveryRadiusKm">
-            <small>Limita până la care poți accepta o comandă.</small></label>
+          <label>RazÄƒ normalÄƒ (km) *<input type="number" min="1" max="1000" formControlName="normalDeliveryRadiusKm">
+            <small>DistanÈ›a Ã®n care livrezi Ã®n mod obiÈ™nuit.</small></label>
+          <label>RazÄƒ maximÄƒ (km) *<input type="number" min="1" max="1000" formControlName="maximumDeliveryRadiusKm">
+            <small>Limita pÃ¢nÄƒ la care poÈ›i accepta o comandÄƒ.</small></label>
         </div>
-        <label>Valoare minimă a comenzii (lei)<input type="number" min="0" formControlName="minimumOrderValue">
-          <small>Opțional. Lasă câmpul gol dacă nu ai o limită.</small></label>
-        <label class="checkbox-label"><input type="checkbox" formControlName="nationwideDelivery">Livrez oriunde în România</label>
+        <label>Valoare minimÄƒ a comenzii (lei)<input type="number" min="0" formControlName="minimumOrderValue">
+          <small>OpÈ›ional. LasÄƒ cÃ¢mpul gol dacÄƒ nu ai o limitÄƒ.</small></label>
+        <label class="checkbox-label"><input type="checkbox" formControlName="nationwideDelivery">Livrez oriunde Ã®n RomÃ¢nia</label>
         @if (!deliveryForm.controls.nationwideDelivery.value) {
-          <fieldset><legend>Județe deservite *</legend><p class="field-help">Alege toate județele în care livrezi în mod normal.</p>
+          <fieldset><legend>JudeÈ›e deservite *</legend><p class="field-help">Alege toate judeÈ›ele Ã®n care livrezi Ã®n mod normal.</p>
             <div class="county-grid">
               @for (county of counties; track county) {
                 <label class="county-choice" [class.selected]="selectedCounties().includes(county)">
@@ -53,11 +55,25 @@ import { ROMANIAN_COUNTIES } from '../../shared/romanian-counties';
           </fieldset>
         }
         <div class="form-actions"><button [disabled]="deliveryForm.invalid || savingDelivery()">
-          {{ savingDelivery() ? 'Se salvează…' : 'Salvează zona de livrare' }}
+          {{ savingDelivery() ? 'Se salveazÄƒâ€¦' : 'SalveazÄƒ zona de livrare' }}
         </button></div>
       </form>
       @if (deliveryMessage()) { <p [class.error]="deliveryError()" role="status">{{ deliveryMessage() }}</p> }
     </section>
+
+    <section class="profile-card settings-card">
+      <div class="section-heading"><div><p class="eyebrow">AnunÈ›uri SEAP</p><h2>RazÄƒ de interes pentru anunÈ›uri</h2></div>
+        <p>Raza din profilul firmei controleazÄƒ filtrul â€žDoar anunÈ›urile Ã®n raza de X km de judeÈ›" din pagina AnunÈ›uri SEAP.</p></div>
+      <form [formGroup]="interestRadiusForm" (ngSubmit)="saveInterestRadius()">
+        <label>RazÄƒ de interes (km) *<input type="number" min="1" max="1000" formControlName="marketRadiusKm">
+          <small>DistanÈ›a faÈ›Äƒ de judeÈ›ul firmei Ã®n care vrei sÄƒ vezi anunÈ›uri SEAP.</small></label>
+        <div class="form-actions"><button [disabled]="interestRadiusForm.invalid || savingInterestRadius()">
+          {{ savingInterestRadius() ? 'Se salveazÄƒâ€¦' : 'SalveazÄƒ raza de interes' }}
+        </button></div>
+      </form>
+      @if (interestRadiusMessage()) { <p [class.error]="interestRadiusError()" role="status">{{ interestRadiusMessage() }}</p> }
+    </section>
+
   }`,
   styleUrl: './supplier-settings.component.scss',
   changeDetection: ChangeDetectionStrategy.OnPush
@@ -66,6 +82,8 @@ export class SupplierSettingsComponent {
   readonly companyId = input('');
   readonly categoriesSaved = output<void>();
   readonly deliverySaved = output<void>();
+  private readonly profiles = inject(ProfileService);
+
   readonly auth = inject(AuthService);
   private readonly settings = inject(SupplierSettingsService);
   readonly counties = ROMANIAN_COUNTIES;
@@ -91,6 +109,13 @@ export class SupplierSettingsComponent {
     minimumOrderValue: new FormControl<number|null>(null, { validators: Validators.min(0) }),
     nationwideDelivery: new FormControl(false, { nonNullable: true })
   });
+  readonly savingInterestRadius = signal(false);
+  readonly interestRadiusMessage = signal('');
+  readonly interestRadiusError = signal(false);
+  readonly interestRadiusForm = new FormGroup({
+    marketRadiusKm: new FormControl(30, { nonNullable: true, validators: [Validators.required, Validators.min(1), Validators.max(1000)] })
+  });
+
 
   constructor() {
     this.loadCategories();
@@ -105,7 +130,7 @@ export class SupplierSettingsComponent {
     this.loadingCategories.set(true); this.categoryLoadFailed.set(false); this.categoryMessage.set('');
     this.settings.getCategories().subscribe({
       next: categories => { this.categories.set(categories); this.loadingCategories.set(false); },
-      error: () => { this.loadingCategories.set(false); this.categoryLoadFailed.set(true); this.categoryError.set(true); this.categoryMessage.set('Categoriile nu au putut fi încărcate.'); }
+      error: () => { this.loadingCategories.set(false); this.categoryLoadFailed.set(true); this.categoryError.set(true); this.categoryMessage.set('Categoriile nu au putut fi Ã®ncÄƒrcate.'); }
     });
   }
 
@@ -123,7 +148,7 @@ export class SupplierSettingsComponent {
     this.savingCategories.set(true); this.categoryMessage.set('');
     this.settings.saveSupplierCategories(id, this.selectedCategoryIds()).subscribe({
       next: result => { this.selectedCategoryIds.set(result.categoryIds); this.savingCategories.set(false); this.categoryError.set(false); this.categoryMessage.set('Categoriile au fost salvate.'); this.categoriesSaved.emit(); },
-      error: error => { this.savingCategories.set(false); this.categoryError.set(true); this.categoryMessage.set(error.status === 404 ? 'Completează și salvează mai întâi profilul companiei.' : 'Categoriile nu au putut fi salvate. Verifică selecția și încearcă din nou.'); }
+      error: error => { this.savingCategories.set(false); this.categoryError.set(true); this.categoryMessage.set(error.status === 404 ? 'CompleteazÄƒ È™i salveazÄƒ mai Ã®ntÃ¢i profilul companiei.' : 'Categoriile nu au putut fi salvate. VerificÄƒ selecÈ›ia È™i Ã®ncearcÄƒ din nou.'); }
     });
   }
   saveDelivery(): void {
@@ -131,27 +156,48 @@ export class SupplierSettingsComponent {
     const form = this.deliveryForm.getRawValue();
     if (!id || this.deliveryForm.invalid) return;
     if (form.maximumDeliveryRadiusKm < form.normalDeliveryRadiusKm) {
-      this.deliveryError.set(true); this.deliveryMessage.set('Raza maximă trebuie să fie cel puțin egală cu raza normală.'); return;
+      this.deliveryError.set(true); this.deliveryMessage.set('Raza maximÄƒ trebuie sÄƒ fie cel puÈ›in egalÄƒ cu raza normalÄƒ.'); return;
     }
     if (!form.nationwideDelivery && this.selectedCounties().length === 0) {
-      this.deliveryError.set(true); this.deliveryMessage.set('Alege cel puțin un județ sau livrarea în toată România.'); return;
+      this.deliveryError.set(true); this.deliveryMessage.set('Alege cel puÈ›in un judeÈ› sau livrarea Ã®n toatÄƒ RomÃ¢nia.'); return;
     }
     this.savingDelivery.set(true); this.deliveryMessage.set('');
     this.settings.saveDeliverySettings(id, { ...form, counties: form.nationwideDelivery ? [] : this.selectedCounties() }).subscribe({
-      next: result => { this.deliveryForm.patchValue(result); this.selectedCounties.set(result.counties); this.savingDelivery.set(false); this.deliveryError.set(false); this.deliveryMessage.set('Zona de livrare a fost salvată.'); this.deliverySaved.emit(); },
-      error: error => { this.savingDelivery.set(false); this.deliveryError.set(true); this.deliveryMessage.set(error.status === 404 ? 'Completează și salvează mai întâi profilul companiei.' : 'Zona de livrare nu a putut fi salvată. Verifică razele și județele selectate.'); }
+      next: result => { this.deliveryForm.patchValue(result); this.selectedCounties.set(result.counties); this.savingDelivery.set(false); this.deliveryError.set(false); this.deliveryMessage.set('Zona de livrare a fost salvatÄƒ.'); this.deliverySaved.emit(); },
+      error: error => { this.savingDelivery.set(false); this.deliveryError.set(true); this.deliveryMessage.set(error.status === 404 ? 'CompleteazÄƒ È™i salveazÄƒ mai Ã®ntÃ¢i profilul companiei.' : 'Zona de livrare nu a putut fi salvatÄƒ. VerificÄƒ razele È™i judeÈ›ele selectate.'); }
     });
   }
 
   private loadSupplierSettings(id: string): void {
     this.settings.getSupplierCategories(id).subscribe({
       next: result => this.selectedCategoryIds.set(result.categoryIds),
-      error: error => { if (error.status !== 404) { this.categoryError.set(true); this.categoryMessage.set('Selecția de categorii nu a putut fi încărcată.'); } }
+      error: error => { if (error.status !== 404) { this.categoryError.set(true); this.categoryMessage.set('SelecÈ›ia de categorii nu a putut fi Ã®ncÄƒrcatÄƒ.'); } }
     });
     this.settings.getDeliverySettings(id).subscribe({
       next: result => { this.deliveryForm.patchValue(result); this.selectedCounties.set(result.counties); },
-      error: error => { if (error.status !== 404) { this.deliveryError.set(true); this.deliveryMessage.set('Setările de livrare nu au putut fi încărcate.'); } }
+      error: error => { if (error.status !== 404) { this.deliveryError.set(true); this.deliveryMessage.set('SetÄƒrile de livrare nu au putut fi Ã®ncÄƒrcate.'); } }
+    });
+    this.profiles.getSupplier(id).subscribe({
+      next: profile => this.interestRadiusForm.patchValue({ marketRadiusKm: profile.marketRadiusKm }),
+      error: () => { /* raza rÄƒmÃ¢ne la valoarea implicitÄƒ dacÄƒ profilul nu e disponibil */ }
     });
   }
+
+  saveInterestRadius(): void {
+    const id = this.companyId() || this.auth.session()?.userId;
+    if (!id || this.interestRadiusForm.invalid) return;
+    this.savingInterestRadius.set(true); this.interestRadiusMessage.set('');
+    this.profiles.getSupplier(id).subscribe({
+      next: profile => {
+        this.profiles.saveSupplier(id, { ...profile, marketRadiusKm: this.interestRadiusForm.getRawValue().marketRadiusKm }).subscribe({
+          next: saved => { this.interestRadiusForm.patchValue({ marketRadiusKm: saved.marketRadiusKm }); this.savingInterestRadius.set(false); this.interestRadiusError.set(false); this.interestRadiusMessage.set('Raza de interes a fost salvatÄƒ. AnunÈ›urile SEAP o folosesc imediat.'); },
+          error: error => { this.savingInterestRadius.set(false); this.interestRadiusError.set(true); this.interestRadiusMessage.set(error.status === 404 ? 'CompleteazÄƒ È™i salveazÄƒ mai Ã®ntÃ¢i profilul companiei.' : 'Raza de interes nu a putut fi salvatÄƒ.'); }
+        });
+      },
+      error: error => { this.savingInterestRadius.set(false); this.interestRadiusError.set(true); this.interestRadiusMessage.set(error.status === 404 ? 'CompleteazÄƒ È™i salveazÄƒ mai Ã®ntÃ¢i profilul companiei.' : 'Profilul companiei nu a putut fi Ã®ncÄƒrcat.'); }
+    });
+  }
+
+
 
 }

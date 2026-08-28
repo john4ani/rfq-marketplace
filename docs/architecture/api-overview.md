@@ -182,8 +182,10 @@ Candidate creation and review are restricted to the existing `Administrator` rol
 All V3 endpoints require authentication unless noted. Shadow Mode (AutoBidding:IsShadowMode) makes auto-bid generate silently without Stripe and without exposing results to end users.
 
 ```text
+GET  /api/v1/features                        [AllowAnonymous — SPA feature flags]
 GET  /api/v1/seap/tenders
 GET  /api/v1/seap/tenders/{tenderId}
+GET  /api/v1/seap/tenders/{tenderId}/pricing  [fair-pricing preview: EUR value, price, free generations]
 POST /api/v1/seap/tenders/{tenderId}/auto-bid
 GET  /api/v1/seap/tenders/{tenderId}/bid-status
 POST /api/v1/webhooks/stripe            [AllowAnonymous, signature-verified]
@@ -191,4 +193,4 @@ GET  /api/v1/companies/{companyId}/vault
 POST /api/v1/companies/{companyId}/vault/documents   [multipart PDF]
 ```
 
-SEAP tenders are a distinct aggregate (SeapTender); they are public opportunities, not CompaSpot buyer needs, and the buying institution is not an ApplicationUser. auto-bid prices dynamically from the estimated value (29/49/99 EUR tiers) via a Stripe Checkout session with PriceData; bid-status is polled after checkout completes. The webhook verifies the Stripe-Signature header before triggering generation. Vault uploads accept a PDF; OCR (Azure Document Intelligence) and embeddings (OpenAI) run only when configured, and the document stays indexed-less otherwise.
+SEAP tenders are a distinct aggregate (SeapTender); they are public opportunities, not CompaSpot buyer needs, and the buying institution is not an ApplicationUser. auto-bid prices dynamically with the **fair-pricing EUR tiers** (25/75/300/500/1000/2000 €, converted from the RON estimated value with `AutoBidding:RonToEurRate`) via a Stripe Checkout session with PriceData, **except the first generation per account which is free** (`ApplicationUser.FreeGenerationsRemaining`); bid-status is polled after checkout completes. The webhook verifies the Stripe-Signature header before triggering generation. Vault uploads accept a PDF; OCR (Azure Document Intelligence) and embeddings (OpenAI) run only when configured, and the document stays indexed-less otherwise. `GET /api/v1/features` exposes `marketplaceEnabled` (default false) so the SPA hides every marketplace surface except Anunțuri SEAP and Admin.

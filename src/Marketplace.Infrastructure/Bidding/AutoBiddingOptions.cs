@@ -18,4 +18,7 @@ public sealed class AutoBiddingOptions
     public string EmbeddingApiKey { get; init; } = string.Empty;
     public string DocumentsBucket { get; init; } = string.Empty;
     public string DocumentsRegion { get; init; } = "eu-central-1";
+    /// <summary>Conversion rate used to translate the SEAP estimated value (RON) into the EUR fair-pricing
+    /// tiers. Configuration-level so it can be adjusted without a redeploy; default ≈ 5 RON/EUR.</summary>
+    public decimal RonToEurRate { get; init; } = 5m;
 }

@@ -39,9 +39,17 @@ export interface BidStatus {
 export interface AutoBidResponse {
   ready: boolean;
   shadowMode: boolean;
+  freeGeneration?: boolean;
   checkoutUrl?: string;
   sessionId?: string;
   priceEur?: number;
+}
+
+export interface TenderPricing {
+  estimatedValueEur: number;
+  priceEur: number;
+  freeGenerationsRemaining: number;
+  shadowMode: boolean;
 }
 
 @Injectable({ providedIn: 'root' })
@@ -57,6 +65,7 @@ export class SeapService {
   }
 
   getTender(id: string) { return this.http.get<SeapTender>(`/api/v1/seap/tenders/${id}`); }
+  getTenderPricing(id: string) { return this.http.get<TenderPricing>(`/api/v1/seap/tenders/${id}/pricing`); }
   startAutoBid(id: string) { return this.http.post<AutoBidResponse>(`/api/v1/seap/tenders/${id}/auto-bid`, {}); }
   getBidStatus(id: string) { return this.http.get<BidStatus>(`/api/v1/seap/tenders/${id}/bid-status`); }
 }

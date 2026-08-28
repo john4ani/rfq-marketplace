@@ -5,14 +5,21 @@ import { provideRouter, Router } from '@angular/router';
 import { App } from './app';
 import { AuthService } from './core/auth/auth.service';
 import { BackendAvailabilityService } from './core/connectivity/backend-availability.service';
+import { FeaturesService } from './core/features/features.service';
 
-@Component({ template: '' })
+@Component({ selector: 'app-seap-stub', template: '' })
 class SeapStubComponent {}
+
+@Component({ selector: 'app-account-stub', template: '' })
+class AccountStubComponent {}
 
 describe('App', () => {
   beforeEach(async () => {
     localStorage.setItem('compaspot.language', 'ro');
-    await TestBed.configureTestingModule({ imports: [App], providers: [provideRouter([{ path: 'seap/tenders', component: SeapStubComponent }]), provideHttpClient()] }).compileComponents();
+    await TestBed.configureTestingModule({ imports: [App], providers: [provideRouter([
+      { path: 'seap/tenders', component: SeapStubComponent },
+      { path: 'account', component: AccountStubComponent }
+    ]), provideHttpClient()] }).compileComponents();
   });
 
   afterEach(() => localStorage.removeItem('compaspot.language'));
@@ -99,5 +106,66 @@ describe('App', () => {
     expect(rail?.textContent).toContain('Firma ta');
     expect(rail?.textContent).toContain('Anunțuri SEAP');
     expect(rail?.textContent).not.toContain('Cererile mele');
+  });
+
+  it('hides the marketplace navigation and keeps Anunțuri SEAP + Firma when the marketplace flag is off', async () => {
+    const auth = TestBed.inject(AuthService);
+    Object.defineProperties(auth, {
+      isAuthenticated: { value: () => true },
+      isAdministrator: { value: () => true },
+      session: { value: () => ({ userId: 'user-1', email: 'provider@example.com', accountType: 'Supplier', roles: ['Supplier', 'Administrator'] }) },
+      profiles: { value: () => [{ userId: 'user-1', email: 'provider@example.com', accountType: 'Supplier' }] }
+    });
+    const features = TestBed.inject(FeaturesService);
+    features.setMarketplaceEnabledForTest(false);
+    await TestBed.inject(Router).navigateByUrl('/seap/tenders');
+
+    const fixture = TestBed.createComponent(App);
+    fixture.detectChanges();
+
+    const rail = (fixture.nativeElement as HTMLElement).querySelector<HTMLElement>('.side-rail');
+    expect(rail?.textContent).toContain('Anunțuri SEAP');
+    expect(rail?.textContent).toContain('Firma');
+    expect(rail?.textContent).not.toContain('Oportunități');
+    expect(rail?.textContent).not.toContain('Ofertele firmei');
+    expect(rail?.textContent).not.toContain('Firma ta');
+    expect(rail?.textContent).not.toContain('Notificări');
+    expect(rail?.textContent).toContain('Deconectare');
+  });
+
+  it('keeps the Cont (account) entry visible in the buyer rail when the marketplace flag is off', async () => {
+    const auth = TestBed.inject(AuthService);
+    Object.defineProperties(auth, {
+      isAuthenticated: { value: () => true },
+      isAdministrator: { value: () => false },
+      session: { value: () => ({ userId: 'user-1', email: 'buyer@example.com', accountType: 'Buyer', roles: ['Buyer'] }) },
+      profiles: { value: () => [{ userId: 'user-1', email: 'buyer@example.com', accountType: 'Buyer' }] }
+    });
+    const features = TestBed.inject(FeaturesService);
+    features.setMarketplaceEnabledForTest(false);
+    await TestBed.inject(Router).navigateByUrl('/account');
+
+    const fixture = TestBed.createComponent(App);
+    fixture.detectChanges();
+
+    const rail = (fixture.nativeElement as HTMLElement).querySelector<HTMLElement>('.side-rail');
+    expect(rail?.textContent).toContain('Anunțuri SEAP');
+    expect(rail?.textContent).toContain('Cont');
+    expect(rail?.textContent).not.toContain('Acasă');
+    expect(rail?.textContent).not.toContain('Cererile mele');
+    expect(rail?.textContent).not.toContain('Oferte');
+  });
+
+  it('redirects the public landing to the SEO SEAP page and shows the Terms link when marketplace is off', async () => {
+    const features = TestBed.inject(FeaturesService);
+    features.setMarketplaceEnabledForTest(false);
+
+    const fixture = TestBed.createComponent(App);
+    fixture.detectChanges();
+
+    const header = (fixture.nativeElement as HTMLElement).querySelector<HTMLElement>('.public-header');
+    expect(header?.textContent).not.toContain('Piața Live');
+    expect(header?.textContent).toContain('Termeni');
+    expect(header?.textContent).toContain('Autentificare');
   });
 });

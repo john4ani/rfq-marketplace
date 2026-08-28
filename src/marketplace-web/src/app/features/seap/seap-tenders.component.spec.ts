@@ -173,6 +173,13 @@ describe('SeapTendersComponent', () => {
     expect(text).toContain('Descarcă lista de cantități (.xlsx)');
 
     buttons = Array.from((fixture.nativeElement as HTMLElement).querySelectorAll<HTMLButtonElement>('button'));
+    expect(buttons.find(button => button.textContent?.includes('Descarcă propunerea tehnică'))?.disabled).toBe(true);
+
+    const acceptance = (fixture.nativeElement as HTMLElement).querySelector<HTMLInputElement>('.acceptance input');
+    acceptance!.click();
+    fixture.detectChanges();
+
+    buttons = Array.from((fixture.nativeElement as HTMLElement).querySelectorAll<HTMLButtonElement>('button'));
     buttons.find(button => button.textContent?.includes('Descarcă propunerea tehnică'))?.click();
     expect(downloadGeneratedFile).toHaveBeenCalledWith(company.id, specResult.documentId, 'TechnicalProposal');
     buttons.find(button => button.textContent?.includes('Descarcă lista de cantități'))?.click();

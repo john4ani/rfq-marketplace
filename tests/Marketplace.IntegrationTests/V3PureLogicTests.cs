@@ -12,16 +12,21 @@ namespace Marketplace.IntegrationTests;
 public sealed class V3PureLogicTests
 {
     [Theory]
-    [InlineData(0, 29)]
-    [InlineData(50_000, 29)]
-    [InlineData(99_999.99, 29)]
-    [InlineData(100_000, 49)]
-    [InlineData(250_000, 49)]
-    [InlineData(500_000, 49)]
-    [InlineData(500_001, 99)]
-    [InlineData(2_000_000, 99)]
-    public void PricingTiersFollowEstimatedValue(decimal value, int expectedEur) =>
-        Assert.Equal(expectedEur, PricingCalculator.ComputePriceEur(value));
+    [InlineData(0, 25)]
+    [InlineData(19_999, 25)]
+    [InlineData(20_000, 75)]
+    [InlineData(99_999.99, 75)]
+    [InlineData(100_000, 300)]
+    [InlineData(250_000, 300)]
+    [InlineData(500_000, 500)]
+    [InlineData(999_999.99, 500)]
+    [InlineData(1_000_000, 1_000)]
+    [InlineData(5_000_000, 1_000)]
+    [InlineData(10_000_000, 1_000)]
+    [InlineData(10_000_001, 2_000)]
+    [InlineData(50_000_000, 2_000)]
+    public void PricingTiersFollowEstimatedValue(decimal valueEur, int expectedEur) =>
+        Assert.Equal(expectedEur, PricingCalculator.ComputePriceEur(valueEur));
 
     [Fact]
     public void ChunkerSplitsLongTextWithOverlapAndPreservesOrder()

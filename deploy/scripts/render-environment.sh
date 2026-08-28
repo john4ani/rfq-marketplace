@@ -108,8 +108,10 @@ google_places_geocoding_endpoint="$(get_optional_parameter google-places-geocodi
 # V3 toggles: Prod reads its own SSM flags; Staging has independent toggles (default OFF, cost guardrail).
 features_seap_enabled="$(get_optional_parameter features-seap-ingestion-enabled "" "false")"
 features_auto_bidding_enabled="$(get_optional_parameter features-auto-bidding-enabled "" "false")"
+features_marketplace_enabled="$(get_optional_parameter features-marketplace-enabled "" "false")"
 staging_features_seap_enabled="$(get_optional_parameter staging-features-seap-ingestion-enabled "" "false")"
 staging_features_auto_bidding_enabled="$(get_optional_parameter staging-features-auto-bidding-enabled "" "false")"
+staging_features_marketplace_enabled="$(get_optional_parameter staging-features-marketplace-enabled "" "false")"
 
 seap_enabled="$(get_optional_parameter seap-enabled "" "false")"
 seap_base_url="$(get_optional_parameter seap-base-url "" "https://e-licitatie.ro")"
@@ -131,6 +133,7 @@ auto_bidding_api_key="$(get_optional_parameter auto-bidding-api-key true)"
 auto_bidding_api_url="$(get_optional_parameter auto-bidding-api-url "" "https://api.anthropic.com/v1/messages")"
 auto_bidding_max_request_tokens="$(get_optional_parameter auto-bidding-max-request-tokens "" "8000")"
 auto_bidding_top_chunks="$(get_optional_parameter auto-bidding-top-chunks "" "10")"
+auto_bidding_ron_to_eur_rate="$(get_optional_parameter auto-bidding-ron-to-eur-rate "" "5")"
 auto_bidding_embedding_model="$(get_optional_parameter auto-bidding-embedding-model "" "text-embedding-3-small")"
 auto_bidding_embedding_endpoint="$(get_optional_parameter auto-bidding-embedding-endpoint "" "https://api.openai.com/v1/embeddings")"
 auto_bidding_embedding_api_key="$(get_optional_parameter auto-bidding-embedding-api-key true)"
@@ -182,6 +185,7 @@ emit_backend_env() {
   local allowed_hosts="$6"
   local seap_flag="$7"
   local auto_bidding_flag="$8"
+  local marketplace_flag="$9"
 
   {
     printf 'API_ORIGIN_HOST=%s\n' "${api_host}"
@@ -218,6 +222,7 @@ emit_backend_env() {
     printf 'Email__ReplyToAddress=%s\n' "${email_reply_to_address}"
     printf 'Features__SeapIngestionEnabled=%s\n' "${seap_flag}"
     printf 'Features__AutoBiddingEnabled=%s\n' "${auto_bidding_flag}"
+    printf 'Features__MarketPlaceEnabled=%s\n' "${marketplace_flag}"
     printf 'Seap__Enabled=%s\n' "${seap_enabled}"
     printf 'Seap__BaseUrl=%s\n' "${seap_base_url}"
     printf 'Seap__NoticesPath=%s\n' "${seap_notices_path}"
@@ -237,6 +242,7 @@ emit_backend_env() {
     printf 'AutoBidding__ApiUrl=%s\n' "${auto_bidding_api_url}"
     printf 'AutoBidding__MaxRequestTokens=%s\n' "${auto_bidding_max_request_tokens}"
     printf 'AutoBidding__TopChunks=%s\n' "${auto_bidding_top_chunks}"
+    printf 'AutoBidding__RonToEurRate=%s\n' "${auto_bidding_ron_to_eur_rate}"
     printf 'AutoBidding__EmbeddingModel=%s\n' "${auto_bidding_embedding_model}"
     printf 'AutoBidding__EmbeddingEndpoint=%s\n' "${auto_bidding_embedding_endpoint}"
     printf 'AutoBidding__EmbeddingApiKey=%s\n' "${auto_bidding_embedding_api_key}"
@@ -260,12 +266,12 @@ emit_backend_env() {
 emit_backend_env "${output_dir}/.env.prod" \
   "${postgres_database}" "${s3_root_prefix_prod}" \
   "${api_origin_host}" "${frontend_origin}" "${api_origin_host};www.${api_origin_host};${legacy_api_origin}" \
-  "${features_seap_enabled}" "${features_auto_bidding_enabled}"
+  "${features_seap_enabled}" "${features_auto_bidding_enabled}" "${features_marketplace_enabled}"
 
 emit_backend_env "${output_dir}/.env.staging" \
   "compaspot_staging" "${s3_root_prefix_staging}" \
   "${staging_api_origin_host}" "${staging_frontend_origin}" "${instance_ip};127.0.0.1" \
-  "${staging_features_seap_enabled}" "${staging_features_auto_bidding_enabled}"
+  "${staging_features_seap_enabled}" "${staging_features_auto_bidding_enabled}" "${staging_features_marketplace_enabled}"
 
 chmod 600 "${output_dir}/.env" "${output_dir}/.env.prod" "${output_dir}/.env.staging"
 echo "Rendered environment files in ${output_dir}: .env, .env.prod, .env.staging (staging origin ${staging_frontend_origin})."

@@ -49,6 +49,8 @@ export const translations: Readonly<Record<string, string>> = {
   'Pagina principală CompaSpot': 'CompaSpot home page',
   'Piața Live': 'Live Marketplace',
   'Autentificare': 'Sign in',
+  'Termeni': 'Terms',
+
   'Creează un cont': 'Create an account',
   'Creează cont': 'Create account',
   'Autentifică-te': 'Sign in',

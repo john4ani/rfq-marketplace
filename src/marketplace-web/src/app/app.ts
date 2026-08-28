@@ -4,6 +4,7 @@ import { NavigationEnd, Router, RouterLink, RouterLinkActive, RouterOutlet } fro
 import { filter } from 'rxjs';
 import { AuthService } from './core/auth/auth.service';
 import { BackendAvailabilityService } from './core/connectivity/backend-availability.service';
+import { FeaturesService } from './core/features/features.service';
 import { LanguageService } from './core/i18n/language.service';
 import { NotificationMenuComponent } from './features/notifications/notification-menu.component';
 import { MessagesMenuComponent } from './features/messaging/messages-menu.component';
@@ -15,6 +16,7 @@ type NavContext = 'buyer' | 'company' | 'admin';
 export class App {
   readonly auth = inject(AuthService);
   readonly backend = inject(BackendAvailabilityService);
+  readonly features = inject(FeaturesService);
   readonly i18n = inject(LanguageService);
   private readonly router = inject(Router);
   readonly signingOut = signal(false);
@@ -39,6 +41,7 @@ export class App {
   readonly companyLink = computed(() => this.companyContextId() ? ['/account/company', this.companyContextId()] : ['/account']);
 
   constructor() {
+    void this.features.initialize();
     this.router.events.pipe(filter(event => event instanceof NavigationEnd), takeUntilDestroyed(inject(DestroyRef)))
       .subscribe(event => this.currentUrl.set((event as NavigationEnd).urlAfterRedirects));
   }
