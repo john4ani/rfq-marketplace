@@ -1,11 +1,14 @@
+using Marketplace.Application.AiIntake;
 using Marketplace.Application.Bidding;
 using Marketplace.Application.Billing;
+using Marketplace.Application.Companies;
 using Marketplace.Application.Seap;
 using Marketplace.Domain.Seap;
 using Marketplace.Infrastructure;
 using Marketplace.Infrastructure.Bidding;
 using Marketplace.Infrastructure.Billing;
 using Marketplace.Infrastructure.Identity;
+using Marketplace.Infrastructure.Storage;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
@@ -25,6 +28,7 @@ public sealed partial class AutoBiddingController(
     IOptions<AutoBiddingOptions> autoBiddingOptions,
     IOptionsMonitor<FeaturesOptions> features,
     ISeapIngestionService seapIngestionService,
+    IStorageService storage,
     ILogger<AutoBiddingController> logger) : ControllerBase
 {
     // MapInboundClaims (default) remaps the JWT "sub" claim to ClaimTypes.NameIdentifier, so read both.
@@ -122,6 +126,29 @@ public sealed partial class AutoBiddingController(
             tender.TechnicalProposalUrl,
             tender.BillOfQuantitiesUrl
         });
+    }
+
+    /// <summary>
+    /// Streams one of the auto-generated proposal files (technical .docx or bill of quantities .xlsx)
+    /// for a tender. The persisted storage reference (<c>local://…</c> or <c>s3://…</c>) is resolved
+    /// server-side so browsers never see a non-navigable scheme.
+    /// </summary>
+    [HttpGet("tenders/{tenderId:guid}/bid-file")]
+    public async Task<IActionResult> DownloadBidFile(
+        Guid tenderId, [FromQuery] GeneratedBidFileKind kind, CancellationToken cancellationToken)
+    {
+        SeapTender? tender = await biddingService.GetTenderAsync(tenderId, cancellationToken);
+        if (tender is null) return NotFound();
+        string? reference = kind switch
+        {
+            GeneratedBidFileKind.TechnicalProposal => tender.TechnicalProposalUrl,
+            _ => tender.BillOfQuantitiesUrl
+        };
+        if (string.IsNullOrWhiteSpace(reference)) return NotFound();
+        StorageObject? stored = await storage.OpenReadAsync(reference, cancellationToken);
+        return stored is null
+            ? NotFound()
+            : File(stored.Content, stored.ContentType, StorageObject.FileNameFromReference(reference));
     }
 
     [AllowAnonymous]

@@ -188,6 +188,7 @@ GET  /api/v1/seap/tenders/{tenderId}
 GET  /api/v1/seap/tenders/{tenderId}/pricing  [fair-pricing preview: EUR value, price, free generations]
 POST /api/v1/seap/tenders/{tenderId}/auto-bid
 GET  /api/v1/seap/tenders/{tenderId}/bid-status
+GET  /api/v1/seap/tenders/{tenderId}/bid-file?kind=TechnicalProposal|BillOfQuantities  [streams the generated .docx/.xlsx; the stored local://s3:// reference is resolved server-side]
 GET  /api/v1/seap/tender-match/availability   [SEAP Tender Match chat availability]
 POST /api/v1/seap/tender-match                [natural language → CPV prefixes + counties, one clarification at a time]
 PUT  /api/v1/seap/tender-match/profile        [persist confirmed filters on the represented company]

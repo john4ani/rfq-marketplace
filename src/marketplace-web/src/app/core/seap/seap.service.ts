@@ -104,6 +104,11 @@ export class SeapService {
   getTenderPricing(id: string) { return this.http.get<TenderPricing>(`/api/v1/seap/tenders/${id}/pricing`); }
   startAutoBid(id: string) { return this.http.post<AutoBidResponse>(`/api/v1/seap/tenders/${id}/auto-bid`, {}); }
   getBidStatus(id: string) { return this.http.get<BidStatus>(`/api/v1/seap/tenders/${id}/bid-status`); }
+
+  /** Downloads one auto-generated proposal file (technical .docx or bill of quantities .xlsx) as a blob. */
+  downloadBidFile(id: string, kind: 'TechnicalProposal' | 'BillOfQuantities') {
+    return this.http.get(`/api/v1/seap/tenders/${id}/bid-file`, { params: { kind }, responseType: 'blob' });
+  }
   matchTenderAvailability() { return this.http.get<SeapTenderMatchAvailability>('/api/v1/seap/tender-match/availability'); }
   matchTenders(input: string, turns: SeapClarificationTurn[] = []) {
     return this.http.post<SeapTenderMatchResult>('/api/v1/seap/tender-match', { input, turns });

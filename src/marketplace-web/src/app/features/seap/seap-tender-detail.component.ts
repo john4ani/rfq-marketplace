@@ -9,7 +9,7 @@ import { AutoBidResponse, BidStatus, SeapService, SeapTender, TenderPricing } fr
   selector: 'app-seap-tender-detail',
   imports: [RouterLink, DatePipe, DecimalPipe],
   changeDetection: ChangeDetectionStrategy.OnPush,
-  styles: [`:host{display:block}.page{display:grid;gap:1.2rem;max-width:64rem}.back-link{display:inline-flex;align-items:center;gap:.4rem;width:fit-content;color:var(--forest);font-weight:750;text-decoration:none;font-size:.92rem}.eyebrow{margin:0;color:var(--forest-light);font-size:.76rem;font-weight:800;letter-spacing:.1em;text-transform:uppercase}h1{margin:.15rem 0;font-size:clamp(1.9rem,4vw,2.6rem);letter-spacing:-.04em}.card,.state{padding:1.15rem 1.25rem;border:1px solid var(--border);border-radius:1rem;background:var(--surface);box-shadow:var(--shadow-soft)}.card h2{margin:0;font-size:1.05rem}.facts{display:grid;grid-template-columns:repeat(auto-fit,minmax(11rem,1fr));gap:.75rem}.facts>div{display:grid;gap:.2rem;padding:.85rem;border:1px solid var(--border);border-radius:.8rem;background:var(--warm-white)}.facts span{color:var(--muted);font-size:.74rem;font-weight:750;text-transform:uppercase;letter-spacing:.05em}.facts strong{font-size:.98rem}.actions{display:flex;flex-wrap:wrap;gap:.7rem;align-items:center}button{min-height:2.6rem;padding:.6rem 1.05rem;border:0;border-radius:.6rem;color:#fff;background:var(--forest);font:inherit;font-weight:800;cursor:pointer}button:disabled{opacity:.55;cursor:not-allowed}.note{border-radius:.7rem;padding:.8rem .95rem;line-height:1.5}.note.info{color:#315947;background:#edf6f1}.note.warn{color:#7a5206;background:#faf0d8}.note.error{color:#8b2222;background:#fff0f0}.copilot{margin-top:.7rem;font-size:.82rem}.downloads{display:flex;flex-wrap:wrap;gap:.6rem}.downloads a{display:inline-flex;padding:.55rem .9rem;border-radius:.6rem;color:var(--forest);background:color-mix(in srgb,var(--sand) 45%,white);font-weight:800;text-decoration:none}.acceptance{display:flex;gap:.6rem;align-items:flex-start;margin-top:.8rem;padding:.8rem .9rem;border:1px solid var(--border);border-radius:.7rem;background:var(--warm-white)}.acceptance input{width:1.05rem;height:1.05rem;margin-top:.15rem;accent-color:var(--forest)}.acceptance label{font-size:.85rem;line-height:1.45;color:var(--ink)}.state{justify-items:center;padding:2rem;text-align:center;color:var(--muted)}`],
+  styles: [`:host{display:block}.page{display:grid;gap:1.2rem;max-width:64rem}.back-link{display:inline-flex;align-items:center;gap:.4rem;width:fit-content;color:var(--forest);font-weight:750;text-decoration:none;font-size:.92rem}.eyebrow{margin:0;color:var(--forest-light);font-size:.76rem;font-weight:800;letter-spacing:.1em;text-transform:uppercase}h1{margin:.15rem 0;font-size:clamp(1.9rem,4vw,2.6rem);letter-spacing:-.04em}.card,.state{padding:1.15rem 1.25rem;border:1px solid var(--border);border-radius:1rem;background:var(--surface);box-shadow:var(--shadow-soft)}.card h2{margin:0;font-size:1.05rem}.facts{display:grid;grid-template-columns:repeat(auto-fit,minmax(11rem,1fr));gap:.75rem}.facts>div{display:grid;gap:.2rem;padding:.85rem;border:1px solid var(--border);border-radius:.8rem;background:var(--warm-white)}.facts span{color:var(--muted);font-size:.74rem;font-weight:750;text-transform:uppercase;letter-spacing:.05em}.facts strong{font-size:.98rem}.actions{display:flex;flex-wrap:wrap;gap:.7rem;align-items:center}button{min-height:2.6rem;padding:.6rem 1.05rem;border:0;border-radius:.6rem;color:#fff;background:var(--forest);font:inherit;font-weight:800;cursor:pointer}button:disabled{opacity:.55;cursor:not-allowed}.note{border-radius:.7rem;padding:.8rem .95rem;line-height:1.5}.note.info{color:#315947;background:#edf6f1}.note.warn{color:#7a5206;background:#faf0d8}.note.error{color:#8b2222;background:#fff0f0}.copilot{margin-top:.7rem;font-size:.82rem}.downloads{display:flex;flex-wrap:wrap;gap:.6rem}.downloads a,.downloads button{display:inline-flex;align-items:center;padding:.55rem .9rem;border-radius:.6rem;color:var(--forest);background:color-mix(in srgb,var(--sand) 45%,white);font-weight:800;text-decoration:none;font-size:.95rem;min-height:auto}.acceptance{display:flex;gap:.6rem;align-items:flex-start;margin-top:.8rem;padding:.8rem .9rem;border:1px solid var(--border);border-radius:.7rem;background:var(--warm-white)}.acceptance input{width:1.05rem;height:1.05rem;margin-top:.15rem;accent-color:var(--forest)}.acceptance label{font-size:.85rem;line-height:1.45;color:var(--ink)}.state{justify-items:center;padding:2rem;text-align:center;color:var(--muted)}`],
   template: `<section class="page">
     <a class="back-link" routerLink="/seap/tenders">← Anunțuri SEAP</a>
     @if (loading()) { <section class="state" role="status">Se încarcă anunțul…</section> }
@@ -25,10 +25,12 @@ import { AutoBidResponse, BidStatus, SeapService, SeapTender, TenderPricing } fr
       @if (tender.description) { <section class="card"><h2>Descriere</h2><p>{{ tender.description }}</p></section> }
       <section class="card">
         @if (bidStatus(); as status) {
-          @if (status.status === 'BidGenerated' && status.technicalProposalUrl) {
+          @if (status.status === 'BidGenerated') {
             <div class="note info"><strong>Oferta automată este gata.</strong>
-              <div class="downloads"><a [href]="status.technicalProposalUrl" target="_blank" rel="noreferrer">Descarcă propunerea tehnică (.docx)</a>
-                <a [href]="status.billOfQuantitiesUrl ?? '#'" target="_blank" rel="noreferrer">Descarcă lista de cantități (.xlsx)</a></div>
+              <div class="downloads">
+                <button type="button" [disabled]="downloading()" (click)="downloadBidFile('TechnicalProposal')">Descarcă propunerea tehnică (.docx)</button>
+                <button type="button" [disabled]="downloading()" (click)="downloadBidFile('BillOfQuantities')">Descarcă lista de cantități (.xlsx)</button>
+              </div>
               <label class="acceptance"><input type="checkbox" [checked]="acceptsResponsibility()" (change)="acceptsResponsibility.set($any($event.target).checked)" />
                 <span>Îmi asum responsabilitatea verificării și asumării conținutului acestor documente înainte de semnarea electronică și depunerea în SEAP.</span></label></div>
           } @else if (busy()) { <div class="note info" role="status">Se generează oferta automată… poate dura câteva minute.</div> }
@@ -61,6 +63,7 @@ export class SeapTenderDetailComponent {
   readonly message = signal('');
   readonly messageError = signal(false);
   readonly acceptsResponsibility = signal(false);
+  readonly downloading = signal(false);
 
   constructor() {
     this.service.getTender(this.tenderId).subscribe({
@@ -96,6 +99,30 @@ export class SeapTenderDetailComponent {
     this.busy.set(false);
     this.messageError.set(true);
     this.message.set('Plata nu este configurată. Contactează suportul.');
+  }
+
+  /** Downloads one auto-generated proposal file through the API (the stored local://s3:// reference is
+   *  resolved server-side; browsers cannot navigate those schemes directly). */
+  downloadBidFile(kind: 'TechnicalProposal' | 'BillOfQuantities'): void {
+    if (this.downloading()) return;
+    this.downloading.set(true);
+    this.message.set('');
+    this.service.downloadBidFile(this.tenderId, kind).subscribe({
+      next: blob => {
+        const url = URL.createObjectURL(blob);
+        const anchor = document.createElement('a');
+        anchor.href = url;
+        anchor.download = kind === 'TechnicalProposal' ? 'PropunereTehnica.docx' : 'ListaCantitati.xlsx';
+        anchor.click();
+        URL.revokeObjectURL(url);
+        this.downloading.set(false);
+      },
+      error: () => {
+        this.downloading.set(false);
+        this.messageError.set(true);
+        this.message.set('Fișierul nu a putut fi descărcat. Regenerează propunerea și încearcă din nou.');
+      }
+    });
   }
 
   private pollUntilReady(): void {
