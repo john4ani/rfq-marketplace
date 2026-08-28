@@ -113,6 +113,16 @@ public sealed class SeapTender
         UpdatedAt = now;
     }
 
+    /// <summary>Backfills the deterministic county derived from the contracting-authority name for tenders
+    /// imported before the county enrichment existed. Idempotent: skips tenders that already have a county
+    /// and values that carry no recognizable county.</summary>
+    public void BackfillCounty(string? county, DateTimeOffset now)
+    {
+        if (County is not null || string.IsNullOrWhiteSpace(county)) return;
+        County = county.Trim();
+        UpdatedAt = now;
+    }
+
     private static string Required(string value, string message) =>
         string.IsNullOrWhiteSpace(value) ? throw new ArgumentException(message) : value.Trim();
 

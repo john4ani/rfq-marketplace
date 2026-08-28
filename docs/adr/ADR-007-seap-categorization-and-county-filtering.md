@@ -43,6 +43,9 @@ interes" possible without inventing a SEAP location feed.
 
 - `SeapTender` gains `CpvNames`, `County`, `CategoryId` (nullable FK → `Categories`); `CpvCategoryMappings`
   is a new persistent cache table. Both migrations are additive.
+- Tenders imported before the enrichment migration have `County = null`; the next ingestion poll **backfills
+  the county deterministically** from the contracting-authority name (`CountyParser`, idempotent, no AI), so
+  the county filter self-heals without a re-import.
 - Auto-created categories live under General Procurement and appear in the shared category catalog; they
   are never routed into Construction.
 - A tender in a county that is not a county seat (e.g. Petroșani) has `County = null` and is excluded only

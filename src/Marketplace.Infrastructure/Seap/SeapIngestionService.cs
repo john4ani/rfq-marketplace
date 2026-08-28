@@ -84,6 +84,10 @@ public sealed partial class SeapIngestionService(
 
     public async Task<int> PollAndImportAsync(CancellationToken cancellationToken)
     {
+        // Self-heal deterministic enrichment first: tenders imported before the county field existed get
+        // their county re-derived from the contracting-authority name (idempotent, no AI).
+        await BackfillCountiesAsync(cancellationToken);
+
         int maxNewPerHour = Math.Max(1, settings.MaxNewNoticesPerHour);
         if (await CountImportedThisHourAsync(cancellationToken) >= maxNewPerHour)
         {
@@ -113,6 +117,33 @@ public sealed partial class SeapIngestionService(
         dbContext.SeapTenders.AsNoTracking()
             .CountAsync(tender => tender.CreatedAt >= timeProvider.GetUtcNow().AddHours(-1), cancellationToken);
 
+    /// <summary>
+    /// Deterministic, idempotent enrichment for tenders imported before the county field existed: re-derives
+    /// <c>SeapTender.County</c> from the contracting-authority name via <see cref="CountyParser"/>. Never
+    /// touches a tender that already has a county and never invents one (unrecognizable names stay null).
+    /// </summary>
+    public async Task<int> BackfillCountiesAsync(CancellationToken cancellationToken)
+    {
+        DateTimeOffset now = timeProvider.GetUtcNow();
+        List<SeapTender> missing = await dbContext.SeapTenders
+            .Where(tender => tender.County == null)
+            .ToListAsync(cancellationToken);
+        int updated = 0;
+        foreach (SeapTender tender in missing)
+        {
+            string? county = CountyParser.Parse(tender.BuyerName);
+            if (county is null) continue;
+            tender.BackfillCounty(county, now);
+            updated++;
+        }
+        if (updated > 0)
+        {
+            await dbContext.SaveChangesAsync(cancellationToken);
+            LogCountiesBackfilled(logger, updated);
+        }
+        return updated;
+    }
+
     [LoggerMessage(EventId = 5103, Level = LogLevel.Information, Message = "SEAP tender {SeapId} imported with {AttachmentCount} attachments.")]
     private static partial void LogSeapImported(ILogger logger, string seapId, int attachmentCount);
     [LoggerMessage(EventId = 5104, Level = LogLevel.Warning, Message = "SEAP attachment {FileName} for {SeapId} failed; continuing.")]
@@ -123,4 +154,6 @@ public sealed partial class SeapIngestionService(
     private static partial void LogRateLimitReached(ILogger logger, int cap);
     [LoggerMessage(EventId = 5107, Level = LogLevel.Warning, Message = "SEAP tender {SeapId} could not be parsed; recorded as Failed in SeapRawIngestion.")]
     private static partial void LogParseFailed(ILogger logger, string seapId, Exception exception);
+    [LoggerMessage(EventId = 5109, Level = LogLevel.Information, Message = "Backfilled county for {Count} previously imported SEAP tenders.")]
+    private static partial void LogCountiesBackfilled(ILogger logger, int count);
 }
