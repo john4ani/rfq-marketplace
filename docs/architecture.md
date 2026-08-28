@@ -64,9 +64,10 @@ dependency is behind an interface with a local default. `Storage:UseLocalStorage
 shared `IStorageService` (used by SEAP attachments and the Company Vault) to `LocalFileStorageService`
 (disk under `App_Data/Storage/`) instead of `CloudflareR2StorageService` (R2/AWS S3); `AI:UseMockProvider`
 swaps `ILlmProvider` to `StaticMockLlmProvider` (preset JSON) instead of `AnthropicClaudeProvider`;
-`Seap:LocalFallbackEnabled=true` makes `SeapApiClient` read the golden payloads under
-`App_Data/SeapMocks/` when the live e-licitatie.ro endpoint is unreachable; Development additionally sets
-`Features:SeapIngestionEnabled=true` so the SEAP worker actually imports (golden payload offline, live
-notices online), while Prod/Staging keep every flag false at deploy; and the EF migrations are
+the SEAP importer uses the **live e-licitatie.ro endpoint in every environment** — Development mirrors
+Staging/Prod and never falls back to golden payloads at runtime, so local validation is relevant to
+production (the golden payloads under `tests/Fixtures/` remain **test-only** fixtures for the notice-parser
+regression suite). Development additionally sets `Features:SeapIngestionEnabled=true` so the SEAP worker
+imports against the real endpoint (Prod/Staging toggle the same flag at deploy); and the EF migrations are
 applied automatically at startup in Development (Prod/Staging migrate through the explicit migration
 bundle). See `README.md` → "Local provider matrix".

@@ -25,8 +25,9 @@ Angular 21 is intentionally pinned because the available Node 24.14 runtime does
 ## Start locally
 
 The local-first developer experience (`appsettings.Development.json`) runs without any cloud
-credentials: files go to a local directory, the LLM is a deterministic mock, and the SEAP importer
-falls back to golden payloads when the live endpoint is unreachable. Infrastructure is the single
+credentials: files go to a local directory and the LLM is a deterministic mock. The SEAP importer uses
+the **live e-licitatie.ro endpoint** — the same setup as Staging/Prod — so local validation is relevant
+to production (the golden payloads are test-only fixtures for the notice parser). Infrastructure is the single
 `compose.yaml` — PostgreSQL 17 + pgvector on port 5432.
 
 1. Copy `.env.example` to `.env`.
@@ -68,7 +69,7 @@ falls back to golden payloads when the live endpoint is unreachable. Infrastruct
 | Object storage | `Storage:UseLocalStorage=true` → files under `App_Data/Storage/` (e.g. `C:\CompaSpotStorage\`) | Set `Storage:UseLocalStorage=false` + `S3:*` (Cloudflare R2 or AWS S3) |
 | LLM (auto-bidding) | `AI:UseMockProvider=true` → preset JSON from `StaticMockLlmProvider` | Set `AI:UseMockProvider=false` + `AutoBidding:ApiKey` (Anthropic Claude) |
 | AI intake (OpenAI) | disabled (no key) — falls back to manual need entry | `AiIntake:ApiKey` |
-| SEAP live endpoint | `Seap:LocalFallbackEnabled=true` → `App_Data/SeapMocks/*.json` when the live API is unreachable | Set `Seap:LocalFallbackEnabled=false` for strict live-only behavior |
+| SEAP live endpoint | live `https://e-licitatie.ro` (same as Prod; no golden fallback) | requires network access |
 | Embeddings / OCR | skipped (chunks stored without vectors) | `AutoBidding:EmbeddingApiKey`, `DocumentIntelligence:*` |
 | Database | `compose.yaml` PostgreSQL 17 + pgvector on `localhost:5432`, migrated automatically at API startup | point `ConnectionStrings:MarketplaceDatabase` elsewhere |
 
