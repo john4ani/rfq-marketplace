@@ -105,8 +105,8 @@ describe('OfferEditorComponent', () => {
 
     const text = (fixture.nativeElement as HTMLElement).textContent ?? '';
     expect(fixture.componentInstance.draft().pricingMode).toBe('Total');
-    expect(text).not.toContain('PreÈ› pe fiecare poziÈ›ie');
-    expect(text).not.toContain('Cum vrei sÄƒ prezinÈ›i preÈ›ul?');
+    expect(text).not.toContain('Preț pe fiecare poziție');
+    expect(text).not.toContain('Cum vrei să prezinți prețul?');
   });
 
   it('offers a pricing choice for multiple commercial positions', async () => {

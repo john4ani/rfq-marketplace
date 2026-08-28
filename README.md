@@ -2,9 +2,9 @@
 
 A production-oriented, industry-neutral marketplace for requests for quotation. Buyers publish structured needs, relevant providers submit comparable offers, and buyers select the best fit. Construction materials are the first category, while the product model is designed to expand across markets and industries.
 
-The current MVP journey centers on **PiaÈ›a Live**: providers discover matched open requests, inspect the need, submit or revise an offer, and Buyers receive an in-app notification that links to side-by-side offer comparison. The account dashboard separates day-to-day activity from profile and matching settings, while the participant directory lives on its own focused page.
+The current MVP journey centers on **Piața Live**: providers discover matched open requests, inspect the need, submit or revise an offer, and Buyers receive an in-app notification that links to side-by-side offer comparison. The account dashboard separates day-to-day activity from profile and matching settings, while the participant directory lives on its own focused page.
 
-The repository foundation, identity, Buyer/Supplier profiles, supplier settings, â€œPiaÈ›a Liveâ€, RFQ publication, provider offers, buyer comparison, winner selection, in-app notifications, private offer messaging, production hardening, password recovery, and the repeatable MVP acceptance gate are complete through Milestone 7. Milestone 8 adds the implemented AWS deployment foundation and the live production environment. See [the Milestone 8 record](docs/milestones/milestone-8-aws-deployment.md) and the [environment naming note](docs/operations/environments.md).
+The repository foundation, identity, Buyer/Supplier profiles, supplier settings, "Piața Live", RFQ publication, provider offers, buyer comparison, winner selection, in-app notifications, private offer messaging, production hardening, password recovery, and the repeatable MVP acceptance gate are complete through Milestone 7. Milestone 8 adds the implemented AWS deployment foundation and the live production environment. See [the Milestone 8 record](docs/milestones/milestone-8-aws-deployment.md) and the [environment naming note](docs/operations/environments.md).
 
 ## Technology baseline
 

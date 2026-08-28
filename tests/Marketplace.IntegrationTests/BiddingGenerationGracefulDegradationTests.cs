@@ -39,7 +39,7 @@ public sealed class BiddingGenerationGracefulDegradationTests
         await db.Database.MigrateAsync();
 
         var tender = SeapTenderMapper.MapNotice(new SeapTenderNoticeDto(
-            "CN-DEGRADE-1", "AchiziÈ›ie consumabile", null, ["33652100-6"], 1000m, "RON",
+            "CN-DEGRADE-1", "Achiziție consumabile", null, ["33652100-6"], 1000m, "RON",
             "Entitate Test", DateTimeOffset.UtcNow, DateTimeOffset.UtcNow.AddDays(30), []), DateTimeOffset.UtcNow);
         db.SeapTenders.Add(tender);
         await db.SaveChangesAsync();
@@ -90,8 +90,8 @@ public sealed class BiddingGenerationGracefulDegradationTests
 
         DateTimeOffset now = DateTimeOffset.UtcNow;
         db.SeapTenders.AddRange(
-            SeapTenderMapper.MapNotice(new SeapTenderNoticeDto("CN-CONSTRUCT-1", "LucrÄƒri de construcÈ›ii", null, ["45200000-1"], 1000m, "RON", "Autoritate", now, now.AddDays(30), []), now),
-            SeapTenderMapper.MapNotice(new SeapTenderNoticeDto("CN-TRANSPORT-1", "Transport mÄƒrfuri", null, ["60100000-9"], 500m, "RON", "Autoritate", now, now.AddDays(30), []), now),
+            SeapTenderMapper.MapNotice(new SeapTenderNoticeDto("CN-CONSTRUCT-1", "Lucrări de construcții", null, ["45200000-1"], 1000m, "RON", "Autoritate", now, now.AddDays(30), []), now),
+            SeapTenderMapper.MapNotice(new SeapTenderNoticeDto("CN-TRANSPORT-1", "Transport mărfuri", null, ["60100000-9"], 500m, "RON", "Autoritate", now, now.AddDays(30), []), now),
             SeapTenderMapper.MapNotice(new SeapTenderNoticeDto("CN-MEDICAL-1", "Medicamente", null, ["33652100-6"], 200m, "RON", "Autoritate", now, now.AddDays(30), []), now));
         await db.SaveChangesAsync();
 
@@ -117,7 +117,7 @@ public sealed class BiddingGenerationGracefulDegradationTests
     private sealed class UnavailableEmbeddingService : IEmbeddingService
     {
         public Task<float[]> EmbedAsync(string text, CancellationToken cancellationToken) =>
-            throw new InvalidOperationException("Cheia pentru embeddings OpenAI nu este configuratÄƒ.");
+            throw new InvalidOperationException("Cheia pentru embeddings OpenAI nu este configurată.");
     }
 
     private sealed class MemoryStorageService : IStorageService

@@ -13,7 +13,7 @@ describe('CompanyDetailsComponent', () => {
   const company: SupplierProfile = {
     id: 'company-1', tradingName: 'SC Ion Balan', companyRegistrationNumber: 'J33/1/2026', taxIdentifier: null,
     contactPerson: 'Ion', contactEmail: 'ion@example.test', phoneNumber: '0712345678', website: null,
-    address: 'Strada 1', city: 'Suceava', county: 'Suceava', country: 'RomÃ¢nia', latitude: null,
+    address: 'Strada 1', city: 'Suceava', county: 'Suceava', country: 'România', latitude: null,
     longitude: null, marketRadiusKm: 30, description: null, approvalStatus: 'Approved', isActive: true
   };
 
@@ -50,8 +50,8 @@ describe('CompanyDetailsComponent', () => {
 
     const text = (fixture.nativeElement as HTMLElement).textContent ?? '';
 
-    expect(text).toContain('RazÄƒ de interes pentru anunÈ›uri');
-    expect(text).toContain('AnunÈ›uri SEAP');
+    expect(text).toContain('Rază de interes pentru anunțuri');
+    expect(text).toContain('Anunțuri SEAP');
 
     const input = (fixture.nativeElement as HTMLElement).querySelector<HTMLInputElement>('input[formControlName="marketRadiusKm"]');
     expect(input).toBeTruthy();
@@ -60,7 +60,7 @@ describe('CompanyDetailsComponent', () => {
     fixture.detectChanges();
 
     const saveButton = Array.from((fixture.nativeElement as HTMLElement).querySelectorAll<HTMLButtonElement>('button'))
-      .find(button => button.textContent?.includes('SalveazÄƒ raza de interes'));
+      .find(button => button.textContent?.includes('Salvează raza de interes'));
     expect(saveButton).toBeTruthy();
     saveButton!.click();
     fixture.detectChanges();

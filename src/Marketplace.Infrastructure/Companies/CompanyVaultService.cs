@@ -14,8 +14,8 @@ using Microsoft.Extensions.Options;
 namespace Marketplace.Infrastructure.Companies;
 
 /// <summary>
-/// Company Vault: upload â†’ persist metadata â†’ optional Azure OCR extraction â†’ overlapping chunking â†’
-/// optional OpenAI embeddings â†’ pgvector chunks. Every external step is interface-gated so the flow
+/// Company Vault: upload → persist metadata → optional Azure OCR extraction → overlapping chunking →
+/// optional OpenAI embeddings → pgvector chunks. Every external step is interface-gated so the flow
 /// degrades gracefully when credentials are missing.
 /// </summary>
 public sealed partial class CompanyVaultService : ICompanyVaultService
@@ -153,7 +153,7 @@ public sealed partial class CompanyVaultService : ICompanyVaultService
         }
         catch (InvalidOperationException)
         {
-            return null; // embeddings not configured â€” the chunk is stored without a vector.
+            return null; // embeddings not configured — the chunk is stored without a vector.
         }
     }
 

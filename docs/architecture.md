@@ -1,11 +1,11 @@
-﻿# CompaSpot MVP v2 â€” Architecture
+﻿# CompaSpot MVP v2 — Architecture
 
 CompaSpot remains an ASP.NET Core + PostgreSQL + Angular modular monolith deployed on the existing AWS/Cloudflare topology. No microservice migration, Kubernetes, Redis, broker, or general framework adoption is implied by MVP v2.
 
 ## Dependency rule
 
 ```text
-Domain â†’ Application â†’ Infrastructure / API / Angular UI
+Domain → Application → Infrastructure / API / Angular UI
 ```
 
 Domain does not depend on AWS, OpenAI, SMS/email implementation, Angular, EF Core implementation details, or transport concerns. Controllers/endpoints stay thin; application/domain services own use-case logic.
@@ -20,12 +20,12 @@ Domain does not depend on AWS, OpenAI, SMS/email implementation, Angular, EF Cor
 - Company representation is resolved through active `CompanyMembership`, not a global active-company claim. This foundation is additive: `SupplierProfile` and its shared-key compatibility constraint remain unchanged until a concrete future requirement justifies a broader migration.
 - A provider notification is never addressed to a company ID. The application resolves its active CompanyMembership users in the same write operation and creates one personal notification per distinct recipient. Conversations use the same membership check for company-side access; message authors remain User IDs.
 - Supplier Discovery persists `OpportunityMatch` as an auditable, per-need relation to exactly one registered company or unregistered candidate. Registered provider matching remains authoritative; candidate relevance is deterministic from category compatibility and county, then requires a separate Administrator decision for that exact opportunity. The decision never sends contact automatically.
-- Admin web discovery is a bounded two-stage extension of Supplier Discovery: an explicit Need-context action, or an exact Admin **Firme** lookup after internal search is insufficient, performs limited external evidence gathering, then a tool-free strict-JSON qualification pass. `SupplierDiscoveryService` orchestrates `SupplierSearchIntent`, a shared `CategoryDiscoveryProfile`, geographic planning, independent Google Places/Web collectors, deterministic evidence merging and the qualifier. Google Places and OpenAI Web Search are independent sources; source warnings do not discard usable evidence from the other source. Geographic expansion is local â†’ nearby â†’ county only when the preceding tier is insufficient, and the merger persists that provenance. `SupplierWebDiscoveryRun` persists only provisional commercial evidence/results and telemetry; it does not bypass candidate review, opportunity approval or outreach policy. A company lookup never creates an `OpportunityMatch`.
+- Admin web discovery is a bounded two-stage extension of Supplier Discovery: an explicit Need-context action, or an exact Admin **Firme** lookup after internal search is insufficient, performs limited external evidence gathering, then a tool-free strict-JSON qualification pass. `SupplierDiscoveryService` orchestrates `SupplierSearchIntent`, a shared `CategoryDiscoveryProfile`, geographic planning, independent Google Places/Web collectors, deterministic evidence merging and the qualifier. Google Places and OpenAI Web Search are independent sources; source warnings do not discard usable evidence from the other source. Geographic expansion is local → nearby → county only when the preceding tier is insufficient, and the merger persists that provenance. `SupplierWebDiscoveryRun` persists only provisional commercial evidence/results and telemetry; it does not bypass candidate review, opportunity approval or outreach policy. A company lookup never creates an `OpportunityMatch`.
 - Outreach is an additive Supplier Discovery concern: `SupplierOutreachContact` records manual or email contact attempts, `SupplierContactSuppression` prevents later contact (including rediscovery), and email links are invitation- and opportunity-specific. SMTP is called only after the attempt/invitation is persisted, then delivery is recorded without holding the database transaction across the network call.
 
 ## AI contracts and observability
 
-Keep separate application contracts: `IGeneralNeedInterpreter` and `IConstructionProjectInterpreter`. Each user turn should normally use one model call. Capture operation, model/provider, prompt version, duration, success/failure, token count, need/project ID, clarification count, fallback and user correctionâ€”never secrets or unnecessary request content.
+Keep separate application contracts: `IGeneralNeedInterpreter` and `IConstructionProjectInterpreter`. Each user turn should normally use one model call. Capture operation, model/provider, prompt version, duration, success/failure, token count, need/project ID, clarification count, fallback and user correction—never secrets or unnecessary request content.
 
 `IGeneralNeedInterpreter` returns only a non-binding `SuggestedProcurementMode` (`ConstructionProjects` when appropriate). The shared Procurement Core remains in its current flow until the user makes an explicit choice; this keeps construction detection out of routing and persistence.
 
@@ -35,7 +35,7 @@ Before Task 9, the Construction interpreter is a routing/interpretation boundary
 
 Critical business states should be refreshable, back-safe and directly addressable where meaningful. Not every transient dialog needs a route. Buyer Home, My Requests, offer comparison, provider opportunity/request and claim continuity are critical paths.
 
-## V3 â€” Auto-bidding (2026-08)
+## V3 — Auto-bidding (2026-08)
 
 A new, configuration-gated auto-bidding module extends the modular monolith without touching the Procurement Core:
 
@@ -67,4 +67,4 @@ swaps `ILlmProvider` to `StaticMockLlmProvider` (preset JSON) instead of `Anthro
 `Seap:LocalFallbackEnabled=true` makes `SeapApiClient` read the golden payloads under
 `App_Data/SeapMocks/` when the live e-licitatie.ro endpoint is unreachable; and the EF migrations are
 applied automatically at startup in Development (Prod/Staging migrate through the explicit migration
-bundle). See `README.md` â†’ "Local provider matrix".
+bundle). See `README.md` → "Local provider matrix".
