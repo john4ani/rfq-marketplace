@@ -53,13 +53,13 @@ public sealed class SeapFairPricingEndpointTests : IClassFixture<MarketplaceWebA
             .Content.ReadFromJsonAsync<TokenResponse>())!;
         client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token.AccessToken);
 
-        // 500.000.000 RON ÷ 5 = 100.000.000 EUR → >10M tier → 2.000 €.
+        // 500.000.000 RON ÷ 5 = 100.000.000 EUR → ≥50M tier → 20.000 €.
         Guid tenderId = await SeedTenderAsync(estimatedValueRon: 500_000_000m);
 
         PricingPreview preview = (await (await client.GetAsync($"/api/v1/seap/tenders/{tenderId}/pricing"))
             .Content.ReadFromJsonAsync<PricingPreview>())!;
 
-        Assert.Equal(2_000, preview.PriceEur);
+        Assert.Equal(20_000, preview.PriceEur);
     }
 
     [Fact]

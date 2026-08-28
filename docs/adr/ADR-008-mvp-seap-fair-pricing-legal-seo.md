@@ -17,7 +17,9 @@ Additionally:
 1. **Fair Pricing** replaces the 29/49/99 EUR tiers: document generation (.docx/.xlsx) is priced dynamically
    from the tender's `EstimatedValue` (SEAP, RON), converted to EUR with the configurable
    `AutoBidding:RonToEurRate` (default 5). Tiers per generation: <20k€ → 25€, 20k–100k€ → 75€,
-   100k–500k€ → 300€, 500k–1M€ → 500€, 1M–10M€ → 1.000€, >10M€ → 2.000€. **The first generation per account is
+   100k–500k€ → 300€, 500k–1M€ → 500€, 1M–5M€ → 1.000€, 5M–10M€ → 2.000€, 10M–15M€ → 3.000€,
+   15M–20M€ → 4.000€, 20M–25M€ → 5.000€, 25M–30M€ → 6.000€, 30M–35M€ → 7.000€, 35M–40M€ → 8.000€,
+   40M–45M€ → 9.000€, 45M–50M€ → 10.000€, ≥50M€ → 20.000€. **The first generation per account is
    free** (launch offer) — tracked by `ApplicationUser.FreeGenerationsRemaining` (default 1), consumed by the API.
 2. **Legal shield**: the platform is positioned as an assisted-drafting software tool (Copilot), not legal or
    technical consulting. A public **Terms page** (`/terms`) contains the explicit Limitation of Liability clause.
