@@ -33,7 +33,7 @@ public sealed class CompanyVaultDownloadEndpointTests : IClassFixture<Marketplac
                 services.AddSingleton<IDocumentExtractionService, FakeDocumentExtractionService>();
             });
             builder.ConfigureAppConfiguration((_, configuration) => configuration.AddInMemoryCollection(
-                new Dictionary<string, string?> { ["Logging:LogLevel:Microsoft.EntityFrameworkCore.Database.Command"] = "Information" }));
+                new Dictionary<string, string?> { ["AI:UseMockProvider"] = "true", ["Logging:LogLevel:Microsoft.EntityFrameworkCore.Database.Command"] = "Information" }));
         });
         using HttpClient client = downloadFactory.CreateClient(new() { BaseAddress = new Uri("https://localhost") });
 
