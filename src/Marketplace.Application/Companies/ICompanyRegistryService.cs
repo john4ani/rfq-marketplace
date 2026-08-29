@@ -6,6 +6,9 @@ public interface ICompanyRegistryService
     Task<CompanyRegistryEntry?> UpdateDiscoveredAsync(Guid candidateId, DiscoveredCompanyUpdate input, CancellationToken cancellationToken);
     Task<bool> DeleteDiscoveredAsync(Guid candidateId, CancellationToken cancellationToken);
     Task<CompanyRegistryEntry?> SetRegisteredActiveAsync(Guid companyId, bool isActive, CancellationToken cancellationToken);
+    /// <summary>Administrator action: grants one more free auto-bid generation to the registered company's
+    /// owner account (raises <see cref="CompanyRegistryEntry.FreeGenerationsRemaining"/> by one).</summary>
+    Task<CompanyRegistryEntry?> GrantFreeGenerationAsync(Guid companyId, CancellationToken cancellationToken);
 }
 
 public sealed record DiscoveredCompanyUpdate(
@@ -35,4 +38,5 @@ public sealed record CompanyRegistryEntry(
     DateTimeOffset? LastRelevantOpportunity,
     DateTimeOffset CreatedAt,
     string? ContactState,
-    bool IsActive);
+    bool IsActive,
+    int FreeGenerationsRemaining);

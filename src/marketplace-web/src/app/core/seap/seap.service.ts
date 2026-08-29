@@ -1,5 +1,6 @@
 import { HttpClient, HttpParams } from '@angular/common/http';
 import { inject, Injectable } from '@angular/core';
+import { PipelineProgress } from '../companies/company-vault.service';
 
 export interface SeapTender {
   id: string;
@@ -102,7 +103,15 @@ export class SeapService {
 
   getTender(id: string) { return this.http.get<SeapTender>(`/api/v1/seap/tenders/${id}`); }
   getTenderPricing(id: string) { return this.http.get<TenderPricing>(`/api/v1/seap/tenders/${id}/pricing`); }
-  startAutoBid(id: string) { return this.http.post<AutoBidResponse>(`/api/v1/seap/tenders/${id}/auto-bid`, {}); }
+  /** Starts an auto-bid generation. The optional <paramref name="progressRequestId"/> lets the page poll
+   *  real per-stage progress (Generating → Finalizing → Completed/Failed) while the request is in flight. */
+  startAutoBid(id: string, progressRequestId?: string) {
+    return this.http.post<AutoBidResponse>(`/api/v1/seap/tenders/${id}/auto-bid`, { progressRequestId });
+  }
+  /** Real per-stage progress of a running auto-bid generation (polled while POST /auto-bid is in flight). */
+  getAutoBidProgress(id: string, requestId: string) {
+    return this.http.get<PipelineProgress>(`/api/v1/seap/tenders/${id}/auto-bid/progress/${requestId}`);
+  }
   getBidStatus(id: string) { return this.http.get<BidStatus>(`/api/v1/seap/tenders/${id}/bid-status`); }
 
   /** Downloads one auto-generated proposal file (technical .docx or bill of quantities .xlsx) as a blob. */

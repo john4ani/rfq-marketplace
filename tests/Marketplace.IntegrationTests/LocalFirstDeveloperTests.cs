@@ -70,12 +70,12 @@ public sealed class LocalFirstDeveloperTests
     }
 
     [Fact]
-    public void DevelopmentConfigurationWiresLocalStorageAndMockLlm()
+    public void DevelopmentConfigurationWiresLocalStorageAndRealClaudeProvider()
     {
         using MarketplaceWebApplicationFactory factory = new();
         using IServiceScope scope = factory.Services.CreateScope();
         Assert.IsType<LocalFileStorageService>(scope.ServiceProvider.GetRequiredService<IStorageService>());
-        Assert.IsType<StaticMockLlmProvider>(scope.ServiceProvider.GetRequiredService<ILlmProvider>());
+        Assert.IsType<AnthropicClaudeProvider>(scope.ServiceProvider.GetRequiredService<ILlmProvider>());
     }
 
     private const string MockEnvelopeJson = """

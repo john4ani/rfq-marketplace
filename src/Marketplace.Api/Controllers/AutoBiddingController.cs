@@ -5,6 +5,7 @@ using Marketplace.Application.Companies;
 using Marketplace.Application.Seap;
 using Marketplace.Domain.Seap;
 using Marketplace.Infrastructure;
+using Marketplace.Infrastructure.AutoBidding;
 using Marketplace.Infrastructure.Bidding;
 using Marketplace.Infrastructure.Billing;
 using Marketplace.Infrastructure.Identity;
@@ -29,6 +30,7 @@ public sealed partial class AutoBiddingController(
     IOptionsMonitor<FeaturesOptions> features,
     ISeapIngestionService seapIngestionService,
     IStorageService storage,
+    IPipelineProgressStore progressStore,
     ILogger<AutoBiddingController> logger) : ControllerBase
 {
     // MapInboundClaims (default) remaps the JWT "sub" claim to ClaimTypes.NameIdentifier, so read both.
@@ -85,33 +87,72 @@ public sealed partial class AutoBiddingController(
 
     /// <summary>Starts auto-bid: in Shadow Mode it generates silently without charging; otherwise the first
     /// generation per account is free (launch offer), and any further generation creates a Stripe Checkout
-    /// Session with dynamic PriceData from the estimated-value tiers (EUR).</summary>
+    /// Session with dynamic PriceData from the estimated-value tiers (EUR). The launch offer is consumed in
+    /// Shadow Mode too, so the pricing preview reflects the real remaining entitlement while rehearsing.</summary>
     [HttpPost("tenders/{tenderId:guid}/auto-bid")]
-    public async Task<IActionResult> StartAutoBid(Guid tenderId, CancellationToken cancellationToken)
+    public async Task<IActionResult> StartAutoBid(
+        Guid tenderId, [FromBody] StartAutoBidRequest? request, CancellationToken cancellationToken)
     {
         if (!features.CurrentValue.AutoBiddingEnabled)
             return NotFound();
         SeapTender? tender = await biddingService.GetTenderAsync(tenderId, cancellationToken);
         if (tender is null) return NotFound();
-        if (autoBiddingOptions.Value.IsShadowMode)
+        try
         {
-            BidGenerationResult result = await biddingService.GenerateForTenderAsync(tenderId, cancellationToken);
-            return Ok(new { ready = true, shadowMode = true, result });
-        }
+            if (autoBiddingOptions.Value.IsShadowMode)
+            {
+                ApplicationUser? shadowUser = await userManager.FindByIdAsync(UserId.ToString());
+                bool freeGeneration = shadowUser is not null && shadowUser.FreeGenerationsRemaining > 0;
+                BidGenerationResult result = await biddingService.GenerateForTenderAsync(
+                    tenderId, cancellationToken, request?.ProgressRequestId);
+                // Consume the launch offer only after a successful generation, so a failed attempt (Claude
+                // down, storage error) does not burn the free entitlement.
+                if (freeGeneration)
+                {
+                    shadowUser!.FreeGenerationsRemaining -= 1;
+                    await userManager.UpdateAsync(shadowUser);
+                }
+                ReportCompleted(request?.ProgressRequestId);
+                return Ok(new { ready = true, shadowMode = true, freeGeneration, result });
+            }
 
-        ApplicationUser? user = await userManager.FindByIdAsync(UserId.ToString());
-        if (user is not null && user.FreeGenerationsRemaining > 0)
+            ApplicationUser? user = await userManager.FindByIdAsync(UserId.ToString());
+            if (user is not null && user.FreeGenerationsRemaining > 0)
+            {
+                BidGenerationResult result = await biddingService.GenerateForTenderAsync(
+                    tenderId, cancellationToken, request?.ProgressRequestId);
+                user.FreeGenerationsRemaining -= 1;
+                await userManager.UpdateAsync(user);
+                ReportCompleted(request?.ProgressRequestId);
+                return Ok(new { ready = true, shadowMode = false, freeGeneration = true, result });
+            }
+
+            int priceEur = PricingCalculator.ComputePriceEur(ToEur(tender.EstimatedValue));
+            StripeCheckoutSession session = await stripeGateway.CreateCheckoutSessionAsync(
+                new(tender.Id, priceEur, tender.Title), cancellationToken);
+            return Ok(new { ready = false, shadowMode = false, checkoutUrl = session.CheckoutUrl, sessionId = session.SessionId, priceEur });
+        }
+        catch (Exception exception) when (exception is not OperationCanceledException)
         {
-            user.FreeGenerationsRemaining -= 1;
-            await userManager.UpdateAsync(user);
-            BidGenerationResult result = await biddingService.GenerateForTenderAsync(tenderId, cancellationToken);
-            return Ok(new { ready = true, shadowMode = false, freeGeneration = true, result });
+            if (request?.ProgressRequestId is Guid failedRequestId)
+                progressStore.Report(failedRequestId, PipelineStage.Failed, exception.Message);
+            throw;
         }
+    }
 
-        int priceEur = PricingCalculator.ComputePriceEur(ToEur(tender.EstimatedValue));
-        StripeCheckoutSession session = await stripeGateway.CreateCheckoutSessionAsync(
-            new(tender.Id, priceEur, tender.Title), cancellationToken);
-        return Ok(new { ready = false, shadowMode = false, checkoutUrl = session.CheckoutUrl, sessionId = session.SessionId, priceEur });
+    /// <summary>Current stage of a running SEAP auto-bid generation (the SPA polls this while the POST
+    /// /auto-bid request is in flight to show real progress instead of an endless spinner).</summary>
+    [HttpGet("tenders/{tenderId:guid}/auto-bid/progress/{requestId:guid}")]
+    public IActionResult GetAutoBidProgress(Guid requestId)
+    {
+        PipelineProgress? progress = progressStore.Find(requestId);
+        return progress is null ? NotFound() : Ok(progress);
+    }
+
+    private void ReportCompleted(Guid? requestId)
+    {
+        if (requestId is Guid completedId)
+            progressStore.Report(completedId, PipelineStage.Completed, "Propunerea a fost generată.");
     }
 
     [HttpGet("tenders/{tenderId:guid}/bid-status")]
@@ -175,3 +216,7 @@ public sealed partial class AutoBiddingController(
     [LoggerMessage(EventId = 6001, Level = LogLevel.Error, Message = "Auto-bid generation after checkout failed for tender {TenderId}.")]
     private static partial void LogWebhookGenerationFailed(ILogger logger, Guid tenderId, Exception exception);
 }
+
+/// <summary>Body of POST /auto-bid; the optional <c>progressRequestId</c> lets the SPA poll real
+/// per-stage progress (Generating → Finalizing → Completed/Failed) while the request is in flight.</summary>
+public sealed record StartAutoBidRequest(Guid? ProgressRequestId);

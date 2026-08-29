@@ -40,6 +40,10 @@ import { CategoryOption, SupplierSettingsService } from '../../core/suppliers/su
           @else { <p>Nu avem încă informații despre categorii.</p> }
         </section>
         @if (item.kind === 'Registered') {
+          <section class="card"><h2>Oferte gratuite · Auto-Bid</h2>
+            <p>Generări gratuite rămase pentru contul proprietarului firmei: <strong>{{ item.freeGenerationsRemaining }}</strong></p>
+            <div class="actions"><button type="button" [disabled]="grantingFree()" (click)="grantFreeGeneration(item)">{{ grantingFree() ? 'Se acordă…' : 'Oferă o generare gratuită' }}</button></div>
+          </section>
           <div class="actions"><button type="button" class="secondary" [disabled]="activeSaving()" (click)="toggleActive(item)">{{ activeSaving() ? 'Se salvează…' : item.isActive ? 'Dezactivează firma' : 'Activează firma' }}</button></div>
         }
         @if (item.kind === 'Discovered') {
@@ -92,6 +96,7 @@ export class CompanyDetailEditorComponent {
   readonly deleting = signal(false);
   readonly confirmingDelete = signal(false);
   readonly activeSaving = signal(false);
+  readonly grantingFree = signal(false);
   readonly saveError = signal('');
   readonly form = new FormGroup({
     companyName: new FormControl('', { nonNullable: true, validators: [Validators.required, Validators.minLength(2), Validators.maxLength(200)] }),
@@ -165,6 +170,17 @@ export class CompanyDetailEditorComponent {
     this.registry.setRegisteredActive(item.id, activate).subscribe({
       next: company => { if (company) this.company.set(company); this.activeSaving.set(false); },
       error: () => { this.activeSaving.set(false); this.saveError.set('Starea firmei nu a putut fi schimbată. Încearcă din nou.'); }
+    });
+  }
+
+  /** Administrator action: grants one more free auto-bid generation to the registered company's owner. */
+  grantFreeGeneration(item: CompanyRegistryEntry): void {
+    if (!confirm(`Oferi o generare gratuită firmei „${item.name}”? Contorul actual: ${item.freeGenerationsRemaining}.`)) return;
+    this.grantingFree.set(true);
+    this.saveError.set('');
+    this.registry.grantFreeGeneration(item.id).subscribe({
+      next: company => { if (company) this.company.set(company); this.grantingFree.set(false); },
+      error: () => { this.grantingFree.set(false); this.saveError.set('Oferta gratuită nu a putut fi acordată. Încearcă din nou.'); }
     });
   }
 

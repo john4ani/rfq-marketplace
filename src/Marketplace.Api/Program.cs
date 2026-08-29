@@ -72,10 +72,7 @@ app.UseForwardedHeaders();
 app.UseMiddleware<CorrelationIdMiddleware>();
 app.UseExceptionHandler();
 app.UseStatusCodePages();
-// The Local profile mirrors Staging/Prod for the auto-bid flow but stays a local dev host:
-// development conveniences (OpenAPI, no forced HTTPS redirect) apply, and migrations run at startup.
-bool isLocalDevelopment = app.Environment.IsDevelopment() || app.Environment.IsEnvironment("Local");
-if (isLocalDevelopment) app.MapOpenApi();
+if (app.Environment.IsDevelopment()) app.MapOpenApi();
 else app.UseHttpsRedirection();
 app.UseCors("frontend");
 app.UseAuthentication();
@@ -88,7 +85,7 @@ app.MapHealthChecks("/health/ready", new HealthCheckOptions { Predicate = regist
 // startup (idempotent) so `dotnet run` works right after `docker compose up -d postgres`, without
 // requiring a manual `dotnet ef database update`. Prod/Staging migrate through the explicit migration
 // bundle (migrate-prod / migrate-staging) before the API starts.
-if (isLocalDevelopment)
+if (app.Environment.IsDevelopment())
 {
     using IServiceScope scope = app.Services.CreateScope();
     MarketplaceDbContext dbContext = scope.ServiceProvider.GetRequiredService<MarketplaceDbContext>();

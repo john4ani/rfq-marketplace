@@ -46,6 +46,13 @@ public sealed class CompanyRegistryController(ICompanyRegistryService registry) 
         CompanyRegistryEntry? company = await registry.SetRegisteredActiveAsync(companyId, request.IsActive, cancellationToken);
         return company is null ? NotFound() : Ok(company);
     }
+
+    [HttpPost("registered/{companyId:guid}/free-generation")]
+    public async Task<IActionResult> GrantFreeGeneration(Guid companyId, CancellationToken cancellationToken)
+    {
+        CompanyRegistryEntry? company = await registry.GrantFreeGenerationAsync(companyId, cancellationToken);
+        return company is null ? NotFound() : Ok(company);
+    }
 }
 
 public sealed record SetRegisteredActiveRequest(bool IsActive);

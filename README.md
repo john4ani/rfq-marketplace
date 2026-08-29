@@ -45,13 +45,13 @@ to production (the golden payloads are test-only fixtures for the notice parser)
    dotnet run --project src/Marketplace.Api
    ```
 
-5. Store development keys **outside the repository** only when you want real external calls instead
-   of the local-first defaults:
+5. Store the shared service keys **outside the repository** (Development loads them automatically and
+   uses the real providers for auto-bid, geocoding and AI intake):
 
    ```powershell
-   dotnet user-secrets set "AiIntake:ApiKey" "<your-api-key>" --project src/Marketplace.Api
-   dotnet user-secrets set "GooglePlaces:ApiKey" "<your-google-places-api-key>" --project src/Marketplace.Api
    dotnet user-secrets set "AutoBidding:ApiKey" "<your-claude-api-key>" --project src/Marketplace.Api
+   dotnet user-secrets set "GooglePlaces:ApiKey" "<your-google-places-api-key>" --project src/Marketplace.Api
+   dotnet user-secrets set "AiIntake:ApiKey" "<your-openai-api-key>" --project src/Marketplace.Api
    ```
 
 6. Install and start Angular:
@@ -64,26 +64,28 @@ to production (the golden payloads are test-only fixtures for the notice parser)
 
 ### Testing the real auto-bid flow locally (Staging/Prod parity)
 
-Development runs the zero-cost mock LLM by default. To test auto-bid against the **real Anthropic
-Claude provider** — exactly like Staging/Prod (auto-bidding enabled, shadow mode, `claude-sonnet-5`,
-8000 output tokens, no embeddings) — start the API with the `Local` launch profile instead:
+Development mirrors Staging/Prod for the auto-bid flow out of the box: `appsettings.Development.json`
+sets `Features:AutoBiddingEnabled=true`, `AutoBidding:IsShadowMode=true`, the `claude-sonnet-5` model
+and 8000 output tokens, and the **real Anthropic Claude provider** is used. The API key lives outside
+the repository (user-secrets — see step 5 above), so a plain
 
 ```powershell
-dotnet run --project src/Marketplace.Api --launch-profile Local
+dotnet run --project src/Marketplace.Api
 ```
 
-`Local` loads the gitignored `appsettings.Local.json`, which mirrors the Staging/Prod `AutoBidding`
-and `Features` settings and carries the shared Anthropic API key. Everything else stays local-first
-(PostgreSQL on 5432, local object storage). The SEAP importer still uses the live e-licitatie.ro
-endpoint, so you can search/import the same notices you see in Staging/Prod and run the real
-generation before any deploy.
+behaves exactly like Staging/Prod (real generation, shadow mode, no Stripe). Without
+`AutoBidding:ApiKey` the auto-bid endpoint returns a clear 503 ("Cheia API Anthropic nu este
+configurată în acest mediu"); set `AI:UseMockProvider=true` (user-secrets or environment) to fall back
+to the zero-cost preset-JSON provider. Everything else stays local-first (PostgreSQL on 5432, local
+object storage). The SEAP importer still uses the live e-licitatie.ro endpoint, so you can
+search/import the same notices you see in Staging/Prod and run the real generation before any deploy.
 
 ### Local provider matrix (Development)
 
 | Concern | Local default (zero cost) | Switch to the real service |
 |---|---|---|
 | Object storage | `Storage:UseLocalStorage=true` → files under `App_Data/Storage/` (e.g. `C:\CompaSpotStorage\`) | Set `Storage:UseLocalStorage=false` + `S3:*` (Cloudflare R2 or AWS S3) |
-| LLM (auto-bidding) | `AI:UseMockProvider=true` → preset JSON from `StaticMockLlmProvider` | Set `AI:UseMockProvider=false` + `AutoBidding:ApiKey` (Anthropic Claude) |
+| LLM (auto-bidding) | real Anthropic Claude once `AutoBidding:ApiKey` is set via user-secrets (Development default; without the key the endpoint returns a clear 503) | `AI:UseMockProvider=true` switches to the preset-JSON `StaticMockLlmProvider` for zero-cost runs |
 | AI intake (OpenAI) | disabled (no key) — falls back to manual need entry | `AiIntake:ApiKey` |
 | SEAP live endpoint | live `https://e-licitatie.ro` (same as Prod; no golden fallback) | requires network access |
 | Embeddings / OCR | skipped (chunks stored without vectors) | `AutoBidding:EmbeddingApiKey`, `DocumentIntelligence:*` |

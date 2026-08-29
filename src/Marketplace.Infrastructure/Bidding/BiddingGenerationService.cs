@@ -1,6 +1,7 @@
 using Marketplace.Application.Bidding;
 using Marketplace.Domain.Seap;
 using Marketplace.Domain.Vault;
+using Marketplace.Infrastructure.AutoBidding;
 using Marketplace.Infrastructure.Embeddings;
 using Marketplace.Infrastructure.Persistence;
 using Marketplace.Infrastructure.Storage;
@@ -40,6 +41,7 @@ public sealed partial class BiddingGenerationService : IBiddingGenerationService
     private readonly bool useLocalStorage;
     private readonly AutoBiddingOptions settings;
     private readonly TimeProvider timeProvider;
+    private readonly IPipelineProgressStore? progressStore;
     private readonly ILogger<BiddingGenerationService> logger;
 
     public BiddingGenerationService(
@@ -51,7 +53,8 @@ public sealed partial class BiddingGenerationService : IBiddingGenerationService
         IOptions<LocalStorageOptions> localStorage,
         IStorageService storage,
         TimeProvider timeProvider,
-        ILogger<BiddingGenerationService> logger)
+        ILogger<BiddingGenerationService> logger,
+        IPipelineProgressStore? progressStore = null)
     {
         this.dbContext = dbContext;
         this.llmProvider = llmProvider;
@@ -61,11 +64,12 @@ public sealed partial class BiddingGenerationService : IBiddingGenerationService
         useLocalStorage = localStorage.Value.UseLocalStorage;
         settings = options.Value;
         this.timeProvider = timeProvider;
+        this.progressStore = progressStore;
         this.logger = logger;
     }
 
 
-    public async Task<BidGenerationResult> GenerateForTenderAsync(Guid tenderId, CancellationToken cancellationToken)
+    public async Task<BidGenerationResult> GenerateForTenderAsync(Guid tenderId, CancellationToken cancellationToken, Guid? progressRequestId = null)
     {
         SeapTender? tender = await dbContext.SeapTenders.Include(item => item.Attachments)
             .SingleOrDefaultAsync(item => item.Id == tenderId, cancellationToken)
@@ -77,8 +81,12 @@ public sealed partial class BiddingGenerationService : IBiddingGenerationService
         string userPrompt = string.IsNullOrWhiteSpace(vaultContext)
             ? $"Cerințele anunțului:\n{requirements}\n\nDate despre firmă: (nu sunt disponibile documente în CompanyVault)."
             : $"Cerințele anunțului:\n{requirements}\n\nDate despre firmă (fragmente relevante din CompanyVault):\n{vaultContext}";
+        if (progressRequestId is Guid generatingId && progressStore is not null)
+            progressStore.Report(generatingId, PipelineStage.Generating, "Claude redactează propunerea tehnică…");
         string llmJson = await llmProvider.CompleteAsync(RomanianProcurementExpertSystemPrompt, userPrompt, cancellationToken);
         BiddingProposal proposal = BiddingJsonParser.Parse(llmJson);
+        if (progressRequestId is Guid finalizingId && progressStore is not null)
+            progressStore.Report(finalizingId, PipelineStage.Finalizing, "Generăm documentele .docx și .xlsx…");
 
         GeneratedDocument technical = await documentGenerator.GenerateTechnicalProposalAsync(proposal, cancellationToken);
         GeneratedDocument boq = await documentGenerator.GenerateBillOfQuantitiesAsync(proposal, cancellationToken);
