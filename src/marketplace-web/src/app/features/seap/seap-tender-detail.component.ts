@@ -79,8 +79,16 @@ export class SeapTenderDetailComponent {
     this.message.set('');
     this.service.startAutoBid(tenderId).subscribe({
       next: response => this.handleAutoBid(response),
-      error: () => { this.busy.set(false); this.messageError.set(true); this.message.set('Ofertarea automată nu a putut fi pornită. Încearcă din nou.'); }
+      error: (error: unknown) => { this.busy.set(false); this.messageError.set(true); this.message.set(this.autoBidErrorMessage(error)); }
     });
+  }
+
+  /** Turns an HTTP/API failure into a friendly, specific message (backend ProblemDetails.detail wins,
+   *  mirroring the Caiet-de-sarcini pipeline error handling). */
+  private autoBidErrorMessage(error: unknown): string {
+    const detail = (error as { error?: { detail?: string } })?.error?.detail;
+    if (detail) return detail;
+    return 'Ofertarea automată nu a putut fi pornită. Încearcă din nou.';
   }
 
   private handleAutoBid(response: AutoBidResponse): void {

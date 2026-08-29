@@ -59,15 +59,26 @@ public sealed partial class AnthropicClaudeProvider : ILlmProvider
             if (!response.IsSuccessStatusCode)
             {
                 LogClaudeFailed(logger, (int)response.StatusCode);
-                throw new HttpRequestException($"Claude returned {(int)response.StatusCode}.");
+                throw new AutoBiddingPipelineException(503,
+                    $"Serviciul Claude a răspuns cu eroarea {(int)response.StatusCode}. Reîncearcă generarea în câteva minute.");
             }
             circuitBreaker.RecordSuccess();
             return ClaudeResponse.ExtractText(body);
         }
-        catch
+        catch (AutoBiddingPipelineException)
         {
+            // Already carries a user-facing message; only record the hit on the cost circuit breaker.
             circuitBreaker.RecordFailure();
             throw;
+        }
+        catch (Exception exception)
+        {
+            // Network failures, timeouts and unreadable responses are service-level problems: record the
+            // circuit-breaker hit and surface one actionable message instead of a bare 500 (the middleware
+            // maps AutoBiddingPipelineException to ProblemDetails with a friendly Romanian detail).
+            circuitBreaker.RecordFailure();
+            throw new AutoBiddingPipelineException(503,
+                "Serviciul Claude este temporar indisponibil sau răspunsul său nu a putut fi citit. Reîncearcă generarea în câteva minute.", exception);
         }
     }
 

@@ -2,6 +2,7 @@ using ClosedXML.Excel;
 using DocumentFormat.OpenXml;
 using DocumentFormat.OpenXml.Packaging;
 using DocumentFormat.OpenXml.Wordprocessing;
+using Marketplace.Application.AutoBidding;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 
@@ -25,7 +26,7 @@ public sealed partial class DocumentGenerator : IDocumentGenerator
         if (proposal.Sections.Count == 0)
         {
             LogTechnicalProposalEmpty(logger);
-            throw new InvalidOperationException("Propunerea tehnică nu poate fi generată: răspunsul LLM nu conține secțiuni.");
+            throw new AutoBiddingPipelineException(422, "Propunerea tehnică nu poate fi generată: răspunsul LLM nu conține secțiuni.");
         }
 
         DateTimeOffset now = DateTimeOffset.UtcNow;
@@ -76,7 +77,7 @@ public sealed partial class DocumentGenerator : IDocumentGenerator
         if (proposal.BillOfQuantities.Count == 0)
         {
             LogBillOfQuantitiesEmpty(logger);
-            throw new InvalidOperationException("Lista de cantități nu poate fi generată: răspunsul LLM nu conține linii.");
+            throw new AutoBiddingPipelineException(422, "Lista de cantități nu poate fi generată: răspunsul LLM nu conține linii.");
         }
 
         using XLWorkbook workbook = new();

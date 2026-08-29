@@ -77,7 +77,12 @@ public sealed class V3GuardrailTests
         AnthropicClaudeProvider provider = new(factory, options, NullLogger<AnthropicClaudeProvider>.Instance, new FakeTimeProvider());
 
         for (int i = 0; i < 3; i++)
-            await Assert.ThrowsAsync<HttpRequestException>(() => provider.CompleteAsync("sys", "user", CancellationToken.None));
+        {
+            // A non-2xx Claude response is a user-facing service failure (503), not a bare 500.
+            AutoBiddingPipelineException failure = await Assert.ThrowsAsync<AutoBiddingPipelineException>(
+                () => provider.CompleteAsync("sys", "user", CancellationToken.None));
+            Assert.Equal(503, failure.StatusCode);
+        }
 
         Assert.Equal(3, handler.CallCount);
         // The circuit-open guard surfaces as an AutoBiddingPipelineException (subclass of InvalidOperationException).

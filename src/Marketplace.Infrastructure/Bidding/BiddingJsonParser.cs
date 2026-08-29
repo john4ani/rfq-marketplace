@@ -30,7 +30,7 @@ public static class BiddingJsonParser
 
             string title = Read(root, "title") ?? string.Empty;
             if (string.IsNullOrWhiteSpace(title))
-                throw new InvalidOperationException("Răspunsul LLM nu conține un titlu de propunere.");
+                throw new AutoBiddingPipelineException(422, "Răspunsul LLM nu conține un titlu de propunere.");
 
             List<ProposalSection> sections = [];
             if (root.TryGetProperty("technicalProposal", out JsonElement proposal))
@@ -46,7 +46,7 @@ public static class BiddingJsonParser
                 }
             }
             if (sections.Count == 0)
-                throw new InvalidOperationException("Răspunsul LLM nu conține secțiuni pentru propunerea tehnică.");
+                throw new AutoBiddingPipelineException(422, "Răspunsul LLM nu conține secțiuni pentru propunerea tehnică.");
 
             List<BoqLine> boq = [];
             if (root.TryGetProperty("billOfQuantities", out JsonElement boqList) && boqList.ValueKind == JsonValueKind.Array)
@@ -56,7 +56,7 @@ public static class BiddingJsonParser
                     int position = line.TryGetProperty("position", out JsonElement p) && p.TryGetInt32(out int positionValue) ? positionValue : boq.Count + 1;
                     string description = Read(line, "description") ?? string.Empty;
                     if (string.IsNullOrWhiteSpace(description))
-                        throw new InvalidOperationException($"Linia {position} din lista de cantități nu are descriere.");
+                        throw new AutoBiddingPipelineException(422, $"Linia {position} din lista de cantități nu are descriere.");
                     string unit = Read(line, "unit") ?? "buc";
                     decimal quantity = RequiredDecimal(line, "quantity", position);
                     decimal unitPrice = RequiredDecimal(line, "unitPrice", position);
@@ -65,7 +65,7 @@ public static class BiddingJsonParser
                 }
             }
             if (boq.Count == 0)
-                throw new InvalidOperationException("Răspunsul LLM nu conține nicio linie pentru lista de cantități.");
+                throw new AutoBiddingPipelineException(422, "Răspunsul LLM nu conține nicio linie pentru lista de cantități.");
 
             List<FinancialSummaryLine> financialSummary = [];
             if (root.TryGetProperty("financialSummary", out JsonElement summaryList) && summaryList.ValueKind == JsonValueKind.Array)
@@ -113,7 +113,7 @@ public static class BiddingJsonParser
     private static decimal RequiredDecimal(JsonElement element, string property, int position)
     {
         if (!element.TryGetProperty(property, out JsonElement value) || !value.TryGetDecimal(out decimal result))
-            throw new InvalidOperationException($"Linia {position} din lista de cantități nu are o valoare validă pentru „{property}”.");
+            throw new AutoBiddingPipelineException(422, $"Linia {position} din lista de cantități nu are o valoare validă pentru „{property}”.");
         return result;
     }
 

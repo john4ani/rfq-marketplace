@@ -1,3 +1,4 @@
+using Marketplace.Application.AutoBidding;
 using Marketplace.Application.Billing;
 using Marketplace.Application.Seap;
 using Marketplace.Domain.Seap;
@@ -67,24 +68,34 @@ public sealed class V3PureLogicTests
     [InlineData("{}")]
     [InlineData("{\"title\":\"Doar titlu\"}")]
     [InlineData("{\"title\":\"Fără deviz\",\"technicalProposal\":{\"sections\":[{\"heading\":\"H\",\"content\":\"C\"}]}}")]
-    public void ParserRejectsIncompleteLlmOutput(string json) =>
-        Assert.Throws<InvalidOperationException>(() => BiddingJsonParser.Parse(json));
+    public void ParserRejectsIncompleteLlmOutput(string json)
+    {
+        // Schema-level failures are user-facing pipeline errors (422), not internal 500s.
+        AutoBiddingPipelineException exception = Assert.Throws<AutoBiddingPipelineException>(() => BiddingJsonParser.Parse(json));
+        Assert.Equal(422, exception.StatusCode);
+    }
 
     [Fact]
-    public void ParserRejectsBoqLineWithoutQuantity() =>
-        Assert.Throws<InvalidOperationException>(() => BiddingJsonParser.Parse(
+    public void ParserRejectsBoqLineWithoutQuantity()
+    {
+        AutoBiddingPipelineException exception = Assert.Throws<AutoBiddingPipelineException>(() => BiddingJsonParser.Parse(
             """
             {"title":"Ofertă","technicalProposal":{"sections":[{"heading":"H","content":"C"}]},
              "billOfQuantities":[{"position":1,"description":"Ciment","unit":"buc","unitPrice":120,"total":120}]}
             """));
+        Assert.Equal(422, exception.StatusCode);
+    }
 
     [Fact]
-    public void ParserRejectsBoqLineWithoutDescription() =>
-        Assert.Throws<InvalidOperationException>(() => BiddingJsonParser.Parse(
+    public void ParserRejectsBoqLineWithoutDescription()
+    {
+        AutoBiddingPipelineException exception = Assert.Throws<AutoBiddingPipelineException>(() => BiddingJsonParser.Parse(
             """
             {"title":"Ofertă","technicalProposal":{"sections":[{"heading":"H","content":"C"}]},
              "billOfQuantities":[{"position":1,"description":"","unit":"buc","quantity":2,"unitPrice":120,"total":240}]}
             """));
+        Assert.Equal(422, exception.StatusCode);
+    }
 
     [Fact]
     public void ParserStripsMarkdownCodeFences()
@@ -127,9 +138,13 @@ public sealed class V3PureLogicTests
     }
 
     [Fact]
-    public void ClaudeResponseThrowsWhenNoTextBlock() =>
-        Assert.Throws<InvalidOperationException>(() =>
+    public void ClaudeResponseThrowsWhenNoTextBlock()
+    {
+        // A response without any text block is a user-facing model failure (502), not an internal 500.
+        AutoBiddingPipelineException exception = Assert.Throws<AutoBiddingPipelineException>(() =>
             ClaudeResponse.ExtractText("""{"content":[{"type":"thinking","thinking":"plan"}]}"""));
+        Assert.Equal(502, exception.StatusCode);
+    }
 
     [Fact]
     public async Task DocumentGeneratorFormatsProposalForHumanReadability()

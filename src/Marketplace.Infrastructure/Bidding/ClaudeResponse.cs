@@ -1,4 +1,5 @@
 using System.Text.Json;
+using Marketplace.Application.AutoBidding;
 
 namespace Marketplace.Infrastructure.Bidding;
 
@@ -22,6 +23,6 @@ public static class ClaudeResponse
                 return text;
             }
         }
-        throw new InvalidOperationException("Răspunsul Claude nu conține text.");
+        throw new AutoBiddingPipelineException(502, "Modelul nu a returnat un răspuns text. Reîncearcă generarea propunerii.");
     }
 }
