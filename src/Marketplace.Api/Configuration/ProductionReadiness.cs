@@ -8,7 +8,9 @@ public static class ProductionReadiness
 {
     public static void Validate(IConfiguration configuration, IHostEnvironment environment)
     {
-        if (environment.IsDevelopment()) return;
+        // Local is the personal-machine staging/Prod-parity environment (appsettings.Local.json):
+        // like Development it intentionally runs without production-grade credentials.
+        if (environment.IsDevelopment() || environment.IsEnvironment("Local")) return;
 
         // Staging is an internal-only plain-HTTP site (:8081, admin CIDR); the strict HTTPS origin
         // contract (ADR-0014) applies to Production. Placeholder and completeness checks stay active

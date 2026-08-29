@@ -70,4 +70,7 @@ production (the golden payloads under `tests/Fixtures/` remain **test-only** fix
 regression suite). Development additionally sets `Features:SeapIngestionEnabled=true` so the SEAP worker
 imports against the real endpoint (Prod/Staging toggle the same flag at deploy); and the EF migrations are
 applied automatically at startup in Development (Prod/Staging migrate through the explicit migration
-bundle). See `README.md` → "Local provider matrix".
+bundle). For **Staging/Prod parity of the auto-bid flow** a `Local` environment (`appsettings.Local.json`,
+gitignored, `dotnet run --launch-profile Local`) turns on `Features:AutoBiddingEnabled` and the real
+`AnthropicClaudeProvider` with the Staging/Prod model/token settings in shadow mode, so the complete
+generation can be exercised locally before any deploy. See `README.md` → "Local provider matrix".

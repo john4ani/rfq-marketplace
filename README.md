@@ -62,6 +62,22 @@ to production (the golden payloads are test-only fixtures for the notice parser)
    pnpm start
    ```
 
+### Testing the real auto-bid flow locally (Staging/Prod parity)
+
+Development runs the zero-cost mock LLM by default. To test auto-bid against the **real Anthropic
+Claude provider** — exactly like Staging/Prod (auto-bidding enabled, shadow mode, `claude-sonnet-5`,
+8000 output tokens, no embeddings) — start the API with the `Local` launch profile instead:
+
+```powershell
+dotnet run --project src/Marketplace.Api --launch-profile Local
+```
+
+`Local` loads the gitignored `appsettings.Local.json`, which mirrors the Staging/Prod `AutoBidding`
+and `Features` settings and carries the shared Anthropic API key. Everything else stays local-first
+(PostgreSQL on 5432, local object storage). The SEAP importer still uses the live e-licitatie.ro
+endpoint, so you can search/import the same notices you see in Staging/Prod and run the real
+generation before any deploy.
+
 ### Local provider matrix (Development)
 
 | Concern | Local default (zero cost) | Switch to the real service |

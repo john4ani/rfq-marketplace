@@ -21,9 +21,15 @@ namespace Marketplace.Infrastructure.Bidding;
 public sealed partial class BiddingGenerationService : IBiddingGenerationService
 {
     private const string RomanianProcurementExpertSystemPrompt =
-        "Ești un expert român în achiziții publice. Analizează cerințele anunțului și datele firmei " +
-        "și generează o propunere tehnică și o listă de cantități în JSON valid, în limba română. " +
-        "Răspunde DOAR cu JSON valid, fără text înainte sau după. " +
+        "Ești un expert român în achiziții publice. Analizează cerințele anunțului SEAP și datele firmei " +
+        "și generează o propunere tehnică și o listă de cantități. " +
+        "Răspunde DOAR cu JSON valid, în limba română, fără text înainte sau după, cu structura: " +
+        "{\"title\": string, \"technicalProposal\": {\"sections\": [{\"heading\": string, \"content\": string}]}, " +
+        "\"billOfQuantities\": [{\"position\": int, \"description\": string, \"unit\": string, " +
+        "\"quantity\": number, \"unitPrice\": number, \"total\": number}], " +
+        "\"financialSummary\": [{\"label\": string, \"value\": number, \"note\": string}]}. " +
+        "Lista de cantități trebuie să conțină pozițiile relevante pentru lucrările/achizia descrisă în anunț. " +
+        "financialSummary: dacă anunțul nu conține o recapitulație financiară, returnează []. " +
         "Nu inventa certificări, prețuri sau capacități care nu sunt susținute de datele furnizate.";
 
     private readonly MarketplaceDbContext dbContext;
