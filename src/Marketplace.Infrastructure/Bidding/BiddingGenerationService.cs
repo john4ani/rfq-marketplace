@@ -23,6 +23,7 @@ public sealed partial class BiddingGenerationService : IBiddingGenerationService
     private const string RomanianProcurementExpertSystemPrompt =
         "Ești un expert român în achiziții publice. Analizează cerințele anunțului și datele firmei " +
         "și generează o propunere tehnică și o listă de cantități în JSON valid, în limba română. " +
+        "Răspunde DOAR cu JSON valid, fără text înainte sau după. " +
         "Nu inventa certificări, prețuri sau capacități care nu sunt susținute de datele furnizate.";
 
     private readonly MarketplaceDbContext dbContext;

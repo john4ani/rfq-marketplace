@@ -111,6 +111,41 @@ public sealed class V3PureLogicTests
     }
 
     [Fact]
+    public void ParserToleratesMarkdownHeadingBeforeJson()
+    {
+        // Regression: Claude sometimes prefaces the JSON with a Markdown heading (e.g. "# Ofertă tehnică"),
+        // which used to fail with "'#' is an invalid start of a value" instead of parsing the payload.
+        string prefixed =
+            "# Ofertă tehnică\n" +
+            StaticMockLlmProvider.RomanianProcurementExpertProposal.Trim();
+        BiddingProposal proposal = BiddingJsonParser.Parse(prefixed);
+        Assert.Equal("Ofertă tehnică — Lucrări de construcții", proposal.Title);
+        Assert.NotEmpty(proposal.Sections);
+        Assert.Single(proposal.BillOfQuantities);
+    }
+
+    [Fact]
+    public void ParserToleratesMarkdownProseAfterJson()
+    {
+        string wrapped =
+            StaticMockLlmProvider.RomanianProcurementExpertProposal.Trim() +
+            "\n\n## Notă\nPropunerea respectă cerințele caietului de sarcini.";
+        BiddingProposal proposal = BiddingJsonParser.Parse(wrapped);
+        Assert.Equal("Ofertă tehnică — Lucrări de construcții", proposal.Title);
+        Assert.Single(proposal.BillOfQuantities);
+    }
+
+    [Fact]
+    public void ParserRejectsProseOnlyOutputAsInvalidJson()
+    {
+        // A response that is prose without any JSON object must keep the actionable "not valid JSON" error.
+        AutoBiddingPipelineException exception = Assert.Throws<AutoBiddingPipelineException>(() =>
+            BiddingJsonParser.Parse("# Ofertă tehnică\nVă rog să găsiți mai jos propunerea."));
+        Assert.Equal(422, exception.StatusCode);
+        Assert.Contains("nu este JSON valid", exception.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void ParserReadsFinancialSummaryRecap()
     {
         BiddingProposal proposal = BiddingJsonParser.Parse(

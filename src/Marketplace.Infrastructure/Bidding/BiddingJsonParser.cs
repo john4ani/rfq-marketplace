@@ -11,77 +11,62 @@ public static class BiddingJsonParser
     public static BiddingProposal Parse(string json)
     {
         string normalized = Normalize(json);
-        JsonDocument document;
-        try
-        {
-            document = JsonDocument.Parse(normalized);
-        }
-        catch (JsonException exception)
-        {
-            bool looksTruncated = normalized.TrimStart().StartsWith('{') && !normalized.TrimEnd().EndsWith('}');
-            throw new AutoBiddingPipelineException(422,
-                looksTruncated
-                    ? "Răspunsul LLM a fost trunchiat (JSON incomplet). Reîncearcă generarea propunerii."
-                    : $"Răspunsul LLM nu este JSON valid: {exception.Message}");
-        }
-        using (document)
-        {
-            JsonElement root = document.RootElement;
+        using JsonDocument document = ParseJsonObject(normalized);
+        JsonElement root = document.RootElement;
 
-            string title = Read(root, "title") ?? string.Empty;
-            if (string.IsNullOrWhiteSpace(title))
-                throw new AutoBiddingPipelineException(422, "Răspunsul LLM nu conține un titlu de propunere.");
+        string title = Read(root, "title") ?? string.Empty;
+        if (string.IsNullOrWhiteSpace(title))
+            throw new AutoBiddingPipelineException(422, "Răspunsul LLM nu conține un titlu de propunere.");
 
-            List<ProposalSection> sections = [];
-            if (root.TryGetProperty("technicalProposal", out JsonElement proposal))
+        List<ProposalSection> sections = [];
+        if (root.TryGetProperty("technicalProposal", out JsonElement proposal))
+        {
+            if (proposal.TryGetProperty("sections", out JsonElement sectionList) && sectionList.ValueKind == JsonValueKind.Array)
             {
-                if (proposal.TryGetProperty("sections", out JsonElement sectionList) && sectionList.ValueKind == JsonValueKind.Array)
+                foreach (JsonElement section in sectionList.EnumerateArray())
                 {
-                    foreach (JsonElement section in sectionList.EnumerateArray())
-                    {
-                        string heading = Read(section, "heading") ?? "Secțiune";
-                        string content = Read(section, "content") ?? string.Empty;
-                        sections.Add(new(heading, content));
-                    }
+                    string heading = Read(section, "heading") ?? "Secțiune";
+                    string content = Read(section, "content") ?? string.Empty;
+                    sections.Add(new(heading, content));
                 }
             }
-            if (sections.Count == 0)
-                throw new AutoBiddingPipelineException(422, "Răspunsul LLM nu conține secțiuni pentru propunerea tehnică.");
-
-            List<BoqLine> boq = [];
-            if (root.TryGetProperty("billOfQuantities", out JsonElement boqList) && boqList.ValueKind == JsonValueKind.Array)
-            {
-                foreach (JsonElement line in boqList.EnumerateArray())
-                {
-                    int position = line.TryGetProperty("position", out JsonElement p) && p.TryGetInt32(out int positionValue) ? positionValue : boq.Count + 1;
-                    string description = Read(line, "description") ?? string.Empty;
-                    if (string.IsNullOrWhiteSpace(description))
-                        throw new AutoBiddingPipelineException(422, $"Linia {position} din lista de cantități nu are descriere.");
-                    string unit = Read(line, "unit") ?? "buc";
-                    decimal quantity = RequiredDecimal(line, "quantity", position);
-                    decimal unitPrice = RequiredDecimal(line, "unitPrice", position);
-                    decimal total = OptionalDecimal(line, "total") ?? quantity * unitPrice;
-                    boq.Add(new(position, description, unit, quantity, unitPrice, total));
-                }
-            }
-            if (boq.Count == 0)
-                throw new AutoBiddingPipelineException(422, "Răspunsul LLM nu conține nicio linie pentru lista de cantități.");
-
-            List<FinancialSummaryLine> financialSummary = [];
-            if (root.TryGetProperty("financialSummary", out JsonElement summaryList) && summaryList.ValueKind == JsonValueKind.Array)
-            {
-                foreach (JsonElement line in summaryList.EnumerateArray())
-                {
-                    string label = Read(line, "label") ?? string.Empty;
-                    if (string.IsNullOrWhiteSpace(label)) continue;
-                    string? note = Read(line, "note");
-                    financialSummary.Add(new(label, OptionalDecimal(line, "value") ?? 0m,
-                        string.IsNullOrWhiteSpace(note) ? null : note));
-                }
-            }
-
-            return new(title, sections, boq, financialSummary);
         }
+        if (sections.Count == 0)
+            throw new AutoBiddingPipelineException(422, "Răspunsul LLM nu conține secțiuni pentru propunerea tehnică.");
+
+        List<BoqLine> boq = [];
+        if (root.TryGetProperty("billOfQuantities", out JsonElement boqList) && boqList.ValueKind == JsonValueKind.Array)
+        {
+            foreach (JsonElement line in boqList.EnumerateArray())
+            {
+                int position = line.TryGetProperty("position", out JsonElement p) && p.TryGetInt32(out int positionValue) ? positionValue : boq.Count + 1;
+                string description = Read(line, "description") ?? string.Empty;
+                if (string.IsNullOrWhiteSpace(description))
+                    throw new AutoBiddingPipelineException(422, $"Linia {position} din lista de cantități nu are descriere.");
+                string unit = Read(line, "unit") ?? "buc";
+                decimal quantity = RequiredDecimal(line, "quantity", position);
+                decimal unitPrice = RequiredDecimal(line, "unitPrice", position);
+                decimal total = OptionalDecimal(line, "total") ?? quantity * unitPrice;
+                boq.Add(new(position, description, unit, quantity, unitPrice, total));
+            }
+        }
+        if (boq.Count == 0)
+            throw new AutoBiddingPipelineException(422, "Răspunsul LLM nu conține nicio linie pentru lista de cantități.");
+
+        List<FinancialSummaryLine> financialSummary = [];
+        if (root.TryGetProperty("financialSummary", out JsonElement summaryList) && summaryList.ValueKind == JsonValueKind.Array)
+        {
+            foreach (JsonElement line in summaryList.EnumerateArray())
+            {
+                string label = Read(line, "label") ?? string.Empty;
+                if (string.IsNullOrWhiteSpace(label)) continue;
+                string? note = Read(line, "note");
+                financialSummary.Add(new(label, OptionalDecimal(line, "value") ?? 0m,
+                    string.IsNullOrWhiteSpace(note) ? null : note));
+            }
+        }
+
+        return new(title, sections, boq, financialSummary);
     }
 
     private static string? Read(JsonElement element, string property) =>
@@ -108,6 +93,45 @@ public static class BiddingJsonParser
             ? trimmed[(firstNewline + 1)..lastFence]
             : trimmed[(firstNewline + 1)..];
         return body.Trim();
+    }
+
+    /// <summary>
+    /// Parses the LLM output, tolerating Markdown prose that wraps the JSON object (a leading
+    /// „# Ofertă tehnică” heading, a trailing „## Notă” line — the model sometimes prefaces the answer
+    /// even when asked not to). First tries the normalized response as-is; when that fails it falls back
+    /// to the outermost JSON object (first „{” to last „}”). A comma immediately after the closing brace
+    /// marks a genuine mid-structure truncation and is never "completed" by extraction — that case still
+    /// surfaces the „trunchiat” message. Invalid output surfaces as a friendly 422 with the original reason.
+    /// </summary>
+    private static JsonDocument ParseJsonObject(string normalized)
+    {
+        try
+        {
+            return JsonDocument.Parse(normalized);
+        }
+        catch (JsonException exception)
+        {
+            int firstOpen = normalized.IndexOf('{');
+            int lastClose = normalized.LastIndexOf('}');
+            bool endsMidStream = lastClose >= 0 && lastClose + 1 < normalized.Length
+                && normalized[lastClose + 1] == ',';
+            if (firstOpen >= 0 && lastClose > firstOpen && !endsMidStream)
+            {
+                try
+                {
+                    return JsonDocument.Parse(normalized[firstOpen..(lastClose + 1)]);
+                }
+                catch (JsonException)
+                {
+                    // Fall through to the original, more specific error below.
+                }
+            }
+            bool looksTruncated = normalized.TrimStart().StartsWith('{') && !normalized.TrimEnd().EndsWith('}');
+            throw new AutoBiddingPipelineException(422,
+                looksTruncated
+                    ? "Răspunsul LLM a fost trunchiat (JSON incomplet). Reîncearcă generarea propunerii."
+                    : $"Răspunsul LLM nu este JSON valid: {exception.Message}");
+        }
     }
 
     private static decimal RequiredDecimal(JsonElement element, string property, int position)
