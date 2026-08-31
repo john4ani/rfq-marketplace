@@ -1,4 +1,4 @@
-using Marketplace.Application.Seap;
+﻿using Marketplace.Application.Seap;
 using Marketplace.Domain.Seap;
 using Marketplace.Infrastructure.Persistence;
 using Marketplace.Infrastructure.Seap;
@@ -48,7 +48,7 @@ public sealed class SeapSearchTests
                 "CONSILIUL JUDETEAN GALATI", now, now.AddDays(30), [], County: "Galați")
         ]);
 
-        SeapIngestionService service = new(db, api, new StubAttachmentStorage(), new NullSeapCategorizer(),
+        SeapIngestionService service = new(db, api, new StubAttachmentStorage(), new NullSeapCategorizer(), new NullSeapSummaryGenerator(),
             Options.Create(new SeapOptions()), new FakeTimeProvider(), NullLogger<SeapIngestionService>.Instance);
 
         // „Caută în SEAP": buildings class 4521 within Galați — only the two matching notices are imported.
@@ -108,7 +108,7 @@ public sealed class SeapSearchTests
                 now.AddDays(-2), now.AddDays(20), [], County: "Brașov")],
             new DateOnly(2026, 1, 1), new DateOnly(2026, 12, 31));
 
-        SeapIngestionService service = new(db, api, new StubAttachmentStorage(), new NullSeapCategorizer(),
+        SeapIngestionService service = new(db, api, new StubAttachmentStorage(), new NullSeapCategorizer(), new NullSeapSummaryGenerator(),
             Options.Create(new SeapOptions()), new FakeTimeProvider(), NullLogger<SeapIngestionService>.Instance);
 
         IReadOnlyCollection<SeapTender> imported = await service.SearchAndImportAsync(
@@ -117,6 +117,48 @@ public sealed class SeapSearchTests
         Assert.Contains(imported, tender => tender.SeapExternalId == "SCN1179140");
         Assert.Equal("Brașov", (await db.SeapTenders.SingleAsync(tender => tender.SeapExternalId == "SCN1179140")).County);
         Assert.Contains((today.AddDays(-30), today), api.Windows);
+    }
+
+    [Fact]
+    public async Task ImportedSearchTenderGetsItsPublishedDocumentsAttached()
+    {
+        await using PostgreSqlContainer postgres = new PostgreSqlBuilder("pgvector/pgvector:pg17")
+            .WithDatabase("marketplace_seap_docs_test")
+            .Build();
+        await postgres.StartAsync();
+
+        DbContextOptions<MarketplaceDbContext> options = new DbContextOptionsBuilder<MarketplaceDbContext>()
+            .UseNpgsql(postgres.GetConnectionString(), npgsql =>
+            {
+                npgsql.EnableRetryOnFailure(5, TimeSpan.FromSeconds(5), null);
+                npgsql.MigrationsAssembly(typeof(MarketplaceDbContext).Assembly.FullName);
+                npgsql.UseVector();
+            })
+            .Options;
+        await using MarketplaceDbContext db = new(options);
+        await db.Database.MigrateAsync();
+
+        DateTimeOffset now = DateTimeOffset.UtcNow;
+        // The search payload carries the numeric noticeId/type; the notice-detail API resolves the docs.
+        SeapTenderNoticeDto notice = new("CN-DOCS-1", "Caiet de sarcini sala de sport", null, ["45214200-2"], 2_000_000m, "RON",
+            "PRIMARIA GALATI", now, now.AddDays(30), [], County: "Galați", NoticeId: 900001, SysNoticeTypeId: 17);
+        DocumentedSeapApiClient api = new([notice],
+        [
+            new SeapNoticeDocumentDto("CN-DOCS-1/00005", "4. Caiet de sarcini sala sport.pdf.p7s", "https://e-licitatie.ro/api-pub/files/noticedoc/aaa"),
+            new SeapNoticeDocumentDto("CN-DOCS-1/00009", "FisaDate.pdf", "https://e-licitatie.ro/api-pub/files/noticedoc/bbb")
+        ]);
+        SeapIngestionService service = new(db, api, new StubAttachmentStorage(), new NullSeapCategorizer(), new NullSeapSummaryGenerator(),
+            Options.Create(new SeapOptions()), new FakeTimeProvider(), NullLogger<SeapIngestionService>.Instance);
+
+        IReadOnlyCollection<SeapTender> imported = await service.SearchAndImportAsync(
+            ["45210000"], ["Galați"], new DateOnly(2026, 1, 1), new DateOnly(2026, 12, 31), CancellationToken.None);
+
+        SeapTender tender = Assert.Single(imported);
+        Assert.Equal(2, tender.Attachments.Count);
+        Assert.Contains(tender.Attachments, attachment => attachment.FileName == "4. Caiet de sarcini sala sport.pdf.p7s");
+        Assert.Contains(tender.Attachments, attachment => attachment.S3Url == "https://e-licitatie.ro/api-pub/files/noticedoc/bbb");
+        // The second scan window finds the same notice already imported (with attachments) → no refetch.
+        Assert.Equal(1, api.DocumentFetches);
     }
 
     private sealed class StubSeapApiClient(
@@ -139,6 +181,9 @@ public sealed class SeapSearchTests
 
         public Task<Stream> DownloadAttachmentAsync(string downloadUrl, CancellationToken cancellationToken) =>
             throw new NotSupportedException("Attachments are disabled in this test.");
+        public Task<IReadOnlyCollection<SeapNoticeDocumentDto>> FetchNoticeDocumentsAsync(
+            int noticeId, int sysNoticeTypeId, CancellationToken cancellationToken) =>
+            Task.FromResult<IReadOnlyCollection<SeapNoticeDocumentDto>>([]);
     }
 
     /// <summary>Returns nothing for the requested window but the recent notice for every other window —
@@ -165,12 +210,49 @@ public sealed class SeapSearchTests
 
         public Task<Stream> DownloadAttachmentAsync(string downloadUrl, CancellationToken cancellationToken) =>
             throw new NotSupportedException("Attachments are disabled in this test.");
+        public Task<IReadOnlyCollection<SeapNoticeDocumentDto>> FetchNoticeDocumentsAsync(
+            int noticeId, int sysNoticeTypeId, CancellationToken cancellationToken) =>
+            Task.FromResult<IReadOnlyCollection<SeapNoticeDocumentDto>>([]);
+    }
+
+    /// <summary>Search client that returns the published documents for the matched notice — simulating the
+    /// notice-detail API resolving the document list the search payload does not carry.</summary>
+    private sealed class DocumentedSeapApiClient(
+        IReadOnlyCollection<SeapTenderNoticeDto> page0,
+        IReadOnlyCollection<SeapNoticeDocumentDto> documents) : ISeapApiClient
+    {
+        public int DocumentFetches { get; private set; }
+
+        public Task<IReadOnlyCollection<SeapTenderNoticeDto>> FetchRecentNoticesAsync(CancellationToken cancellationToken) =>
+            Task.FromResult(page0);
+
+        public Task<IReadOnlyCollection<SeapTenderNoticeDto>> FetchNoticePageAsync(
+            int pageIndex, int pageSize, DateOnly? startPublicationDate, DateOnly? endPublicationDate,
+            CancellationToken cancellationToken) =>
+            Task.FromResult<IReadOnlyCollection<SeapTenderNoticeDto>>(
+                pageIndex >= 1 ? Array.Empty<SeapTenderNoticeDto>() : page0);
+
+        public Task<Stream> DownloadAttachmentAsync(string downloadUrl, CancellationToken cancellationToken) =>
+            throw new NotSupportedException("Attachments are disabled in this test.");
+
+        public Task<IReadOnlyCollection<SeapNoticeDocumentDto>> FetchNoticeDocumentsAsync(
+            int noticeId, int sysNoticeTypeId, CancellationToken cancellationToken)
+        {
+            DocumentFetches++;
+            return Task.FromResult(documents);
+        }
     }
 
     private sealed class NullSeapCategorizer : ISeapCategorizer
     {
         public Task<SeapCategorizationResult?> CategorizeAsync(string? cpvCode, string? cpvName, string title, CancellationToken cancellationToken) =>
             Task.FromResult<SeapCategorizationResult?>(null);
+    }
+
+    private sealed class NullSeapSummaryGenerator : ISeapSummaryGenerator
+    {
+        public Task<SeapAiExtraction?> GenerateAsync(SeapTender tender, string? attachmentText, CancellationToken cancellationToken) =>
+            Task.FromResult<SeapAiExtraction?>(null);
     }
 
     private sealed class StubAttachmentStorage : ISeapAttachmentStorage

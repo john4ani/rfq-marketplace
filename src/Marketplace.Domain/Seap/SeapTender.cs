@@ -5,6 +5,22 @@ namespace Marketplace.Domain.Seap;
 public enum SeapTenderStatus { Imported, ReadyForBidding, BidGenerated, Failed }
 
 /// <summary>
+/// Structured values extracted from a notice by the AI summarizer (see <c>ISeapSummaryGenerator</c>):
+/// decision-critical facts for a supplier's participation decision. Any field may be null when the notice
+/// does not state it — the LLM must never invent data. <see cref="SummaryPoints"/> holds the short
+/// „Sinteză AI" bullets shown on the tender detail page.
+/// </summary>
+public sealed record SeapAiExtraction(
+    string? Description,
+    string? AwardCriterion,
+    string? ParticipationGuarantee,
+    string? FundingSource,
+    string? ContractDuration,
+    string? QualificationRequirements,
+    string? KeyPersonnel,
+    IReadOnlyCollection<string> SummaryPoints);
+
+/// <summary>
 /// A public tender notice imported from e-licitatie.ro. Kept as its own aggregate: a SEAP tender is a
 /// public procurement opportunity, not a CompaSpot buyer need (the buying institution is external and
 /// is not an ApplicationUser, so forcing tenders into Rfq would pollute the marketplace).
@@ -16,6 +32,12 @@ public sealed class SeapTender
 
     public Guid Id { get; private set; }
     public string SeapExternalId { get; private set; } = string.Empty;
+    /// <summary>Numeric id of the notice in SEAP (carried by the search payload). Persisted so the published
+    /// document list can be resolved again on demand (the notice-search payload does not carry documents).</summary>
+    public int? NoticeId { get; private set; }
+    /// <summary>Notice type in SEAP (2 = CN, 17 = SCN); required alongside <see cref="NoticeId"/> to resolve
+    /// the published documents.</summary>
+    public int? SysNoticeTypeId { get; private set; }
     public string Title { get; private set; } = string.Empty;
     public string? Description { get; private set; }
     public IReadOnlyCollection<string> CpvCodes { get; private set; } = [];
@@ -38,6 +60,22 @@ public sealed class SeapTender
     public string? ProposalTitle { get; private set; }
     public string? TechnicalProposalUrl { get; private set; }
     public string? BillOfQuantitiesUrl { get; private set; }
+    /// <summary>Award criterion stated in the notice (e.g. „Prețul cel mai scăzut" or „Cel mai bun raport
+    /// calitate-preț" with weights), extracted by the AI summarizer at import.</summary>
+    public string? AwardCriterion { get; private set; }
+    /// <summary>Participation guarantee amount + currency (e.g. „120.000 RON"), when the notice states one.</summary>
+    public string? ParticipationGuarantee { get; private set; }
+    /// <summary>Funding source (e.g. PNRR, fonduri europene, buget local), when specified.</summary>
+    public string? FundingSource { get; private set; }
+    /// <summary>Contract duration (e.g. „12 luni", „60 de zile"), when specified.</summary>
+    public string? ContractDuration { get; private set; }
+    /// <summary>Summary of the technical/professional capacity requirements (similar experience, turnover).</summary>
+    public string? QualificationRequirements { get; private set; }
+    /// <summary>Short list of the key experts requested (e.g. „Manager de proiect, Inginer RTE").</summary>
+    public string? KeyPersonnel { get; private set; }
+    /// <summary>AI-synthesis bullets for the „Sinteză AI" tab (max 5, short). Empty until generated — an empty
+    /// array means „processing/not yet generated", never a failed state for the tender.</summary>
+    public IReadOnlyCollection<string> SummaryPoints { get; private set; } = [];
     public DateTimeOffset CreatedAt { get; private set; }
     public DateTimeOffset UpdatedAt { get; private set; }
     public IReadOnlyCollection<SeapTenderAttachment> Attachments => _attachments;
@@ -54,10 +92,14 @@ public sealed class SeapTender
         string? county,
         DateTimeOffset publicationDate,
         DateTimeOffset deadline,
-        DateTimeOffset now) => new()
+        DateTimeOffset now,
+        int? noticeId = null,
+        int? sysNoticeTypeId = null) => new()
         {
             Id = Guid.NewGuid(),
             SeapExternalId = Required(seapExternalId, "Identificatorul SEAP este obligatoriu."),
+            NoticeId = noticeId,
+            SysNoticeTypeId = sysNoticeTypeId,
             Title = Required(title, "Titlul anunțului este obligatoriu."),
             Description = NullIfBlank(description),
             CpvCodes = (cpvCodes ?? []).Distinct(StringComparer.OrdinalIgnoreCase).Order().ToArray(),
@@ -120,6 +162,43 @@ public sealed class SeapTender
     {
         if (County is not null || string.IsNullOrWhiteSpace(county)) return;
         County = county.Trim();
+        UpdatedAt = now;
+    }
+
+    /// <summary>Records the numeric SEAP notice id/type for tenders imported before the document-resolution
+    /// feature existed, so their published documents can be resolved on demand. Idempotent: never overwrites
+    /// an already-recorded id and ignores null input.</summary>
+    public void BackfillNoticeSource(int? noticeId, int? sysNoticeTypeId, DateTimeOffset now)
+    {
+        if (NoticeId is not null || noticeId is null) return;
+        NoticeId = noticeId;
+        SysNoticeTypeId = sysNoticeTypeId;
+        UpdatedAt = now;
+    }
+
+    /// <summary>
+    /// Persists the AI extraction produced at import („Sinteză AI" bullets + award criterion, participation
+    /// guarantee, funding source, duration, qualification requirements, key personnel). Enrichment is never a
+    /// gate: the tender is fully usable without it. The AI's 2–3 sentence acquisition summary fills
+    /// <see cref="Description"/> only when the notice's own full text is absent — a parser-delivered full
+    /// text always wins over the AI summary.
+    /// </summary>
+    public void ApplyAiExtraction(SeapAiExtraction extraction, DateTimeOffset now)
+    {
+        if (Description is null && !string.IsNullOrWhiteSpace(extraction.Description))
+            Description = extraction.Description.Trim();
+        AwardCriterion = NullIfBlank(extraction.AwardCriterion);
+        ParticipationGuarantee = NullIfBlank(extraction.ParticipationGuarantee);
+        FundingSource = NullIfBlank(extraction.FundingSource);
+        ContractDuration = NullIfBlank(extraction.ContractDuration);
+        QualificationRequirements = NullIfBlank(extraction.QualificationRequirements);
+        KeyPersonnel = NullIfBlank(extraction.KeyPersonnel);
+        if (extraction.SummaryPoints is { Count: > 0 })
+            SummaryPoints = extraction.SummaryPoints
+                .Select(point => point.Trim())
+                .Where(point => point.Length > 0)
+                .Take(5)
+                .ToArray();
         UpdatedAt = now;
     }
 

@@ -1,4 +1,4 @@
-using Marketplace.Application.Seap;
+﻿using Marketplace.Application.Seap;
 using Marketplace.Domain.Seap;
 using Marketplace.Infrastructure.Persistence;
 using Marketplace.Infrastructure.Seap;
@@ -57,7 +57,8 @@ public sealed class SeapHourlyCapTests
         SeapOptions seapOptions = new() { MaxNewNoticesPerHour = HourlyCap };
         FakeTimeProvider clock = new();
 
-        SeapIngestionService service = new(db, api, storage, new NullSeapCategorizer(), Options.Create(seapOptions), clock, NullLogger<SeapIngestionService>.Instance);
+        SeapIngestionService service = new(db, api, storage, new NullSeapCategorizer(), new NullSeapSummaryGenerator(),
+            Options.Create(seapOptions), clock, NullLogger<SeapIngestionService>.Instance);
 
         // First poll: the API returns 12 notices but only the configured cap may be imported.
         int firstPoll = await service.PollAndImportAsync(CancellationToken.None);
@@ -103,7 +104,7 @@ public sealed class SeapHourlyCapTests
 
         SeapOptions seapOptions = new() { MaxNewNoticesPerHour = HourlyCap };
         SeapIngestionService service = new(
-            db, new StubSeapApiClient([]), new StubAttachmentStorage(), new NullSeapCategorizer(),
+            db, new StubSeapApiClient([]), new StubAttachmentStorage(), new NullSeapCategorizer(), new NullSeapSummaryGenerator(),
             Options.Create(seapOptions), new FakeTimeProvider(), NullLogger<SeapIngestionService>.Instance);
 
         SeapTenderImportResult result = await service.ImportNoticeAsync(notice, CancellationToken.None);
@@ -127,12 +128,21 @@ public sealed class SeapHourlyCapTests
 
         public Task<Stream> DownloadAttachmentAsync(string downloadUrl, CancellationToken cancellationToken) =>
             throw new NotSupportedException("Attachments are disabled in this test.");
+        public Task<IReadOnlyCollection<SeapNoticeDocumentDto>> FetchNoticeDocumentsAsync(
+            int noticeId, int sysNoticeTypeId, CancellationToken cancellationToken) =>
+            Task.FromResult<IReadOnlyCollection<SeapNoticeDocumentDto>>([]);
     }
 
     private sealed class NullSeapCategorizer : ISeapCategorizer
     {
         public Task<SeapCategorizationResult?> CategorizeAsync(string? cpvCode, string? cpvName, string title, CancellationToken cancellationToken) =>
             Task.FromResult<SeapCategorizationResult?>(null);
+    }
+
+    private sealed class NullSeapSummaryGenerator : ISeapSummaryGenerator
+    {
+        public Task<SeapAiExtraction?> GenerateAsync(SeapTender tender, string? attachmentText, CancellationToken cancellationToken) =>
+            Task.FromResult<SeapAiExtraction?>(null);
     }
 
     private sealed class StubAttachmentStorage : ISeapAttachmentStorage

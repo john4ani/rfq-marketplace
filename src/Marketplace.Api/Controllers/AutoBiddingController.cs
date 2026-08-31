@@ -9,10 +9,14 @@ using Marketplace.Infrastructure.AutoBidding;
 using Marketplace.Infrastructure.Bidding;
 using Marketplace.Infrastructure.Billing;
 using Marketplace.Infrastructure.Identity;
+using Marketplace.Infrastructure.Persistence;
+using Marketplace.Infrastructure.Seap;
 using Marketplace.Infrastructure.Storage;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using System.Security.Claims;
@@ -29,6 +33,9 @@ public sealed partial class AutoBiddingController(
     IOptions<AutoBiddingOptions> autoBiddingOptions,
     IOptionsMonitor<FeaturesOptions> features,
     ISeapIngestionService seapIngestionService,
+    ISeapApiClient seapApiClient,
+    ISeapSummaryGenerator summaryGenerator,
+    MarketplaceDbContext dbContext,
     IStorageService storage,
     IPipelineProgressStore progressStore,
     ILogger<AutoBiddingController> logger) : ControllerBase
@@ -66,6 +73,81 @@ public sealed partial class AutoBiddingController(
     }
 
     /// <summary>
+    /// Generates the „Sinteză AI" extraction on demand for a tender that does not have one yet (legacy
+    /// tenders imported before the summarizer existed, or tenders whose import-time generation failed).
+    /// Idempotent: when a summary already exists it is returned without an LLM call. A failed generation
+    /// returns 503 with a friendly detail so the SPA shows a recoverable error instead of endless loading.
+    /// </summary>
+    [HttpPost("tenders/{tenderId:guid}/summary")]
+    public async Task<IActionResult> GenerateSummary(Guid tenderId, CancellationToken cancellationToken)
+    {
+        SeapTender? tender = await dbContext.SeapTenders
+            .Include(item => item.Attachments)
+            .Include(item => item.Category)
+            .SingleOrDefaultAsync(item => item.Id == tenderId, cancellationToken);
+        if (tender is null) return NotFound();
+
+        if (tender.SummaryPoints.Count > 0)
+            return Ok(SeapTenderDetailsDto.From(tender, DateTimeOffset.UtcNow));
+
+        SeapAiExtraction? extraction = await summaryGenerator.GenerateAsync(tender, attachmentText: null, cancellationToken);
+        if (extraction is null)
+            return Problem(
+                statusCode: StatusCodes.Status503ServiceUnavailable,
+                title: "Sinteza indisponibilă",
+                detail: "Sinteza AI nu a putut fi generată în acest moment. Încearcă din nou mai târziu.");
+
+        tender.ApplyAiExtraction(extraction, DateTimeOffset.UtcNow);
+        await dbContext.SaveChangesAsync(cancellationToken);
+        return Ok(SeapTenderDetailsDto.From(tender, DateTimeOffset.UtcNow));
+    }
+
+    /// <summary>
+    /// Resolves the published documents (Fișa de date, Caiet de sarcini, formulare) on demand for a tender
+    /// that has none yet — the notice-search payload does not carry them and the on-demand search may not
+    /// re-find an already-imported tender. Idempotent: an existing attachment list is returned without a
+    /// fetch. Tenders without a persisted numeric notice id (pre-document-feature imports) return as-is —
+    /// their id is backfilled when the on-demand search re-finds them. A failed fetch returns 503 with a
+    /// friendly detail so the SPA shows a recoverable state.
+    /// </summary>
+    [HttpPost("tenders/{tenderId:guid}/documents")]
+    public async Task<IActionResult> RefreshPublishedDocuments(Guid tenderId, CancellationToken cancellationToken)
+    {
+        SeapTender? tender = await dbContext.SeapTenders
+            .Include(item => item.Attachments)
+            .Include(item => item.Category)
+            .SingleOrDefaultAsync(item => item.Id == tenderId, cancellationToken);
+        if (tender is null) return NotFound();
+
+        if (tender.Attachments.Count > 0 || tender.NoticeId is not int noticeId)
+            return Ok(SeapTenderDetailsDto.From(tender, DateTimeOffset.UtcNow));
+
+        try
+        {
+            IReadOnlyCollection<SeapNoticeDocumentDto> documents =
+                await seapApiClient.FetchNoticeDocumentsAsync(noticeId, tender.SysNoticeTypeId ?? 2, cancellationToken);
+            DateTimeOffset now = DateTimeOffset.UtcNow;
+            foreach (SeapNoticeDocumentDto document in documents)
+            {
+                if (tender.Attachments.Any(attachment =>
+                        string.Equals(attachment.FileName, document.FileName, StringComparison.OrdinalIgnoreCase)))
+                    continue;
+                dbContext.Add(SeapTenderAttachment.Create(tender.Id, document.FileName, document.DownloadUrl, now));
+            }
+            await dbContext.SaveChangesAsync(cancellationToken);
+            return Ok(SeapTenderDetailsDto.From(tender, DateTimeOffset.UtcNow));
+        }
+        catch (Exception exception)
+        {
+            LogDocumentsResolveFailed(logger, tenderId, exception);
+            return Problem(
+                statusCode: StatusCodes.Status503ServiceUnavailable,
+                title: "Documente indisponibile",
+                detail: "Documentele anunțului nu au putut fi încărcate în acest moment. Încearcă din nou mai târziu.");
+        }
+    }
+
+    /// <summary>
     /// Streams one of the original files published by the contracting authority (Fișa de date, Caiet de
     /// sarcini, clarificări). The persisted storage reference (<c>local://…</c> or <c>s3://…</c>) is resolved
     /// server-side and the response streams directly (no in-memory buffering); the attachment is verified to
@@ -78,6 +160,25 @@ public sealed partial class AutoBiddingController(
         SeapTender? tender = await biddingService.GetTenderAsync(tenderId, cancellationToken);
         SeapTenderAttachment? attachment = tender?.Attachments.FirstOrDefault(item => item.Id == attachmentId);
         if (attachment is null) return NotFound();
+
+        // Published documents resolved from e-licitatie.ro are stored as remote references; stream them from
+        // the platform on demand (the file endpoint requires a same-origin Referer, set by SeapApiClient).
+        if (attachment.S3Url.StartsWith("http", StringComparison.OrdinalIgnoreCase))
+        {
+            try
+            {
+                Stream remote = await seapApiClient.DownloadAttachmentAsync(attachment.S3Url, cancellationToken);
+                return File(remote, SeapAttachmentStorage.DetectContentType(attachment.FileName), attachment.FileName);
+            }
+            catch (Exception)
+            {
+                return Problem(
+                    statusCode: StatusCodes.Status502BadGateway,
+                    title: "Document indisponibil",
+                    detail: "Documentul nu este disponibil momentan pe platforma SEAP. Încearcă din nou mai târziu.");
+            }
+        }
+
         StorageObject? stored = await storage.OpenReadAsync(attachment.S3Url, cancellationToken);
         return stored is null
             ? NotFound()
@@ -234,6 +335,8 @@ public sealed partial class AutoBiddingController(
 
     [LoggerMessage(EventId = 6001, Level = LogLevel.Error, Message = "Auto-bid generation after checkout failed for tender {TenderId}.")]
     private static partial void LogWebhookGenerationFailed(ILogger logger, Guid tenderId, Exception exception);
+    [LoggerMessage(EventId = 6002, Level = LogLevel.Warning, Message = "Published documents could not be resolved for tender {TenderId}.")]
+    private static partial void LogDocumentsResolveFailed(ILogger logger, Guid tenderId, Exception exception);
 }
 
 /// <summary>Body of POST /auto-bid; the optional <c>progressRequestId</c> lets the SPA poll real

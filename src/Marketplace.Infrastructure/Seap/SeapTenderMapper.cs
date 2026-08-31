@@ -25,5 +25,8 @@ public static class SeapTenderMapper
             // wire boundary before persistence.
             notice.PublicationDate.ToUniversalTime(),
             notice.Deadline.ToUniversalTime(),
-            now);
+            now,
+            // Persist the numeric notice id/type so the published document list can be resolved on demand.
+            notice.NoticeId,
+            notice.SysNoticeTypeId);
 }

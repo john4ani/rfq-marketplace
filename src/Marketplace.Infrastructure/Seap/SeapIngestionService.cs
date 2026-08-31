@@ -13,6 +13,7 @@ public sealed partial class SeapIngestionService(
     ISeapApiClient apiClient,
     ISeapAttachmentStorage storage,
     ISeapCategorizer categorizer,
+    ISeapSummaryGenerator summaryGenerator,
     IOptions<SeapOptions> options,
     TimeProvider timeProvider,
     ILogger<SeapIngestionService> logger) : ISeapIngestionService
@@ -53,6 +54,18 @@ public sealed partial class SeapIngestionService(
             tender.CpvCodes.FirstOrDefault(), tender.CpvNames.FirstOrDefault(), tender.Title, cancellationToken);
         if (categorization is not null)
             tender.Categorize(categorization.CategoryId, now);
+
+        // AI detail extraction („Sinteză AI" bullets + award criterion/guarantee/funding/duration/qualification),
+        // fed with the notice data the importer holds (attachment text is not extracted at SEAP ingestion yet,
+        // so it is passed as null). Enrichment is never a gate: a failed call leaves the tender without AI
+        // details and is persisted in the same SaveChanges as the tender.
+        SeapAiExtraction? extraction = await summaryGenerator.GenerateAsync(tender, attachmentText: null, cancellationToken);
+        if (extraction is not null)
+            tender.ApplyAiExtraction(extraction, now);
+
+        // Published documents (Fișa de date, Caiet de sarcini, formulare) resolved from the live notice-detail
+        // API; stored as remote references streamed on demand by the download endpoint. Never a gate.
+        await FetchAndAttachDocumentsAsync(notice, tender, now, cancellationToken);
 
         int downloaded = 0;
         if (settings.Enabled)
@@ -231,9 +244,25 @@ public sealed partial class SeapIngestionService(
     private async Task<SeapTender?> ImportSearchNoticeAsync(
         SeapTenderNoticeDto notice, DateTimeOffset now, CancellationToken cancellationToken)
     {
-        if (await dbContext.SeapTenders.AsNoTracking()
-                .AnyAsync(tender => tender.SeapExternalId == notice.Id, cancellationToken))
+        SeapTender? existing = await dbContext.SeapTenders
+            .Include(tender => tender.Attachments)
+            .SingleOrDefaultAsync(tender => tender.SeapExternalId == notice.Id, cancellationToken);
+        if (existing is not null)
+        {
+            // The on-demand search doubles as a self-heal: a tender imported before the published-document
+            // list was resolved gets it refreshed from the live notice-detail API, and the numeric notice
+            // id/type is persisted so the documents can also be resolved on demand later.
+            if (existing.Attachments.Count == 0)
+            {
+                bool sourceChanged = existing.NoticeId is null && notice.NoticeId is not null;
+                if (sourceChanged)
+                    existing.BackfillNoticeSource(notice.NoticeId, notice.SysNoticeTypeId, now);
+                int attached = await FetchAndAttachDocumentsAsync(notice, existing, now, cancellationToken);
+                if (sourceChanged || attached > 0)
+                    await dbContext.SaveChangesAsync(cancellationToken);
+            }
             return null;
+        }
         SeapRawIngestion staging = SeapRawIngestion.Pending(notice.Id, JsonSerializer.Serialize(notice, PayloadJsonOptions), now);
         SeapTender tender;
         try
@@ -248,6 +277,12 @@ public sealed partial class SeapIngestionService(
             LogParseFailed(logger, notice.Id, exception);
             return null;
         }
+        // AI detail extraction, mirroring the background import (enrichment, never a gate). The on-demand
+        // search downloads no attachment content, so only the notice metadata feeds the summarizer.
+        SeapAiExtraction? extraction = await summaryGenerator.GenerateAsync(tender, attachmentText: null, cancellationToken);
+        if (extraction is not null)
+            tender.ApplyAiExtraction(extraction, now);
+        await FetchAndAttachDocumentsAsync(notice, tender, now, cancellationToken);
         if (notice.Attachments.Count == 0)
             tender.MarkReadyForBidding(now);
         staging.MarkParsed(now);
@@ -255,6 +290,37 @@ public sealed partial class SeapIngestionService(
         dbContext.SeapTenders.Add(tender);
         await dbContext.SaveChangesAsync(cancellationToken);
         return tender;
+    }
+
+    /// <summary>Resolves the published documents of a notice (Fișa de date, Caiet de sarcini, formulare)
+    /// from the live notice-detail API and attaches them to the tender as remote references — the file
+    /// content streams from e-licitatie.ro on demand through our download endpoint, so the import stays
+    /// cheap. Enrichment, never a gate: any failure leaves the tender without attachments. Returns how many
+    /// documents were attached.</summary>
+    private async Task<int> FetchAndAttachDocumentsAsync(
+        SeapTenderNoticeDto notice, SeapTender tender, DateTimeOffset now, CancellationToken cancellationToken)
+    {
+        if (notice.NoticeId is not int noticeId) return 0;
+        try
+        {
+            IReadOnlyCollection<SeapNoticeDocumentDto> documents =
+                await apiClient.FetchNoticeDocumentsAsync(noticeId, notice.SysNoticeTypeId ?? 2, cancellationToken);
+            int attached = 0;
+            foreach (SeapNoticeDocumentDto document in documents)
+            {
+                if (tender.Attachments.Any(attachment =>
+                        string.Equals(attachment.FileName, document.FileName, StringComparison.OrdinalIgnoreCase)))
+                    continue;
+                tender.AddAttachment(document.FileName, document.DownloadUrl, now);
+                attached++;
+            }
+            return attached;
+        }
+        catch (Exception exception)
+        {
+            LogDocumentsAttachFailed(logger, notice.Id, exception);
+            return 0;
+        }
     }
 
     [LoggerMessage(EventId = 5103, Level = LogLevel.Information, Message = "SEAP tender {SeapId} imported with {AttachmentCount} attachments.")]
@@ -271,4 +337,6 @@ public sealed partial class SeapIngestionService(
     private static partial void LogCountiesBackfilled(ILogger logger, int count);
     [LoggerMessage(EventId = 5111, Level = LogLevel.Information, Message = "SEAP on-demand search imported {Imported} matching tenders after scanning {Scanned} notices.")]
     private static partial void LogSeapSearchImported(ILogger logger, int imported, int scanned);
+    [LoggerMessage(EventId = 5112, Level = LogLevel.Warning, Message = "SEAP tender {SeapId} published documents could not be attached; tender stays without attachments.")]
+    private static partial void LogDocumentsAttachFailed(ILogger logger, string seapId, Exception exception);
 }

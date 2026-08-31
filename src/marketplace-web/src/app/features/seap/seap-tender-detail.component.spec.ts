@@ -6,7 +6,7 @@ import { of, Subject, throwError } from 'rxjs';
 import { vi } from 'vitest';
 import { CompanyVaultService } from '../../core/companies/company-vault.service';
 import { ProfileService } from '../../core/profiles/profile.service';
-import { AutoBidResponse, SeapService, SeapTender } from '../../core/seap/seap.service';
+import { AutoBidResponse, BidStatus, SeapService, SeapTender } from '../../core/seap/seap.service';
 import { SeapTenderDetailComponent } from './seap-tender-detail.component';
 
 registerLocaleData(localeRo);
@@ -36,7 +36,8 @@ describe('SeapTenderDetailComponent', () => {
       { id: 'att-2', fileName: 'Caiet de sarcini.zip', downloadUrl: 'api/v1/seap/tenders/t1/attachments/att-2' }
     ],
     procedureType: 'Procedură simplificată',
-    procedureState: 'În desfășurare'
+    procedureState: 'În desfășurare',
+    summaryPoints: ['Garanție de participare: 120.000 RON', 'Termen de execuție: 12 luni', 'Criteriu: 60% preț, 40% componentă tehnică']
   };
   const bidStatus = { status: 'Imported' as const, proposalTitle: null, technicalProposalUrl: null, billOfQuantitiesUrl: null };
   const pricing = { estimatedValueEur: 989_871, priceEur: 500, freeGenerationsRemaining: 1, shadowMode: true };
@@ -54,7 +55,7 @@ describe('SeapTenderDetailComponent', () => {
 
   afterEach(() => localStorage.removeItem('compaspot.language'));
 
-  function setup(options: { startAutoBid: ReturnType<typeof vi.fn> }) {
+  function setup(options: { startAutoBid: ReturnType<typeof vi.fn>; generateSummary?: ReturnType<typeof vi.fn>; tender?: SeapTender; bidStatus?: BidStatus; getBidStatus?: ReturnType<typeof vi.fn>; refreshDocuments?: ReturnType<typeof vi.fn> }) {
     TestBed.configureTestingModule({
       imports: [SeapTenderDetailComponent],
       providers: [
@@ -65,11 +66,13 @@ describe('SeapTenderDetailComponent', () => {
         {
           provide: SeapService,
           useValue: {
-            getTender: vi.fn().mockReturnValue(of(tender)),
-            getBidStatus: vi.fn().mockReturnValue(of(bidStatus)),
+            getTender: vi.fn().mockReturnValue(of(options.tender ?? tender)),
+            getBidStatus: options.getBidStatus ?? vi.fn().mockReturnValue(of(options.bidStatus ?? bidStatus)),
             getTenderPricing: vi.fn().mockReturnValue(of(pricing)),
             getAutoBidProgress: vi.fn().mockReturnValue(of({ stage: 'Generating' as const, message: 'Claude redactează propunerea tehnică…' })),
             startAutoBid: options.startAutoBid,
+            generateSummary: options.generateSummary ?? vi.fn(),
+            refreshDocuments: options.refreshDocuments ?? vi.fn(),
             downloadBidFile: vi.fn(),
             downloadAttachment: vi.fn().mockReturnValue(of(new Blob(['pdf'])))
           }
@@ -162,6 +165,104 @@ describe('SeapTenderDetailComponent', () => {
     } finally {
       vi.useRealTimers();
     }
+  });
+
+  it('shows the Istoric tab with the generated offer documents for a tender with a generated bid', () => {
+    const generatedBid: BidStatus = {
+      status: 'BidGenerated', proposalTitle: 'Ofertă tehnică — Reabilitare drum',
+      technicalProposalUrl: 'local://proposal.docx', billOfQuantitiesUrl: 'local://boq.xlsx'
+    };
+    const fixture = setup({ startAutoBid: vi.fn(), bidStatus: generatedBid });
+    fixture.detectChanges();
+
+    // Tab 1 no longer clutters the summary with the downloads — it points to the History tab.
+    const text = (fixture.nativeElement as HTMLElement).textContent ?? '';
+    expect(text).toContain('Deschide Istoricul');
+    expect(text).not.toContain('Descarcă propunerea tehnică (.docx)');
+
+    const tab = Array.from(fixture.nativeElement.querySelectorAll('button[role="tab"]') as NodeListOf<HTMLButtonElement>)
+      .find(button => button.textContent?.includes('Istoric Ofertă'))!;
+    expect(tab).toBeTruthy();
+    tab.click();
+    fixture.detectChanges();
+
+    const historyText = (fixture.nativeElement as HTMLElement).textContent ?? '';
+    expect(historyText).toContain('Istoric Ofertă');
+    expect(historyText).toContain('Ofertă tehnică — Reabilitare drum');
+    expect(historyText).toContain('Descarcă propunerea tehnică (.docx)');
+    expect(historyText).toContain('Descarcă lista de cantități (.xlsx)');
+    expect(historyText).toContain('Îmi asum responsabilitatea');
+  });
+
+  it('switches to the Istoric tab automatically when the generation completes', () => {
+    const getBidStatus = vi.fn()
+      .mockReturnValueOnce(of({ status: 'Imported' as const, proposalTitle: null, technicalProposalUrl: null, billOfQuantitiesUrl: null }))
+      .mockReturnValue(of({
+        status: 'BidGenerated' as const, proposalTitle: 'Ofertă tehnică — Reabilitare drum',
+        technicalProposalUrl: 'local://proposal.docx', billOfQuantitiesUrl: 'local://boq.xlsx'
+      }));
+    const fixture = setup({ startAutoBid: vi.fn().mockReturnValue(of({ ready: true, shadowMode: true, freeGeneration: false })), getBidStatus });
+    fixture.detectChanges();
+    clickAutoBid(fixture);
+    fixture.detectChanges();
+
+    // The refreshed bid status reports the generated bid → the page moves to the Istoric tab.
+    const text = (fixture.nativeElement as HTMLElement).textContent ?? '';
+    expect(text).toContain('Istoric Ofertă');
+    expect(text).toContain('Descarcă propunerea tehnică (.docx)');
+    expect(text).toContain('Ofertă tehnică — Reabilitare drum');
+  });
+
+  it('opens the documents tab and resolves the published documents on demand', () => {
+    const documents$ = new Subject<SeapTender>();
+    const refreshDocuments = vi.fn().mockReturnValue(documents$);
+    const fixture = setup({ startAutoBid: vi.fn(), refreshDocuments, tender: { ...tender, attachments: [] } });
+    fixture.detectChanges();
+
+    const tab = Array.from(fixture.nativeElement.querySelectorAll('button[role="tab"]') as NodeListOf<HTMLButtonElement>)
+      .find(button => button.textContent?.includes('Documente Originale'))!;
+    tab.click();
+    fixture.detectChanges();
+
+    // The tab shows a real skeleton while the on-demand request is in flight.
+    expect(refreshDocuments).toHaveBeenCalledWith('t1');
+    expect(fixture.nativeElement.querySelector('.skeleton')).not.toBeNull();
+
+    documents$.next({ ...tender, attachments: [
+      { id: 'att-new-1', fileName: '4. Caiet de sarcini sala sport.pdf.p7s' },
+      { id: 'att-new-2', fileName: 'FisaDate.pdf' }
+    ] });
+    documents$.complete();
+    fixture.detectChanges();
+
+    const text = (fixture.nativeElement as HTMLElement).textContent ?? '';
+    expect(text).toContain('4. Caiet de sarcini sala sport.pdf.p7s');
+    expect(text).toContain('FisaDate.pdf');
+  });
+
+  it('shows a recoverable error when the document resolution fails', () => {
+    const refreshDocuments = vi.fn()
+      .mockReturnValueOnce(throwError(() => ({ error: { detail: 'SEAP indisponibil.' } })))
+      .mockReturnValueOnce(of({ ...tender, attachments: [{ id: 'att-1', fileName: 'FisaDate.pdf' }] }));
+    const fixture = setup({ startAutoBid: vi.fn(), refreshDocuments, tender: { ...tender, attachments: [] } });
+    fixture.detectChanges();
+
+    const tab = Array.from(fixture.nativeElement.querySelectorAll('button[role="tab"]') as NodeListOf<HTMLButtonElement>)
+      .find(button => button.textContent?.includes('Documente Originale'))!;
+    tab.click();
+    fixture.detectChanges();
+
+    let text = (fixture.nativeElement as HTMLElement).textContent ?? '';
+    expect(text).toContain('Documentele anunțului nu au putut fi încărcate');
+    expect(text).toContain('Reîncearcă');
+
+    // A deliberate retry succeeds and replaces the error with the document list.
+    const retry = Array.from(fixture.nativeElement.querySelectorAll('button') as NodeListOf<HTMLButtonElement>)
+      .find(button => button.textContent?.includes('Reîncearcă'))!;
+    retry.click();
+    fixture.detectChanges();
+    text = (fixture.nativeElement as HTMLElement).textContent ?? '';
+    expect(text).toContain('FisaDate.pdf');
   });
 
   function setupWithEmptyVault(startAutoBid: ReturnType<typeof vi.fn>) {
@@ -265,14 +366,16 @@ describe('SeapTenderDetailComponent', () => {
     expect((fixture.nativeElement as HTMLElement).textContent ?? '').not.toContain('Pentru a asigura că ofertarea');
   });
 
-  it('opens on the „Sinteză & Ofertare AI" tab by default with the orientative AI summary and the status card', () => {
+  it('opens on the „Sinteză & Ofertare AI" tab by default with the real AI summary bullets and the status card', () => {
     const fixture = setup({ startAutoBid: vi.fn() });
     fixture.detectChanges();
 
     const text = (fixture.nativeElement as HTMLElement).textContent ?? '';
     expect(text).toContain('Sinteză AI');
-    expect(text).toContain('Garanția de participare');
-    expect(text).toContain('Orientativ');
+    expect(text).toContain('Garanție de participare: 120.000 RON');
+    expect(text).toContain('Termen de execuție: 12 luni');
+    // The mock „Orientativ" pill is gone — the backend now supplies the real summary bullets.
+    expect(text).not.toContain('Orientativ');
     expect(text).toContain('AI Auto-Bid · gratuit');
     // The header keeps the existing cards and adds the derived procedure state.
     expect(text).toContain('Stare procedură');
@@ -287,6 +390,72 @@ describe('SeapTenderDetailComponent', () => {
     expect(activeTabs[0].classList.contains('active')).toBe(true);
     const selectedByStyle = (fixture.nativeElement as HTMLElement).querySelectorAll<HTMLButtonElement>('button.tab.active, button.tab[aria-selected="true"]');
     expect(selectedByStyle.length).toBe(1);
+  });
+
+  it('shows an actionable empty state when the AI summary is not generated yet — no endless skeleton', () => {
+    const generateSummary = vi.fn();
+    const fixture = setup({ startAutoBid: vi.fn(), generateSummary, tender: { ...tender, summaryPoints: [] } });
+    fixture.detectChanges();
+
+    const text = (fixture.nativeElement as HTMLElement).textContent ?? '';
+    expect(text).toContain('Sinteza AI nu este generată pentru acest anunț');
+    expect(text).toContain('Generează sinteza AI');
+    // No fake progress: without a user action there is no request and no skeleton.
+    expect(fixture.nativeElement.querySelector('.skeleton')).toBeNull();
+    expect(generateSummary).not.toHaveBeenCalled();
+  });
+
+  it('generates the AI summary on demand and renders the real bullets', () => {
+    const summary$ = new Subject<SeapTender>();
+    const generateSummary = vi.fn().mockReturnValue(summary$);
+    const fixture = setup({ startAutoBid: vi.fn(), generateSummary, tender: { ...tender, summaryPoints: [] } });
+    fixture.detectChanges();
+
+    const button = Array.from(fixture.nativeElement.querySelectorAll('button') as NodeListOf<HTMLButtonElement>)
+      .find(item => item.textContent?.includes('Generează sinteza AI'))!;
+    button.click();
+    fixture.detectChanges();
+
+    // The skeleton is genuine: it only appears while the on-demand request is actually running.
+    expect(generateSummary).toHaveBeenCalledWith('t1');
+    expect(fixture.nativeElement.querySelector('.skeleton')).not.toBeNull();
+    expect((fixture.nativeElement as HTMLElement).textContent ?? '').not.toContain('Garanție de participare');
+
+    summary$.next({ ...tender, summaryPoints: ['Garanție de participare: 120.000 RON', 'Termen de execuție: 12 luni'] });
+    summary$.complete();
+    fixture.detectChanges();
+
+    const text = (fixture.nativeElement as HTMLElement).textContent ?? '';
+    expect(fixture.nativeElement.querySelector('.skeleton')).toBeNull();
+    expect(text).toContain('Garanție de participare: 120.000 RON');
+    expect(text).toContain('Termen de execuție: 12 luni');
+  });
+
+  it('shows a recoverable error and retries the summary generation on a deliberate action', () => {
+    const generateSummary = vi.fn()
+      .mockReturnValueOnce(throwError(() => ({ error: { detail: 'Serviciul AI este indisponibil.' } })))
+      .mockReturnValueOnce(of({ ...tender, summaryPoints: ['Garanție de participare: 120.000 RON'] }));
+    const fixture = setup({ startAutoBid: vi.fn(), generateSummary, tender: { ...tender, summaryPoints: [] } });
+    fixture.detectChanges();
+
+    const clickSummaryAction = () => {
+      const button = Array.from(fixture.nativeElement.querySelectorAll('button') as NodeListOf<HTMLButtonElement>)
+        .find(item => item.textContent?.includes('Generează sinteza AI') || item.textContent?.includes('Încearcă din nou'))!;
+      button.click();
+      fixture.detectChanges();
+    };
+
+    clickSummaryAction();
+    let text = (fixture.nativeElement as HTMLElement).textContent ?? '';
+    expect(text).toContain('Sinteza AI nu a putut fi generată în acest moment');
+    expect(text).toContain('Încearcă din nou');
+    expect(fixture.nativeElement.querySelector('.skeleton')).toBeNull();
+
+    // A deliberate retry succeeds and replaces the error state with the real bullets.
+    clickSummaryAction();
+    text = (fixture.nativeElement as HTMLElement).textContent ?? '';
+    expect(text).toContain('Garanție de participare: 120.000 RON');
+    expect(text).not.toContain('Încearcă din nou');
   });
 
   it('switches to „Detalii Achiziție" and shows the detail rows with elegant placeholders', () => {
@@ -395,6 +564,7 @@ describe('SeapTenderDetailComponent', () => {
             getTenderPricing: vi.fn().mockReturnValue(of(pricing)),
             getAutoBidProgress: vi.fn(),
             startAutoBid: vi.fn(),
+            refreshDocuments: vi.fn().mockReturnValue(of(tenderWithoutAttachments)),
             downloadBidFile: vi.fn(),
             downloadAttachment: vi.fn()
           }

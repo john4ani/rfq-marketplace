@@ -180,6 +180,7 @@ public static class DependencyInjection
         services.AddScoped<ISeapApiClient, SeapApiClient>();
         services.AddScoped<ISeapAttachmentStorage, SeapAttachmentStorage>();
         services.AddScoped<ISeapCategorizer, SeapCategorizerService>();
+        services.AddScoped<ISeapSummaryGenerator, SeapSummaryService>();
         services.AddScoped<ISeapIngestionService, SeapIngestionService>();
         services.AddHostedService<SeapIngestionWorker>();
         services.Configure<DocumentIntelligenceOptions>(configuration.GetSection(DocumentIntelligenceOptions.SectionName));

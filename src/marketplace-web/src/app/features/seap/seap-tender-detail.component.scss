@@ -92,8 +92,34 @@ button:disabled { opacity: .55; cursor: not-allowed; }
 .card-head { display: flex; align-items: center; gap: .6rem; flex-wrap: wrap; margin-bottom: .4rem; }
 .card-head h2 { margin: 0; }
 
-.pill { display: inline-flex; align-items: center; padding: .22rem .6rem; border-radius: 999px; font-size: .72rem; font-weight: 800; }
-.pill.orientativ { color: #7a5206; background: #faf0d8; }
+.pill { display: inline-flex; align-items: center; padding: .3rem .72rem; border-radius: 999px; font-size: .78rem; font-weight: 800; }
+.pill.done { color: var(--forest); background: color-mix(in srgb, var(--sand) 60%, white); }
+
+.proposal-title { margin: .2rem 0 .8rem; font-size: 1.05rem; font-weight: 750; line-height: 1.45; }
+
+/* Skeleton loader shown while the backend has not generated the AI summary yet (processing). */
+.skeleton { margin: .6rem 0 0; display: grid; gap: .55rem; }
+.skeleton span {
+  display: block; height: .9rem; border-radius: 999px;
+  background: linear-gradient(90deg, var(--border) 25%, color-mix(in srgb, var(--sand) 60%, white) 50%, var(--border) 75%);
+  background-size: 200% 100%; animation: summary-shimmer 1.4s ease-in-out infinite;
+}
+.skeleton span:nth-child(2) { width: 92%; }
+.skeleton span:nth-child(3) { width: 78%; }
+@keyframes summary-shimmer {
+  from { background-position: 200% 0; }
+  to { background-position: -200% 0; }
+}
+
+/* Honest empty/error state (AI summary, published documents): a calm message + one deliberate action.
+   Never an endless fake-progress skeleton. */
+.state-box {
+  display: grid; gap: .7rem; justify-items: start; margin-top: .6rem;
+  padding: .8rem .95rem; border: 1px solid var(--border); border-radius: .7rem;
+  background: var(--warm-white);
+}
+.state-box.error { color: #8b2222; background: #fff0f0; border-color: #f0c9c9; }
+.state-box p { margin: 0; }
 
 .bullets { margin: .4rem 0 0; padding-left: 1.2rem; display: grid; gap: .45rem; }
 .bullets li { line-height: 1.5; }

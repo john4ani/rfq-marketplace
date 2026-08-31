@@ -17,7 +17,20 @@ public sealed record SeapTenderNoticeDto(
     /// <summary>Human-readable CPV labels (e.g. "Montare de garduri"), aligned with <see cref="CpvCodes"/>.</summary>
     IReadOnlyCollection<string>? CpvNames = null,
     /// <summary>County derived from <see cref="BuyerName"/> (e.g. "Vaslui"); null when unrecognizable.</summary>
-    string? County = null);
+    string? County = null,
+    /// <summary>Numeric id of the notice in SEAP; used to fetch the published document list.</summary>
+    int? NoticeId = null,
+    /// <summary>Notice type (2 = CN, 17 = SCN); required alongside <see cref="NoticeId"/> for the documents.</summary>
+    int? SysNoticeTypeId = null);
+
+/// <summary>One document published by the contracting authority for a notice (Fișa de date, Caiet de
+/// sarcini, formulare, model contract). Resolved via the public notice-detail API
+/// (<c>GetDfNoticeSectionFiles</c>), which the notice-search payload does not carry.</summary>
+public sealed record SeapNoticeDocumentDto(
+    string Code,
+    string FileName,
+    /// <summary>Absolute e-licitatie.ro URL that streams the file (requires a same-origin Referer).</summary>
+    string DownloadUrl);
 
 public sealed record SeapAttachmentDto(string FileName, string DownloadUrl);
 
@@ -40,7 +53,13 @@ public sealed record SeapNoticeSearchItem(
     decimal? EstimatedValueRon,
     DateTimeOffset NoticeStateDate,
     DateTimeOffset? MinTenderReceiptDeadline,
-    DateTimeOffset? MaxTenderReceiptDeadline);
+    DateTimeOffset? MaxTenderReceiptDeadline,
+    /// <summary>Numeric id of the notice in SEAP (the search payload carries it); used to fetch the
+    /// published document list (Fișa de date, Caiet de sarcini, formulare) via the public notice-detail API.</summary>
+    int? NoticeId = null,
+    /// <summary>Notice type (2 = contract notice CN, 17 = simplified procedure SCN); required alongside
+    /// <see cref="NoticeId"/> to resolve the published documents.</summary>
+    int? SysNoticeTypeId = null);
 
 public interface ISeapApiClient
 {
@@ -54,6 +73,15 @@ public interface ISeapApiClient
         CancellationToken cancellationToken);
 
     Task<Stream> DownloadAttachmentAsync(string downloadUrl, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Fetches the published documents of a notice (Fișa de date, Caiet de sarcini, formulare, model
+    /// contract) from the public e-licitatie.ro notice-detail API (<c>GetDfNoticeSectionFiles</c>). The
+    /// notice-search payload does not carry them. Returns an empty collection on any failure (the import
+    /// must never gate on the document list).
+    /// </summary>
+    Task<IReadOnlyCollection<SeapNoticeDocumentDto>> FetchNoticeDocumentsAsync(
+        int noticeId, int sysNoticeTypeId, CancellationToken cancellationToken);
 }
 
 public interface ISeapAttachmentStorage
@@ -95,6 +123,20 @@ public interface ISeapCategorizer
         string? cpvCode, string? cpvName, string title, CancellationToken cancellationToken);
 }
 
+/// <summary>
+/// AI summarizer for a SEAP tender: sends the available notice data (title, CPV, estimated value, buyer,
+/// county, deadlines, description when present) — plus the text of already-processed attachments (Fișa de
+/// Date / Caiet de Sarcini) when the ingestion pipeline has extracted it — to the shared <c>ILlmProvider</c>
+/// and returns structured, decision-critical values („Sinteză AI" bullets, award criterion, participation
+/// guarantee, funding source, duration, qualification requirements, key personnel). Enrichment is never a
+/// gate: every failure degrades to null and the tender still imports without AI details.
+/// </summary>
+public interface ISeapSummaryGenerator
+{
+    Task<SeapAiExtraction?> GenerateAsync(
+        SeapTender tender, string? attachmentText, CancellationToken cancellationToken);
+}
+
 /// <summary>Lightweight category reference exposed on the SEAP tender detail page.</summary>
 public sealed record SeapTenderCategoryRef(Guid Id, string Name);
 
@@ -107,9 +149,10 @@ public sealed record SeapTenderAttachmentRef(Guid Id, string FileName, string Do
 /// Detail projection of a SEAP tender returned by <c>GET /api/v1/seap/tenders/{id}</c>. Kept as a dedicated
 /// DTO (instead of serializing the aggregate) so the page can evolve independently of persistence.
 /// <c>ProcedureType</c> and <c>ProcedureState</c> are derived deterministically from the external id and the
-/// deadline; the fields the current notice-search parser does not extract yet (award criterion, funding
-/// source, contract duration, guarantees, qualification requirements, certificates, AI summary) are null —
-/// the SPA shows elegant placeholders until full notice-detail extraction lands.
+/// deadline; the AI-extracted fields (award criterion, funding source, contract duration, guarantees,
+/// qualification requirements, key personnel, summary bullets) carry real values once the AI summarizer ran
+/// at import and are null before that — the SPA shows a skeleton/placeholders until then. <c>Certificates</c>
+/// stays null (not part of the extraction contract yet).
 /// </summary>
 public sealed record SeapTenderDetailsDto(
     Guid Id,
@@ -175,12 +218,12 @@ public sealed record SeapTenderDetailsDto(
             ? "Procedură simplificată"
             : "Licitare deschisă",
         ProcedureState: tender.Deadline >= now ? "În desfășurare" : "Încheiată",
-        AwardCriterion: null,
-        FundingSource: null,
-        ContractDuration: null,
-        ParticipationGuarantee: null,
-        QualificationRequirements: null,
-        KeyPersonnel: null,
+        AwardCriterion: tender.AwardCriterion,
+        FundingSource: tender.FundingSource,
+        ContractDuration: tender.ContractDuration,
+        ParticipationGuarantee: tender.ParticipationGuarantee,
+        QualificationRequirements: tender.QualificationRequirements is null ? null : [tender.QualificationRequirements],
+        KeyPersonnel: tender.KeyPersonnel is null ? null : [tender.KeyPersonnel],
         Certificates: null,
-        SummaryPoints: null);
+        SummaryPoints: tender.SummaryPoints.Count > 0 ? tender.SummaryPoints : null);
 }

@@ -44,7 +44,58 @@ public static class SeapNoticeParser
         item.MaxTenderReceiptDeadline ?? item.MinTenderReceiptDeadline ?? DateTimeOffset.MinValue,
         [],
         CpvNames: ParseCpvNames(item.CpvCodeAndName),
-        County: CountyParser.Parse(item.ContractingAuthorityNameAndFN));
+        County: CountyParser.Parse(item.ContractingAuthorityNameAndFN),
+        NoticeId: item.NoticeId,
+        SysNoticeTypeId: item.SysNoticeTypeId);
+
+    /// <summary>
+    /// Parses the public notice-detail API response (<c>GetDfNoticeSectionFiles</c>): the envelope
+    /// <c>{ isPubOrSu, dfNoticeDocs: [{ noticeDocumentCode, noticeDocumentName, noticeDocumentUrl }] }</c>.
+    /// Old notices (whose files were purged) and non-JSON/error payloads (e.g. the real <c>["Eroare de
+    /// sistem …"]</c> array) degrade to an empty result — the document list is enrichment, never a gate.
+    /// </summary>
+    public static IReadOnlyCollection<SeapNoticeDocumentDto> ParseNoticeDocuments(string json)
+    {
+        if (string.IsNullOrWhiteSpace(json)) return [];
+
+        JsonDocument? document;
+        try
+        {
+            document = JsonDocument.Parse(json);
+        }
+        catch (JsonException)
+        {
+            return [];
+        }
+
+        using (document)
+        {
+            if (document.RootElement.ValueKind != JsonValueKind.Object
+                || !document.RootElement.TryGetProperty("dfNoticeDocs", out JsonElement docs)
+                || docs.ValueKind != JsonValueKind.Array)
+                return [];
+
+            var result = new List<SeapNoticeDocumentDto>();
+            foreach (JsonElement doc in docs.EnumerateArray())
+            {
+                if (doc.ValueKind != JsonValueKind.Object) continue;
+                string? code = ReadString(doc, "noticeDocumentCode");
+                string? name = ReadString(doc, "noticeDocumentName");
+                string? url = ReadString(doc, "noticeDocumentUrl");
+                if (string.IsNullOrWhiteSpace(name) || string.IsNullOrWhiteSpace(url)) continue;
+                result.Add(new SeapNoticeDocumentDto(code ?? string.Empty, name, url));
+            }
+            return result;
+        }
+    }
+
+    private static string? ReadString(JsonElement element, string property)
+    {
+        if (!element.TryGetProperty(property, out JsonElement value) || value.ValueKind != JsonValueKind.String)
+            return null;
+        string? text = value.GetString();
+        return string.IsNullOrWhiteSpace(text) ? null : text.Trim();
+    }
 
     // Real SEAP CPV shape: "71319000-7 - Servicii de expertiza (Rev.2)" — keep the code, drop the label.
     private static IReadOnlyCollection<string> ParseCpvCodes(string? cpvCodeAndName) =>

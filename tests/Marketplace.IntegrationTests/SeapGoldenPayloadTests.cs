@@ -50,6 +50,9 @@ public sealed class SeapGoldenPayloadTests
         Assert.Null(first.Description);
         Assert.Empty(first.Attachments);
         Assert.Equal("Antineoplazice", Assert.Single(first.CpvNames ?? []));
+        // The search payload carries the numeric ids needed to resolve the published documents.
+        Assert.Equal(100159118, first.NoticeId);
+        Assert.Equal(2, first.SysNoticeTypeId);
         // Petroșani is not a county seat → no county is derivable; the tender is excluded only when a radius filter is active.
         Assert.Null(first.County);
         Assert.Equal(new DateTimeOffset(2019, 4, 2, 1, 35, 1, TimeSpan.FromHours(3)), first.PublicationDate);
@@ -60,6 +63,9 @@ public sealed class SeapGoldenPayloadTests
         Assert.Equal(14867462m, tender.EstimatedValue);
         Assert.Equal("RON", tender.Currency);
         Assert.Null(tender.Description);
+        // The numeric notice id/type is persisted so the published documents can be resolved on demand.
+        Assert.Equal(100159118, tender.NoticeId);
+        Assert.Equal(2, tender.SysNoticeTypeId);
     }
 
     [Fact]
@@ -176,6 +182,69 @@ public sealed class SeapGoldenPayloadTests
         SeapTenderNoticeDto first = notices.First();
         Assert.Equal("CN1010402", first.Id);
         Assert.Equal("33652100-6", Assert.Single(first.CpvCodes));
+    }
+
+    [Fact]
+    public void PublishedDocumentsPayloadParsesIntoTheDocumentList()
+    {
+        const string payload = """
+        {
+          "isPubOrSu": true,
+          "dfNoticeDocs": [
+            { "noticeDocumentUrl": "api-pub/files/noticedoc/abc", "noticeDocumentName": "FisaDate.pdf", "noticeDocumentCode": "CN1048925/00009" },
+            { "noticeDocumentUrl": "api-pub/files/noticedoc/def", "noticeDocumentName": "Caiet de sarcini.pdf.p7s", "noticeDocumentCode": "CN1048925/00005" },
+            { "noticeDocumentUrl": "", "noticeDocumentName": "", "noticeDocumentCode": "" }
+          ]
+        }
+        """;
+
+        IReadOnlyCollection<SeapNoticeDocumentDto> documents = SeapNoticeParser.ParseNoticeDocuments(payload);
+
+        Assert.Equal(2, documents.Count);
+        Assert.Equal("CN1048925/00009", documents.ElementAt(0).Code);
+        Assert.Equal("FisaDate.pdf", documents.ElementAt(0).FileName);
+        Assert.Equal("api-pub/files/noticedoc/abc", documents.ElementAt(0).DownloadUrl);
+        Assert.Equal("Caiet de sarcini.pdf.p7s", documents.ElementAt(1).FileName);
+    }
+
+    [Fact]
+    public void PublishedDocumentsErrorAndGarbagePayloadsDegradeToEmpty()
+    {
+        // The real error shape old notices return (their files were purged).
+        Assert.Empty(SeapNoticeParser.ParseNoticeDocuments(
+            "[\"Eroare de sistem 260831-8E\",\"Object reference not set to an instance of an object.\"]"));
+        Assert.Empty(SeapNoticeParser.ParseNoticeDocuments("{}"));
+        Assert.Empty(SeapNoticeParser.ParseNoticeDocuments("nu e json"));
+        Assert.Empty(SeapNoticeParser.ParseNoticeDocuments(""));
+    }
+
+    [Fact]
+    public async Task ApiClientFetchesPublishedDocumentsAndResolvesAbsoluteUrls()
+    {
+        const string payload = """
+        {
+          "isPubOrSu": true,
+          "dfNoticeDocs": [
+            { "noticeDocumentUrl": "api-pub/files/noticedoc/abc", "noticeDocumentName": "FisaDate.pdf", "noticeDocumentCode": "CN1048925/00009" }
+          ]
+        }
+        """;
+        RecordingHandler handler = new(payload);
+        using HttpClient httpClient = new(handler);
+        StubHttpClientFactory factory = new(httpClient);
+        IOptions<SeapOptions> options = Options.Create(new SeapOptions { BaseUrl = "https://e-licitatie.ro", RequestTimeoutSeconds = 60 });
+        SeapApiClient client = new(factory, options, NullLogger<SeapApiClient>.Instance);
+
+        IReadOnlyCollection<SeapNoticeDocumentDto> documents = await client.FetchNoticeDocumentsAsync(100159118, 2, CancellationToken.None);
+
+        SeapNoticeDocumentDto document = Assert.Single(documents);
+        Assert.Equal("FisaDate.pdf", document.FileName);
+        // The relative noticeDocumentUrl is resolved against the configured base.
+        Assert.Equal("https://e-licitatie.ro/api-pub/files/noticedoc/abc", document.DownloadUrl);
+        Assert.NotNull(handler.LastRequest);
+        Assert.Contains("GetDfNoticeSectionFiles", handler.LastRequest!.RequestUri!.AbsoluteUri);
+        Assert.Contains("initNoticeId=100159118", handler.LastRequest.RequestUri.AbsoluteUri);
+        Assert.Contains("sysNoticeTypeId=2", handler.LastRequest.RequestUri.AbsoluteUri);
     }
 
     private static string Fixture(string fileName) =>

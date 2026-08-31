@@ -1070,6 +1070,9 @@ namespace Marketplace.Infrastructure.Persistence.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
+                    b.Property<string>("AwardCriterion")
+                        .HasColumnType("text");
+
                     b.Property<string>("BillOfQuantitiesUrl")
                         .HasColumnType("text");
 
@@ -1080,6 +1083,9 @@ namespace Marketplace.Infrastructure.Persistence.Migrations
 
                     b.Property<Guid?>("CategoryId")
                         .HasColumnType("uuid");
+
+                    b.Property<string>("ContractDuration")
+                        .HasColumnType("text");
 
                     b.Property<string>("County")
                         .HasMaxLength(48)
@@ -1110,11 +1116,26 @@ namespace Marketplace.Infrastructure.Persistence.Migrations
                         .HasPrecision(18, 2)
                         .HasColumnType("numeric(18,2)");
 
+                    b.Property<string>("FundingSource")
+                        .HasColumnType("text");
+
+                    b.Property<string>("KeyPersonnel")
+                        .HasColumnType("text");
+
+                    b.Property<int?>("NoticeId")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("ParticipationGuarantee")
+                        .HasColumnType("text");
+
                     b.Property<string>("ProposalTitle")
                         .HasColumnType("text");
 
                     b.Property<DateTimeOffset>("PublicationDate")
                         .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("QualificationRequirements")
+                        .HasColumnType("text");
 
                     b.Property<string>("SeapExternalId")
                         .IsRequired()
@@ -1125,6 +1146,13 @@ namespace Marketplace.Infrastructure.Persistence.Migrations
                         .IsRequired()
                         .HasMaxLength(24)
                         .HasColumnType("character varying(24)");
+
+                    b.PrimitiveCollection<string[]>("SummaryPoints")
+                        .IsRequired()
+                        .HasColumnType("text[]");
+
+                    b.Property<int?>("SysNoticeTypeId")
+                        .HasColumnType("integer");
 
                     b.Property<string>("TechnicalProposalUrl")
                         .HasColumnType("text");

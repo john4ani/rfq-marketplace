@@ -156,6 +156,36 @@ public sealed class SeapListFilterTests
         Assert.Empty(await service.ListTendersAsync(null, null, null, CancellationToken.None, ["15000000"], null));
     }
 
+    [Fact]
+    public async Task ClosedTendersAreExcludedFromTheDiscoveryList()
+    {
+        await using PostgreSqlContainer postgres = new PostgreSqlBuilder("pgvector/pgvector:pg17")
+            .WithDatabase("marketplace_seap_closed_test")
+            .Build();
+        await postgres.StartAsync();
+
+        DbContextOptions<MarketplaceDbContext> options = NewOptions(postgres);
+        await using MarketplaceDbContext db = new(options);
+        await db.Database.MigrateAsync();
+
+        DateTimeOffset now = DateTimeOffset.UtcNow;
+        SeapTender open = SeapTenderMapper.MapNotice(
+            new SeapTenderNoticeDto("CN-OPEN-1", "Anunț deschis", null, ["45200000-1"], 1000m, "RON",
+                "PRIMARIA CLUJ", now, now.AddDays(30), []), now);
+        SeapTender closed = SeapTenderMapper.MapNotice(
+            new SeapTenderNoticeDto("CN-CLOSED-1", "Anunț închis", null, ["45200000-1"], 1000m, "RON",
+                "PRIMARIA CLUJ", now.AddDays(-60), now.AddDays(-30), []), now);
+        db.SeapTenders.AddRange(open, closed);
+        await db.SaveChangesAsync();
+
+        BiddingGenerationService service = NewService(db);
+
+        IReadOnlyCollection<SeapTender> tenders = await service.ListTendersAsync(null, null, null, CancellationToken.None);
+
+        // The discovery feed shows only procedurally open tenders — closed procedures are not bid targets.
+        Assert.Equal(["CN-OPEN-1"], tenders.Select(item => item.SeapExternalId).ToArray());
+    }
+
     private static async Task SeedTendersAsync(MarketplaceDbContext db, Guid constructiiId)
     {
         DateTimeOffset now = DateTimeOffset.UtcNow;

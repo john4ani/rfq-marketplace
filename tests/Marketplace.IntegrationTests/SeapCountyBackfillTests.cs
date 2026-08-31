@@ -1,4 +1,4 @@
-using Marketplace.Application.Seap;
+﻿using Marketplace.Application.Seap;
 using Marketplace.Domain.Seap;
 using Marketplace.Infrastructure.Persistence;
 using Marketplace.Infrastructure.Seap;
@@ -35,7 +35,7 @@ public sealed class SeapCountyBackfillTests
 
         DateTimeOffset now = DateTimeOffset.UtcNow;
         SeapIngestionService service = new(db, new StubSeapApiClient([]), new StubAttachmentStorage(),
-            new NullSeapCategorizer(), Options.Create(new SeapOptions()), new FakeTimeProvider(),
+            new NullSeapCategorizer(), new NullSeapSummaryGenerator(), Options.Create(new SeapOptions()), new FakeTimeProvider(),
             NullLogger<SeapIngestionService>.Instance);
 
         // Import tenders whose notices carry no county — exactly what pre-enrichment imports look like.
@@ -67,12 +67,21 @@ public sealed class SeapCountyBackfillTests
             Task.FromResult<IReadOnlyCollection<SeapTenderNoticeDto>>(Array.Empty<SeapTenderNoticeDto>());
         public Task<Stream> DownloadAttachmentAsync(string downloadUrl, CancellationToken cancellationToken) =>
             throw new NotSupportedException("Attachments are disabled in this test.");
+        public Task<IReadOnlyCollection<SeapNoticeDocumentDto>> FetchNoticeDocumentsAsync(
+            int noticeId, int sysNoticeTypeId, CancellationToken cancellationToken) =>
+            Task.FromResult<IReadOnlyCollection<SeapNoticeDocumentDto>>([]);
     }
 
     private sealed class NullSeapCategorizer : ISeapCategorizer
     {
         public Task<SeapCategorizationResult?> CategorizeAsync(string? cpvCode, string? cpvName, string title, CancellationToken cancellationToken) =>
             Task.FromResult<SeapCategorizationResult?>(null);
+    }
+
+    private sealed class NullSeapSummaryGenerator : ISeapSummaryGenerator
+    {
+        public Task<SeapAiExtraction?> GenerateAsync(SeapTender tender, string? attachmentText, CancellationToken cancellationToken) =>
+            Task.FromResult<SeapAiExtraction?>(null);
     }
 
     private sealed class StubAttachmentStorage : ISeapAttachmentStorage

@@ -123,6 +123,12 @@ export class SeapService {
   }
 
   getTender(id: string) { return this.http.get<SeapTender>(`/api/v1/seap/tenders/${id}`); }
+  /** Resolves the published documents on demand for a tender that has none (idempotent server-side).
+   *  Returns the same detail projection as <c>getTender</c>. */
+  refreshDocuments(id: string) { return this.http.post<SeapTender>(`/api/v1/seap/tenders/${id}/documents`, {}); }
+  /** Generates the AI summary on demand for a tender that has none (idempotent server-side: an existing
+   *  summary is returned as-is). Returns the same detail projection as <c>getTender</c>. */
+  generateSummary(id: string) { return this.http.post<SeapTender>(`/api/v1/seap/tenders/${id}/summary`, {}); }
   getTenderPricing(id: string) { return this.http.get<TenderPricing>(`/api/v1/seap/tenders/${id}/pricing`); }
   /** Starts an auto-bid generation. The optional <paramref name="progressRequestId"/> lets the page poll
    *  real per-stage progress (Generating → Finalizing → Completed/Failed) while the request is in flight. */

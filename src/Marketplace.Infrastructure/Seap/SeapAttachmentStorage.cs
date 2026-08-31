@@ -30,10 +30,13 @@ public sealed partial class SeapAttachmentStorage(
     private static string Sanitize(string fileName) =>
         string.Join('_', fileName.Split(Path.GetInvalidFileNameChars(), StringSplitOptions.RemoveEmptyEntries));
 
-    private static string DetectContentType(string fileName) =>
+    /// <summary>Best-effort content type derived from the file name (the remote SEAP documents do not expose
+    /// a reliable header; the local storage layer records the type at upload).</summary>
+    public static string DetectContentType(string fileName) =>
         Path.GetExtension(fileName).ToLowerInvariant() switch
         {
             ".pdf" => "application/pdf",
+            ".xml" => "application/xml",
             ".zip" => "application/zip",
             ".docx" => "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
             ".xlsx" => "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",

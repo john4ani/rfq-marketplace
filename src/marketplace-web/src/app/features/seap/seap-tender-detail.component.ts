@@ -1,5 +1,5 @@
 import { DatePipe, DecimalPipe } from '@angular/common';
-import { ChangeDetectionStrategy, Component, computed, DestroyRef, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, DestroyRef, effect, inject, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { interval, switchMap, timer } from 'rxjs';
@@ -18,21 +18,9 @@ const AUTO_BID_STAGE_LABELS: Record<PipelineProgress['stage'], string> = {
   Failed: 'Generarea a eșuat.'
 };
 
-/**
- * Placeholder AI-synthesis bullets shown while the notice-detail parser does not yet extract a real
- * summary from the SEAP notice. Clearly labelled „Orientativ" so they are never mistaken for a real
- * AI-generated summary.
- */
-const MOCK_SUMMARY_POINTS = [
-  'Garanția de participare: aproximativ 2% din valoarea estimată a contractului.',
-  'Experiență: minim un contract similar, finalizat în ultimii 3 ani (rulaj și referințe).',
-  'Criteriu cheie: prețul cel mai scăzut.',
-  'Documente de calificare: formularele standard SEAP și certificatele cerute în Fișa de date.'
-];
+type TenderTab = 'summary' | 'details' | 'qualification' | 'documents' | 'history';
 
-type TenderTab = 'summary' | 'details' | 'qualification' | 'documents';
-
-const VALID_TABS: readonly TenderTab[] = ['summary', 'details', 'qualification', 'documents'];
+const VALID_TABS: readonly TenderTab[] = ['summary', 'details', 'qualification', 'documents', 'history'];
 
 @Component({
   selector: 'app-seap-tender-detail',
@@ -61,25 +49,40 @@ const VALID_TABS: readonly TenderTab[] = ['summary', 'details', 'qualification',
         <button type="button" class="tab" role="tab" [id]="'tab-details'" [attr.aria-selected]="activeTab() === 'details'" [class.active]="activeTab() === 'details'" aria-controls="panel-details" (click)="selectTab('details')">Detalii Achiziție</button>
         <button type="button" class="tab" role="tab" [id]="'tab-qualification'" [attr.aria-selected]="activeTab() === 'qualification'" [class.active]="activeTab() === 'qualification'" aria-controls="panel-qualification" (click)="selectTab('qualification')">Condiții de Calificare</button>
         <button type="button" class="tab" role="tab" [id]="'tab-documents'" [attr.aria-selected]="activeTab() === 'documents'" [class.active]="activeTab() === 'documents'" aria-controls="panel-documents" (click)="selectTab('documents')">Documente Originale</button>
+        @if (bidStatus()?.status === 'BidGenerated') {
+          <button type="button" class="tab" role="tab" [id]="'tab-history'" [attr.aria-selected]="activeTab() === 'history'" [class.active]="activeTab() === 'history'" aria-controls="panel-history" (click)="selectTab('history')">Istoric Ofertă</button>
+        }
       </nav>
 
       @switch (activeTab()) {
         @case ('summary') {
           <section class="card" id="panel-summary" role="tabpanel" aria-labelledby="tab-summary">
-            <div class="card-head"><h2>Sinteză AI</h2>@if (summaryIsMock()) { <span class="pill orientativ">Orientativ</span> }</div>
-            <ul class="bullets">@for (point of summaryPoints(); track point) { <li>{{ point }}</li> }</ul>
-            <p class="hint">Sinteza orientativă este generată din informațiile disponibile în anunț. Detaliile complete vor fi extrase automat în curând.</p>
+            <div class="card-head"><h2>Sinteză AI</h2></div>
+            @switch (summaryState()) {
+              @case ('loading') {
+                <div class="skeleton" role="status" aria-busy="true" aria-label="Sinteza AI se generează">
+                  <span></span><span></span><span></span>
+                </div>
+              }
+              @case ('ready') {
+                <ul class="bullets">@for (point of summaryPoints(); track point) { <li>{{ point }}</li> }</ul>
+              }
+              @default {
+                <div class="state-box" [class.error]="summaryState() === 'error'">
+                  <p class="empty">@if (summaryState() === 'error') { Sinteza AI nu a putut fi generată în acest moment. } @else { Sinteza AI nu este generată pentru acest anunț. }</p>
+                  <button type="button" (click)="generateSummary()">{{ summaryState() === 'error' ? 'Încearcă din nou' : 'Generează sinteza AI' }}</button>
+                </div>
+              }
+            }
           </section>
           <section class="card">
             @if (bidStatus(); as status) {
           @if (status.status === 'BidGenerated') {
-            <div class="note info"><strong>Oferta automată este gata.</strong>
-              <div class="downloads">
-                <button type="button" [disabled]="downloading()" (click)="downloadBidFile('TechnicalProposal')">Descarcă propunerea tehnică (.docx)</button>
-                <button type="button" [disabled]="downloading()" (click)="downloadBidFile('BillOfQuantities')">Descarcă lista de cantități (.xlsx)</button>
-              </div>
-              <label class="acceptance"><input type="checkbox" [checked]="acceptsResponsibility()" (change)="acceptsResponsibility.set($any($event.target).checked)" />
-                <span>Îmi asum responsabilitatea verificării și asumării conținutului acestor documente înainte de semnarea electronică și depunerea în SEAP.</span></label></div>
+            <div class="note info">
+              <strong>Oferta automată este gata.</strong>
+              <p class="hint">Documentele generate (propunerea tehnică și lista de cantități) sunt în tab-ul Istoric Ofertă.</p>
+              <button type="button" (click)="selectTab('history')">Deschide Istoricul</button>
+            </div>
           } @else if (busy()) {
             <div class="note info" role="status">
               <strong>Redactăm oferta…</strong>
@@ -130,8 +133,12 @@ const VALID_TABS: readonly TenderTab[] = ['summary', 'details', 'qualification',
         }
         @case ('documents') {
           <section class="card" id="panel-documents" role="tabpanel" aria-labelledby="tab-documents">
-            <h2>Documente Originale</h2>
-            @if (tender.attachments.length) {
+            <div class="card-head"><h2>Documente Originale</h2></div>
+            @if (documentsRefreshing()) {
+              <div class="skeleton" role="status" aria-busy="true" aria-label="Se caută documentele anunțului">
+                <span></span><span></span><span></span>
+              </div>
+            } @else if (tender.attachments.length) {
               <ul class="doc-list">
                 @for (attachment of tender.attachments; track attachment.id) {
                   <li>
@@ -141,7 +148,32 @@ const VALID_TABS: readonly TenderTab[] = ['summary', 'details', 'qualification',
                 }
               </ul>
             } @else {
-              <p class="empty">Niciun document atașat încă. Fișa de date și caietul de sarcini vor apărea aici după descărcarea lor.</p>
+              <div class="state-box" [class.error]="documentsError()">
+                <p class="empty">@if (documentsError()) { Documentele anunțului nu au putut fi încărcate în acest moment. } @else { Niciun document atașat încă. Fișa de date și caietul de sarcini vor apărea aici după descărcarea lor. }</p>
+                @if (documentsError()) { <button type="button" (click)="refreshDocuments()">Reîncearcă</button> }
+              </div>
+            }
+          </section>
+        }
+        @case ('history') {
+          <section class="card" id="panel-history" role="tabpanel" aria-labelledby="tab-history">
+            <div class="card-head"><h2>Istoric Ofertă</h2>
+              @if (bidStatus()?.status === 'BidGenerated') { <span class="pill done">Ofertă generată</span> }
+            </div>
+            @if (bidStatus(); as status) {
+              @if (status.status === 'BidGenerated') {
+                @if (status.proposalTitle) { <p class="proposal-title">{{ status.proposalTitle }}</p> }
+                <div class="downloads">
+                  <button type="button" [disabled]="downloading()" (click)="downloadBidFile('TechnicalProposal')">Descarcă propunerea tehnică (.docx)</button>
+                  <button type="button" [disabled]="downloading()" (click)="downloadBidFile('BillOfQuantities')">Descarcă lista de cantități (.xlsx)</button>
+                </div>
+                <label class="acceptance"><input type="checkbox" [checked]="acceptsResponsibility()" (change)="acceptsResponsibility.set($any($event.target).checked)" />
+                  <span>Îmi asum responsabilitatea verificării și asumării conținutului acestor documente înainte de semnarea electronică și depunerea în SEAP.</span></label>
+                <p class="hint">Documentele au fost generate de CompaSpot pe baza datelor din Depozitul de Documente. Verifică-le și asumă-ți conținutul înainte de depunerea în SEAP.</p>
+              } @else {
+                <p class="empty">Nu există încă o ofertă generată pentru acest anunț.</p>
+                <button type="button" (click)="selectTab('summary')">Generează oferta</button>
+              }
             }
           </section>
         }
@@ -179,15 +211,68 @@ export class SeapTenderDetailComponent {
   /** The generation that waits for the user's choice after the repository prompt is dismissed. */
   private pendingAutoBid: (() => void) | null = null;
 
-  /** AI-synthesis bullets: real values when the backend provides them, mock bullets otherwise. */
-  readonly summaryPoints = computed(() => {
-    const points = this.tender()?.summaryPoints;
-    return points && points.length > 0 ? points : MOCK_SUMMARY_POINTS;
+  /** Real AI-synthesis bullets returned by the backend; empty while the notice has no summary. */
+  readonly summaryPoints = computed(() => this.tender()?.summaryPoints ?? []);
+  /** On-demand generation state: 'idle' (not generated yet, not requested), 'generating' (request in
+   *  flight), 'error' (last attempt failed — the user retries deliberately, never an endless skeleton). */
+  readonly summaryGeneration = signal<'idle' | 'generating' | 'error'>('idle');
+  /** The „Sinteză AI" card state: 'ready' bullets, 'loading' skeleton only while a real request runs,
+   *  'empty' actionable empty state, 'error' recoverable failure. */
+  readonly summaryState = computed<'ready' | 'loading' | 'empty' | 'error'>(() => {
+    if ((this.tender()?.summaryPoints ?? []).length > 0) return 'ready';
+    const generation = this.summaryGeneration();
+    if (generation === 'generating') return 'loading';
+    return generation === 'error' ? 'error' : 'empty';
   });
-  readonly summaryIsMock = computed(() => {
-    const points = this.tender()?.summaryPoints;
-    return !points || points.length === 0;
-  });
+
+  /** Requests the AI summary on demand (idempotent server-side). A deliberate user action — the page never
+   *  auto-fires an LLM call or pretends to process when nothing is running. */
+  generateSummary(): void {
+    const tender = this.tender();
+    if (!tender || this.summaryGeneration() === 'generating') return;
+    this.summaryGeneration.set('generating');
+    this.service.generateSummary(tender.id).pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
+      next: updated => {
+        this.tender.set(updated);
+        this.summaryGeneration.set('idle');
+      },
+      error: () => this.summaryGeneration.set('error')
+    });
+  }
+
+  /** True while the published documents are being resolved on demand (a cheap, idempotent request). */
+  readonly documentsRefreshing = signal(false);
+  /** True when the last on-demand document resolution failed — the user retries deliberately. */
+  readonly documentsError = signal(false);
+  /** The on-demand refresh runs once per page view (only when the tab is opened and no documents exist). */
+  private documentsRefreshAttempted = false;
+
+  /** Resolves the published documents on demand (idempotent server-side). Never fires automatically more
+   *  than once per view; failures surface a recoverable state with a deliberate retry. */
+  refreshDocuments(): void {
+    const tender = this.tender();
+    if (!tender || this.documentsRefreshing()) return;
+    this.documentsRefreshing.set(true);
+    this.documentsError.set(false);
+    this.service.refreshDocuments(tender.id).pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
+      next: updated => {
+        this.tender.set(updated);
+        this.documentsRefreshing.set(false);
+      },
+      error: () => {
+        this.documentsRefreshing.set(false);
+        this.documentsError.set(true);
+      }
+    });
+  }
+
+  private openDocumentsTab(): void {
+    if (this.documentsRefreshAttempted) return;
+    this.documentsRefreshAttempted = true;
+    const tender = this.tender();
+    if (!tender || tender.attachments.length > 0) return;
+    this.refreshDocuments();
+  }
   /** „Stare procedură" card: backend-derived value, else derived from the deadline. */
   readonly procedureState = computed(() => {
     const tender = this.tender();
@@ -210,8 +295,19 @@ export class SeapTenderDetailComponent {
       next: value => { this.tender.set(value); this.loading.set(false); },
       error: () => this.loading.set(false)
     });
-    this.service.getBidStatus(this.tenderId).subscribe({ next: value => this.bidStatus.set(value) });
+    this.service.getBidStatus(this.tenderId).subscribe({
+      next: value => {
+        this.bidStatus.set(value);
+        // A shareable ?tab=history link on a tender without a generated offer falls back to the summary tab.
+        if (value.status !== 'BidGenerated' && this.activeTab() === 'history') this.activeTab.set('summary');
+      }
+    });
     this.service.getTenderPricing(this.tenderId).subscribe({ next: value => this.pricing.set(value) });
+    // When the documents tab is open (directly or via ?tab=documents) and no document is attached yet,
+    // resolve the published documents on demand (once per view).
+    effect(() => {
+      if (this.activeTab() === 'documents' && this.tender() !== null) this.openDocumentsTab();
+    });
   }
 
   /** Reads the active tab from the shareable ?tab= query parameter; defaults to „Sinteză & Ofertare AI". */
@@ -220,10 +316,12 @@ export class SeapTenderDetailComponent {
     return VALID_TABS.includes(tab ?? 'summary') ? (tab ?? 'summary') : 'summary';
   }
 
-  /** Switches the tab and keeps the URL shareable (?tab=…). */
+  /** Switches the tab and keeps the URL shareable (?tab=…). Opening the documents tab when no document is
+   *  attached triggers the on-demand resolution (once per view). */
   selectTab(tab: TenderTab): void {
     if (this.activeTab() === tab) return;
     this.activeTab.set(tab);
+    if (tab === 'documents') this.openDocumentsTab();
     void this.router.navigate([], { queryParams: { tab }, queryParamsHandling: 'merge', replaceUrl: true })
       .catch(() => undefined);
   }
@@ -381,7 +479,16 @@ export class SeapTenderDetailComponent {
 
   private refreshStatus(): void {
     this.service.getBidStatus(this.tenderId).pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
-      next: status => { this.bidStatus.set(status); if (status.status !== 'BidGenerated') this.busy.set(true); },
+      next: status => {
+        this.bidStatus.set(status);
+        if (status.status === 'BidGenerated') {
+          // The generation finished — take the user to the Istoric tab where the documents live.
+          if (this.activeTab() === 'summary') this.selectTab('history');
+          this.busy.set(false);
+        } else {
+          this.busy.set(true);
+        }
+      },
       error: () => this.busy.set(false)
     });
   }

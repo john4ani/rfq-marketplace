@@ -62,9 +62,50 @@ public sealed partial class SeapApiClient(
     {
         HttpClient client = httpClientFactory.CreateClient("seap");
         client.Timeout = TimeSpan.FromSeconds(Math.Clamp(settings.RequestTimeoutSeconds, 5, 300));
-        HttpResponseMessage response = await client.GetAsync(downloadUrl, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
+        using HttpRequestMessage request = new(HttpMethod.Get, downloadUrl);
+        // The file endpoint rejects hotlinks: it requires a same-origin e-licitatie.ro Referer.
+        request.Headers.Referrer = new Uri(settings.BaseUrl);
+        HttpResponseMessage response = await client.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
         response.EnsureSuccessStatusCode();
         return await response.Content.ReadAsStreamAsync(cancellationToken);
+    }
+
+    /// <summary>
+    /// Fetches the published documents (Fișa de date, Caiet de sarcini, formulare) from the public
+    /// notice-detail API. The returned <c>noticeDocumentUrl</c> values are relative; they are resolved to
+    /// absolute URLs so the download endpoint can proxy them. Any failure degrades to an empty collection.
+    /// </summary>
+    public async Task<IReadOnlyCollection<SeapNoticeDocumentDto>> FetchNoticeDocumentsAsync(
+        int noticeId, int sysNoticeTypeId, CancellationToken cancellationToken)
+    {
+        try
+        {
+            HttpClient client = httpClientFactory.CreateClient("seap");
+            client.Timeout = TimeSpan.FromSeconds(Math.Clamp(settings.RequestTimeoutSeconds, 5, 300));
+            using HttpRequestMessage request = new(HttpMethod.Get,
+                new Uri(new Uri(settings.BaseUrl),
+                    $"api-pub/NoticeCommon/GetDfNoticeSectionFiles/?initNoticeId={noticeId}&sysNoticeTypeId={sysNoticeTypeId}"));
+            request.Headers.Referrer = new Uri(settings.BaseUrl);
+            using HttpResponseMessage response = await client.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
+            string body = await response.Content.ReadAsStringAsync(cancellationToken);
+            response.EnsureSuccessStatusCode();
+
+            IReadOnlyCollection<SeapNoticeDocumentDto> documents = SeapNoticeParser.ParseNoticeDocuments(body);
+            var resolved = new List<SeapNoticeDocumentDto>(documents.Count);
+            foreach (SeapNoticeDocumentDto document in documents)
+            {
+                string url = Uri.TryCreate(document.DownloadUrl, UriKind.Absolute, out _)
+                    ? document.DownloadUrl
+                    : new Uri(new Uri(settings.BaseUrl), document.DownloadUrl).ToString();
+                resolved.Add(document with { DownloadUrl = url });
+            }
+            return resolved;
+        }
+        catch (Exception exception)
+        {
+            LogSeapDocumentsFailed(logger, noticeId, exception);
+            return [];
+        }
     }
 
     public async Task<IReadOnlyCollection<SeapTenderNoticeDto>> FetchNoticePageAsync(
@@ -168,4 +209,6 @@ public sealed partial class SeapApiClient(
     private static partial void LogSeapFallbackLoaded(ILogger logger, int fileCount);
     [LoggerMessage(EventId = 5110, Level = LogLevel.Warning, Message = "SEAP on-demand search page {PageIndex} failed; continuing.")]
     private static partial void LogSeapPageFetchFailed(ILogger logger, int pageIndex, Exception exception);
+    [LoggerMessage(EventId = 5111, Level = LogLevel.Warning, Message = "SEAP notice {NoticeId} published-document list could not be fetched; tender stays without attachments.")]
+    private static partial void LogSeapDocumentsFailed(ILogger logger, int noticeId, Exception exception);
 }

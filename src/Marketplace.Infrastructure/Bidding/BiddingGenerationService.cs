@@ -103,9 +103,13 @@ public sealed partial class BiddingGenerationService : IBiddingGenerationService
         Guid[]? categoryIds, int? radiusKm, string? supplierCounty, CancellationToken cancellationToken,
         string[]? cpvPrefixes = null, string[]? counties = null)
     {
+        DateTimeOffset now = timeProvider.GetUtcNow();
+        // Only procedurally open tenders (the submission deadline is still in the future) belong in the
+        // discovery feed — closed procedures cannot be bid on and would only clutter the list.
         IQueryable<SeapTender> query = dbContext.SeapTenders.AsNoTracking()
             .Include(item => item.Attachments)
-            .Include(item => item.Category);
+            .Include(item => item.Category)
+            .Where(tender => tender.Deadline >= now);
 
         if (categoryIds is { Length: > 0 })
         {
