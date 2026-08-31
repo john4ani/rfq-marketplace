@@ -123,14 +123,17 @@ const VALID_TABS: readonly TenderTab[] = ['summary', 'details', 'qualification',
           <section class="card" id="panel-details" role="tabpanel" aria-labelledby="tab-details">
             <h2>Detalii Achiziție</h2>
             @if (tender.description) { <p class="description">{{ tender.description }}</p> }
-            @else { <p class="empty">Date indisponibile în anunț — descrierea completă a procedurii nu a fost publicată în SEAP.</p> }
+            @else { <p class="empty">{{ descriptionPlaceholder() }}</p> }
             <dl class="details">
               <div><dt>Criteriul de atribuire</dt><dd>{{ tender.awardCriterion || unavailableLabel() }}</dd></div>
               <div><dt>Tipul procedurii</dt><dd>{{ procedureType() }}</dd></div>
               <div><dt>Sursa de finanțare</dt><dd>{{ tender.fundingSource || unavailableLabel() }}</dd></div>
               <div><dt>Durata contractului</dt><dd>{{ tender.contractDuration || unavailableLabel() }}</dd></div>
             </dl>
-            <p class="hint">„Date indisponibile în anunț" înseamnă că autoritatea contractantă nu a publicat informația în SEAP.</p>
+            <p class="hint">
+              @if (hasAiSummary()) { „Date indisponibile în anunț" înseamnă că autoritatea contractantă nu a publicat informația în SEAP. }
+              @else { Aceste detalii sunt extrase automat din anunț. <button type="button" class="hint-action" (click)="openSummaryAndGenerate()">Generează sinteza AI</button> }
+            </p>
           </section>
         }
         @case ('qualification') {
@@ -142,7 +145,10 @@ const VALID_TABS: readonly TenderTab[] = ['summary', 'details', 'qualification',
               <div><dt>Personal solicitat</dt><dd>{{ listOrPlaceholder(tender.keyPersonnel) }}</dd></div>
               <div><dt>Certificate și standarde (ISO)</dt><dd>{{ listOrPlaceholder(tender.certificates) }}</dd></div>
             </dl>
-            <p class="hint">„Date indisponibile în anunț" înseamnă că autoritatea contractantă nu a publicat informația în SEAP.</p>
+            <p class="hint">
+              @if (hasAiSummary()) { „Date indisponibile în anunț" înseamnă că autoritatea contractantă nu a publicat informația în SEAP. }
+              @else { Aceste detalii sunt extrase automat din anunț. <button type="button" class="hint-action" (click)="openSummaryAndGenerate()">Generează sinteza AI</button> }
+            </p>
           </section>
         }
         @case ('documents') {
@@ -163,7 +169,7 @@ const VALID_TABS: readonly TenderTab[] = ['summary', 'details', 'qualification',
               </ul>
             } @else {
               <div class="state-box" [class.error]="documentsError()">
-                <p class="empty">@if (documentsError()) { Documentele anunțului nu au putut fi încărcate în acest moment. } @else { Date indisponibile în anunț — nu au fost publicate documente pentru acest anunț în SEAP. }</p>
+                <p class="empty">@if (documentsError()) { Documentele anunțului nu au putut fi încărcate în acest moment. } @else { Nu au fost găsite documente publicate pentru acest anunț în SEAP. }</p>
                 @if (documentsError()) { <button type="button" (click)="refreshDocuments()">Reîncearcă</button> }
               </div>
             }
@@ -243,6 +249,10 @@ export class SeapTenderDetailComponent {
 
   /** Real AI-synthesis bullets returned by the backend; empty while the notice has no summary. */
   readonly summaryPoints = computed(() => this.tender()?.summaryPoints ?? []);
+  /** True once the AI extraction exists (bullets present). Only then does a null detail field genuinely
+   *  mean the notice does not state it — before that the value is simply "not extracted yet" (the on-demand
+   *  search defers the summarizer, ADR-011), so the placeholder must not claim it is unavailable. */
+  readonly hasAiSummary = computed(() => (this.tender()?.summaryPoints?.length ?? 0) > 0);
   /** On-demand generation state: 'idle' (not generated yet, not requested), 'generating' (request in
    *  flight), 'error' (last attempt failed — the user retries deliberately, never an endless skeleton). */
   readonly summaryGeneration = signal<'idle' | 'generating' | 'error'>('idle');
@@ -270,9 +280,20 @@ export class SeapTenderDetailComponent {
     });
   }
 
-  /** Elegant placeholder for detail fields the notice does not state — never invent data. */
+  /** Placeholder for the full procedure description: after the extraction it means the notice does not
+   *  publish it; before the extraction (search imports defer the summarizer) it is simply not available in
+   *  the search result — the on-demand summary can still produce a readable acquisition summary. */
+  descriptionPlaceholder(): string {
+    return this.hasAiSummary()
+      ? 'Descrierea completă a procedurii nu este publicată în SEAP.'
+      : 'Descrierea completă a procedurii nu este disponibilă în rezultatul căutării. Poți genera sinteza AI pentru un rezumat.';
+  }
+
+  /** Placeholder for a detail field: after the AI extraction ran, a null value means the notice genuinely
+   *  does not state it; before the extraction exists (search-imported tenders defer the summarizer) the
+   *  value is simply not extracted yet — never invent data, never claim absence prematurely. */
   unavailableLabel(): string {
-    return 'Date indisponibile în anunț';
+    return this.hasAiSummary() ? 'Date indisponibile în anunț' : 'Necesită generarea sintezei AI';
   }
 
   /** True while the published documents are being resolved on demand (a cheap, idempotent request). */
@@ -365,9 +386,16 @@ export class SeapTenderDetailComponent {
       .catch(() => undefined);
   }
 
-  /** Renders a list of qualification details or an elegant placeholder when the notice does not state them. */
+  /** Renders a list of qualification details or a contextual placeholder (absent vs not-yet-extracted). */
   listOrPlaceholder(items: string[] | null | undefined): string {
-    return items && items.length > 0 ? items.join(' · ') : 'Date indisponibile în anunț';
+    return items && items.length > 0 ? items.join(' · ') : this.unavailableLabel();
+  }
+
+  /** Takes the user to the „Sinteză & Ofertare AI" tab and starts the on-demand extraction (a deliberate
+   *  user action — the page never auto-fires an LLM call on its own). */
+  openSummaryAndGenerate(): void {
+    this.selectTab('summary');
+    this.generateSummary();
   }
 
   /** Downloads one original authority file through the authenticated API (browsers cannot open local://s3://

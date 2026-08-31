@@ -643,6 +643,24 @@ describe('SeapTenderDetailComponent', () => {
     expect(text).not.toContain('Sinteză AI');
   });
 
+  it('shows „Necesită generarea sintezei AI" (not „Date indisponibile") when the extraction has not run yet', () => {
+    const fixture = setup({ startAutoBid: vi.fn(), tender: { ...tender, summaryPoints: [], awardCriterion: null, fundingSource: null } });
+    fixture.detectChanges();
+
+    const tab = Array.from(fixture.nativeElement.querySelectorAll('button[role="tab"]') as NodeListOf<HTMLButtonElement>)
+      .find(button => button.textContent?.includes('Detalii Achiziție'))!;
+    tab.click();
+    fixture.detectChanges();
+
+    // Before the AI extraction exists the value is simply not extracted yet — never invent data and never
+    // claim the notice lacks it. An actionable „Generează sinteza AI" hint leads to the extraction.
+    const text = (fixture.nativeElement as HTMLElement).textContent ?? '';
+    expect(text).toContain('Necesită generarea sintezei AI');
+    expect(text).not.toContain('Date indisponibile în anunț');
+    expect(text).not.toContain('Prețul cel mai scăzut');
+    expect(text).toContain('Generează sinteza AI');
+  });
+
   it('opens directly on a tab from the shareable ?tab= query parameter', () => {
     TestBed.configureTestingModule({
       imports: [SeapTenderDetailComponent],
@@ -745,8 +763,8 @@ describe('SeapTenderDetailComponent', () => {
     tab.click();
     fixture.detectChanges();
 
-    // Honest unavailable state: no document was published for this notice in SEAP — never a broken/mock row.
-    expect((fixture.nativeElement as HTMLElement).textContent ?? '').toContain('Date indisponibile în anunț');
+    // Honest unavailable state: no published document was found for this notice — never a broken/mock row.
+    expect((fixture.nativeElement as HTMLElement).textContent ?? '').toContain('Nu au fost găsite documente publicate');
     expect((fixture.nativeElement as HTMLElement).textContent ?? '').not.toContain('Niciun document atașat');
   });
 });
