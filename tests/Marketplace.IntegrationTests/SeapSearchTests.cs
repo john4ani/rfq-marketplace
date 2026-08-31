@@ -64,9 +64,12 @@ public sealed class SeapSearchTests
         Assert.Equal("Galați", saved.County);
         Assert.Contains("45214200-2", saved.CpvCodes);
 
-        // The publication-date window was forwarded to the platform client — once for the requested window,
-        // once for the recent (trailing 30 days) complement that guards the capped/rotating wide slice.
-        Assert.Contains((new DateOnly(2026, 1, 1), new DateOnly(2026, 12, 31)), api.Windows);
+        // The wide publication-date window is chunked per calendar month so the platform's ~3000-notice cap
+        // cannot hide a whole year: the request is paged month by month (Jan…Dec 2026), plus the trailing
+        // 30-days complement that guards a capped single month.
+        Assert.Contains(api.Windows, window => window == (new DateOnly(2026, 1, 1), new DateOnly(2026, 1, 31)));
+        Assert.Contains(api.Windows, window => window == (new DateOnly(2026, 8, 1), new DateOnly(2026, 8, 31)));
+        Assert.Contains(api.Windows, window => window == (new DateOnly(2026, 12, 1), new DateOnly(2026, 12, 31)));
         DateOnly today = DateOnly.FromDateTime(now.UtcDateTime);
         Assert.Contains((today.AddDays(-30), today), api.Windows);
 
@@ -120,7 +123,7 @@ public sealed class SeapSearchTests
     }
 
     [Fact]
-    public async Task ImportedSearchTenderGetsItsPublishedDocumentsAttached()
+    public async Task SearchImportedTenderPersistsTheNoticeSourceForOnDemandDocumentResolution()
     {
         await using PostgreSqlContainer postgres = new PostgreSqlBuilder("pgvector/pgvector:pg17")
             .WithDatabase("marketplace_seap_docs_test")
@@ -154,11 +157,55 @@ public sealed class SeapSearchTests
             ["45210000"], ["Galați"], new DateOnly(2026, 1, 1), new DateOnly(2026, 12, 31), CancellationToken.None);
 
         SeapTender tender = Assert.Single(imported);
-        Assert.Equal(2, tender.Attachments.Count);
-        Assert.Contains(tender.Attachments, attachment => attachment.FileName == "4. Caiet de sarcini sala sport.pdf.p7s");
-        Assert.Contains(tender.Attachments, attachment => attachment.S3Url == "https://e-licitatie.ro/api-pub/files/noticedoc/bbb");
-        // The second scan window finds the same notice already imported (with attachments) → no refetch.
-        Assert.Equal(1, api.DocumentFetches);
+        // Documents are resolved on demand (POST /tenders/{id}/documents): a bulk search never pays one
+        // notice-detail HTTP call per match, so it can import hundreds of tenders quickly and the discovery
+        // tab can reflect the real SEAP universe (ADR-012 on-demand resolution).
+        Assert.Empty(tender.Attachments);
+        Assert.Equal(0, api.DocumentFetches);
+        // The persisted numeric notice id/type is what lets the „Documente Originale" tab resolve the docs.
+        Assert.Equal(900001, tender.NoticeId);
+        Assert.Equal(17, tender.SysNoticeTypeId);
+    }
+
+    [Fact]
+    public async Task SearchSkipsNoticesWhoseSubmissionDeadlineAlreadyPassed()
+    {
+        await using PostgreSqlContainer postgres = new PostgreSqlBuilder("pgvector/pgvector:pg17")
+            .WithDatabase("marketplace_seap_expired_search_test")
+            .Build();
+        await postgres.StartAsync();
+
+        DbContextOptions<MarketplaceDbContext> options = new DbContextOptionsBuilder<MarketplaceDbContext>()
+            .UseNpgsql(postgres.GetConnectionString(), npgsql =>
+            {
+                npgsql.EnableRetryOnFailure(5, TimeSpan.FromSeconds(5), null);
+                npgsql.MigrationsAssembly(typeof(MarketplaceDbContext).Assembly.FullName);
+                npgsql.UseVector();
+            })
+            .Options;
+        await using MarketplaceDbContext db = new(options);
+        await db.Database.MigrateAsync();
+
+        DateTimeOffset now = DateTimeOffset.UtcNow;
+        StubSeapApiClient api = new(
+            [
+                new SeapTenderNoticeDto("CN-EXPIRED-1", "Anunț cu termen depășit", null, ["45214200-2"], 1000m, "RON",
+                    "PRIMARIA GALATI", now.AddDays(-60), now.AddDays(-30), [], County: "Galați"),
+                new SeapTenderNoticeDto("CN-OPEN-1", "Anunț în termen", null, ["45214200-2"], 1000m, "RON",
+                    "PRIMARIA GALATI", now, now.AddDays(30), [], County: "Galați")
+            ],
+            []);
+
+        SeapIngestionService service = new(db, api, new StubAttachmentStorage(), new NullSeapCategorizer(), new NullSeapSummaryGenerator(),
+            Options.Create(new SeapOptions()), new FakeTimeProvider(), NullLogger<SeapIngestionService>.Instance);
+
+        IReadOnlyCollection<SeapTender> imported = await service.SearchAndImportAsync(
+            ["45210000"], ["Galați"], null, null, CancellationToken.None);
+
+        // Expired notices are never bid targets: only the notice whose deadline is still in the future
+        // enters the local cache, even though the live search returned both.
+        Assert.Equal(["CN-OPEN-1"], imported.Select(tender => tender.SeapExternalId).ToArray());
+        Assert.Equal(1, await db.SeapTenders.CountAsync());
     }
 
     private sealed class StubSeapApiClient(

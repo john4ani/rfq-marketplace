@@ -30,9 +30,13 @@ public interface IBiddingGenerationService
     /// prefix (deterministic, applies to categorized and uncategorized tenders alike), and
     /// <paramref name="counties"/> restricts to tenders whose county (normalized to a canonical name) is in
     /// the set. Both are applied only when non-empty.
+    /// <paramref name="status"/> restricts to a single tender status. The discovery feed ("Caută anunțuri
+    /// SEAP", <c>ReadyForBidding</c>) keeps only procedurally open tenders (<c>Deadline &gt;= now</c>); the
+    /// generated-offers history (<c>BidGenerated</c>) is the company's activity log and keeps closed tenders
+    /// too, so an offer generated while the tender was open remains reachable after the deadline passed.
     /// </summary>
     Task<IReadOnlyCollection<SeapTender>> ListTendersAsync(
         Guid[]? categoryIds, int? radiusKm, string? supplierCounty, CancellationToken cancellationToken,
-        string[]? cpvPrefixes = null, string[]? counties = null);
+        string[]? cpvPrefixes = null, string[]? counties = null, SeapTenderStatus? status = null);
     Task<SeapTender?> GetTenderAsync(Guid tenderId, CancellationToken cancellationToken);
 }

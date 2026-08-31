@@ -54,7 +54,7 @@ public sealed partial class AutoBiddingController(
     [HttpGet("tenders")]
     public async Task<IActionResult> ListTenders(
         [FromQuery] Guid[]? categoryIds, [FromQuery] int? radiusKm, [FromQuery] string? county,
-        [FromQuery] string[]? cpvPrefixes, [FromQuery] string[]? counties,
+        [FromQuery] string[]? cpvPrefixes, [FromQuery] string[]? counties, [FromQuery] SeapTenderStatus? status,
         CancellationToken cancellationToken,
         [FromQuery] bool search = false, [FromQuery] DateOnly? from = null, [FromQuery] DateOnly? to = null)
     {
@@ -63,7 +63,7 @@ public sealed partial class AutoBiddingController(
         // the local filtered list (which now includes the freshly imported tenders).
         if (search)
             await seapIngestionService.SearchAndImportAsync(cpvPrefixes, counties, from, to, cancellationToken);
-        return Ok(await biddingService.ListTendersAsync(categoryIds, radiusKm, county, cancellationToken, cpvPrefixes, counties));
+        return Ok(await biddingService.ListTendersAsync(categoryIds, radiusKm, county, cancellationToken, cpvPrefixes, counties, status));
     }
 
     [HttpGet("tenders/{tenderId:guid}")]

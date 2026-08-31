@@ -21,16 +21,19 @@ never a gate** — `SeapSummaryService` (`ISeapSummaryGenerator`, shared `ILlmPr
    convention; JSONB was rejected — see alternatives), the detail fields as nullable `text`.
    `SeapTender.ApplyAiExtraction` stores them; the 2–3 sentence AI `description` fills `SeapTender.Description`
    **only when the notice's own full text is absent** (a parser-delivered full text always wins).
-4. **Where it runs**: at every import — the background poll (`ImportNoticeAsync`) and the on-demand
-   „Caută în SEAP" search (`ImportSearchNoticeAsync`) — after categorization, persisted in the same
-   `SaveChanges` as the tender. **On-demand fallback**: `POST /api/v1/seap/tenders/{id}/summary` generates
+4. **Where it runs**: at the **background** import (`ImportNoticeAsync`), after categorization, persisted in
+   the same `SaveChanges` as the tender. The on-demand „Caută în SEAP" search (`ImportSearchNoticeAsync`)
+   deliberately **does not** call the summarizer synchronously: a live search can match up to
+   `OnDemandSearchMaxMatches` notices, and one Claude/OpenAI call per notice inside the request thread made
+   „Caută în SEAP" unacceptably slow. **On-demand fallback**: `POST /api/v1/seap/tenders/{id}/summary` generates
    the extraction lazily for tenders that still have none (legacy tenders imported before the summarizer
    existed, or tenders whose import-time generation failed). It is idempotent — an existing summary is
    returned without an LLM call — and a failed generation returns 503 with a friendly `detail`. The detail
    `GET` stays side-effect free. Enrichment is never a gate: any LLM/parse failure logs a warning and the
    tender stays fully usable without AI details (ADR-007 principle).
 5. **Cost**: bounded by the existing caps — background ≤ `Seap:MaxNewNoticesPerHour` (default 5) per hour,
-   on-demand ≤ `Seap:OnDemandSearchMaxMatches` (default 50) per user-initiated search.
+   on-demand ≤ `Seap:OnDemandSearchMaxMatches` (default 500, no LLM and no per-notice document resolution
+   in the search path) per user-initiated search.
 6. **Exposure**: `SeapTenderDetailsDto` maps the real values (`QualificationRequirements`/`KeyPersonnel` as
    single-element arrays); `Certificates` stays null (not part of the contract yet). The „Sinteză AI" card is
    an honest state machine — **never an endless fake-progress skeleton**: real bullets when the summary

@@ -44,7 +44,7 @@ public static class SeapNoticeParser
         item.MaxTenderReceiptDeadline ?? item.MinTenderReceiptDeadline ?? DateTimeOffset.MinValue,
         [],
         CpvNames: ParseCpvNames(item.CpvCodeAndName),
-        County: CountyParser.Parse(item.ContractingAuthorityNameAndFN),
+        County: ParseCounty(item.ContractingAuthorityNameAndFN, item.ContractTitle),
         NoticeId: item.NoticeId,
         SysNoticeTypeId: item.SysNoticeTypeId);
 
@@ -103,6 +103,19 @@ public static class SeapNoticeParser
 
     // The human-readable CPV label ("Servicii de expertiza") is the input to the AI categorizer, so it is
     // kept as well; the "(Rev.X)" suffix is dropped.
+    /// <summary>Deterministic county of a search notice. The platform's search payload carries no structured
+    /// county/UAT field, so the county is derived from the contracting-authority name — with the contract
+    /// title as a fallback for authorities that only spell the county in the notice title (e.g. „comuna X,
+    /// județul Suceava"). The authority name wins to avoid attributing a cross-county worksite mentioned in
+    /// the title to the wrong home county.</summary>
+    private static string? ParseCounty(string? authorityName, string? contractTitle)
+    {
+        string? county = CountyParser.Parse(authorityName);
+        if (county is not null) return county;
+        if (string.IsNullOrWhiteSpace(contractTitle)) return null;
+        return CountyParser.Parse($"{authorityName} {contractTitle}");
+    }
+
     private static IReadOnlyCollection<string> ParseCpvNames(string? cpvCodeAndName)
     {
         if (string.IsNullOrWhiteSpace(cpvCodeAndName)) return [];

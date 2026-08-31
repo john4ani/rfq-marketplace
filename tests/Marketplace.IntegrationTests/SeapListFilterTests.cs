@@ -187,6 +187,55 @@ public sealed class SeapListFilterTests
         Assert.Equal(["CN-OPEN-1"], tenders.Select(item => item.SeapExternalId).ToArray());
     }
 
+    [Fact]
+    public async Task GeneratedOffersTabIsTheCompanyHistoryAndKeepsClosedTenders()
+    {
+        await using PostgreSqlContainer postgres = new PostgreSqlBuilder("pgvector/pgvector:pg17")
+            .WithDatabase("marketplace_seap_history_test")
+            .Build();
+        await postgres.StartAsync();
+
+        DbContextOptions<MarketplaceDbContext> options = NewOptions(postgres);
+        await using MarketplaceDbContext db = new(options);
+        await db.Database.MigrateAsync();
+
+        DateTimeOffset now = DateTimeOffset.UtcNow;
+        SeapTender openWithBid = SeapTenderMapper.MapNotice(
+            new SeapTenderNoticeDto("CN-BID-OPEN", "Anunț deschis cu ofertă", null, ["45200000-1"], 1000m, "RON",
+                "PRIMARIA CLUJ", now, now.AddDays(30), []), now);
+        openWithBid.RecordGeneratedBid("Ofertă tehnică", "local://p.docx", "local://b.xlsx", now);
+
+        SeapTender closedWithBid = SeapTenderMapper.MapNotice(
+            new SeapTenderNoticeDto("CN-BID-CLOSED", "Anunț închis cu ofertă", null, ["45200000-1"], 1000m, "RON",
+                "PRIMARIA CLUJ", now.AddDays(-60), now.AddDays(-30), []), now);
+        closedWithBid.RecordGeneratedBid("Ofertă tehnică veche", "local://p2.docx", "local://b2.xlsx", now);
+
+        SeapTender openReady = SeapTenderMapper.MapNotice(
+            new SeapTenderNoticeDto("CN-READY-OPEN", "Anunț deschis fără ofertă", null, ["45200000-1"], 1000m, "RON",
+                "PRIMARIA CLUJ", now, now.AddDays(30), []), now);
+        openReady.MarkReadyForBidding(now);
+
+        db.SeapTenders.AddRange(openWithBid, closedWithBid, openReady);
+        await db.SaveChangesAsync();
+
+        BiddingGenerationService service = NewService(db);
+
+        // Tab 1 „Caută anunțuri SEAP": only ready-to-bid, procedurally open tenders — the closed one is out.
+        IReadOnlyCollection<SeapTender> discovery = await service.ListTendersAsync(
+            null, null, null, CancellationToken.None, status: SeapTenderStatus.ReadyForBidding);
+        Assert.Equal(["CN-READY-OPEN"], discovery.Select(item => item.SeapExternalId).ToArray());
+
+        // Tab 2 „Oferte Generate": the company's activity history — generated offers stay reachable after
+        // the tender's deadline passed.
+        IReadOnlyCollection<SeapTender> history = await service.ListTendersAsync(
+            null, null, null, CancellationToken.None, status: SeapTenderStatus.BidGenerated);
+        Assert.Equal(["CN-BID-CLOSED", "CN-BID-OPEN"], history.Select(item => item.SeapExternalId).OrderBy(id => id).ToArray());
+
+        // Without a status filter the discovery feed also excludes closed tenders (existing behavior).
+        IReadOnlyCollection<SeapTender> allOpen = await service.ListTendersAsync(null, null, null, CancellationToken.None);
+        Assert.Equal(["CN-BID-OPEN", "CN-READY-OPEN"], allOpen.Select(item => item.SeapExternalId).OrderBy(id => id).ToArray());
+    }
+
     private static async Task SeedTendersAsync(MarketplaceDbContext db, Guid constructiiId)
     {
         DateTimeOffset now = DateTimeOffset.UtcNow;

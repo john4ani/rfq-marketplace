@@ -23,6 +23,11 @@ public sealed class SeapTenderConfiguration : IEntityTypeConfiguration<SeapTende
         builder.Property(tender => tender.BuyerName).HasMaxLength(300).IsRequired();
         builder.Property(tender => tender.County).HasMaxLength(48);
         builder.HasIndex(tender => tender.County);
+        // Feed hot paths: the discovery list filters on Status + Deadline and orders by PublicationDate;
+        // the generated-offers history filters on Status alone (composite index leads with Status, so it
+        // serves both queries).
+        builder.HasIndex(tender => new { tender.Status, tender.Deadline });
+        builder.HasIndex(tender => tender.PublicationDate).IsDescending();
         builder.HasOne(tender => tender.Category).WithMany().HasForeignKey(tender => tender.CategoryId)
             .OnDelete(DeleteBehavior.Restrict);
         builder.HasIndex(tender => tender.CategoryId);

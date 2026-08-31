@@ -13,6 +13,7 @@ using Microsoft.Extensions.Options;
 using Npgsql;
 using NpgsqlTypes;
 using Pgvector;
+using System.Globalization;
 
 namespace Marketplace.Infrastructure.Bidding;
 
@@ -116,15 +117,21 @@ public sealed partial class BiddingGenerationService : IBiddingGenerationService
 
     public async Task<IReadOnlyCollection<SeapTender>> ListTendersAsync(
         Guid[]? categoryIds, int? radiusKm, string? supplierCounty, CancellationToken cancellationToken,
-        string[]? cpvPrefixes = null, string[]? counties = null)
+        string[]? cpvPrefixes = null, string[]? counties = null, SeapTenderStatus? status = null)
     {
         DateTimeOffset now = timeProvider.GetUtcNow();
         // Only procedurally open tenders (the submission deadline is still in the future) belong in the
-        // discovery feed — closed procedures cannot be bid on and would only clutter the list.
+        // discovery feed — closed procedures cannot be bid on and would only clutter the list. The
+        // generated-offers history (BidGenerated) is the company's activity log, so it keeps closed
+        // tenders too (an offer generated while the tender was open stays reachable after the deadline).
+        bool includeExpired = status == SeapTenderStatus.BidGenerated;
+        // The list never carries attachments (only the detail projection needs them) — keeps the feed
+        // response lean as the local SEAP cache grows.
         IQueryable<SeapTender> query = dbContext.SeapTenders.AsNoTracking()
-            .Include(item => item.Attachments)
             .Include(item => item.Category)
-            .Where(tender => tender.Deadline >= now);
+            .Where(tender => includeExpired || tender.Deadline >= now);
+        if (status is not null)
+            query = query.Where(tender => tender.Status == status);
 
         if (categoryIds is { Length: > 0 })
         {
@@ -138,7 +145,8 @@ public sealed partial class BiddingGenerationService : IBiddingGenerationService
             {
                 // The AI-mapped CategoryId is authoritative; the CPV-prefix match is the fallback for
                 // tenders that are not yet categorized (LLM unavailable or code not seen before).
-                Guid[] prefixMatchedIds = await FindCpvPrefixMatchedTenderIdsAsync(categoryCpvPrefixes, cancellationToken);
+                Guid[] prefixMatchedIds = await FindCpvPrefixMatchedTenderIdsAsync(
+                    categoryCpvPrefixes, status, includeExpired, now, cancellationToken);
                 query = query.Where(tender =>
                     (tender.CategoryId != null && categoryIds.Contains(tender.CategoryId.Value)) ||
                     (tender.CategoryId == null && prefixMatchedIds.Contains(tender.Id)));
@@ -184,7 +192,8 @@ public sealed partial class BiddingGenerationService : IBiddingGenerationService
                 .ToArray();
             if (cleanPrefixes.Length > 0)
             {
-                Guid[] cpvMatchedIds = await FindCpvPrefixMatchedTenderIdsAsync(cleanPrefixes, cancellationToken);
+                Guid[] cpvMatchedIds = await FindCpvPrefixMatchedTenderIdsAsync(
+                    cleanPrefixes, status, includeExpired, now, cancellationToken);
                 query = query.Where(tender => cpvMatchedIds.Contains(tender.Id));
             }
         }
@@ -202,8 +211,12 @@ public sealed partial class BiddingGenerationService : IBiddingGenerationService
         return await query.OrderByDescending(item => item.PublicationDate).ToArrayAsync(cancellationToken);
     }
 
-    /// <summary>Ids of tenders whose CPV codes start with any of the given prefixes.</summary>
-    private async Task<Guid[]> FindCpvPrefixMatchedTenderIdsAsync(string[] prefixes, CancellationToken cancellationToken)
+    /// <summary>Ids of tenders whose CPV codes start with any of the given prefixes. The same base filters as
+    /// the feed (deadline + status) are pushed into the raw query so the <c>LIKE ANY</c> scan never walks the
+    /// whole local cache table — only the open (or history) tenders that could match the feed.</summary>
+    private async Task<Guid[]> FindCpvPrefixMatchedTenderIdsAsync(
+        string[] prefixes, SeapTenderStatus? status, bool includeExpired, DateTimeOffset now,
+        CancellationToken cancellationToken)
     {
         string[] likePatterns = prefixes.Select(CpvPrefix.ToMatchPattern).ToArray();
         // NpgsqlParameter with an explicit array type: a bare string[] argument is sent as a
@@ -213,10 +226,23 @@ public sealed partial class BiddingGenerationService : IBiddingGenerationService
             NpgsqlDbType = NpgsqlDbType.Array | NpgsqlDbType.Text,
             Value = likePatterns
         };
-        return await dbContext.Database.SqlQueryRaw<Guid>(
+        List<NpgsqlParameter> parameters = [patterns];
+        var sql = new System.Text.StringBuilder(
             "SELECT t.\"Id\" FROM \"SeapTenders\" t " +
-            "WHERE EXISTS (SELECT 1 FROM unnest(t.\"CpvCodes\") cpv WHERE cpv LIKE ANY ({0}))",
-            patterns).ToArrayAsync(cancellationToken);
+            "WHERE EXISTS (SELECT 1 FROM unnest(t.\"CpvCodes\") cpv WHERE cpv LIKE ANY ({0}))");
+        int index = 1;
+        if (!includeExpired)
+        {
+            parameters.Add(new NpgsqlParameter { NpgsqlDbType = NpgsqlDbType.TimestampTz, Value = now });
+            sql.Append(CultureInfo.InvariantCulture, $" AND t.\"Deadline\" >= {{{index++}}}");
+        }
+        if (status is not null)
+        {
+            parameters.Add(new NpgsqlParameter { NpgsqlDbType = NpgsqlDbType.Text, Value = status.Value.ToString() });
+            sql.Append(CultureInfo.InvariantCulture, $" AND t.\"Status\" = {{{index++}}}");
+        }
+        return await dbContext.Database.SqlQueryRaw<Guid>(sql.ToString(), parameters.ToArray())
+            .ToArrayAsync(cancellationToken);
     }
 
     public Task<SeapTender?> GetTenderAsync(Guid tenderId, CancellationToken cancellationToken) =>

@@ -15,13 +15,18 @@ Because the notice-search payload does **not** carry the documents, the numeric 
 `sysNoticeTypeId` are now **persisted on `SeapTender`** (additive migration `AddSeapNoticeIds`). This makes
 the documents resolvable again later, without re-searching SEAP:
 
-- **At import**: the ingestion resolves and attaches the documents (as before).
+- **At import**: the background ingestion resolves and attaches the documents (as before). The on-demand
+  „Caută în SEAP" search **defers** document resolution: a user-initiated search can import up to
+  `OnDemandSearchMaxMatches` (default 500) tenders per request, and paying one notice-detail HTTP call per
+  match inside the request thread is what kept the search both slow and narrow. Search-imported tenders
+  therefore resolve their documents through the on-demand path below.
 - **On demand**: `POST /api/v1/seap/tenders/{id}/documents` resolves the documents for a tender that has a
   `noticeId` but no attachments yet (idempotent — returns the current list when attachments exist). The
   SPA fires it automatically once per page view when the „Documente Originale" tab is opened with an empty
   list, shows a real skeleton while it runs, and surfaces a recoverable 503 + „Reîncearcă" state on failure.
 - **Self-heal backfill**: the on-demand „Caută în SEAP" search re-finds an already-imported tender and
-  backfills the notice id/type (`BackfillNoticeSource`, idempotent) and refreshes the documents.
+  backfills the notice id/type (`BackfillNoticeSource`, idempotent) so its documents stay resolvable on
+  demand; it does not re-fetch the documents during the bulk search.
 
 ## Motivation
 

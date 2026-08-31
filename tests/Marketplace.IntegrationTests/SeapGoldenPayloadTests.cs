@@ -69,6 +69,58 @@ public sealed class SeapGoldenPayloadTests
     }
 
     [Fact]
+    public void CountyFallsBackToTheContractTitleWhenTheAuthorityNameHasNone()
+    {
+        // The platform's search payload has no structured county field: an authority whose name carries
+        // no county (a school, a generic institution) resolves through the notice title ("județul Suceava").
+        const string titleFallback = """
+        {
+          "total": 1,
+          "searchTooLong": false,
+          "items": [
+            {
+              "noticeNo": "SCN-SV-1",
+              "contractTitle": "Reabilitare termică corp C, județul Suceava",
+              "contractingAuthorityNameAndFN": "LICEUL TEHNOLOGIC ION SAVA",
+              "cpvCodeAndName": "45211100-0 - Lucrari de constructii pentru locuinte",
+              "estimatedValueRon": 1000,
+              "noticeStateDate": "2026-08-31T10:00:00+03:00",
+              "maxTenderReceiptDeadline": "2026-09-30T15:00:00+03:00",
+              "noticeId": 1,
+              "sysNoticeTypeId": 17
+            }
+          ]
+        }
+        """;
+        SeapTenderNoticeDto fromTitle = Assert.Single(SeapNoticeParser.ParseNotices(titleFallback));
+        Assert.Equal("Suceava", fromTitle.County);
+
+        // The authority name wins over the title, so a cross-county worksite in the title can never
+        // re-tag the contracting authority's own county.
+        const string nameWins = """
+        {
+          "total": 1,
+          "searchTooLong": false,
+          "items": [
+            {
+              "noticeNo": "CN-CJ-1",
+              "contractTitle": "Execuție drum, comuna Mălini, județul Suceava",
+              "contractingAuthorityNameAndFN": "MUNICIPIUL CLUJ-NAPOCA",
+              "cpvCodeAndName": "45233120-6 - Lucrari de constructii de drumuri",
+              "estimatedValueRon": 1000,
+              "noticeStateDate": "2026-08-31T10:00:00+03:00",
+              "maxTenderReceiptDeadline": "2026-09-30T15:00:00+03:00",
+              "noticeId": 2,
+              "sysNoticeTypeId": 2
+            }
+          ]
+        }
+        """;
+        SeapTenderNoticeDto fromName = Assert.Single(SeapNoticeParser.ParseNotices(nameWins));
+        Assert.Equal("Cluj", fromName.County);
+    }
+
+    [Fact]
     public void MissingOptionalFieldsNormalizeToEmptyOrNull()
     {
         SeapTenderNoticeDto notice = Assert.Single(SeapNoticeParser.ParseNotices(Fixture("seap-notices-optional-missing.json")));
@@ -77,7 +129,9 @@ public sealed class SeapGoldenPayloadTests
         Assert.Contains("reparatii", notice.Title);
         Assert.Contains("Apele Romane", notice.BuyerName);
         Assert.Empty(notice.CpvCodes);
-        Assert.Null(notice.County);
+        // The authority name carries no county, but the notice title does („S.G.A. Vrancea") — the
+        // title-fallback derivation makes the tender reachable under its county filter (previously null).
+        Assert.Equal("Vrancea", notice.County);
         Assert.Null(notice.EstimatedValue);
         Assert.Equal("RON", notice.Currency);
         Assert.Equal(DateTimeOffset.MinValue, notice.Deadline);

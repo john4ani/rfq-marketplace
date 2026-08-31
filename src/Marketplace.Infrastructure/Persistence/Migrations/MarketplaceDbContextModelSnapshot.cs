@@ -1312,8 +1312,13 @@ namespace Marketplace.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("County");
 
+                    b.HasIndex("PublicationDate")
+                        .IsDescending();
+
                     b.HasIndex("SeapExternalId")
                         .IsUnique();
+
+                    b.HasIndex("Status", "Deadline");
 
                     b.ToTable("SeapTenders", (string)null);
                 });

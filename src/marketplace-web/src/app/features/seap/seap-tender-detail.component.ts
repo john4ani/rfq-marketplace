@@ -2,12 +2,12 @@ import { DatePipe, DecimalPipe } from '@angular/common';
 import { ChangeDetectionStrategy, Component, computed, DestroyRef, effect, inject, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
-import { interval, switchMap, timer } from 'rxjs';
+import { interval, Subscription, switchMap, timer } from 'rxjs';
+import { CompanyQualification, CompanyQualificationService } from '../../core/companies/company-qualification.service';
 import { PipelineProgress } from '../../core/companies/company-vault.service';
 import { VaultReadinessService } from '../../core/companies/vault-readiness.service';
 import { ProfileService } from '../../core/profiles/profile.service';
 import { AutoBidResponse, BidStatus, SeapService, SeapTender, TenderPricing } from '../../core/seap/seap.service';
-import { VaultPromptComponent } from '../../shared/vault-prompt.component';
 
 /** Friendly Romanian labels for the real per-stage auto-bid progress reported by the API. */
 const AUTO_BID_STAGE_LABELS: Record<PipelineProgress['stage'], string> = {
@@ -24,13 +24,16 @@ const VALID_TABS: readonly TenderTab[] = ['summary', 'details', 'qualification',
 
 @Component({
   selector: 'app-seap-tender-detail',
-  imports: [RouterLink, DatePipe, DecimalPipe, VaultPromptComponent],
+  imports: [RouterLink, DatePipe, DecimalPipe],
   changeDetection: ChangeDetectionStrategy.OnPush,
   styleUrl: './seap-tender-detail.component.scss',
   template: `<section class="page">
     <a class="back-link" routerLink="/seap/tenders">← Anunțuri SEAP</a>
-    @if (vaultPromptVisible() && companyId(); as companyId) {
-      <app-vault-prompt [companyId]="companyId" (dismissed)="onVaultPromptDismissed()" />
+    @if (autoBidToastVisible()) {
+      <div class="toast" role="status" aria-live="polite">
+        <span>AI-ul redactează propunerea tehnică în background. Poți continua să explorezi anunțul.</span>
+        <button type="button" class="toast-close" (click)="autoBidToastVisible.set(false)" aria-label="Închide notificarea">×</button>
+      </div>
     }
     @if (loading()) { <section class="state" role="status">Se încarcă anunțul…</section> }
     @else if (tender(); as tender) {
@@ -83,17 +86,28 @@ const VALID_TABS: readonly TenderTab[] = ['summary', 'details', 'qualification',
               <p class="hint">Documentele generate (propunerea tehnică și lista de cantități) sunt în tab-ul Istoric Ofertă.</p>
               <button type="button" (click)="selectTab('history')">Deschide Istoricul</button>
             </div>
-          } @else if (busy()) {
-            <div class="note info" role="status">
-              <strong>Redactăm oferta…</strong>
-              <div class="progress" aria-hidden="true"><span></span></div>
-              <p class="progress-stage">{{ autoBidStage() || 'Analizăm anunțul și pregătim propunerea tehnică…' }}</p>
-              <small class="progress-hint">De obicei durează sub un minut. Poți reveni oricând la anunț.</small>
-            </div>
           }
           @else {
+            @if (companyId(); as companyId) {
+              @if (readinessWarning()) {
+                <div class="note warn readiness-warning" role="alert">
+                  <strong>Atenție:</strong> Profilul firmei / Vault-ul este incomplet. Oferta va folosi placeholdere.
+                  <a class="readiness-link" [routerLink]="['/account/company', companyId]">Completează aici</a>
+                </div>
+              }
+            }
             <div class="actions">
-              <button type="button" [disabled]="busy()" (click)="startAutoBid(tender.id)">{{ pricing().shadowMode ? 'AI Auto-Bid · gratuit' : pricing().freeGenerationsRemaining > 0 ? 'AI Auto-Bid · gratuit' : 'AI Auto-Bid · ' + pricing().priceEur + ' €' }}</button>
+              <button type="button" [disabled]="busy()" (click)="startAutoBid(tender.id)">
+                @if (busy()) { <span class="spinner" aria-hidden="true"></span> Se redactează propunerea… }
+                @else { {{ pricing().shadowMode ? 'AI Auto-Bid · gratuit' : pricing().freeGenerationsRemaining > 0 ? 'AI Auto-Bid · gratuit' : 'AI Auto-Bid · ' + pricing().priceEur + ' €' }} }
+              </button>
+              @if (busy()) {
+                <div class="auto-bid-progress" role="status" aria-live="polite">
+                  <div class="progress-track"><div class="progress-fill" [style.width.%]="autoBidPercent()"></div></div>
+                  <p class="progress-stage">{{ autoBidStage() || 'Analizăm anunțul și pregătim propunerea tehnică…' }}</p>
+                  <small class="progress-hint">AI-ul redactează propunerea în background. De obicei durează sub un minut.</small>
+                </div>
+              }
               @if (pricing().shadowMode) { <span class="note info">Mod de test — generarea este gratuită în această etapă. După lansare, prețul estimat pentru acest anunț: {{ pricing().priceEur }} €.</span> }
               @else if (pricing().freeGenerationsRemaining > 0) { <span class="note info">Prima generare este gratuită. Următoarele: {{ pricing().priceEur }} € (valoare estimată).</span> }
               @else { <span class="note info">Generare {{ pricing().priceEur }} €, pe baza valorii estimate a achiziției.</span> }
@@ -109,26 +123,26 @@ const VALID_TABS: readonly TenderTab[] = ['summary', 'details', 'qualification',
           <section class="card" id="panel-details" role="tabpanel" aria-labelledby="tab-details">
             <h2>Detalii Achiziție</h2>
             @if (tender.description) { <p class="description">{{ tender.description }}</p> }
-            @else { <p class="empty">Descrierea completă a procedurii va fi disponibilă după extragerea anunțului.</p> }
+            @else { <p class="empty">Date indisponibile în anunț — descrierea completă a procedurii nu a fost publicată în SEAP.</p> }
             <dl class="details">
-              <div><dt>Criteriul de atribuire</dt><dd>{{ tender.awardCriterion || 'Prețul cel mai scăzut' }}</dd></div>
+              <div><dt>Criteriul de atribuire</dt><dd>{{ tender.awardCriterion || unavailableLabel() }}</dd></div>
               <div><dt>Tipul procedurii</dt><dd>{{ procedureType() }}</dd></div>
-              <div><dt>Sursa de finanțare</dt><dd>{{ tender.fundingSource || '—' }}</dd></div>
-              <div><dt>Durata contractului</dt><dd>{{ tender.contractDuration || '—' }}</dd></div>
+              <div><dt>Sursa de finanțare</dt><dd>{{ tender.fundingSource || unavailableLabel() }}</dd></div>
+              <div><dt>Durata contractului</dt><dd>{{ tender.contractDuration || unavailableLabel() }}</dd></div>
             </dl>
-            <p class="hint">Valorile marcate cu „—" vor fi completate automat după extragerea completă a anunțului.</p>
+            <p class="hint">„Date indisponibile în anunț" înseamnă că autoritatea contractantă nu a publicat informația în SEAP.</p>
           </section>
         }
         @case ('qualification') {
           <section class="card" id="panel-qualification" role="tabpanel" aria-labelledby="tab-qualification">
             <h2>Condiții de Calificare</h2>
             <dl class="details">
-              <div><dt>Cuantumul garanției de participare</dt><dd>{{ tender.participationGuarantee || '—' }}</dd></div>
+              <div><dt>Cuantumul garanției de participare</dt><dd>{{ tender.participationGuarantee || unavailableLabel() }}</dd></div>
               <div><dt>Capacitate tehnică / profesională</dt><dd>{{ listOrPlaceholder(tender.qualificationRequirements) }}</dd></div>
               <div><dt>Personal solicitat</dt><dd>{{ listOrPlaceholder(tender.keyPersonnel) }}</dd></div>
               <div><dt>Certificate și standarde (ISO)</dt><dd>{{ listOrPlaceholder(tender.certificates) }}</dd></div>
             </dl>
-            <p class="hint">Condițiile de calificare vor fi extrase automat din documentele anunțului.</p>
+            <p class="hint">„Date indisponibile în anunț" înseamnă că autoritatea contractantă nu a publicat informația în SEAP.</p>
           </section>
         }
         @case ('documents') {
@@ -149,7 +163,7 @@ const VALID_TABS: readonly TenderTab[] = ['summary', 'details', 'qualification',
               </ul>
             } @else {
               <div class="state-box" [class.error]="documentsError()">
-                <p class="empty">@if (documentsError()) { Documentele anunțului nu au putut fi încărcate în acest moment. } @else { Niciun document atașat încă. Fișa de date și caietul de sarcini vor apărea aici după descărcarea lor. }</p>
+                <p class="empty">@if (documentsError()) { Documentele anunțului nu au putut fi încărcate în acest moment. } @else { Date indisponibile în anunț — nu au fost publicate documente pentru acest anunț în SEAP. }</p>
                 @if (documentsError()) { <button type="button" (click)="refreshDocuments()">Reîncearcă</button> }
               </div>
             }
@@ -189,6 +203,7 @@ export class SeapTenderDetailComponent {
   private readonly router = inject(Router);
   private readonly profiles = inject(ProfileService);
   private readonly readiness = inject(VaultReadinessService);
+  private readonly qualifications = inject(CompanyQualificationService);
   private readonly tenderId = this.route.snapshot.paramMap.get('id') ?? '';
   readonly tender = signal<SeapTender | null>(null);
   readonly bidStatus = signal<BidStatus | null>(null);
@@ -200,16 +215,31 @@ export class SeapTenderDetailComponent {
   readonly acceptsResponsibility = signal(false);
   readonly downloading = signal(false);
   readonly autoBidStage = signal('');
+  /** Simulated deterministic progress while the auto-bid request is in flight (0 → 90%, then waits for the
+   *  real completion). Never reaches 100% on its own — only the Completed stage does. */
+  readonly autoBidPercent = signal(0);
+  /** Non-blocking toast confirming the AI is drafting the technical proposal in the background. */
+  readonly autoBidToastVisible = signal(false);
+  /** Interval driving the simulated progress; stopped when the request settles. */
+  private autoBidProgressTimer: Subscription | null = null;
   /** The user's represented company — the vault that feeds the RAG context for this tender. */
   readonly companyId = signal<string | null>(null);
-  /** Shows the „no relevant documents yet" recommendation before the first auto-bid. */
-  readonly vaultPromptVisible = signal(false);
+  /** Vault/qualification readiness: null while unknown (the API responses are still in flight); a failed
+   *  readiness API never blocks the generation — it degrades to "assume ready" so the warning is honest. */
+  readonly vaultReady = signal<boolean | null>(null);
+  readonly qualificationReady = signal<boolean | null>(null);
+  /** Contextual warning shown above the generate button when the vault or the qualification profile is
+   *  incomplete — the offer would fall back to placeholders. Only shows once both checks are known. */
+  readonly readinessWarning = computed(() => {
+    const vault = this.vaultReady();
+    const qualification = this.qualificationReady();
+    if (vault === null || qualification === null) return false;
+    return !vault || !qualification;
+  });
   /** The active tab; initialised from the shareable ?tab= query parameter. */
   readonly activeTab = signal<TenderTab>(this.initialTab());
   /** Attachment currently being downloaded (prevents double-clicks); null when idle. */
   readonly downloadingAttachmentId = signal<string | null>(null);
-  /** The generation that waits for the user's choice after the repository prompt is dismissed. */
-  private pendingAutoBid: (() => void) | null = null;
 
   /** Real AI-synthesis bullets returned by the backend; empty while the notice has no summary. */
   readonly summaryPoints = computed(() => this.tender()?.summaryPoints ?? []);
@@ -238,6 +268,11 @@ export class SeapTenderDetailComponent {
       },
       error: () => this.summaryGeneration.set('error')
     });
+  }
+
+  /** Elegant placeholder for detail fields the notice does not state — never invent data. */
+  unavailableLabel(): string {
+    return 'Date indisponibile în anunț';
   }
 
   /** True while the published documents are being resolved on demand (a cheap, idempotent request). */
@@ -288,7 +323,11 @@ export class SeapTenderDetailComponent {
 
   constructor() {
     this.profiles.getMyCompanies().subscribe({
-      next: companies => this.companyId.set(companies[0]?.id ?? null),
+      next: companies => {
+        const company = companies[0];
+        this.companyId.set(company?.id ?? null);
+        if (company) this.loadReadiness(company.id);
+      },
       error: () => undefined
     });
     this.service.getTender(this.tenderId).subscribe({
@@ -326,9 +365,9 @@ export class SeapTenderDetailComponent {
       .catch(() => undefined);
   }
 
-  /** Renders a list of qualification details or an elegant „—" placeholder when not extracted yet. */
+  /** Renders a list of qualification details or an elegant placeholder when the notice does not state them. */
   listOrPlaceholder(items: string[] | null | undefined): string {
-    return items && items.length > 0 ? items.join(' · ') : '—';
+    return items && items.length > 0 ? items.join(' · ') : 'Date indisponibile în anunț';
   }
 
   /** Downloads one original authority file through the authenticated API (browsers cannot open local://s3://
@@ -354,34 +393,7 @@ export class SeapTenderDetailComponent {
 
   startAutoBid(tenderId: string): void {
     if (this.busy()) return;
-    // Before generating an offer the page verifies the Document Repository has usable documents; when it
-    // does not, the shared prompt is shown and the generation waits for the user's choice.
-    this.verifyVaultThen(() => this.runAutoBid(tenderId));
-  }
-
-  /** Checks the repository before a material action and shows the shared prompt when no usable documents
-   *  exist. A vault API failure never blocks the action — the user can proceed regardless. */
-  private verifyVaultThen(proceed: () => void): void {
-    const companyId = this.companyId();
-    if (!companyId || this.readiness.isPromptDismissed(companyId)) { proceed(); return; }
-    this.readiness.hasUsableDocuments(companyId).subscribe({
-      next: usable => {
-        if (usable) { proceed(); }
-        else {
-          this.pendingAutoBid = proceed;
-          this.vaultPromptVisible.set(true);
-        }
-      },
-      error: () => proceed()
-    });
-  }
-
-  /** Called when the user dismisses the repository prompt — the pending auto-bid then proceeds. */
-  onVaultPromptDismissed(): void {
-    this.vaultPromptVisible.set(false);
-    const proceed = this.pendingAutoBid;
-    this.pendingAutoBid = null;
-    proceed?.();
+    this.runAutoBid(tenderId);
   }
 
   private runAutoBid(tenderId: string): void {
@@ -389,6 +401,14 @@ export class SeapTenderDetailComponent {
     this.message.set('');
     this.messageError.set(false);
     this.autoBidStage.set('');
+    // The button stays visible (disabled + spinner) and the interface remains usable: a simulated
+    // deterministic progress bar climbs to 90% while the real per-stage progress is polled, and a
+    // non-blocking toast confirms the AI is drafting the proposal in the background.
+    this.autoBidPercent.set(0);
+    this.autoBidToastVisible.set(true);
+    this.autoBidProgressTimer = interval(600).pipe(takeUntilDestroyed(this.destroyRef)).subscribe(() => {
+      this.autoBidPercent.update(percent => (percent < 90 ? Math.min(90, percent + 1 + Math.floor(Math.random() * 2)) : percent));
+    });
     // The API reports real per-stage progress under this id while the request is in flight; poll it
     // so the user sees what is actually happening instead of an endless "generating…" line.
     const progressRequestId = crypto.randomUUID();
@@ -397,6 +417,9 @@ export class SeapTenderDetailComponent {
       next: response => this.handleAutoBid(response),
       error: (error: unknown) => {
         this.busy.set(false);
+        this.autoBidToastVisible.set(false);
+        this.autoBidPercent.set(0);
+        this.stopAutoBidProgressTimer();
         this.messageError.set(true);
         this.message.set(this.autoBidErrorMessage(error));
         // A failed generation never consumes the free entitlement; keep the price preview accurate.
@@ -416,8 +439,11 @@ export class SeapTenderDetailComponent {
 
   private handleAutoBid(response: AutoBidResponse): void {
     this.stopProgressPolling();
+    this.stopAutoBidProgressTimer();
     if (response.ready) {
       this.busy.set(false);
+      this.autoBidToastVisible.set(false);
+      this.autoBidPercent.set(100);
       this.message.set(response.freeGeneration ? 'Prima generare a fost gratuită. Oferta este gata.' : 'Oferta automată este gata.');
       this.refreshStatus();
       // The free entitlement (if any) was consumed server-side; refresh the price preview so the
@@ -428,10 +454,14 @@ export class SeapTenderDetailComponent {
     if (response.checkoutUrl) {
       window.location.href = response.checkoutUrl;
       this.busy.set(false);
+      this.autoBidToastVisible.set(false);
+      this.autoBidPercent.set(0);
       this.pollUntilReady();
       return;
     }
     this.busy.set(false);
+    this.autoBidToastVisible.set(false);
+    this.autoBidPercent.set(0);
     this.messageError.set(true);
     this.message.set('Plata nu este configurată. Contactează suportul.');
   }
@@ -529,6 +559,32 @@ export class SeapTenderDetailComponent {
 
   private stopProgressPolling(): void {
     this.autoBidProgressRequestId = null;
+  }
+
+  private stopAutoBidProgressTimer(): void {
+    this.autoBidProgressTimer?.unsubscribe();
+    this.autoBidProgressTimer = null;
+  }
+
+  /** Loads the vault/qualification readiness once for the represented company so the summary tab can show
+   *  the contextual „Profilul firmei / Vault-ul este incomplet" warning above the generate button. A failed
+   *  readiness API degrades to "ready" — it never blocks the generation. */
+  private loadReadiness(companyId: string): void {
+    this.readiness.hasUsableDocuments(companyId).pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
+      next: usable => this.vaultReady.set(usable),
+      error: () => this.vaultReady.set(true)
+    });
+    this.qualifications.get(companyId).pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
+      next: qualification => this.qualificationReady.set(this.isQualificationComplete(qualification)),
+      error: () => this.qualificationReady.set(true)
+    });
+  }
+
+  /** The SEAP qualification profile counts as complete when the legal data exists and the company has at
+   *  least one proof of capability (similar-experience contract, certificate, or key expert). */
+  private isQualificationComplete(qualification: CompanyQualification): boolean {
+    return qualification.legal !== null
+      && (qualification.experience.length > 0 || qualification.certificates.length > 0 || qualification.personnel.length > 0);
   }
 }
 

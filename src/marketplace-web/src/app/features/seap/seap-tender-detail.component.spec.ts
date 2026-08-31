@@ -4,6 +4,7 @@ import { TestBed } from '@angular/core/testing';
 import { ActivatedRoute, convertToParamMap, provideRouter } from '@angular/router';
 import { of, Subject, throwError } from 'rxjs';
 import { vi } from 'vitest';
+import { CompanyQualificationService } from '../../core/companies/company-qualification.service';
 import { CompanyVaultService } from '../../core/companies/company-vault.service';
 import { ProfileService } from '../../core/profiles/profile.service';
 import { AutoBidResponse, BidStatus, SeapService, SeapTender } from '../../core/seap/seap.service';
@@ -45,6 +46,16 @@ describe('SeapTenderDetailComponent', () => {
     id: 'd1', fileName: 'certificari.pdf', documentType: 'PDF',
     extracted: true, pageCount: 5, chunkCount: 18, uploadedAt: '2026-08-01T10:00:00Z'
   };
+  const completeQualification = {
+    legal: { legalRepresentativeName: 'Ion Pop', legalRepresentativeRole: 'Administrator', legalForm: 'SRL', bankAccounts: [] },
+    experience: [{
+      id: 'e1', clientName: 'Primăria Cluj', contractTitle: 'Drumuri județene', contractNumberDate: null,
+      valueAmount: 100000, valueCurrency: 'RON', cpvCode: '45233000', completionDate: '2025-01-01', documentRefUrl: null
+    }],
+    certificates: [],
+    personnel: []
+  };
+  const emptyQualification = { legal: null, experience: [], certificates: [], personnel: [] };
   const profiles = { getMyCompanies: vi.fn().mockReturnValue(of([{ id: 'company-1', name: 'SC Test', role: 'Proprietar' as const }])) };
 
   beforeEach(() => {
@@ -66,6 +77,7 @@ describe('SeapTenderDetailComponent', () => {
         { provide: ActivatedRoute, useValue: { snapshot: { paramMap: convertToParamMap({ id: 't1' }), queryParamMap: convertToParamMap({}) } } },
         { provide: ProfileService, useValue: profiles },
         { provide: CompanyVaultService, useValue: { list: vi.fn().mockReturnValue(of([usableDoc])) } },
+        { provide: CompanyQualificationService, useValue: { get: vi.fn().mockReturnValue(of(completeQualification)) } },
         {
           provide: SeapService,
           useValue: {
@@ -356,6 +368,7 @@ describe('SeapTenderDetailComponent', () => {
         { provide: ActivatedRoute, useValue: { snapshot: { paramMap: convertToParamMap({ id: 't1' }), queryParamMap: convertToParamMap({}) } } },
         { provide: ProfileService, useValue: profiles },
         { provide: CompanyVaultService, useValue: { list: vi.fn().mockReturnValue(of([])) } },
+        { provide: CompanyQualificationService, useValue: { get: vi.fn().mockReturnValue(of(emptyQualification)) } },
         {
           provide: SeapService,
           useValue: {
@@ -372,51 +385,116 @@ describe('SeapTenderDetailComponent', () => {
     return TestBed.createComponent(SeapTenderDetailComponent);
   }
 
-  it('blocks AI Auto-Bid and shows the repository prompt when no usable documents exist, then proceeds on "remind me later"', () => {
+  it('shows a contextual readiness warning above the generate button when the vault is empty', () => {
     const startAutoBid = vi.fn().mockReturnValue(of({ ready: true, shadowMode: true }));
     const fixture = setupWithEmptyVault(startAutoBid);
     fixture.detectChanges();
-    clickAutoBid(fixture);
 
-    // The generation is paused until the user picks one of the prompt options.
-    expect(startAutoBid).not.toHaveBeenCalled();
     const text = (fixture.nativeElement as HTMLElement).textContent ?? '';
-    expect(text).toContain('Pentru a asigura că ofertarea are cele mai mari șanse de reușită');
-    expect(text).toContain('Amintește-mi mai târziu');
-
-    const remindButton = Array.from(fixture.nativeElement.querySelectorAll('button') as NodeListOf<HTMLButtonElement>)
-      .find(button => button.textContent?.includes('Amintește-mi mai târziu'))!;
-    remindButton.click();
-    fixture.detectChanges();
-
-    expect(startAutoBid).toHaveBeenCalledWith('t1', 'company-1', 'req-progress');
+    expect(text).toContain('Profilul firmei / Vault-ul este incomplet. Oferta va folosi placeholdere.');
+    expect(text).toContain('Completează aici');
+    expect(text).not.toContain('Pentru a asigura că ofertarea are cele mai mari șanse de reușită');
   });
 
-  it('persists the permanent dismissal when "Am înțeles..." is chosen and then generates', () => {
-    localStorage.removeItem('compaspot.vaultPromptDismissed.company-1');
-    const startAutoBid = vi.fn().mockReturnValue(of({ ready: true, shadowMode: true }));
-    const fixture = setupWithEmptyVault(startAutoBid);
+  it('warns when the qualification profile is empty even though the vault has usable documents', () => {
+    const startAutoBid = vi.fn();
+    TestBed.configureTestingModule({
+      imports: [SeapTenderDetailComponent],
+      providers: [
+        provideRouter([]),
+        { provide: ActivatedRoute, useValue: { snapshot: { paramMap: convertToParamMap({ id: 't1' }), queryParamMap: convertToParamMap({}) } } },
+        { provide: ProfileService, useValue: profiles },
+        { provide: CompanyVaultService, useValue: { list: vi.fn().mockReturnValue(of([usableDoc])) } },
+        { provide: CompanyQualificationService, useValue: { get: vi.fn().mockReturnValue(of(emptyQualification)) } },
+        {
+          provide: SeapService,
+          useValue: {
+            getTender: vi.fn().mockReturnValue(of(tender)),
+            getBidStatus: vi.fn().mockReturnValue(of(bidStatus)),
+            getTenderPricing: vi.fn().mockReturnValue(of(pricing)),
+            getAutoBidProgress: vi.fn(),
+            startAutoBid,
+            downloadBidFile: vi.fn()
+          }
+        }
+      ]
+    });
+    const fixture = TestBed.createComponent(SeapTenderDetailComponent);
     fixture.detectChanges();
-    clickAutoBid(fixture);
 
-    const understoodButton = Array.from(fixture.nativeElement.querySelectorAll('button') as NodeListOf<HTMLButtonElement>)
-      .find(button => button.textContent?.includes('Am înțeles, nu mai arăta acest mesaj'))!;
-    understoodButton.click();
-    fixture.detectChanges();
-
-    expect(localStorage.getItem('compaspot.vaultPromptDismissed.company-1')).toBe('true');
-    expect(startAutoBid).toHaveBeenCalledWith('t1', 'company-1', 'req-progress');
+    const text = (fixture.nativeElement as HTMLElement).textContent ?? '';
+    expect(text).toContain('Profilul firmei / Vault-ul este incomplet. Oferta va folosi placeholdere.');
+    expect(text).toContain('Completează aici');
   });
 
-  it('skips the repository prompt when the user permanently dismissed it', () => {
-    localStorage.setItem('compaspot.vaultPromptDismissed.company-1', 'true');
+  it('hides the readiness warning when the vault and the qualification profile are complete', () => {
     const startAutoBid = vi.fn().mockReturnValue(of({ ready: true, shadowMode: true }));
-    const fixture = setupWithEmptyVault(startAutoBid);
+    const fixture = setup({ startAutoBid });
     fixture.detectChanges();
-    clickAutoBid(fixture);
 
-    expect(startAutoBid).toHaveBeenCalledWith('t1', 'company-1', 'req-progress');
-    expect((fixture.nativeElement as HTMLElement).textContent ?? '').not.toContain('Pentru a asigura că ofertarea');
+    const text = (fixture.nativeElement as HTMLElement).textContent ?? '';
+    expect(text).not.toContain('Profilul firmei / Vault-ul este incomplet. Oferta va folosi placeholdere.');
+    expect(text).not.toContain('Pentru a asigura că ofertarea are cele mai mari șanse de reușită');
+  });
+
+  it('keeps the generate button visible as disabled + spinner and shows the toast while the request is in flight', () => {
+    vi.useFakeTimers();
+    try {
+      const start$ = new Subject<AutoBidResponse>();
+      const fixture = setup({ startAutoBid: vi.fn().mockReturnValue(start$) });
+      fixture.detectChanges();
+      clickAutoBid(fixture);
+
+      // The CTA stays visible — disabled with the „Se redactează propunerea…" label, not replaced by a note.
+      const generateButton = Array.from(fixture.nativeElement.querySelectorAll('button') as NodeListOf<HTMLButtonElement>)
+        .find(button => button.textContent?.includes('Se redactează propunerea'))!;
+      expect(generateButton).toBeTruthy();
+      expect(generateButton.disabled).toBe(true);
+      expect(fixture.nativeElement.querySelector('.spinner')).not.toBeNull();
+      // The non-blocking toast confirms the AI is drafting in the background.
+      const text = (fixture.nativeElement as HTMLElement).textContent ?? '';
+      expect(text).toContain('AI-ul redactează propunerea tehnică în background');
+
+      // The simulated determinate progress climbs toward 90% (never beyond) while the request is in flight.
+      vi.advanceTimersByTime(6000);
+      fixture.detectChanges();
+      const percent = fixture.componentInstance.autoBidPercent();
+      expect(percent).toBeGreaterThan(0);
+      expect(percent).toBeLessThanOrEqual(90);
+
+      start$.next({ ready: true, shadowMode: true, freeGeneration: false });
+      start$.complete();
+      fixture.detectChanges();
+
+      expect(fixture.componentInstance.autoBidPercent()).toBe(100);
+      expect((fixture.nativeElement as HTMLElement).textContent ?? '').toContain('Oferta automată este gata.');
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('hides the toast and resets the progress when the generation fails', () => {
+    vi.useFakeTimers();
+    try {
+      const start$ = new Subject<AutoBidResponse>();
+      const fixture = setup({ startAutoBid: vi.fn().mockReturnValue(start$) });
+      fixture.detectChanges();
+      clickAutoBid(fixture);
+
+      expect((fixture.nativeElement as HTMLElement).textContent ?? '').toContain('AI-ul redactează propunerea tehnică în background');
+      vi.advanceTimersByTime(6000);
+      fixture.detectChanges();
+
+      start$.error({ error: { detail: 'Claude indisponibil.' } });
+      fixture.detectChanges();
+
+      const text = (fixture.nativeElement as HTMLElement).textContent ?? '';
+      expect(text).toContain('Claude indisponibil.');
+      expect(text).not.toContain('AI-ul redactează propunerea tehnică în background');
+      expect(fixture.componentInstance.autoBidPercent()).toBe(0);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('never blocks Auto-Bid when the vault API is unavailable', () => {
@@ -428,6 +506,7 @@ describe('SeapTenderDetailComponent', () => {
         { provide: ActivatedRoute, useValue: { snapshot: { paramMap: convertToParamMap({ id: 't1' }), queryParamMap: convertToParamMap({}) } } },
         { provide: ProfileService, useValue: profiles },
         { provide: CompanyVaultService, useValue: { list: vi.fn().mockReturnValue(throwError(() => new Error('offline'))) } },
+        { provide: CompanyQualificationService, useValue: { get: vi.fn().mockReturnValue(throwError(() => new Error('offline'))) } },
         {
           provide: SeapService,
           useValue: {
@@ -446,7 +525,8 @@ describe('SeapTenderDetailComponent', () => {
     clickAutoBid(fixture);
 
     expect(startAutoBid).toHaveBeenCalledWith('t1', 'company-1', 'req-progress');
-    expect((fixture.nativeElement as HTMLElement).textContent ?? '').not.toContain('Pentru a asigura că ofertarea');
+    // A failed readiness API never blocks the generation — and never invents a warning.
+    expect((fixture.nativeElement as HTMLElement).textContent ?? '').not.toContain('Profilul firmei / Vault-ul este incomplet');
   });
 
   it('opens on the „Sinteză & Ofertare AI" tab by default with the real AI summary bullets and the status card', () => {
@@ -552,7 +632,9 @@ describe('SeapTenderDetailComponent', () => {
 
     const text = (fixture.nativeElement as HTMLElement).textContent ?? '';
     expect(text).toContain('Criteriul de atribuire');
-    expect(text).toContain('Prețul cel mai scăzut');
+    // The award criterion is not stated in the notice — the UI must never invent „Prețul cel mai scăzut".
+    expect(text).toContain('Date indisponibile în anunț');
+    expect(text).not.toContain('Prețul cel mai scăzut');
     expect(text).toContain('Tipul procedurii');
     expect(text).toContain('Procedură simplificată');
     expect(text).toContain('Sursa de finanțare');
@@ -639,6 +721,7 @@ describe('SeapTenderDetailComponent', () => {
         { provide: ActivatedRoute, useValue: { snapshot: { paramMap: convertToParamMap({ id: 't1' }), queryParamMap: convertToParamMap({}) } } },
         { provide: ProfileService, useValue: profiles },
         { provide: CompanyVaultService, useValue: { list: vi.fn().mockReturnValue(of([usableDoc])) } },
+        { provide: CompanyQualificationService, useValue: { get: vi.fn().mockReturnValue(of(completeQualification)) } },
         {
           provide: SeapService,
           useValue: {
@@ -662,6 +745,8 @@ describe('SeapTenderDetailComponent', () => {
     tab.click();
     fixture.detectChanges();
 
-    expect((fixture.nativeElement as HTMLElement).textContent ?? '').toContain('Niciun document atașat încă');
+    // Honest unavailable state: no document was published for this notice in SEAP — never a broken/mock row.
+    expect((fixture.nativeElement as HTMLElement).textContent ?? '').toContain('Date indisponibile în anunț');
+    expect((fixture.nativeElement as HTMLElement).textContent ?? '').not.toContain('Niciun document atașat');
   });
 });

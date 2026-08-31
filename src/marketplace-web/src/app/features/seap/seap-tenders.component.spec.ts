@@ -3,7 +3,7 @@ import localeRo from '@angular/common/locales/ro';
 import { computed } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
-import { of, throwError } from 'rxjs';
+import { of, Subject, throwError } from 'rxjs';
 import { AuthService } from '../../core/auth/auth.service';
 import { CompanyVaultService, SpecificationBidResult } from '../../core/companies/company-vault.service';
 import { ProfileService } from '../../core/profiles/profile.service';
@@ -78,7 +78,7 @@ describe('SeapTendersComponent', () => {
     expect(text).toContain('Cluj');
     expect(text).toContain('Montare de garduri');
     // The first fetch carries only SEAP filter params (radius inactive, profile county resolved).
-    expect(listTenders).toHaveBeenCalledWith({ radiusKm: null, county: 'Cluj', cpvPrefixes: [], counties: [] });
+    expect(listTenders).toHaveBeenCalledWith(expect.objectContaining({ radiusKm: null, county: 'Cluj', cpvPrefixes: [], counties: [], status: 'ReadyForBidding' }));
   });
 
   it('refetches with the new CPV prefix as soon as a prefix chip is added', () => {
@@ -109,7 +109,7 @@ describe('SeapTendersComponent', () => {
     last.click();
     fixture.detectChanges();
 
-    expect(listTenders).toHaveBeenLastCalledWith({ radiusKm: 30, county: 'Cluj', cpvPrefixes: [], counties: [] });
+    expect(listTenders).toHaveBeenLastCalledWith(expect.objectContaining({ radiusKm: 30, county: 'Cluj', cpvPrefixes: [], counties: [], status: 'ReadyForBidding' }));
   });
 
   it('still lists tenders when the user has no company (no filters shown)', () => {
@@ -382,7 +382,7 @@ describe('SeapTendersComponent', () => {
     expect(listTenders).toHaveBeenLastCalledWith(expect.objectContaining({ counties: [], cpvPrefixes: [] }));
   });
 
-  it('searches SEAP with the active parameters and the current-year window', async () => {
+  it('searches SEAP with the active parameters, the discovery status and the current-year window', async () => {
     const listTenders = vi.fn().mockReturnValue(of([tender]));
     const fixture = setup(listTenders);
     fixture.detectChanges();
@@ -398,12 +398,13 @@ describe('SeapTendersComponent', () => {
       search: true,
       from: `${year}-01-01`,
       to: `${year}-12-31`,
+      status: 'ReadyForBidding',
       cpvPrefixes: [],
       counties: []
     }));
   });
 
-  it('shows the Document Repository prompt after „Caută în SEAP" when the vault has no usable documents', async () => {
+  it('does not render the top-of-page vault prompt — the CTA moved into the offer tab', async () => {
     const listTenders = vi.fn().mockReturnValue(of([tender]));
     TestBed.configureTestingModule({
       imports: [SeapTendersComponent],
@@ -424,54 +425,44 @@ describe('SeapTendersComponent', () => {
     searchButton.click();
     fixture.detectChanges();
 
+    // The old top-of-page banner is gone (even with an empty vault); the search itself still runs.
     const text = (fixture.nativeElement as HTMLElement).textContent ?? '';
-    expect(text).toContain('Pentru a asigura că ofertarea are cele mai mari șanse de reușită');
-    expect(text).toContain('Link la Depozit de Documente');
-    expect(text).toContain('Amintește-mi mai târziu');
-    // The search itself still runs — the prompt only recommends uploading company documents.
+    expect(text).not.toContain('Pentru a asigura că ofertarea are cele mai mari șanse de reușită');
+    expect(text).not.toContain('Link la Depozit de Documente');
     expect(listTenders).toHaveBeenLastCalledWith(expect.objectContaining({ search: true }));
   });
 
-  it('does not show the repository prompt when the vault has usable (processed) documents', async () => {
+  it('switches between the discovery and history tabs and re-fetches with the matching status', async () => {
     const listTenders = vi.fn().mockReturnValue(of([tender]));
-    TestBed.configureTestingModule({
-      imports: [SeapTendersComponent],
-      providers: [
-        provideRouter([]),
-        { provide: ProfileService, useValue: profiles },
-        { provide: SupplierSettingsService, useValue: settings },
-        { provide: SeapService, useValue: { listTenders } },
-        { provide: AuthService, useValue: { isAdministrator: computed(() => true) } },
-        { provide: CompanyVaultService, useValue: { list: vi.fn().mockReturnValue(of([usableDoc])), uploadSpecification: vi.fn(), generateFromSpecification: vi.fn(), downloadGeneratedFile: vi.fn() } }
-      ]
-    });
-    const fixture = TestBed.createComponent(SeapTendersComponent);
+    const fixture = setup(listTenders);
     fixture.detectChanges();
 
-    const searchButton = Array.from(fixture.nativeElement.querySelectorAll('button') as NodeListOf<HTMLButtonElement>)
-      .find(button => button.textContent?.includes('Caută în SEAP'))!;
-    searchButton.click();
+    // Default tab: „Caută anunțuri SEAP" — the discovery feed requests only ready-to-bid tenders.
+    expect(listTenders).toHaveBeenLastCalledWith(expect.objectContaining({ status: 'ReadyForBidding' }));
+
+    const historyTab = Array.from(fixture.nativeElement.querySelectorAll('button[role="tab"]') as NodeListOf<HTMLButtonElement>)
+      .find(button => button.textContent?.includes('Oferte Generate'))!;
+    expect(historyTab).toBeTruthy();
+    historyTab.click();
     fixture.detectChanges();
 
-    const text = (fixture.nativeElement as HTMLElement).textContent ?? '';
-    expect(text).not.toContain('Pentru a asigura că ofertarea are cele mai mari șanse de reușită');
+    // „Oferte Generate" is the company history — the feed requests only tenders with a generated offer.
+    expect(listTenders).toHaveBeenLastCalledWith(expect.objectContaining({ status: 'BidGenerated' }));
+    expect(historyTab.getAttribute('aria-selected')).toBe('true');
+
+    const searchTab = Array.from(fixture.nativeElement.querySelectorAll('button[role="tab"]') as NodeListOf<HTMLButtonElement>)
+      .find(button => button.textContent?.includes('Caută anunțuri SEAP'))!;
+    searchTab.click();
+    fixture.detectChanges();
+    expect(listTenders).toHaveBeenLastCalledWith(expect.objectContaining({ status: 'ReadyForBidding' }));
   });
 
-  it('skips the prompt when the user permanently dismissed it for this company', async () => {
-    localStorage.setItem('compaspot.vaultPromptDismissed.company-1', 'true');
-    const listTenders = vi.fn().mockReturnValue(of([tender]));
-    TestBed.configureTestingModule({
-      imports: [SeapTendersComponent],
-      providers: [
-        provideRouter([]),
-        { provide: ProfileService, useValue: profiles },
-        { provide: SupplierSettingsService, useValue: settings },
-        { provide: SeapService, useValue: { listTenders } },
-        { provide: AuthService, useValue: { isAdministrator: computed(() => true) } },
-        { provide: CompanyVaultService, useValue: { list: vi.fn().mockReturnValue(of([])), uploadSpecification: vi.fn(), generateFromSpecification: vi.fn(), downloadGeneratedFile: vi.fn() } }
-      ]
-    });
-    const fixture = TestBed.createComponent(SeapTendersComponent);
+  it('keeps the list visible and shows non-blocking skeleton rows while a search is in flight', async () => {
+    const search$ = new Subject<SeapTender[]>();
+    const listTenders = vi.fn()
+      .mockReturnValueOnce(of([tender]))
+      .mockReturnValue(search$);
+    const fixture = setup(listTenders);
     fixture.detectChanges();
 
     const searchButton = Array.from(fixture.nativeElement.querySelectorAll('button') as NodeListOf<HTMLButtonElement>)
@@ -479,7 +470,17 @@ describe('SeapTendersComponent', () => {
     searchButton.click();
     fixture.detectChanges();
 
+    // The previous results stay rendered (no page blanking) and skeleton rows + a status note give feedback.
+    expect(fixture.nativeElement.querySelectorAll('.skeleton-card').length).toBeGreaterThan(0);
     const text = (fixture.nativeElement as HTMLElement).textContent ?? '';
-    expect(text).not.toContain('Pentru a asigura că ofertarea are cele mai mari șanse de reușită');
+    expect(text).toContain('Căutăm în SEAP');
+    expect(text).toContain('Lucrări de construcții');
+
+    search$.next([tender]);
+    search$.complete();
+    fixture.detectChanges();
+
+    expect(fixture.nativeElement.querySelectorAll('.skeleton-card').length).toBe(0);
+    expect((fixture.nativeElement as HTMLElement).textContent ?? '').toContain('Căutarea în SEAP s-a încheiat');
   });
 });

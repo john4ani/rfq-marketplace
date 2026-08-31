@@ -13,7 +13,15 @@ Anunțuri SEAP are **enriched at import time** and filtered by the supplier's co
    Suceava); then an embedded **locality vocabulary** (`Seap/locality-counties.json`, SIRUTA-derived,
    ~8.7k names) under a local-administration marker such as "COMUNA"/"ORASULUI"/"PRIMARIA" — only names
    that map to exactly one county nationwide, so a commune/town can never be attributed to the wrong
-   county (e.g. "PRIMARIA ORASULUI DOROHOI" → Botoșani). A name that matches nothing yields `null`.
+   county (e.g. "PRIMARIA ORASULUI DOROHOI" → Botoșani). A name that matches nothing yields `null`. The
+   importer additionally falls back to the **contract title** when the authority name carries no county
+   (`ParseCounty` in `SeapNoticeParser`, mirrored by the county backfill) — many SCN notices spell the
+   county only in the title ("comuna X, județul Suceava"). The authority name always wins, so a cross-county
+   worksite mentioned in the title can never re-tag the authority's own county. The platform's public
+   search payload exposes **no structured county/UAT field**, so this name/title derivation is inherently
+   partial versus the platform's own county filter — authorities named without any county/commune reference
+   (schools, hospitals, generic institutions, companies) stay `null` and are only reachable through the
+   CPV-prefix filter.
 3. **The AI categorizer maps the CPV label to a CompaSpot category.** `SeapCategorizerService` uses the
    existing `ILlmProvider`; the persistent `CpvCategoryMappings` (CpvCode → CategoryId) cache makes the
    LLM cost per standardized CPV code ≈ one call (CPV codes are standardized, so the same code always

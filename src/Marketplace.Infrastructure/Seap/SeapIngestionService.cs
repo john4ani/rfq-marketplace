@@ -144,7 +144,8 @@ public sealed partial class SeapIngestionService(
         int updated = 0;
         foreach (SeapTender tender in missing)
         {
-            string? county = CountyParser.Parse(tender.BuyerName);
+            string? county = CountyParser.Parse(tender.BuyerName)
+                ?? CountyParser.Parse($"{tender.BuyerName} {tender.Title}");
             if (county is null) continue;
             tender.BackfillCounty(county, now);
             updated++;
@@ -180,26 +181,73 @@ public sealed partial class SeapIngestionService(
         int maxScanned = Math.Max(pageSize, settings.OnDemandSearchMaxScanned);
         DateTimeOffset now = timeProvider.GetUtcNow();
         var imported = new List<SeapTender>();
-        int scanned = await ScanAndImportAsync(cpvPrefixes2, canonicalCounties, fromDate, toDate,
-            pageSize, maxMatches, maxScanned, imported, now, cancellationToken);
+        int scanned;
+        if (fromDate is null && toDate is null)
+        {
+            // „Tot istoricul" without a window keeps the single unfiltered scan (the platform's wide
+            // unfiltered slice is stale anyway) + the recent complement below.
+            scanned = await ScanAndImportAsync(cpvPrefixes2, canonicalCounties, fromDate, toDate,
+                pageSize, maxMatches, maxScanned, imported, now, cancellationToken);
+        }
+        else
+        {
+            // The anonymous e-licitatie.ro search caps a wide publication window at ~3000 notices and
+            // returns an unstable slice (verified live), so a whole-year window hides most of the corpus —
+            // e.g. a Suceava search saw ~13 tenders while SEAP itself shows ~1000 for the current year.
+            // Chunk the requested window per calendar month: each month fits under the platform cap, so
+            // every month's slice is complete and the county/CPV filters see the real universe. The global
+            // match cap (OnDemandSearchMaxMatches) still bounds total imports per search.
+            DateOnly from = fromDate ?? DateOnly.FromDateTime(now.UtcDateTime.AddYears(-1));
+            DateOnly to = toDate ?? DateOnly.FromDateTime(now.UtcDateTime);
+            scanned = 0;
+            foreach ((DateOnly chunkFrom, DateOnly chunkTo) in ChunkByMonth(from, to))
+            {
+                if (imported.Count >= maxMatches) break;
+                scanned += await ScanAndImportAsync(cpvPrefixes2, canonicalCounties, chunkFrom, chunkTo,
+                    pageSize, maxMatches, maxScanned, imported, now, cancellationToken);
+            }
+        }
 
-        // The anonymous e-licitatie.ro search caps wide publication windows at ~3000 notices and returns an
-        // unstable slice, so a recent matching notice (e.g. published this week) can be missed even though
-        // it exists — verified live: „SCN1179140" (Brașov, 45453000-7, published 26.08) was absent from the
-        // current-year slice on one call and present on the next. Scan the trailing 30 days — clamped to the
-        // requested window — as a reliable, uncapped complement; the importer skips duplicates, so merged
-        // results stay unique and never fall outside the requested range.
+        // The trailing 30 days — clamped to the requested window — stays as an uncapped complement for the
+        // unfiltered ("all history") path and as a safety net if a single month still exceeds the platform
+        // slice; the importer skips duplicates, so merged results stay unique.
         DateOnly today = DateOnly.FromDateTime(now.UtcDateTime);
         DateOnly recentFrom = today.AddDays(-30);
         if (fromDate is { } requestedFrom && requestedFrom > recentFrom) recentFrom = requestedFrom;
         DateOnly recentTo = toDate is { } requestedTo && requestedTo < today ? requestedTo : today;
-        if (recentFrom <= recentTo)
+        if (recentFrom <= recentTo && imported.Count < maxMatches)
             scanned += await ScanAndImportAsync(cpvPrefixes2, canonicalCounties, recentFrom, recentTo,
                 pageSize, maxMatches, maxScanned, imported, now, cancellationToken);
 
         if (imported.Count > 0)
             LogSeapSearchImported(logger, imported.Count, scanned);
         return imported;
+    }
+
+    /// <summary>Splits a publication-date window into calendar months (the first/last chunk clamp to the
+    /// requested bounds). Each month's slice stays below the platform's ~3000-notice cap, so chunking makes
+    /// a wide window's coverage complete instead of an unstable top slice.</summary>
+    private static IEnumerable<(DateOnly From, DateOnly To)> ChunkByMonth(DateOnly from, DateOnly to)
+    {
+        int year = from.Year;
+        int month = from.Month;
+        while (new DateOnly(year, month, 1) <= to)
+        {
+            DateOnly chunkFrom = new DateOnly(year, month, 1);
+            if (chunkFrom < from) chunkFrom = from;
+            DateOnly chunkTo = new DateOnly(year, month, DateTime.DaysInMonth(year, month));
+            if (chunkTo > to) chunkTo = to;
+            yield return (chunkFrom, chunkTo);
+            if (month == 12)
+            {
+                year++;
+                month = 1;
+            }
+            else
+            {
+                month++;
+            }
+        }
     }
 
     /// <summary>Pages the live SEAP search for one publication-date window, importing the notices that match
@@ -238,31 +286,32 @@ public sealed partial class SeapIngestionService(
         return scanned;
     }
 
-    /// <summary>Persists a search-found notice without LLM categorization and without attachment downloads:
-    /// the on-demand search is about discovering matching tenders, and the deterministic county + CPV codes
-    /// are enough to drive the list filters. Duplicates are skipped (the notice is already in the DB).</summary>
+    /// <summary>Persists a search-found notice without LLM categorization, without attachment resolution and
+    /// without the summarizer: the on-demand search is about discovering matching tenders fast and in volume
+    /// (up to <c>OnDemandSearchMaxMatches</c> per request), and the deterministic county + CPV codes are
+    /// enough to drive the list filters. Duplicates are skipped (the notice is already in the DB).</summary>
     private async Task<SeapTender?> ImportSearchNoticeAsync(
         SeapTenderNoticeDto notice, DateTimeOffset now, CancellationToken cancellationToken)
     {
         SeapTender? existing = await dbContext.SeapTenders
-            .Include(tender => tender.Attachments)
             .SingleOrDefaultAsync(tender => tender.SeapExternalId == notice.Id, cancellationToken);
         if (existing is not null)
         {
-            // The on-demand search doubles as a self-heal: a tender imported before the published-document
-            // list was resolved gets it refreshed from the live notice-detail API, and the numeric notice
-            // id/type is persisted so the documents can also be resolved on demand later.
-            if (existing.Attachments.Count == 0)
+            // The search doubles as a light self-heal: a tender imported before the numeric notice id existed
+            // gets it backfilled so its documents can be resolved on demand later (POST /tenders/{id}/documents
+            // resolves them — the same flow the „Documente Originale" tab fires). No document fetch here: a
+            // bulk search must not pay one notice-detail HTTP call per already-known tender.
+            if (existing.NoticeId is null && notice.NoticeId is int noticeId)
             {
-                bool sourceChanged = existing.NoticeId is null && notice.NoticeId is not null;
-                if (sourceChanged)
-                    existing.BackfillNoticeSource(notice.NoticeId, notice.SysNoticeTypeId, now);
-                int attached = await FetchAndAttachDocumentsAsync(notice, existing, now, cancellationToken);
-                if (sourceChanged || attached > 0)
-                    await dbContext.SaveChangesAsync(cancellationToken);
+                existing.BackfillNoticeSource(noticeId, notice.SysNoticeTypeId, now);
+                await dbContext.SaveChangesAsync(cancellationToken);
             }
             return null;
         }
+        // Expired notices are never bid targets — the on-demand search must not import (or clutter the
+        // local cache with) tenders whose submission deadline already passed.
+        if (notice.Deadline < now)
+            return null;
         SeapRawIngestion staging = SeapRawIngestion.Pending(notice.Id, JsonSerializer.Serialize(notice, PayloadJsonOptions), now);
         SeapTender tender;
         try
@@ -277,12 +326,13 @@ public sealed partial class SeapIngestionService(
             LogParseFailed(logger, notice.Id, exception);
             return null;
         }
-        // AI detail extraction, mirroring the background import (enrichment, never a gate). The on-demand
-        // search downloads no attachment content, so only the notice metadata feeds the summarizer.
-        SeapAiExtraction? extraction = await summaryGenerator.GenerateAsync(tender, attachmentText: null, cancellationToken);
-        if (extraction is not null)
-            tender.ApplyAiExtraction(extraction, now);
-        await FetchAndAttachDocumentsAsync(notice, tender, now, cancellationToken);
+        // No synchronous LLM call and no per-notice document-resolution call here: the AI detail extraction
+        // („Sinteză AI" bullets + award criterion / guarantee / funding / duration / qualification) is
+        // deferred to the idempotent POST /tenders/{id}/summary, and the published documents resolve on
+        // demand via POST /tenders/{id}/documents when the „Documente Originale" tab opens. A live search
+        // can match up to OnDemandSearchMaxMatches notices, and one LLM + one notice-detail HTTP call per
+        // notice inside the request thread is what made „Caută în SEAP" both slow and too narrow. The detail
+        // page already renders the honest skeleton / „Date indisponibile în anunț" states until then.
         if (notice.Attachments.Count == 0)
             tender.MarkReadyForBidding(now);
         staging.MarkParsed(now);

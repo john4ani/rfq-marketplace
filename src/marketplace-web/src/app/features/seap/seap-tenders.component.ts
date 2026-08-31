@@ -6,26 +6,25 @@ import { timer } from 'rxjs';
 import { AuthService } from '../../core/auth/auth.service';
 import { FeaturesService } from '../../core/features/features.service';
 import { CompanyVaultService, SpecificationBidResult, PIPELINE_STAGE_LABELS } from '../../core/companies/company-vault.service';
-import { VaultReadinessService } from '../../core/companies/vault-readiness.service';
 import { ProfileService } from '../../core/profiles/profile.service';
 import { SeapService, SeapTender } from '../../core/seap/seap.service';
 import { ROMANIAN_COUNTIES } from '../../shared/romanian-counties';
 import { normalizeCounty, normalizeCpvPrefix } from '../../shared/seap-filters';
-import { VaultPromptComponent } from '../../shared/vault-prompt.component';
 
 @Component({
   selector: 'app-seap-tenders',
-  imports: [RouterLink, DatePipe, DecimalPipe, VaultPromptComponent],
+  imports: [RouterLink, DatePipe, DecimalPipe],
   changeDetection: ChangeDetectionStrategy.OnPush,
-  styles: [`:host{display:block}.page{display:grid;gap:1.2rem;max-width:76rem}.back-link{display:inline-flex;align-items:center;gap:.4rem;width:fit-content;color:var(--forest);font-weight:750;text-decoration:none;font-size:.92rem}.eyebrow{margin:0;color:var(--forest-light);font-size:.76rem;font-weight:800;letter-spacing:.1em;text-transform:uppercase}h1{margin:.15rem 0;font-size:clamp(1.9rem,4vw,2.8rem);letter-spacing:-.04em}.page>p{margin:0;color:var(--muted);line-height:1.5}.card,.state,.filters{padding:1.15rem 1.25rem;border:1px solid var(--border);border-radius:1rem;background:var(--surface);box-shadow:var(--shadow-soft)}.card{display:flex;justify-content:space-between;gap:1.25rem;align-items:center;text-decoration:none;color:inherit;transition:border-color .15s}.card:hover{border-color:color-mix(in srgb,var(--forest) 45%,var(--border))}.card h2{margin:0;font-size:1.1rem}.card p{margin:.2rem 0 0;color:var(--muted);font-size:.9rem}.pill{display:inline-flex;align-items:center;padding:.3rem .72rem;border-radius:999px;font-size:.78rem;font-weight:800}.pill.ready{color:#176b52;background:#e3f2ea}.pill.done{color:var(--forest);background:color-mix(in srgb,var(--sand) 60%,white)}.arrow{flex:0 0 auto;color:var(--forest);font-weight:800}.state{justify-items:center;padding:2rem;text-align:center;color:var(--muted)}.state strong{color:var(--ink)}.state button{min-height:2.6rem;padding:.6rem 1.05rem;border:0;border-radius:.6rem;color:#fff;background:var(--forest);font:inherit;font-weight:800;cursor:pointer}.filters{display:grid;gap:.7rem}.filters-header{display:flex;align-items:baseline;gap:.6rem;flex-wrap:wrap}.filters-header strong{font-size:.95rem}.filters-header .company{color:var(--forest);font-weight:750;font-size:.85rem}.checks{display:flex;flex-wrap:wrap;gap:.5rem}.check{display:inline-flex;align-items:center;gap:.4rem;padding:.42rem .8rem;border:1px solid var(--border);border-radius:999px;background:var(--warm-white);font-size:.86rem;font-weight:650;cursor:pointer}.check input{accent-color:var(--forest)}.check.radius{border-style:dashed}.check:has(input:disabled){opacity:.6;cursor:not-allowed}.radius-hint{display:block;margin-top:.25rem;font-size:.74rem;color:var(--muted);font-weight:500}.hint{margin:0;color:var(--muted);font-size:.82rem;line-height:1.45}.upload{display:flex;gap:.7rem;flex-wrap:wrap;align-items:center}.upload input{flex:1 1 18rem}.upload button{min-height:2.6rem;padding:.6rem 1.05rem;border:0;border-radius:.6rem;color:#fff;background:var(--forest);font:inherit;font-weight:800;cursor:pointer}.upload button:disabled{opacity:.55;cursor:not-allowed}.spec-result{display:grid;gap:.6rem;padding:.85rem .95rem;border:1px solid var(--border);border-radius:.8rem;background:var(--warm-white)}.spec-result strong{font-size:.95rem}.downloads{display:flex;flex-wrap:wrap;gap:.6rem}.downloads button{display:inline-flex;padding:.5rem .85rem;border:0;border-radius:.6rem;color:var(--forest);background:color-mix(in srgb,var(--sand) 45%,white);font:inherit;font-weight:800;text-decoration:none;font-size:.85rem;cursor:pointer}.spec-result button{min-height:2.3rem;padding:.4rem .8rem;border:0;border-radius:.6rem;color:var(--forest);background:var(--sand);font:inherit;font-weight:800;cursor:pointer;width:fit-content}.pipeline-progress{display:grid;gap:.45rem;padding:.75rem .95rem;border:1px solid var(--border);border-radius:.7rem;background:var(--warm-white)}.pipeline-progress p{margin:0;color:var(--forest);font-size:.86rem;font-weight:650}.progress-track{height:.5rem;border-radius:999px;background:color-mix(in srgb,var(--sand) 70%,white);overflow:hidden}.progress-bar{height:100%;width:100%;border-radius:999px;background:var(--forest-light);transform-origin:0 50%;animation:pipeline-slide 1.6s ease-in-out infinite}@keyframes pipeline-slide{0%{transform:scaleX(.15)}50%{transform:scaleX(.65)}100%{transform:scaleX(.15)}}.note{padding:.75rem .95rem;border-radius:.7rem;line-height:1.5;font-size:.86rem}.note:not(.error){background:#edf6f1;color:#315947}.note.error{background:#fff0f0;color:#8b2222}.no-company{display:flex;justify-content:space-between;gap:1.1rem;align-items:center;padding:1.05rem 1.25rem;border:1px solid color-mix(in srgb,var(--warm-amber) 55%,var(--border));border-radius:1rem;background:color-mix(in srgb,var(--warm-amber) 12%,var(--surface));box-shadow:var(--shadow-soft)}.no-company strong{display:block;font-size:.98rem}.no-company p{margin:.25rem 0 0;color:var(--muted);font-size:.88rem;line-height:1.5}.no-company a{flex:0 0 auto;display:inline-flex;padding:.6rem 1rem;border-radius:.6rem;color:#fff;background:var(--forest);font-weight:800;text-decoration:none}`, `:host{display:block}.advanced{margin-top:1rem;display:grid;gap:.7rem}.advanced-header{display:flex;align-items:baseline;justify-content:space-between;gap:.6rem;flex-wrap:wrap}.advanced-header strong{font-size:.95rem}.advanced-header a{color:var(--forest);font-weight:750;font-size:.85rem}.advanced-editor{display:grid;gap:.8rem}.advanced-field{display:grid;gap:.45rem}.advanced-field label{font-weight:750;font-size:.86rem}.chips{display:flex;flex-wrap:wrap;gap:.45rem}.chip{display:inline-flex;align-items:center;gap:.35rem;padding:.32rem .6rem;border-radius:999px;color:var(--forest);background:color-mix(in srgb,var(--sand) 60%,white);font-size:.8rem;font-weight:750}.chip-remove{border:0;background:transparent;color:inherit;font:inherit;font-weight:900;cursor:pointer;padding:.05rem .15rem;line-height:1}.chip-empty{color:var(--muted);font-size:.82rem}.chip-input{display:flex;gap:.5rem;align-items:center}.chip-input input,.chip-input select{flex:1;min-width:0;padding:.5rem .7rem;border:1px solid var(--border);border-radius:.55rem;font:inherit;background:#fff}.chip-input button,.advanced-actions .save{min-height:2.4rem;padding:.45rem .9rem;border:0;border-radius:.55rem;color:#fff;background:var(--forest);font:inherit;font-weight:800;cursor:pointer}.chip-input button:disabled,.advanced-actions .save:disabled{opacity:.55;cursor:not-allowed}.advanced-actions{display:flex;align-items:center;gap:.8rem;flex-wrap:wrap}.advanced-actions .save{min-height:2.6rem}.advanced-actions .hint{color:var(--muted);font-size:.82rem}.filter-summary{margin:.5rem 0 0;padding:.55rem .8rem;border-radius:.6rem;color:#7a5206;background:#faf0d8;font-size:.8rem;line-height:1.45}`],
+  styles: [`:host{display:block}.page{display:grid;gap:1.2rem;max-width:76rem}.back-link{display:inline-flex;align-items:center;gap:.4rem;width:fit-content;color:var(--forest);font-weight:750;text-decoration:none;font-size:.92rem}.eyebrow{margin:0;color:var(--forest-light);font-size:.76rem;font-weight:800;letter-spacing:.1em;text-transform:uppercase}h1{margin:.15rem 0;font-size:clamp(1.9rem,4vw,2.8rem);letter-spacing:-.04em}.page>p{margin:0;color:var(--muted);line-height:1.5}.card,.state,.filters{padding:1.15rem 1.25rem;border:1px solid var(--border);border-radius:1rem;background:var(--surface);box-shadow:var(--shadow-soft)}.card{display:flex;justify-content:space-between;gap:1.25rem;align-items:center;text-decoration:none;color:inherit;transition:border-color .15s}.card:hover{border-color:color-mix(in srgb,var(--forest) 45%,var(--border))}.card h2{margin:0;font-size:1.1rem}.card p{margin:.2rem 0 0;color:var(--muted);font-size:.9rem}.pill{display:inline-flex;align-items:center;padding:.3rem .72rem;border-radius:999px;font-size:.78rem;font-weight:800}.pill.ready{color:#176b52;background:#e3f2ea}.pill.done{color:var(--forest);background:color-mix(in srgb,var(--sand) 60%,white)}.arrow{flex:0 0 auto;color:var(--forest);font-weight:800}.state{justify-items:center;padding:2rem;text-align:center;color:var(--muted)}.state strong{color:var(--ink)}.state button{min-height:2.6rem;padding:.6rem 1.05rem;border:0;border-radius:.6rem;color:#fff;background:var(--forest);font:inherit;font-weight:800;cursor:pointer}.filters{display:grid;gap:.7rem}.filters-header{display:flex;align-items:baseline;gap:.6rem;flex-wrap:wrap}.filters-header strong{font-size:.95rem}.filters-header .company{color:var(--forest);font-weight:750;font-size:.85rem}.checks{display:flex;flex-wrap:wrap;gap:.5rem}.check{display:inline-flex;align-items:center;gap:.4rem;padding:.42rem .8rem;border:1px solid var(--border);border-radius:999px;background:var(--warm-white);font-size:.86rem;font-weight:650;cursor:pointer}.check input{accent-color:var(--forest)}.check.radius{border-style:dashed}.check:has(input:disabled){opacity:.6;cursor:not-allowed}.radius-hint{display:block;margin-top:.25rem;font-size:.74rem;color:var(--muted);font-weight:500}.hint{margin:0;color:var(--muted);font-size:.82rem;line-height:1.45}.upload{display:flex;gap:.7rem;flex-wrap:wrap;align-items:center}.upload input{flex:1 1 18rem}.upload button{min-height:2.6rem;padding:.6rem 1.05rem;border:0;border-radius:.6rem;color:#fff;background:var(--forest);font:inherit;font-weight:800;cursor:pointer}.upload button:disabled{opacity:.55;cursor:not-allowed}.spec-result{display:grid;gap:.6rem;padding:.85rem .95rem;border:1px solid var(--border);border-radius:.8rem;background:var(--warm-white)}.spec-result strong{font-size:.95rem}.downloads{display:flex;flex-wrap:wrap;gap:.6rem}.downloads button{display:inline-flex;padding:.5rem .85rem;border:0;border-radius:.6rem;color:var(--forest);background:color-mix(in srgb,var(--sand) 45%,white);font:inherit;font-weight:800;text-decoration:none;font-size:.85rem;cursor:pointer}.spec-result button{min-height:2.3rem;padding:.4rem .8rem;border:0;border-radius:.6rem;color:var(--forest);background:var(--sand);font:inherit;font-weight:800;cursor:pointer;width:fit-content}.pipeline-progress{display:grid;gap:.45rem;padding:.75rem .95rem;border:1px solid var(--border);border-radius:.7rem;background:var(--warm-white)}.pipeline-progress p{margin:0;color:var(--forest);font-size:.86rem;font-weight:650}.progress-track{height:.5rem;border-radius:999px;background:color-mix(in srgb,var(--sand) 70%,white);overflow:hidden}.progress-bar{height:100%;width:100%;border-radius:999px;background:var(--forest-light);transform-origin:0 50%;animation:pipeline-slide 1.6s ease-in-out infinite}@keyframes pipeline-slide{0%{transform:scaleX(.15)}50%{transform:scaleX(.65)}100%{transform:scaleX(.15)}}.note{padding:.75rem .95rem;border-radius:.7rem;line-height:1.5;font-size:.86rem}.note:not(.error){background:#edf6f1;color:#315947}.note.error{background:#fff0f0;color:#8b2222}.no-company{display:flex;justify-content:space-between;gap:1.1rem;align-items:center;padding:1.05rem 1.25rem;border:1px solid color-mix(in srgb,var(--warm-amber) 55%,var(--border));border-radius:1rem;background:color-mix(in srgb,var(--warm-amber) 12%,var(--surface));box-shadow:var(--shadow-soft)}.no-company strong{display:block;font-size:.98rem}.no-company p{margin:.25rem 0 0;color:var(--muted);font-size:.88rem;line-height:1.5}.no-company a{flex:0 0 auto;display:inline-flex;padding:.6rem 1rem;border-radius:.6rem;color:#fff;background:var(--forest);font-weight:800;text-decoration:none}.list-tabs{display:flex;flex-wrap:wrap;gap:.4rem;padding:.35rem;border:1px solid var(--border);border-radius:1rem;background:var(--surface);box-shadow:var(--shadow-soft);width:fit-content;max-width:100%}.list-tab{padding:.6rem 1rem;border:0;border-radius:.7rem;color:var(--muted);background:transparent;font:inherit;font-size:.9rem;font-weight:750;cursor:pointer;transition:background-color .15s,color .15s}.list-tab:hover,.list-tab:focus-visible{background:color-mix(in srgb,var(--sand) 55%,white)}.list-tab.active,.list-tab[aria-selected="true"]{color:#fff;background:var(--forest)}.search-status{margin:0}.skeleton-rows{display:grid;gap:.7rem}.skeleton-card{pointer-events:none;align-items:center}.sk-block{display:grid;gap:.45rem;flex:1;min-width:0}.sk{display:block;height:.85rem;border-radius:999px;background:linear-gradient(90deg,var(--border) 25%,color-mix(in srgb,var(--sand) 60%,white) 50%,var(--border) 75%);background-size:200% 100%;animation:list-shimmer 1.4s ease-in-out infinite}.sk-title{height:1.05rem;width:58%}.sk-line{width:88%}.sk-line.short{width:62%}.sk-pill{width:7.5rem;height:1.35rem;border-radius:999px;flex:0 0 auto}@keyframes list-shimmer{from{background-position:200% 0}to{background-position:-200% 0}}`, `:host{display:block}.advanced{margin-top:1rem;display:grid;gap:.7rem}.advanced-header{display:flex;align-items:baseline;justify-content:space-between;gap:.6rem;flex-wrap:wrap}.advanced-header strong{font-size:.95rem}.advanced-header a{color:var(--forest);font-weight:750;font-size:.85rem}.advanced-editor{display:grid;gap:.8rem}.advanced-field{display:grid;gap:.45rem}.advanced-field label{font-weight:750;font-size:.86rem}.chips{display:flex;flex-wrap:wrap;gap:.45rem}.chip{display:inline-flex;align-items:center;gap:.35rem;padding:.32rem .6rem;border-radius:999px;color:var(--forest);background:color-mix(in srgb,var(--sand) 60%,white);font-size:.8rem;font-weight:750}.chip-remove{border:0;background:transparent;color:inherit;font:inherit;font-weight:900;cursor:pointer;padding:.05rem .15rem;line-height:1}.chip-empty{color:var(--muted);font-size:.82rem}.chip-input{display:flex;gap:.5rem;align-items:center}.chip-input input,.chip-input select{flex:1;min-width:0;padding:.5rem .7rem;border:1px solid var(--border);border-radius:.55rem;font:inherit;background:#fff}.chip-input button,.advanced-actions .save{min-height:2.4rem;padding:.45rem .9rem;border:0;border-radius:.55rem;color:#fff;background:var(--forest);font:inherit;font-weight:800;cursor:pointer}.chip-input button:disabled,.advanced-actions .save:disabled{opacity:.55;cursor:not-allowed}.advanced-actions{display:flex;align-items:center;gap:.8rem;flex-wrap:wrap}.advanced-actions .save{min-height:2.6rem}.advanced-actions .hint{color:var(--muted);font-size:.82rem}.filter-summary{margin:.5rem 0 0;padding:.55rem .8rem;border-radius:.6rem;color:#7a5206;background:#faf0d8;font-size:.8rem;line-height:1.45}`],
   template: `<section class="page">
     <a class="back-link" [routerLink]="features.marketplaceEnabled() ? ['/dashboard'] : ['/account']">← Înapoi</a>
     <header><p class="eyebrow">Achiziții publice</p><h1>Anunțuri SEAP</h1>
       <p>Oportunități publice din e-licitatie.ro, cu ofertare automată asistată de AI.</p></header>
 
-    @if (vaultPromptVisible() && companyId(); as companyId) {
-      <app-vault-prompt [companyId]="companyId" (dismissed)="vaultPromptVisible.set(false)" />
-    }
+    <nav class="list-tabs" role="tablist" aria-label="Anunțuri SEAP">
+      <button type="button" class="list-tab" role="tab" [id]="'list-tab-search'" [attr.aria-selected]="listMode() === 'search'" [class.active]="listMode() === 'search'" aria-controls="list-panel-search" (click)="switchListMode('search')">Caută anunțuri SEAP</button>
+      <button type="button" class="list-tab" role="tab" [id]="'list-tab-history'" [attr.aria-selected]="listMode() === 'history'" [class.active]="listMode() === 'history'" aria-controls="list-panel-history" (click)="switchListMode('history')">Oferte Generate</button>
+    </nav>
 
     @if (isAdmin()) {
       <section class="filters" aria-label="Caiet de sarcini — test admin">
@@ -123,18 +122,43 @@ import { VaultPromptComponent } from '../../shared/vault-prompt.component';
       </section>
     }
 
-    @if (loading()) { <section class="state" role="status">Se încarcă anunțurile…</section> }
-    @else if (error()) { <section class="state" role="alert"><strong>Anunțurile nu au putut fi încărcate.</strong><button type="button" (click)="load()">Încearcă din nou</button></section> }
-    @else if (tenders().length === 0) { <section class="state"><strong>Nu există anunțuri potrivite.</strong><p>Schimbă filtrele sau așteaptă importul următor de anunțuri.</p>@if (activeFilterSummary(); as summary) { <p class="filter-summary">Filtre active: {{ summary }}</p> }</section> }
-    @else {
-      @for (tender of tenders(); track tender.id) {
-        <a class="card" [routerLink]="['/seap/tenders', tender.id]">
-          <div><h2>{{ tender.title }}</h2>
-            <p>{{ tender.buyerName }}{{ tender.county ? ' · ' + tender.county : '' }}{{ tender.category?.name ? ' · ' + tender.category?.name : '' }}</p>
-            <p>{{ tender.cpvNames[0] || tender.cpvCodes.join(', ') || 'fără CPV' }}{{ tender.estimatedValue !== null ? ' · ' + (tender.estimatedValue | number:'1.0-0':'ro') + ' ' + (tender.currency ?? 'RON') : '' }}</p>
-            <p>Termen: {{ tender.deadline | date:'dd.MM.yyyy, HH:mm' }}</p></div>
-          <span class="pill" [class.ready]="tender.status === 'ReadyForBidding'" [class.done]="tender.status === 'BidGenerated'">{{ statusLabel(tender.status) }}</span>
-        </a>
+    @if (loading()) {
+      <div class="skeleton-rows" role="status" aria-label="Se încarcă anunțurile">
+        @for (row of skeletonRows(); track row) {
+          <div class="card skeleton-card" aria-hidden="true">
+            <div class="sk-block"><span class="sk sk-title"></span><span class="sk sk-line"></span><span class="sk sk-line short"></span></div>
+            <span class="sk sk-pill"></span>
+          </div>
+        }
+      </div>
+    } @else {
+      @if (searching()) {
+        <p class="note info search-status" role="status">Căutăm în SEAP — verificăm anunțuri noi potrivite. Poți continua să folosești filtrele.</p>
+      }
+      @if (error() && !searching()) {
+        <section class="state" role="alert"><strong>Anunțurile nu au putut fi încărcate.</strong><button type="button" (click)="load()">Încearcă din nou</button></section>
+      } @else if (tenders().length === 0 && !searching()) {
+        <section class="state"><strong>{{ emptyStateTitle() }}</strong><p>{{ emptyStateHint() }}</p>@if (activeFilterSummary(); as summary) { <p class="filter-summary">Filtre active: {{ summary }}</p> }</section>
+      } @else if (tenders().length > 0) {
+        @for (tender of tenders(); track tender.id) {
+          <a class="card" [routerLink]="['/seap/tenders', tender.id]">
+            <div><h2>{{ tender.title }}</h2>
+              <p>{{ tender.buyerName }}{{ tender.county ? ' · ' + tender.county : '' }}{{ tender.category?.name ? ' · ' + tender.category?.name : '' }}</p>
+              <p>{{ tender.cpvNames[0] || tender.cpvCodes.join(', ') || 'fără CPV' }}{{ tender.estimatedValue !== null ? ' · ' + (tender.estimatedValue | number:'1.0-0':'ro') + ' ' + (tender.currency ?? 'RON') : '' }}</p>
+              <p>Termen: {{ tender.deadline | date:'dd.MM.yyyy, HH:mm' }}</p></div>
+            <span class="pill" [class.ready]="tender.status === 'ReadyForBidding'" [class.done]="tender.status === 'BidGenerated'">{{ statusLabel(tender.status) }}</span>
+          </a>
+        }
+      }
+      @if (searching()) {
+        <div class="skeleton-rows" role="status" aria-label="Se caută în SEAP">
+          @for (row of skeletonRows(); track row) {
+            <div class="card skeleton-card" aria-hidden="true">
+              <div class="sk-block"><span class="sk sk-title"></span><span class="sk sk-line"></span><span class="sk sk-line short"></span></div>
+              <span class="sk sk-pill"></span>
+            </div>
+          }
+        </div>
       }
     }
   </section>`
@@ -145,7 +169,6 @@ export class SeapTendersComponent {
   private readonly auth = inject(AuthService);
   readonly features = inject(FeaturesService);
   private readonly vault = inject(CompanyVaultService);
-  private readonly readiness = inject(VaultReadinessService);
 
   readonly tenders = signal<SeapTender[]>([]);
   readonly loading = signal(true);
@@ -169,8 +192,11 @@ export class SeapTendersComponent {
   readonly searching = signal(false);
   readonly searchMessage = signal('');
   readonly searchError = signal(false);
-  /** Shows the „no relevant documents yet" recommendation after „Caută în SEAP" when the vault is empty. */
-  readonly vaultPromptVisible = signal(false);
+  /** Active feed tab: „Caută anunțuri SEAP" (discovery, only ReadyForBidding) or „Oferte Generate"
+   *  (company history, only BidGenerated — includes closed tenders). */
+  readonly listMode = signal<'search' | 'history'>('search');
+  /** Placeholder row count for the non-blocking skeleton while the feed/search loads. */
+  readonly skeletonRows = signal([0, 1, 2, 3, 4]);
   readonly normalizeCpvPrefix = normalizeCpvPrefix;
   readonly countiesList = ROMANIAN_COUNTIES;
   readonly availableCounties = computed(() => this.countiesList.filter(county => !this.counties().includes(county)));
@@ -181,6 +207,13 @@ export class SeapTendersComponent {
     if (this.radiusActive()) parts.push(`rază: ${this.radiusKm()} km`);
     return parts.length ? parts.join('; ') : null;
   });
+  /** Per-tab empty state: the discovery tab is a live feed, the history tab is the company activity log. */
+  readonly emptyStateTitle = computed(() => this.listMode() === 'history'
+    ? 'Nu există încă oferte generate.'
+    : 'Nu există anunțuri potrivite.');
+  readonly emptyStateHint = computed(() => this.listMode() === 'history'
+    ? 'Ofertele generate vor apărea aici, inclusiv după expirarea termenului anunțului.'
+    : 'Schimbă filtrele sau caută în SEAP pentru a aduce anunțuri noi.');
   readonly specFile = signal<File | null>(null);
   readonly specBusy = signal(false);
   readonly specMessage = signal('');
@@ -230,6 +263,14 @@ export class SeapTendersComponent {
     this.radiusActive.set(!this.radiusActive());
   }
 
+  /** Switches between the discovery tab („Caută anunțuri SEAP") and the generated-offers history
+   *  („Oferte Generate") and re-fetches the feed with the matching status filter. */
+  switchListMode(mode: 'search' | 'history'): void {
+    if (this.listMode() === mode) return;
+    this.listMode.set(mode);
+    this.load();
+  }
+
   load(): void {
     this.loading.set(true);
     this.error.set(false);
@@ -237,7 +278,8 @@ export class SeapTendersComponent {
       radiusKm: this.radiusActive() ? this.radiusKm() : null,
       county: this.county(),
       cpvPrefixes: this.cpvPrefixes(),
-      counties: this.counties()
+      counties: this.counties(),
+      status: this.listMode() === 'history' ? 'BidGenerated' : 'ReadyForBidding'
     }).subscribe({
       next: value => { this.tenders.set(value); this.loading.set(false); },
       error: () => { this.loading.set(false); this.error.set(true); }
@@ -293,10 +335,10 @@ export class SeapTendersComponent {
 
   /** „Caută în SEAP": takes the active filter parameters and the chosen period, fetches matching notices
    * straight from the live e-licitatie.ro search, imports them, and shows the refreshed feed. Defaults to
-   * the current year; "Tot istoricul" leaves the date window open (older notices). */
+   * the current year; "Tot istoricul" leaves the date window open (older notices). The request runs in the
+   * background — the current list stays visible and skeleton rows + a status note keep the UI responsive. */
   searchInSeap(): void {
     if (this.searching() || this.loading()) return;
-    this.checkVaultPrompt();
     this.searching.set(true);
     this.searchError.set(false);
     this.searchMessage.set('');
@@ -307,6 +349,7 @@ export class SeapTendersComponent {
       county: this.county(),
       cpvPrefixes: this.cpvPrefixes(),
       counties: this.counties(),
+      status: this.listMode() === 'history' ? 'BidGenerated' : 'ReadyForBidding',
       search: true,
       from: currentYearOnly ? `${year}-01-01` : undefined,
       to: currentYearOnly ? `${year}-12-31` : undefined
@@ -323,18 +366,6 @@ export class SeapTendersComponent {
         this.searchError.set(true);
         this.searchMessage.set('Căutarea în SEAP nu a putut rula. Încearcă din nou.');
       }
-    });
-  }
-
-  /** Shows the „no relevant documents yet" recommendation when the Document Repository has no usable
-   *  documents (empty or still pending extraction), unless the user permanently dismissed it. The SEAP
-   *  search itself still runs — the prompt only recommends uploading company documents. */
-  private checkVaultPrompt(): void {
-    const companyId = this.companyId();
-    if (!companyId || this.readiness.isPromptDismissed(companyId)) return;
-    this.readiness.hasUsableDocuments(companyId).subscribe({
-      next: usable => { if (!usable) this.vaultPromptVisible.set(true); },
-      error: () => undefined
     });
   }
 
