@@ -53,9 +53,12 @@ describe('SeapTenderDetailComponent', () => {
     Object.defineProperty(crypto, 'randomUUID', { value: vi.fn(() => 'req-progress'), configurable: true });
   });
 
-  afterEach(() => localStorage.removeItem('compaspot.language'));
+  afterEach(() => {
+    localStorage.removeItem('compaspot.language');
+    vi.restoreAllMocks();
+  });
 
-  function setup(options: { startAutoBid: ReturnType<typeof vi.fn>; generateSummary?: ReturnType<typeof vi.fn>; tender?: SeapTender; bidStatus?: BidStatus; getBidStatus?: ReturnType<typeof vi.fn>; refreshDocuments?: ReturnType<typeof vi.fn> }) {
+  function setup(options: { startAutoBid: ReturnType<typeof vi.fn>; generateSummary?: ReturnType<typeof vi.fn>; tender?: SeapTender; bidStatus?: BidStatus; getBidStatus?: ReturnType<typeof vi.fn>; refreshDocuments?: ReturnType<typeof vi.fn>; downloadBidFile?: ReturnType<typeof vi.fn> }) {
     TestBed.configureTestingModule({
       imports: [SeapTenderDetailComponent],
       providers: [
@@ -73,7 +76,7 @@ describe('SeapTenderDetailComponent', () => {
             startAutoBid: options.startAutoBid,
             generateSummary: options.generateSummary ?? vi.fn(),
             refreshDocuments: options.refreshDocuments ?? vi.fn(),
-            downloadBidFile: vi.fn(),
+            downloadBidFile: options.downloadBidFile ?? vi.fn(),
             downloadAttachment: vi.fn().mockReturnValue(of(new Blob(['pdf'])))
           }
         }
@@ -211,6 +214,86 @@ describe('SeapTenderDetailComponent', () => {
     expect(text).toContain('Istoric Ofertă');
     expect(text).toContain('Descarcă propunerea tehnică (.docx)');
     expect(text).toContain('Ofertă tehnică — Reabilitare drum');
+  });
+
+  it('keeps the Istoric download buttons disabled until the user accepts the SEAP responsibility', () => {
+    Object.defineProperty(URL, 'createObjectURL', { value: vi.fn(() => 'blob:mock'), configurable: true });
+    Object.defineProperty(URL, 'revokeObjectURL', { value: vi.fn(), configurable: true });
+    const generatedBid: BidStatus = {
+      status: 'BidGenerated', proposalTitle: 'Ofertă tehnică — Reabilitare drum',
+      technicalProposalUrl: 'local://proposal.docx', billOfQuantitiesUrl: 'local://boq.xlsx'
+    };
+    const downloadBidFile = vi.fn().mockReturnValue(of(new Blob(['docx'])));
+    const fixture = setup({ startAutoBid: vi.fn(), bidStatus: generatedBid, downloadBidFile });
+    fixture.detectChanges();
+
+    const tab = Array.from(fixture.nativeElement.querySelectorAll('button[role="tab"]') as NodeListOf<HTMLButtonElement>)
+      .find(button => button.textContent?.includes('Istoric Ofertă'))!;
+    tab.click();
+    fixture.detectChanges();
+
+    // ADR-008: before every document download the user must accept the responsibility checkbox.
+    let buttons = Array.from((fixture.nativeElement as HTMLElement).querySelectorAll<HTMLButtonElement>('button'));
+    expect(buttons.find(button => button.textContent?.includes('Descarcă propunerea tehnică'))?.disabled).toBe(true);
+    expect(buttons.find(button => button.textContent?.includes('Descarcă lista de cantități'))?.disabled).toBe(true);
+
+    // Accepting the responsibility enables both downloads.
+    const acceptance = (fixture.nativeElement as HTMLElement).querySelector<HTMLInputElement>('.acceptance input')!;
+    acceptance.checked = true;
+    acceptance.dispatchEvent(new Event('change'));
+    fixture.detectChanges();
+
+    buttons = Array.from((fixture.nativeElement as HTMLElement).querySelectorAll<HTMLButtonElement>('button'));
+    const proposalButton = buttons.find(button => button.textContent?.includes('Descarcă propunerea tehnică'))!;
+    const boqButton = buttons.find(button => button.textContent?.includes('Descarcă lista de cantități'))!;
+    expect(proposalButton.disabled).toBe(false);
+    expect(boqButton.disabled).toBe(false);
+
+    proposalButton.click();
+    boqButton.click();
+    expect(downloadBidFile).toHaveBeenCalledWith('t1', 'TechnicalProposal');
+    expect(downloadBidFile).toHaveBeenCalledWith('t1', 'BillOfQuantities');
+  });
+
+  it('names the downloaded proposal files with the SEAP notice id (e.g. PropunereTehnica_SCN1178750.docx)', () => {
+    Object.defineProperty(URL, 'createObjectURL', { value: vi.fn(() => 'blob:mock'), configurable: true });
+    Object.defineProperty(URL, 'revokeObjectURL', { value: vi.fn(), configurable: true });
+    const downloadedNames: string[] = [];
+    const originalElementClick = HTMLElement.prototype.click;
+    // The component downloads via a temporary <a download="…"> — intercept the click so we can read the
+    // file name it was about to save, without touching the button event dispatch.
+    vi.spyOn(HTMLElement.prototype, 'click').mockImplementation(function (this: HTMLElement) {
+      if (this instanceof HTMLAnchorElement) downloadedNames.push((this as HTMLAnchorElement).download);
+      return originalElementClick.call(this);
+    });
+
+    const generatedBid: BidStatus = {
+      status: 'BidGenerated', proposalTitle: 'Ofertă tehnică — Reabilitare drum',
+      technicalProposalUrl: 'local://proposal.docx', billOfQuantitiesUrl: 'local://boq.xlsx'
+    };
+    const downloadBidFile = vi.fn().mockReturnValue(of(new Blob(['docx'])));
+    const fixture = setup({ startAutoBid: vi.fn(), bidStatus: generatedBid, downloadBidFile });
+    fixture.detectChanges();
+
+    const tab = Array.from(fixture.nativeElement.querySelectorAll('button[role="tab"]') as NodeListOf<HTMLButtonElement>)
+      .find(button => button.textContent?.includes('Istoric Ofertă'))!;
+    tab.click();
+    fixture.detectChanges();
+
+    const acceptance = (fixture.nativeElement as HTMLElement).querySelector<HTMLInputElement>('.acceptance input')!;
+    acceptance.checked = true;
+    acceptance.dispatchEvent(new Event('change'));
+    fixture.detectChanges();
+
+    const buttons = Array.from((fixture.nativeElement as HTMLElement).querySelectorAll<HTMLButtonElement>('button'));
+    buttons.find(button => button.textContent?.includes('Descarcă propunerea tehnică'))!.click();
+    buttons.find(button => button.textContent?.includes('Descarcă lista de cantități'))!.click();
+    fixture.detectChanges();
+
+    expect(downloadBidFile).toHaveBeenCalledWith('t1', 'TechnicalProposal');
+    expect(downloadBidFile).toHaveBeenCalledWith('t1', 'BillOfQuantities');
+    expect(downloadedNames).toContain('PropunereTehnica_SCN1178750.docx');
+    expect(downloadedNames).toContain('ListaCantitati_SCN1178750.xlsx');
   });
 
   it('opens the documents tab and resolves the published documents on demand', () => {

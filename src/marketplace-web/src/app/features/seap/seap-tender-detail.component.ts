@@ -164,8 +164,8 @@ const VALID_TABS: readonly TenderTab[] = ['summary', 'details', 'qualification',
               @if (status.status === 'BidGenerated') {
                 @if (status.proposalTitle) { <p class="proposal-title">{{ status.proposalTitle }}</p> }
                 <div class="downloads">
-                  <button type="button" [disabled]="downloading()" (click)="downloadBidFile('TechnicalProposal')">Descarcă propunerea tehnică (.docx)</button>
-                  <button type="button" [disabled]="downloading()" (click)="downloadBidFile('BillOfQuantities')">Descarcă lista de cantități (.xlsx)</button>
+                  <button type="button" [disabled]="!acceptsResponsibility() || downloading()" (click)="downloadBidFile('TechnicalProposal')">Descarcă propunerea tehnică (.docx)</button>
+                  <button type="button" [disabled]="!acceptsResponsibility() || downloading()" (click)="downloadBidFile('BillOfQuantities')">Descarcă lista de cantități (.xlsx)</button>
                 </div>
                 <label class="acceptance"><input type="checkbox" [checked]="acceptsResponsibility()" (change)="acceptsResponsibility.set($any($event.target).checked)" />
                   <span>Îmi asum responsabilitatea verificării și asumării conținutului acestor documente înainte de semnarea electronică și depunerea în SEAP.</span></label>
@@ -437,9 +437,11 @@ export class SeapTenderDetailComponent {
   }
 
   /** Downloads one auto-generated proposal file through the API (the stored local://s3:// reference is
-   *  resolved server-side; browsers cannot navigate those schemes directly). */
+   *  resolved server-side; browsers cannot navigate those schemes directly). The downloaded file name
+   *  carries the SEAP notice id (e.g. „PropunereTehnica_SCN1179243.docx") so the file is recognizable
+   *  when signed and submitted in SEAP. */
   downloadBidFile(kind: 'TechnicalProposal' | 'BillOfQuantities'): void {
-    if (this.downloading()) return;
+    if (this.downloading() || !this.acceptsResponsibility()) return;
     this.downloading.set(true);
     this.message.set('');
     this.service.downloadBidFile(this.tenderId, kind).subscribe({
@@ -447,7 +449,10 @@ export class SeapTenderDetailComponent {
         const url = URL.createObjectURL(blob);
         const anchor = document.createElement('a');
         anchor.href = url;
-        anchor.download = kind === 'TechnicalProposal' ? 'PropunereTehnica.docx' : 'ListaCantitati.xlsx';
+        const noticeId = this.tender()?.seapExternalId;
+        anchor.download = kind === 'TechnicalProposal'
+          ? `PropunereTehnica${noticeId ? '_' + noticeId : ''}.docx`
+          : `ListaCantitati${noticeId ? '_' + noticeId : ''}.xlsx`;
         anchor.click();
         URL.revokeObjectURL(url);
         this.downloading.set(false);

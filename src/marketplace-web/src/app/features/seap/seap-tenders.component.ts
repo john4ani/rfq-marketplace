@@ -434,7 +434,7 @@ export class SeapTendersComponent {
   downloadSpecFile(kind: 'TechnicalProposal' | 'BillOfQuantities'): void {
     const companyId = this.companyId();
     const result = this.specResult();
-    if (!companyId || !result || this.specBusy()) return;
+    if (!companyId || !result || this.specBusy() || !this.acceptsSpecResponsibility()) return;
     this.vault.downloadGeneratedFile(companyId, result.documentId, kind).subscribe({
       next: blob => {
         const url = URL.createObjectURL(blob);
