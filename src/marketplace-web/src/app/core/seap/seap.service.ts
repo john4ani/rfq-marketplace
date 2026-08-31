@@ -130,10 +130,12 @@ export class SeapService {
    *  summary is returned as-is). Returns the same detail projection as <c>getTender</c>. */
   generateSummary(id: string) { return this.http.post<SeapTender>(`/api/v1/seap/tenders/${id}/summary`, {}); }
   getTenderPricing(id: string) { return this.http.get<TenderPricing>(`/api/v1/seap/tenders/${id}/pricing`); }
-  /** Starts an auto-bid generation. The optional <paramref name="progressRequestId"/> lets the page poll
+  /** Starts an auto-bid generation. The <paramref name="companyId"/> identifies the company whose SEAP
+   *  qualification vault feeds the proposal (validated server-side with CanRepresentCompany; a null value
+   *  falls back to placeholders). The optional <paramref name="progressRequestId"/> lets the page poll
    *  real per-stage progress (Generating → Finalizing → Completed/Failed) while the request is in flight. */
-  startAutoBid(id: string, progressRequestId?: string) {
-    return this.http.post<AutoBidResponse>(`/api/v1/seap/tenders/${id}/auto-bid`, { progressRequestId });
+  startAutoBid(id: string, companyId: string | null, progressRequestId?: string) {
+    return this.http.post<AutoBidResponse>(`/api/v1/seap/tenders/${id}/auto-bid`, { companyId, progressRequestId });
   }
   /** Real per-stage progress of a running auto-bid generation (polled while POST /auto-bid is in flight). */
   getAutoBidProgress(id: string, requestId: string) {

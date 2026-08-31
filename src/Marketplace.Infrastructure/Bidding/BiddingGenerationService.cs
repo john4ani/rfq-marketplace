@@ -1,4 +1,6 @@
 using Marketplace.Application.Bidding;
+using Marketplace.Application.Companies;
+using Marketplace.Domain.Qualification;
 using Marketplace.Domain.Seap;
 using Marketplace.Domain.Vault;
 using Marketplace.Infrastructure.AutoBidding;
@@ -31,10 +33,19 @@ public sealed partial class BiddingGenerationService : IBiddingGenerationService
         "\"financialSummary\": [{\"label\": string, \"value\": number, \"note\": string}]}. " +
         "Lista de cantități trebuie să conțină pozițiile relevante pentru lucrările/achizia descrisă în anunț. " +
         "financialSummary: dacă anunțul nu conține o recapitulație financiară, returnează []. " +
-        "Nu inventa certificări, prețuri sau capacități care nu sunt susținute de datele furnizate.";
+        "Nu inventa certificări, prețuri sau capacități care nu sunt susținute de datele furnizate. " +
+        "Reguli pentru datele firmei din blocul „Date de calificare ale firmei”: " +
+        "1) În formularele administrative (reprezentant legal, date de contact, cont IBAN) folosește DOAR datele reale din bloc; " +
+        "dacă o dată lipsește, scrie exact „[De completat: <denumirea câmpului>]”. " +
+        "2) Pentru cerințele de experiență similară din caietul de sarcini, potrivește cel mai adecvat contract din lista de experiență " +
+        "și referă-l explicit (client, titlu, cod CPV, valoare). " +
+        "3) În secțiunea de resurse umane nominalizează DOAR experții enumerați în bloc (nume, rol, calificări); " +
+        "dacă nu există experți, scrie „[De completat: Expert cheie]”. " +
+        "4) Nu inventa nicio dată de firmă (CUI, IBAN, contract, certificat, expert) care nu apare explicit în bloc.";
 
     private readonly MarketplaceDbContext dbContext;
     private readonly ILlmProvider llmProvider;
+    private readonly ICompanyQualificationService qualificationService;
     private readonly IDocumentGenerator documentGenerator;
     private readonly IEmbeddingService embeddingService;
     private readonly IStorageService storage;
@@ -47,6 +58,7 @@ public sealed partial class BiddingGenerationService : IBiddingGenerationService
     public BiddingGenerationService(
         MarketplaceDbContext dbContext,
         ILlmProvider llmProvider,
+        ICompanyQualificationService qualificationService,
         IDocumentGenerator documentGenerator,
         IEmbeddingService embeddingService,
         IOptions<AutoBiddingOptions> options,
@@ -58,6 +70,7 @@ public sealed partial class BiddingGenerationService : IBiddingGenerationService
     {
         this.dbContext = dbContext;
         this.llmProvider = llmProvider;
+        this.qualificationService = qualificationService;
         this.documentGenerator = documentGenerator;
         this.embeddingService = embeddingService;
         this.storage = storage;
@@ -69,7 +82,8 @@ public sealed partial class BiddingGenerationService : IBiddingGenerationService
     }
 
 
-    public async Task<BidGenerationResult> GenerateForTenderAsync(Guid tenderId, CancellationToken cancellationToken, Guid? progressRequestId = null)
+    public async Task<BidGenerationResult> GenerateForTenderAsync(
+        Guid? companyId, Guid tenderId, CancellationToken cancellationToken, Guid? progressRequestId = null)
     {
         SeapTender? tender = await dbContext.SeapTenders.Include(item => item.Attachments)
             .SingleOrDefaultAsync(item => item.Id == tenderId, cancellationToken)
@@ -77,10 +91,11 @@ public sealed partial class BiddingGenerationService : IBiddingGenerationService
 
         string requirements = BuildRequirementsText(tender);
         string vaultContext = await BuildVaultContextAsync(requirements, cancellationToken);
+        string qualificationContext = await BuildQualificationContextAsync(companyId, cancellationToken);
 
         string userPrompt = string.IsNullOrWhiteSpace(vaultContext)
-            ? $"Cerințele anunțului:\n{requirements}\n\nDate despre firmă: (nu sunt disponibile documente în CompanyVault)."
-            : $"Cerințele anunțului:\n{requirements}\n\nDate despre firmă (fragmente relevante din CompanyVault):\n{vaultContext}";
+            ? $"Cerințele anunțului:\n{requirements}\n\n{qualificationContext}\n\nDate despre firmă (fragmente relevante din CompanyVault): (nu sunt disponibile documente în CompanyVault)."
+            : $"Cerințele anunțului:\n{requirements}\n\n{qualificationContext}\n\nDate despre firmă (fragmente relevante din CompanyVault):\n{vaultContext}";
         if (progressRequestId is Guid generatingId && progressStore is not null)
             progressStore.Report(generatingId, PipelineStage.Generating, "Claude redactează propunerea tehnică…");
         string llmJson = await llmProvider.CompleteAsync(RomanianProcurementExpertSystemPrompt, userPrompt, cancellationToken);
@@ -247,6 +262,80 @@ public sealed partial class BiddingGenerationService : IBiddingGenerationService
             return string.Empty;
         }
     }
+
+    /// <summary>Fallback block used when no company (or no qualification data) is available: the generation
+    /// never blocks, but the LLM is told to fill any company data required by the forms with clearly marked
+    /// „[De completat: …]" placeholders instead of inventing values.</summary>
+    private const string NoQualificationFallback =
+        "Date de calificare ale firmei: (nu sunt disponibile în Vault-ul de calificare) — folosește placeholdere marcate " +
+        "„[De completat: …]” pentru orice dată de firmă cerută de formulare, fără a inventa valori.";
+
+    /// <summary>
+    /// Builds the „Date de calificare ale firmei" context block for the LLM from the requesting company's
+    /// SEAP qualification vault. When no company is known (e.g. the post-checkout webhook path) or the vault
+    /// has no data, the non-gate fallback is returned — generation always proceeds.
+    /// </summary>
+    private async Task<string> BuildQualificationContextAsync(Guid? companyId, CancellationToken cancellationToken)
+    {
+        if (companyId is not Guid id) return NoQualificationFallback;
+        CompanyQualificationDto? qualification = await qualificationService.GetQualificationAsync(id, cancellationToken);
+        if (qualification is null) return NoQualificationFallback;
+
+        List<string> lines = ["Date de calificare ale firmei (din Vault-ul de calificare):"];
+        if (qualification.Legal is { } legal)
+        {
+            lines.Add($"Reprezentant legal: {legal.LegalRepresentativeName}" +
+                (string.IsNullOrWhiteSpace(legal.LegalRepresentativeRole) ? "" : $" ({legal.LegalRepresentativeRole})"));
+            if (!string.IsNullOrWhiteSpace(legal.LegalForm)) lines.Add($"Formă juridică: {legal.LegalForm}");
+            foreach (BankAccountDto account in legal.BankAccounts)
+                lines.Add($"Cont IBAN: {account.BankName} {account.Iban} ({account.Currency})");
+        }
+        if (qualification.Experience.Count > 0)
+        {
+            lines.Add("Experiență similară:");
+            foreach (CompanyExperienceDto item in qualification.Experience)
+            {
+                List<string> parts = [$"{item.ClientName} — {item.ContractTitle}"];
+                if (item.ValueAmount is { } value) parts.Add($"valoare {value:N2} {item.ValueCurrency}");
+                if (!string.IsNullOrWhiteSpace(item.CpvCode)) parts.Add($"CPV {item.CpvCode}");
+                if (item.CompletionDate is { } date) parts.Add($"finalizat {date:dd.MM.yyyy}");
+                lines.Add($"- {string.Join(", ", parts)}");
+            }
+        }
+        if (qualification.Certificates.Count > 0)
+        {
+            lines.Add("Certificate:");
+            foreach (CompanyCertificateDto certificate in qualification.Certificates)
+            {
+                List<string> parts = [CertificateTypeLabel(certificate.CertificateType)];
+                if (!string.IsNullOrWhiteSpace(certificate.Issuer)) parts.Add($"emis de {certificate.Issuer}");
+                if (certificate.ValidUntil is { } valid) parts.Add($"valabil până la {valid:dd.MM.yyyy}");
+                lines.Add($"- {string.Join(", ", parts)}");
+            }
+        }
+        if (qualification.Personnel.Count > 0)
+        {
+            lines.Add("Experți cheie:");
+            foreach (CompanyPersonnelDto expert in qualification.Personnel)
+            {
+                string qualifications = expert.ProfessionalCertificates.Count > 0
+                    ? $" ({string.Join(", ", expert.ProfessionalCertificates)})"
+                    : "";
+                lines.Add($"- {expert.FullName} — {expert.Role}{qualifications}");
+            }
+        }
+        return lines.Count > 1 ? string.Join("\n", lines) : NoQualificationFallback;
+    }
+
+    private static string CertificateTypeLabel(CompanyCertificateType type) => type switch
+    {
+        CompanyCertificateType.Iso9001 => "ISO 9001",
+        CompanyCertificateType.Iso14001 => "ISO 14001",
+        CompanyCertificateType.Iso45001 => "ISO 45001",
+        CompanyCertificateType.Anre => "ANRE",
+        CompanyCertificateType.Cnsas => "CNSAS",
+        _ => "Alt certificat"
+    };
 
     private async Task<string> UploadDocumentAsync(Guid tenderId, GeneratedDocument document, CancellationToken cancellationToken)
     {

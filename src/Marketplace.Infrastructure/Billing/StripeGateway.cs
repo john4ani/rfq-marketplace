@@ -28,6 +28,9 @@ public sealed partial class StripeGateway : IStripeGateway
             ClientReferenceId = request.TenderId.ToString(),
             SuccessUrl = $"{settings.SuccessUrl}?tenderId={request.TenderId}",
             CancelUrl = settings.CancelUrl,
+            Metadata = request.CompanyId is Guid companyId
+                ? new Dictionary<string, string> { ["companyId"] = companyId.ToString() }
+                : new Dictionary<string, string>(),
             LineItems =
             [
                 new SessionLineItemOptions
@@ -50,19 +53,26 @@ public sealed partial class StripeGateway : IStripeGateway
         return new(session.Id, session.Url);
     }
 
-    public Task<string?> ParseCompletedCheckoutEventAsync(string payload, string signatureHeader)
+    public Task<StripeCompletedCheckout?> ParseCompletedCheckoutEventAsync(string payload, string signatureHeader)
     {
-        if (string.IsNullOrWhiteSpace(settings.WebhookSecret)) return Task.FromResult<string?>(null);
+        if (string.IsNullOrWhiteSpace(settings.WebhookSecret)) return Task.FromResult<StripeCompletedCheckout?>(null);
         try
         {
             Event stripeEvent = EventUtility.ConstructEvent(payload, signatureHeader, settings.WebhookSecret, throwOnApiVersionMismatch: false);
             if (stripeEvent.Type != EventTypes.CheckoutSessionCompleted || stripeEvent.Data.Object is not Session session)
-                return Task.FromResult<string?>(null);
-            return Task.FromResult<string?>(session.ClientReferenceId);
+                return Task.FromResult<StripeCompletedCheckout?>(null);
+            if (!Guid.TryParse(session.ClientReferenceId, out Guid tenderId))
+                return Task.FromResult<StripeCompletedCheckout?>(null);
+            Guid? companyId = session.Metadata is { } metadata &&
+                              metadata.TryGetValue("companyId", out string? value) &&
+                              Guid.TryParse(value, out Guid parsed)
+                ? parsed
+                : null;
+            return Task.FromResult<StripeCompletedCheckout?>(new(tenderId, companyId));
         }
         catch (StripeException)
         {
-            return Task.FromResult<string?>(null);
+            return Task.FromResult<StripeCompletedCheckout?>(null);
         }
     }
 

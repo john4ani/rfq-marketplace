@@ -2,6 +2,7 @@
 using Marketplace.Application.Seap;
 using Marketplace.Domain.Seap;
 using Marketplace.Infrastructure.Bidding;
+using Marketplace.Infrastructure.Companies;
 using Marketplace.Infrastructure.Documents;
 using Marketplace.Infrastructure.Embeddings;
 using Marketplace.Infrastructure.Persistence;
@@ -47,6 +48,7 @@ public sealed class BiddingGenerationGracefulDegradationTests
         BiddingGenerationService service = new(
             db,
             new StaticMockLlmProvider(StaticMockLlmProvider.RomanianProcurementExpertProposal),
+            new CompanyQualificationService(db, TimeProvider.System),
             new DocumentGenerator(),
             new UnavailableEmbeddingService(),
             Options.Create(new AutoBiddingOptions { IsShadowMode = true }),
@@ -55,7 +57,7 @@ public sealed class BiddingGenerationGracefulDegradationTests
             TimeProvider.System,
             NullLogger<BiddingGenerationService>.Instance);
 
-        BidGenerationResult result = await service.GenerateForTenderAsync(tender.Id, CancellationToken.None);
+        BidGenerationResult result = await service.GenerateForTenderAsync(null, tender.Id, CancellationToken.None);
 
         Assert.False(string.IsNullOrWhiteSpace(result.ProposalTitle));
         Assert.StartsWith("memory://bids/", result.TechnicalProposalUrl, StringComparison.Ordinal);
@@ -98,6 +100,7 @@ public sealed class BiddingGenerationGracefulDegradationTests
         BiddingGenerationService service = new(
             db,
             new StaticMockLlmProvider(StaticMockLlmProvider.RomanianProcurementExpertProposal),
+            new CompanyQualificationService(db, TimeProvider.System),
             new DocumentGenerator(),
             new UnavailableEmbeddingService(),
             Options.Create(new AutoBiddingOptions { IsShadowMode = true }),

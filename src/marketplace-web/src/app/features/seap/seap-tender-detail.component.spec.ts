@@ -159,7 +159,7 @@ describe('SeapTenderDetailComponent', () => {
       fixture.detectChanges();
       const text = (fixture.nativeElement as HTMLElement).textContent ?? '';
       expect(text).toContain('Claude redactează propunerea tehnică');
-      expect(startAutoBid).toHaveBeenCalledWith('t1', 'req-progress');
+      expect(startAutoBid).toHaveBeenCalledWith('t1', 'company-1', 'req-progress');
 
       start$.next({ ready: true, shadowMode: true, freeGeneration: false });
       start$.complete();
@@ -389,7 +389,7 @@ describe('SeapTenderDetailComponent', () => {
     remindButton.click();
     fixture.detectChanges();
 
-    expect(startAutoBid).toHaveBeenCalledWith('t1', 'req-progress');
+    expect(startAutoBid).toHaveBeenCalledWith('t1', 'company-1', 'req-progress');
   });
 
   it('persists the permanent dismissal when "Am înțeles..." is chosen and then generates', () => {
@@ -405,7 +405,7 @@ describe('SeapTenderDetailComponent', () => {
     fixture.detectChanges();
 
     expect(localStorage.getItem('compaspot.vaultPromptDismissed.company-1')).toBe('true');
-    expect(startAutoBid).toHaveBeenCalledWith('t1', 'req-progress');
+    expect(startAutoBid).toHaveBeenCalledWith('t1', 'company-1', 'req-progress');
   });
 
   it('skips the repository prompt when the user permanently dismissed it', () => {
@@ -415,7 +415,7 @@ describe('SeapTenderDetailComponent', () => {
     fixture.detectChanges();
     clickAutoBid(fixture);
 
-    expect(startAutoBid).toHaveBeenCalledWith('t1', 'req-progress');
+    expect(startAutoBid).toHaveBeenCalledWith('t1', 'company-1', 'req-progress');
     expect((fixture.nativeElement as HTMLElement).textContent ?? '').not.toContain('Pentru a asigura că ofertarea');
   });
 
@@ -445,7 +445,7 @@ describe('SeapTenderDetailComponent', () => {
     fixture.detectChanges();
     clickAutoBid(fixture);
 
-    expect(startAutoBid).toHaveBeenCalledWith('t1', 'req-progress');
+    expect(startAutoBid).toHaveBeenCalledWith('t1', 'company-1', 'req-progress');
     expect((fixture.nativeElement as HTMLElement).textContent ?? '').not.toContain('Pentru a asigura că ofertarea');
   });
 

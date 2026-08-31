@@ -57,5 +57,11 @@ structured capability records.
 - EF Core 10 quirk: a new entity added to an already-tracked collection can be classified `Modified`
   (no-op UPDATE). `CompanyQualificationService` applies the same guard the `CompanyVaultService` uses —
   explicit `DbSet.Add` when the state is not `Added`.
-- The SPA „Firma mea" page now shows the qualification cards; the data feeds future auto-bid proposal
-  generation (wiring the vault into the prompt is a separate task).
+- The SPA „Firma mea" page shows the qualification cards („Calificare & Date Firmă (SEAP)").
+- **The vault feeds the auto-bid proposal generation** (`BiddingGenerationService`): the auto-bid body
+  carries the requesting `companyId` (validated with `CanRepresentCompany`; the paid path carries it through
+  the Stripe checkout `Metadata` so the webhook uses the same company). The qualification data is injected
+  as a „Date de calificare ale firmei" block in the LLM prompt with strict non-hallucination rules — the LLM
+  uses only real legal data/IBAN, matches the best portfolio contract to experience requirements, names only
+  listed experts, and writes exact „[De completat: …]" placeholders when data is missing. Generation never
+  blocks when the vault is empty.

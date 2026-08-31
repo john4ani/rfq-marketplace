@@ -29,6 +29,7 @@ namespace Marketplace.Api.Controllers;
 public sealed partial class AutoBiddingController(
     IBiddingGenerationService biddingService,
     IStripeGateway stripeGateway,
+    ICompanyAuthorizationService companyAuthorizationService,
     UserManager<ApplicationUser> userManager,
     IOptions<AutoBiddingOptions> autoBiddingOptions,
     IOptionsMonitor<FeaturesOptions> features,
@@ -217,6 +218,12 @@ public sealed partial class AutoBiddingController(
             return NotFound();
         SeapTender? tender = await biddingService.GetTenderAsync(tenderId, cancellationToken);
         if (tender is null) return NotFound();
+        Guid? companyId = request?.CompanyId;
+        // The SEAP qualification vault is per-company; a caller that cannot represent the company gets 404
+        // (no existence leak). A null company is allowed — the generator falls back to placeholders.
+        if (companyId is Guid representedCompany &&
+            !await companyAuthorizationService.CanRepresentCompanyAsync(UserId, representedCompany, cancellationToken))
+            return NotFound();
         try
         {
             if (autoBiddingOptions.Value.IsShadowMode)
@@ -224,7 +231,7 @@ public sealed partial class AutoBiddingController(
                 ApplicationUser? shadowUser = await userManager.FindByIdAsync(UserId.ToString());
                 bool freeGeneration = shadowUser is not null && shadowUser.FreeGenerationsRemaining > 0;
                 BidGenerationResult result = await biddingService.GenerateForTenderAsync(
-                    tenderId, cancellationToken, request?.ProgressRequestId);
+                    companyId, tenderId, cancellationToken, request?.ProgressRequestId);
                 // Consume the launch offer only after a successful generation, so a failed attempt (Claude
                 // down, storage error) does not burn the free entitlement.
                 if (freeGeneration)
@@ -240,7 +247,7 @@ public sealed partial class AutoBiddingController(
             if (user is not null && user.FreeGenerationsRemaining > 0)
             {
                 BidGenerationResult result = await biddingService.GenerateForTenderAsync(
-                    tenderId, cancellationToken, request?.ProgressRequestId);
+                    companyId, tenderId, cancellationToken, request?.ProgressRequestId);
                 user.FreeGenerationsRemaining -= 1;
                 await userManager.UpdateAsync(user);
                 ReportCompleted(request?.ProgressRequestId);
@@ -249,7 +256,7 @@ public sealed partial class AutoBiddingController(
 
             int priceEur = PricingCalculator.ComputePriceEur(ToEur(tender.EstimatedValue));
             StripeCheckoutSession session = await stripeGateway.CreateCheckoutSessionAsync(
-                new(tender.Id, priceEur, tender.Title), cancellationToken);
+                new(tender.Id, priceEur, tender.Title, companyId), cancellationToken);
             return Ok(new { ready = false, shadowMode = false, checkoutUrl = session.CheckoutUrl, sessionId = session.SessionId, priceEur });
         }
         catch (Exception exception) when (exception is not OperationCanceledException)
@@ -320,14 +327,14 @@ public sealed partial class AutoBiddingController(
     {
         using StreamReader reader = new(Request.Body);
         string payload = await reader.ReadToEndAsync(cancellationToken);
-        string? tenderId = await stripeGateway.ParseCompletedCheckoutEventAsync(payload, signature);
-        if (tenderId is null || !Guid.TryParse(tenderId, out Guid id)) return BadRequest();
+        StripeCompletedCheckout? checkout = await stripeGateway.ParseCompletedCheckoutEventAsync(payload, signature);
+        if (checkout is null) return BadRequest();
         if (features.CurrentValue.AutoBiddingEnabled)
         {
             _ = Task.Run(async () =>
             {
-                try { await biddingService.GenerateForTenderAsync(id, CancellationToken.None); }
-                catch (Exception exception) { LogWebhookGenerationFailed(logger, id, exception); }
+                try { await biddingService.GenerateForTenderAsync(checkout.CompanyId, checkout.TenderId, CancellationToken.None); }
+                catch (Exception exception) { LogWebhookGenerationFailed(logger, checkout.TenderId, exception); }
             }, CancellationToken.None);
         }
         return Ok();
@@ -339,6 +346,8 @@ public sealed partial class AutoBiddingController(
     private static partial void LogDocumentsResolveFailed(ILogger logger, Guid tenderId, Exception exception);
 }
 
-/// <summary>Body of POST /auto-bid; the optional <c>progressRequestId</c> lets the SPA poll real
-/// per-stage progress (Generating → Finalizing → Completed/Failed) while the request is in flight.</summary>
-public sealed record StartAutoBidRequest(Guid? ProgressRequestId);
+/// <summary>Body of POST /auto-bid; <c>companyId</c> identifies the company whose SEAP qualification vault
+/// feeds the proposal (validated with CanRepresentCompany; null falls back to placeholders), and the
+/// optional <c>progressRequestId</c> lets the SPA poll real per-stage progress (Generating → Finalizing →
+/// Completed/Failed) while the request is in flight.</summary>
+public sealed record StartAutoBidRequest(Guid? ProgressRequestId, Guid? CompanyId = null);

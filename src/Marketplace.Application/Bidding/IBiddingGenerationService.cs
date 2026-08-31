@@ -14,9 +14,14 @@ public sealed record BidGenerationResult(
 public interface IBiddingGenerationService
 {
     /// <summary>Runs RAG + LLM + document generation for one SEAP tender. In Shadow Mode nothing is
-    /// exposed to end users and no Stripe charge is created. The optional <paramref name="progressRequestId"/>
-    /// lets the caller poll real per-stage progress (Generating → Finalizing → Completed/Failed).</summary>
-    Task<BidGenerationResult> GenerateForTenderAsync(Guid tenderId, CancellationToken cancellationToken, Guid? progressRequestId = null);
+    /// exposed to end users and no Stripe charge is created. The optional <paramref name="companyId"/>
+    /// identifies the company whose SEAP qualification vault (legal data, portfolio, certificates, key
+    /// experts) is injected into the LLM prompt; when null or empty, the generator never blocks and the
+    /// prompt instructs the LLM to use clearly marked „[De completat: …]" placeholders. The optional
+    /// <paramref name="progressRequestId"/> lets the caller poll real per-stage progress
+    /// (Generating → Finalizing → Completed/Failed).</summary>
+    Task<BidGenerationResult> GenerateForTenderAsync(
+        Guid? companyId, Guid tenderId, CancellationToken cancellationToken, Guid? progressRequestId = null);
     /// <summary>
     /// Lists SEAP tenders, optionally filtered by the CPV prefixes of the selected activity categories and
     /// by <paramref name="radiusKm"/> measured from <paramref name="supplierCounty"/> (county-seat distance).

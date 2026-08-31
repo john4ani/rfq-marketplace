@@ -393,7 +393,7 @@ export class SeapTenderDetailComponent {
     // so the user sees what is actually happening instead of an endless "generating…" line.
     const progressRequestId = crypto.randomUUID();
     this.startProgressPolling(progressRequestId);
-    this.service.startAutoBid(tenderId, progressRequestId).subscribe({
+    this.service.startAutoBid(tenderId, this.companyId(), progressRequestId).subscribe({
       next: response => this.handleAutoBid(response),
       error: (error: unknown) => {
         this.busy.set(false);

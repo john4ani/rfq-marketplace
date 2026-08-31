@@ -1,6 +1,7 @@
 using Marketplace.Application.Seap;
 using Marketplace.Domain.Seap;
 using Marketplace.Infrastructure.Bidding;
+using Marketplace.Infrastructure.Companies;
 using Marketplace.Infrastructure.Documents;
 using Marketplace.Infrastructure.Embeddings;
 using Marketplace.Infrastructure.Persistence;
@@ -216,6 +217,7 @@ public sealed class SeapListFilterTests
     private static BiddingGenerationService NewService(MarketplaceDbContext db) => new(
         db,
         new StaticMockLlmProvider(StaticMockLlmProvider.RomanianProcurementExpertProposal),
+        new CompanyQualificationService(db, TimeProvider.System),
         new DocumentGenerator(),
         new UnavailableEmbeddingService(),
         Options.Create(new AutoBiddingOptions { IsShadowMode = true }),
