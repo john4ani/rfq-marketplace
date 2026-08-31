@@ -6,20 +6,26 @@ import { timer } from 'rxjs';
 import { AuthService } from '../../core/auth/auth.service';
 import { FeaturesService } from '../../core/features/features.service';
 import { CompanyVaultService, SpecificationBidResult, PIPELINE_STAGE_LABELS } from '../../core/companies/company-vault.service';
+import { VaultReadinessService } from '../../core/companies/vault-readiness.service';
 import { ProfileService } from '../../core/profiles/profile.service';
 import { SeapService, SeapTender } from '../../core/seap/seap.service';
 import { ROMANIAN_COUNTIES } from '../../shared/romanian-counties';
 import { normalizeCounty, normalizeCpvPrefix } from '../../shared/seap-filters';
+import { VaultPromptComponent } from '../../shared/vault-prompt.component';
 
 @Component({
   selector: 'app-seap-tenders',
-  imports: [RouterLink, DatePipe, DecimalPipe],
+  imports: [RouterLink, DatePipe, DecimalPipe, VaultPromptComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   styles: [`:host{display:block}.page{display:grid;gap:1.2rem;max-width:76rem}.back-link{display:inline-flex;align-items:center;gap:.4rem;width:fit-content;color:var(--forest);font-weight:750;text-decoration:none;font-size:.92rem}.eyebrow{margin:0;color:var(--forest-light);font-size:.76rem;font-weight:800;letter-spacing:.1em;text-transform:uppercase}h1{margin:.15rem 0;font-size:clamp(1.9rem,4vw,2.8rem);letter-spacing:-.04em}.page>p{margin:0;color:var(--muted);line-height:1.5}.card,.state,.filters{padding:1.15rem 1.25rem;border:1px solid var(--border);border-radius:1rem;background:var(--surface);box-shadow:var(--shadow-soft)}.card{display:flex;justify-content:space-between;gap:1.25rem;align-items:center;text-decoration:none;color:inherit;transition:border-color .15s}.card:hover{border-color:color-mix(in srgb,var(--forest) 45%,var(--border))}.card h2{margin:0;font-size:1.1rem}.card p{margin:.2rem 0 0;color:var(--muted);font-size:.9rem}.pill{display:inline-flex;align-items:center;padding:.3rem .72rem;border-radius:999px;font-size:.78rem;font-weight:800}.pill.ready{color:#176b52;background:#e3f2ea}.pill.done{color:var(--forest);background:color-mix(in srgb,var(--sand) 60%,white)}.arrow{flex:0 0 auto;color:var(--forest);font-weight:800}.state{justify-items:center;padding:2rem;text-align:center;color:var(--muted)}.state strong{color:var(--ink)}.state button{min-height:2.6rem;padding:.6rem 1.05rem;border:0;border-radius:.6rem;color:#fff;background:var(--forest);font:inherit;font-weight:800;cursor:pointer}.filters{display:grid;gap:.7rem}.filters-header{display:flex;align-items:baseline;gap:.6rem;flex-wrap:wrap}.filters-header strong{font-size:.95rem}.filters-header .company{color:var(--forest);font-weight:750;font-size:.85rem}.checks{display:flex;flex-wrap:wrap;gap:.5rem}.check{display:inline-flex;align-items:center;gap:.4rem;padding:.42rem .8rem;border:1px solid var(--border);border-radius:999px;background:var(--warm-white);font-size:.86rem;font-weight:650;cursor:pointer}.check input{accent-color:var(--forest)}.check.radius{border-style:dashed}.check:has(input:disabled){opacity:.6;cursor:not-allowed}.radius-hint{display:block;margin-top:.25rem;font-size:.74rem;color:var(--muted);font-weight:500}.hint{margin:0;color:var(--muted);font-size:.82rem;line-height:1.45}.upload{display:flex;gap:.7rem;flex-wrap:wrap;align-items:center}.upload input{flex:1 1 18rem}.upload button{min-height:2.6rem;padding:.6rem 1.05rem;border:0;border-radius:.6rem;color:#fff;background:var(--forest);font:inherit;font-weight:800;cursor:pointer}.upload button:disabled{opacity:.55;cursor:not-allowed}.spec-result{display:grid;gap:.6rem;padding:.85rem .95rem;border:1px solid var(--border);border-radius:.8rem;background:var(--warm-white)}.spec-result strong{font-size:.95rem}.downloads{display:flex;flex-wrap:wrap;gap:.6rem}.downloads button{display:inline-flex;padding:.5rem .85rem;border:0;border-radius:.6rem;color:var(--forest);background:color-mix(in srgb,var(--sand) 45%,white);font:inherit;font-weight:800;text-decoration:none;font-size:.85rem;cursor:pointer}.spec-result button{min-height:2.3rem;padding:.4rem .8rem;border:0;border-radius:.6rem;color:var(--forest);background:var(--sand);font:inherit;font-weight:800;cursor:pointer;width:fit-content}.pipeline-progress{display:grid;gap:.45rem;padding:.75rem .95rem;border:1px solid var(--border);border-radius:.7rem;background:var(--warm-white)}.pipeline-progress p{margin:0;color:var(--forest);font-size:.86rem;font-weight:650}.progress-track{height:.5rem;border-radius:999px;background:color-mix(in srgb,var(--sand) 70%,white);overflow:hidden}.progress-bar{height:100%;width:100%;border-radius:999px;background:var(--forest-light);transform-origin:0 50%;animation:pipeline-slide 1.6s ease-in-out infinite}@keyframes pipeline-slide{0%{transform:scaleX(.15)}50%{transform:scaleX(.65)}100%{transform:scaleX(.15)}}.note{padding:.75rem .95rem;border-radius:.7rem;line-height:1.5;font-size:.86rem}.note:not(.error){background:#edf6f1;color:#315947}.note.error{background:#fff0f0;color:#8b2222}.no-company{display:flex;justify-content:space-between;gap:1.1rem;align-items:center;padding:1.05rem 1.25rem;border:1px solid color-mix(in srgb,var(--warm-amber) 55%,var(--border));border-radius:1rem;background:color-mix(in srgb,var(--warm-amber) 12%,var(--surface));box-shadow:var(--shadow-soft)}.no-company strong{display:block;font-size:.98rem}.no-company p{margin:.25rem 0 0;color:var(--muted);font-size:.88rem;line-height:1.5}.no-company a{flex:0 0 auto;display:inline-flex;padding:.6rem 1rem;border-radius:.6rem;color:#fff;background:var(--forest);font-weight:800;text-decoration:none}`, `:host{display:block}.advanced{margin-top:1rem;display:grid;gap:.7rem}.advanced-header{display:flex;align-items:baseline;justify-content:space-between;gap:.6rem;flex-wrap:wrap}.advanced-header strong{font-size:.95rem}.advanced-header a{color:var(--forest);font-weight:750;font-size:.85rem}.advanced-editor{display:grid;gap:.8rem}.advanced-field{display:grid;gap:.45rem}.advanced-field label{font-weight:750;font-size:.86rem}.chips{display:flex;flex-wrap:wrap;gap:.45rem}.chip{display:inline-flex;align-items:center;gap:.35rem;padding:.32rem .6rem;border-radius:999px;color:var(--forest);background:color-mix(in srgb,var(--sand) 60%,white);font-size:.8rem;font-weight:750}.chip-remove{border:0;background:transparent;color:inherit;font:inherit;font-weight:900;cursor:pointer;padding:.05rem .15rem;line-height:1}.chip-empty{color:var(--muted);font-size:.82rem}.chip-input{display:flex;gap:.5rem;align-items:center}.chip-input input,.chip-input select{flex:1;min-width:0;padding:.5rem .7rem;border:1px solid var(--border);border-radius:.55rem;font:inherit;background:#fff}.chip-input button,.advanced-actions .save{min-height:2.4rem;padding:.45rem .9rem;border:0;border-radius:.55rem;color:#fff;background:var(--forest);font:inherit;font-weight:800;cursor:pointer}.chip-input button:disabled,.advanced-actions .save:disabled{opacity:.55;cursor:not-allowed}.advanced-actions{display:flex;align-items:center;gap:.8rem;flex-wrap:wrap}.advanced-actions .save{min-height:2.6rem}.advanced-actions .hint{color:var(--muted);font-size:.82rem}.filter-summary{margin:.5rem 0 0;padding:.55rem .8rem;border-radius:.6rem;color:#7a5206;background:#faf0d8;font-size:.8rem;line-height:1.45}`],
   template: `<section class="page">
     <a class="back-link" [routerLink]="features.marketplaceEnabled() ? ['/dashboard'] : ['/account']">← Înapoi</a>
     <header><p class="eyebrow">Achiziții publice</p><h1>Anunțuri SEAP</h1>
       <p>Oportunități publice din e-licitatie.ro, cu ofertare automată asistată de AI.</p></header>
+
+    @if (vaultPromptVisible() && companyId(); as companyId) {
+      <app-vault-prompt [companyId]="companyId" (dismissed)="vaultPromptVisible.set(false)" />
+    }
 
     @if (isAdmin()) {
       <section class="filters" aria-label="Caiet de sarcini — test admin">
@@ -57,7 +63,7 @@ import { normalizeCounty, normalizeCpvPrefix } from '../../shared/seap-filters';
       @if (!companyId()) {
         <section class="no-company" role="status">
           <div><strong>Înregistrează firma pe care o reprezinți</strong>
-            <p>Ofertarea automată folosește datele firmei tale (Company Vault, categorii, județ). Adaugă firma ca să poți genera propuneri tehnice și devize pentru anunțurile SEAP.</p></div>
+            <p>Ofertarea automată folosește datele firmei tale (Depozit de Documente, categorii, județ). Adaugă firma ca să poți genera propuneri tehnice și devize pentru anunțurile SEAP.</p></div>
           <a routerLink="/account/company/new">Adaugă firma</a>
         </section>
       }
@@ -139,6 +145,7 @@ export class SeapTendersComponent {
   private readonly auth = inject(AuthService);
   readonly features = inject(FeaturesService);
   private readonly vault = inject(CompanyVaultService);
+  private readonly readiness = inject(VaultReadinessService);
 
   readonly tenders = signal<SeapTender[]>([]);
   readonly loading = signal(true);
@@ -162,6 +169,8 @@ export class SeapTendersComponent {
   readonly searching = signal(false);
   readonly searchMessage = signal('');
   readonly searchError = signal(false);
+  /** Shows the „no relevant documents yet" recommendation after „Caută în SEAP" when the vault is empty. */
+  readonly vaultPromptVisible = signal(false);
   readonly normalizeCpvPrefix = normalizeCpvPrefix;
   readonly countiesList = ROMANIAN_COUNTIES;
   readonly availableCounties = computed(() => this.countiesList.filter(county => !this.counties().includes(county)));
@@ -287,6 +296,7 @@ export class SeapTendersComponent {
    * the current year; "Tot istoricul" leaves the date window open (older notices). */
   searchInSeap(): void {
     if (this.searching() || this.loading()) return;
+    this.checkVaultPrompt();
     this.searching.set(true);
     this.searchError.set(false);
     this.searchMessage.set('');
@@ -313,6 +323,18 @@ export class SeapTendersComponent {
         this.searchError.set(true);
         this.searchMessage.set('Căutarea în SEAP nu a putut rula. Încearcă din nou.');
       }
+    });
+  }
+
+  /** Shows the „no relevant documents yet" recommendation when the Document Repository has no usable
+   *  documents (empty or still pending extraction), unless the user permanently dismissed it. The SEAP
+   *  search itself still runs — the prompt only recommends uploading company documents. */
+  private checkVaultPrompt(): void {
+    const companyId = this.companyId();
+    if (!companyId || this.readiness.isPromptDismissed(companyId)) return;
+    this.readiness.hasUsableDocuments(companyId).subscribe({
+      next: usable => { if (!usable) this.vaultPromptVisible.set(true); },
+      error: () => undefined
     });
   }
 

@@ -14,9 +14,16 @@ import { SeapTendersComponent } from './seap-tenders.component';
 registerLocaleData(localeRo);
 
 describe('SeapTendersComponent', () => {
+  beforeEach(() => localStorage.setItem('compaspot.language', 'ro'));
+  afterEach(() => localStorage.removeItem('compaspot.language'));
+
   const company = { id: 'company-1', name: 'SC Test', role: 'Proprietar' as const };
   const constructii = { id: 'cat-constructii', verticalId: 'v1', parentId: null, name: 'Construcții', slug: 'constructii' };
   const transport = { id: 'cat-transport', verticalId: 'v1', parentId: null, name: 'Transport și logistică', slug: 'transport-logistica' };
+  const usableDoc = {
+    id: 'd1', fileName: 'certificari.pdf', documentType: 'PDF',
+    extracted: true, pageCount: 5, chunkCount: 18, uploadedAt: '2026-08-01T10:00:00Z'
+  };
 
   const tender: SeapTender = {
     id: 'tender-1', seapExternalId: 'CN-1', title: 'Lucrări de construcții', description: null,
@@ -50,7 +57,7 @@ describe('SeapTendersComponent', () => {
         { provide: SupplierSettingsService, useValue: settings },
         { provide: SeapService, useValue: { listTenders } },
         { provide: AuthService, useValue: { isAdministrator: computed(() => isAdmin) } },
-        { provide: CompanyVaultService, useValue: { uploadSpecification: vi.fn(), generateFromSpecification: vi.fn(), downloadGeneratedFile: vi.fn() } }
+        { provide: CompanyVaultService, useValue: { list: vi.fn().mockReturnValue(of([])), uploadSpecification: vi.fn(), generateFromSpecification: vi.fn(), downloadGeneratedFile: vi.fn() } }
       ]
     });
     return TestBed.createComponent(SeapTendersComponent);
@@ -394,5 +401,85 @@ describe('SeapTendersComponent', () => {
       cpvPrefixes: [],
       counties: []
     }));
+  });
+
+  it('shows the Document Repository prompt after „Caută în SEAP" when the vault has no usable documents', async () => {
+    const listTenders = vi.fn().mockReturnValue(of([tender]));
+    TestBed.configureTestingModule({
+      imports: [SeapTendersComponent],
+      providers: [
+        provideRouter([]),
+        { provide: ProfileService, useValue: profiles },
+        { provide: SupplierSettingsService, useValue: settings },
+        { provide: SeapService, useValue: { listTenders } },
+        { provide: AuthService, useValue: { isAdministrator: computed(() => true) } },
+        { provide: CompanyVaultService, useValue: { list: vi.fn().mockReturnValue(of([])), uploadSpecification: vi.fn(), generateFromSpecification: vi.fn(), downloadGeneratedFile: vi.fn() } }
+      ]
+    });
+    const fixture = TestBed.createComponent(SeapTendersComponent);
+    fixture.detectChanges();
+
+    const searchButton = Array.from(fixture.nativeElement.querySelectorAll('button') as NodeListOf<HTMLButtonElement>)
+      .find(button => button.textContent?.includes('Caută în SEAP'))!;
+    searchButton.click();
+    fixture.detectChanges();
+
+    const text = (fixture.nativeElement as HTMLElement).textContent ?? '';
+    expect(text).toContain('Pentru a asigura că ofertarea are cele mai mari șanse de reușită');
+    expect(text).toContain('Link la Depozit de Documente');
+    expect(text).toContain('Amintește-mi mai târziu');
+    // The search itself still runs — the prompt only recommends uploading company documents.
+    expect(listTenders).toHaveBeenLastCalledWith(expect.objectContaining({ search: true }));
+  });
+
+  it('does not show the repository prompt when the vault has usable (processed) documents', async () => {
+    const listTenders = vi.fn().mockReturnValue(of([tender]));
+    TestBed.configureTestingModule({
+      imports: [SeapTendersComponent],
+      providers: [
+        provideRouter([]),
+        { provide: ProfileService, useValue: profiles },
+        { provide: SupplierSettingsService, useValue: settings },
+        { provide: SeapService, useValue: { listTenders } },
+        { provide: AuthService, useValue: { isAdministrator: computed(() => true) } },
+        { provide: CompanyVaultService, useValue: { list: vi.fn().mockReturnValue(of([usableDoc])), uploadSpecification: vi.fn(), generateFromSpecification: vi.fn(), downloadGeneratedFile: vi.fn() } }
+      ]
+    });
+    const fixture = TestBed.createComponent(SeapTendersComponent);
+    fixture.detectChanges();
+
+    const searchButton = Array.from(fixture.nativeElement.querySelectorAll('button') as NodeListOf<HTMLButtonElement>)
+      .find(button => button.textContent?.includes('Caută în SEAP'))!;
+    searchButton.click();
+    fixture.detectChanges();
+
+    const text = (fixture.nativeElement as HTMLElement).textContent ?? '';
+    expect(text).not.toContain('Pentru a asigura că ofertarea are cele mai mari șanse de reușită');
+  });
+
+  it('skips the prompt when the user permanently dismissed it for this company', async () => {
+    localStorage.setItem('compaspot.vaultPromptDismissed.company-1', 'true');
+    const listTenders = vi.fn().mockReturnValue(of([tender]));
+    TestBed.configureTestingModule({
+      imports: [SeapTendersComponent],
+      providers: [
+        provideRouter([]),
+        { provide: ProfileService, useValue: profiles },
+        { provide: SupplierSettingsService, useValue: settings },
+        { provide: SeapService, useValue: { listTenders } },
+        { provide: AuthService, useValue: { isAdministrator: computed(() => true) } },
+        { provide: CompanyVaultService, useValue: { list: vi.fn().mockReturnValue(of([])), uploadSpecification: vi.fn(), generateFromSpecification: vi.fn(), downloadGeneratedFile: vi.fn() } }
+      ]
+    });
+    const fixture = TestBed.createComponent(SeapTendersComponent);
+    fixture.detectChanges();
+
+    const searchButton = Array.from(fixture.nativeElement.querySelectorAll('button') as NodeListOf<HTMLButtonElement>)
+      .find(button => button.textContent?.includes('Caută în SEAP'))!;
+    searchButton.click();
+    fixture.detectChanges();
+
+    const text = (fixture.nativeElement as HTMLElement).textContent ?? '';
+    expect(text).not.toContain('Pentru a asigura că ofertarea are cele mai mari șanse de reușită');
   });
 });

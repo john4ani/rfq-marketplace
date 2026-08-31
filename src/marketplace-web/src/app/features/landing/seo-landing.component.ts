@@ -21,37 +21,29 @@ import { LiveMarketComponent } from './live-market.component';
   } @else {
     <section class="seo-landing">
       <div class="hero">
-        <p class="eyebrow">Achiziții publice · Ofertare asistată de AI</p>
-        <h1>Redactare ofertă tehnică SEAP, rapid și profesional</h1>
-        <p class="lead">Generăm propuneri tehnice și liste de cantități pentru licitațiile publice din SEAP — pe baza
-          caietului de sarcini și a datelor firmei tale. Model propunere tehnică construcții, deviz de cantități,
-          consultanță achiziții publice asistată de inteligență artificială.</p>
+        <p class="eyebrow">{{ i18n.t('Achiziții publice · Ofertare asistată de AI') }}</p>
+        <h1>{{ i18n.t('Redactare ofertă tehnică SEAP, rapid și profesional') }}</h1>
+        <p class="lead">{{ i18n.t('Generăm propuneri tehnice și liste de cantități pentru licitațiile publice din SEAP — pe baza caietului de sarcini și a datelor firmei tale. Model propunere tehnică construcții, deviz de cantități, consultanță achiziții publice asistată de inteligență artificială.') }}</p>
         <div class="hero-actions">
           @if (auth.isAuthenticated()) {
-            <a class="primary-action" routerLink="/seap/tenders">Deschide Anunțuri SEAP</a>
+            <a class="primary-action" routerLink="/seap/tenders">{{ i18n.t('Deschide Anunțuri SEAP') }}</a>
           } @else {
-            <a class="primary-action" routerLink="/register">Începe acum</a>
-            <a class="secondary-action" routerLink="/sign-in">Autentificare</a>
+            <a class="primary-action" routerLink="/register">{{ i18n.t('Începe acum') }}</a>
+            <a class="secondary-action" routerLink="/sign-in">{{ i18n.t('Autentificare') }}</a>
           }
         </div>
       </div>
       <div class="grid">
-        <section class="card"><h2>Redactare ofertă tehnică SEAP</h2>
-          <p>Propunerea tehnică se structurează pe cerințele caietului de sarcini, cu răspuns punctual la fiecare
-            specificație — pregătită pentru semnare electronică și depunere în SEAP.</p></section>
-        <section class="card"><h2>Model propunere tehnică construcții</h2>
-          <p>Șabloane adaptate lucrărilor de construcții: organizare de șantier, dotări, garanție, personal cheie și
-            program de execuție — toate generate din documentele firmei tale.</p></section>
-        <section class="card"><h2>Soft generare deviz caiet de sarcini</h2>
-          <p>Lista de cantități (.xlsx) se generează direct din caietul de sarcini, cu recapitulație financiară
-            (T1–T4, TVA, TOTAL GENERAL) — gata de completat cu oferta de preț.</p></section>
-        <section class="card"><h2>Consultanță achiziții publice AI</h2>
-          <p>Asistentul AI analizează anunțurile din e-licitatie.ro, extrage cerințele relevante și îți pregătește
-            documentația, reducând timpul de ofertare de la zile la minute.</p></section>
+        <section class="card"><h2>{{ i18n.t('Redactare ofertă tehnică SEAP') }}</h2>
+          <p>{{ i18n.t('Propunerea tehnică se structurează pe cerințele caietului de sarcini, cu răspuns punctual la fiecare specificație — pregătită pentru semnare electronică și depunere în SEAP.') }}</p></section>
+        <section class="card"><h2>{{ i18n.t('Model propunere tehnică construcții') }}</h2>
+          <p>{{ i18n.t('Șabloane adaptate lucrărilor de construcții: organizare de șantier, dotări, garanție, personal cheie și program de execuție — toate generate din documentele firmei tale.') }}</p></section>
+        <section class="card"><h2>{{ i18n.t('Soft generare deviz caiet de sarcini') }}</h2>
+          <p>{{ i18n.t('Lista de cantități (.xlsx) se generează direct din caietul de sarcini, cu recapitulație financiară (T1–T4, TVA, TOTAL GENERAL) — gata de completat cu oferta de preț.') }}</p></section>
+        <section class="card"><h2>{{ i18n.t('Consultanță achiziții publice AI') }}</h2>
+          <p>{{ i18n.t('Asistentul AI analizează anunțurile din e-licitatie.ro, extrage cerințele relevante și îți pregătește documentația, reducând timpul de ofertare de la zile la minute.') }}</p></section>
       </div>
-      <p class="terms-note">CompaSpot este un instrument software de redactare asistată, nu un furnizor de servicii de
-        consultanță juridică sau tehnică. Verifică și asumă-ți conținutul documentelor înainte de semnarea electronică
-        și depunerea în SEAP. Vezi <a routerLink="/terms">Termenii și Condițiile</a>.</p>
+      <p class="terms-note">{{ i18n.t('CompaSpot este un instrument software de redactare asistată, nu un furnizor de servicii de consultanță juridică sau tehnică. Verifică și asumă-ți conținutul documentelor înainte de semnarea electronică și depunerea în SEAP.') }} {{ i18n.t('Vezi') }} <a routerLink="/terms">{{ i18n.t('Termenii și Condițiile') }}</a>.</p>
     </section>
   }`
 })
@@ -60,6 +52,11 @@ export class SeoLandingComponent {
   readonly features = inject(FeaturesService);
   readonly i18n = inject(LanguageService);
   private readonly router = inject(Router);
+  /** Language-aware browser tab title for the public landing (index.html stays the Romanian SEO default). */
+  readonly documentTitle = computed(() => this.i18n.t('Redactare ofertă tehnică SEAP — CompaSpot AI'));
+  private readonly titleEffect = effect(() => {
+    if (typeof document !== 'undefined') document.title = this.documentTitle();
+  });
   private readonly redirectEffect = effect(() => {
     if (this.features.marketplaceEnabled() && this.auth.isAuthenticated()) {
       void this.router.navigate(['/seap/tenders']);

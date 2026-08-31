@@ -4,7 +4,10 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, RouterLink } from '@angular/router';
 import { interval, switchMap, timer } from 'rxjs';
 import { PipelineProgress } from '../../core/companies/company-vault.service';
+import { VaultReadinessService } from '../../core/companies/vault-readiness.service';
+import { ProfileService } from '../../core/profiles/profile.service';
 import { AutoBidResponse, BidStatus, SeapService, SeapTender, TenderPricing } from '../../core/seap/seap.service';
+import { VaultPromptComponent } from '../../shared/vault-prompt.component';
 
 /** Friendly Romanian labels for the real per-stage auto-bid progress reported by the API. */
 const AUTO_BID_STAGE_LABELS: Record<PipelineProgress['stage'], string> = {
@@ -17,11 +20,14 @@ const AUTO_BID_STAGE_LABELS: Record<PipelineProgress['stage'], string> = {
 
 @Component({
   selector: 'app-seap-tender-detail',
-  imports: [RouterLink, DatePipe, DecimalPipe],
+  imports: [RouterLink, DatePipe, DecimalPipe, VaultPromptComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   styles: [`:host{display:block}.page{display:grid;gap:1.2rem;max-width:64rem}.back-link{display:inline-flex;align-items:center;gap:.4rem;width:fit-content;color:var(--forest);font-weight:750;text-decoration:none;font-size:.92rem}.eyebrow{margin:0;color:var(--forest-light);font-size:.76rem;font-weight:800;letter-spacing:.1em;text-transform:uppercase}h1{margin:.15rem 0;font-size:clamp(1.9rem,4vw,2.6rem);letter-spacing:-.04em}.card,.state{padding:1.15rem 1.25rem;border:1px solid var(--border);border-radius:1rem;background:var(--surface);box-shadow:var(--shadow-soft)}.card h2{margin:0;font-size:1.05rem}.facts{display:grid;grid-template-columns:repeat(auto-fit,minmax(11rem,1fr));gap:.75rem}.facts>div{display:grid;gap:.2rem;padding:.85rem;border:1px solid var(--border);border-radius:.8rem;background:var(--warm-white)}.facts span{color:var(--muted);font-size:.74rem;font-weight:750;text-transform:uppercase;letter-spacing:.05em}.facts strong{font-size:.98rem}.actions{display:flex;flex-wrap:wrap;gap:.7rem;align-items:center}button{min-height:2.6rem;padding:.6rem 1.05rem;border:0;border-radius:.6rem;color:#fff;background:var(--forest);font:inherit;font-weight:800;cursor:pointer}button:disabled{opacity:.55;cursor:not-allowed}.note{border-radius:.7rem;padding:.8rem .95rem;line-height:1.5}.note.info{color:#315947;background:#edf6f1}.note.warn{color:#7a5206;background:#faf0d8}.note.error{color:#8b2222;background:#fff0f0}.copilot{margin-top:.7rem;font-size:.82rem}.downloads{display:flex;flex-wrap:wrap;gap:.6rem}.downloads a,.downloads button{display:inline-flex;align-items:center;padding:.55rem .9rem;border-radius:.6rem;color:var(--forest);background:color-mix(in srgb,var(--sand) 45%,white);font-weight:800;text-decoration:none;font-size:.95rem;min-height:auto}.acceptance{display:flex;gap:.6rem;align-items:flex-start;margin-top:.8rem;padding:.8rem .9rem;border:1px solid var(--border);border-radius:.7rem;background:var(--warm-white)}.acceptance input{width:1.05rem;height:1.05rem;margin-top:.15rem;accent-color:var(--forest)}.acceptance label{font-size:.85rem;line-height:1.45;color:var(--ink)}.state{justify-items:center;padding:2rem;text-align:center;color:var(--muted)}.progress{height:.5rem;border-radius:999px;background:color-mix(in srgb,var(--sand) 70%,white);overflow:hidden;margin:.55rem 0}.progress>span{display:block;height:100%;width:42%;border-radius:inherit;background:var(--forest-light);animation:progress-slide 1.4s ease-in-out infinite}@keyframes progress-slide{0%{transform:translateX(-120%)}100%{transform:translateX(300%)}}.progress-stage{margin:.35rem 0 0;color:#315947;font-weight:650}.progress-hint{color:var(--muted)}`],
   template: `<section class="page">
     <a class="back-link" routerLink="/seap/tenders">← Anunțuri SEAP</a>
+    @if (vaultPromptVisible() && companyId(); as companyId) {
+      <app-vault-prompt [companyId]="companyId" (dismissed)="onVaultPromptDismissed()" />
+    }
     @if (loading()) { <section class="state" role="status">Se încarcă anunțul…</section> }
     @else if (tender(); as tender) {
       <header><p class="eyebrow">Anunț SEAP · {{ tender.seapExternalId }}</p><h1>{{ tender.title }}</h1>
@@ -57,7 +63,7 @@ const AUTO_BID_STAGE_LABELS: Record<PipelineProgress['stage'], string> = {
               @if (pricing().shadowMode) { <span class="note info">Mod de test — generarea este gratuită în această etapă. După lansare, prețul estimat pentru acest anunț: {{ pricing().priceEur }} €.</span> }
               @else if (pricing().freeGenerationsRemaining > 0) { <span class="note info">Prima generare este gratuită. Următoarele: {{ pricing().priceEur }} € (valoare estimată).</span> }
               @else { <span class="note info">Generare {{ pricing().priceEur }} €, pe baza valorii estimate a achiziției.</span> }
-              <span class="note warn">Generăm propunerea tehnică și lista de cantități pe baza datelor din Company Vault.
+              <span class="note warn">Generăm propunerea tehnică și lista de cantități pe baza datelor din Depozitul de Documente.
                 <span class="copilot">CompaSpot este un instrument software de redactare asistată, nu un furnizor de consultanță juridică sau tehnică. Verifică și asumă-ți conținutul înainte de semnarea electronică și depunerea în SEAP.</span></span>
             </div>
           }
@@ -72,6 +78,8 @@ export class SeapTenderDetailComponent {
   private readonly service = inject(SeapService);
   private readonly route = inject(ActivatedRoute);
   private readonly destroyRef = inject(DestroyRef);
+  private readonly profiles = inject(ProfileService);
+  private readonly readiness = inject(VaultReadinessService);
   private readonly tenderId = this.route.snapshot.paramMap.get('id') ?? '';
   readonly tender = signal<SeapTender | null>(null);
   readonly bidStatus = signal<BidStatus | null>(null);
@@ -83,8 +91,18 @@ export class SeapTenderDetailComponent {
   readonly acceptsResponsibility = signal(false);
   readonly downloading = signal(false);
   readonly autoBidStage = signal('');
+  /** The user's represented company — the vault that feeds the RAG context for this tender. */
+  readonly companyId = signal<string | null>(null);
+  /** Shows the „no relevant documents yet" recommendation before the first auto-bid. */
+  readonly vaultPromptVisible = signal(false);
+  /** The generation that waits for the user's choice after the repository prompt is dismissed. */
+  private pendingAutoBid: (() => void) | null = null;
 
   constructor() {
+    this.profiles.getMyCompanies().subscribe({
+      next: companies => this.companyId.set(companies[0]?.id ?? null),
+      error: () => undefined
+    });
     this.service.getTender(this.tenderId).subscribe({
       next: value => { this.tender.set(value); this.loading.set(false); },
       error: () => this.loading.set(false)
@@ -94,6 +112,38 @@ export class SeapTenderDetailComponent {
   }
 
   startAutoBid(tenderId: string): void {
+    if (this.busy()) return;
+    // Before generating an offer the page verifies the Document Repository has usable documents; when it
+    // does not, the shared prompt is shown and the generation waits for the user's choice.
+    this.verifyVaultThen(() => this.runAutoBid(tenderId));
+  }
+
+  /** Checks the repository before a material action and shows the shared prompt when no usable documents
+   *  exist. A vault API failure never blocks the action — the user can proceed regardless. */
+  private verifyVaultThen(proceed: () => void): void {
+    const companyId = this.companyId();
+    if (!companyId || this.readiness.isPromptDismissed(companyId)) { proceed(); return; }
+    this.readiness.hasUsableDocuments(companyId).subscribe({
+      next: usable => {
+        if (usable) { proceed(); }
+        else {
+          this.pendingAutoBid = proceed;
+          this.vaultPromptVisible.set(true);
+        }
+      },
+      error: () => proceed()
+    });
+  }
+
+  /** Called when the user dismisses the repository prompt — the pending auto-bid then proceeds. */
+  onVaultPromptDismissed(): void {
+    this.vaultPromptVisible.set(false);
+    const proceed = this.pendingAutoBid;
+    this.pendingAutoBid = null;
+    proceed?.();
+  }
+
+  private runAutoBid(tenderId: string): void {
     this.busy.set(true);
     this.message.set('');
     this.messageError.set(false);

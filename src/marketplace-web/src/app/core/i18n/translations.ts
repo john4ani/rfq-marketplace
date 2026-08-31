@@ -183,4 +183,29 @@ export const translations: Readonly<Record<string, string>> = {
   'Vrei să vinzi prin CompaSpot?': 'Want to sell through CompaSpot?',
   'Adaugă firma': 'Add the company',
   'Înregistrează datele esențiale, ce oferă firma și zona în care lucrează. Contul tău personal rămâne disponibil pentru achiziții.': 'Register the essential details, what the company offers and the area it works in. Your personal account remains available for purchases.',
+
+  // Landing — SEAP SEO page
+  'Achiziții publice · Ofertare asistată de AI': 'Public procurement · AI-assisted bidding',
+  'Redactare ofertă tehnică SEAP, rapid și profesional': 'Draft technical SEAP offers, fast and professional',
+  'Generăm propuneri tehnice și liste de cantități pentru licitațiile publice din SEAP — pe baza caietului de sarcini și a datelor firmei tale. Model propunere tehnică construcții, deviz de cantități, consultanță achiziții publice asistată de inteligență artificială.': 'We generate technical proposals and bills of quantities for public tenders from SEAP — based on the tender specification and your company data. Construction technical proposal template, bill of quantities, AI-assisted public procurement consultancy.',
+  'Deschide Anunțuri SEAP': 'Open SEAP notices',
+  'Redactare ofertă tehnică SEAP': 'Draft technical SEAP offers',
+  'Propunerea tehnică se structurează pe cerințele caietului de sarcini, cu răspuns punctual la fiecare specificație — pregătită pentru semnare electronică și depunere în SEAP.': 'The technical proposal follows the tender specification requirements, answering each one point by point — ready for electronic signature and submission in SEAP.',
+  'Model propunere tehnică construcții': 'Construction technical proposal template',
+  'Șabloane adaptate lucrărilor de construcții: organizare de șantier, dotări, garanție, personal cheie și program de execuție — toate generate din documentele firmei tale.': 'Templates tailored to construction works: site organisation, equipment, warranty, key personnel and execution schedule — all generated from your company documents.',
+  'Soft generare deviz caiet de sarcini': 'Software to generate bills of quantities from tender specifications',
+  'Lista de cantități (.xlsx) se generează direct din caietul de sarcini, cu recapitulație financiară (T1–T4, TVA, TOTAL GENERAL) — gata de completat cu oferta de preț.': 'The bill of quantities (.xlsx) is generated directly from the tender specification, with a financial summary (T1–T4, VAT, TOTAL GENERAL) — ready for your price offer.',
+  'Consultanță achiziții publice AI': 'AI public procurement consultancy',
+  'Asistentul AI analizează anunțurile din e-licitatie.ro, extrage cerințele relevante și îți pregătește documentația, reducând timpul de ofertare de la zile la minute.': 'The AI assistant analyses notices from e-licitatie.ro, extracts the relevant requirements and prepares your documentation, cutting the bidding time from days to minutes.',
+  'CompaSpot este un instrument software de redactare asistată, nu un furnizor de servicii de consultanță juridică sau tehnică. Verifică și asumă-ți conținutul documentelor înainte de semnarea electronică și depunerea în SEAP.': 'CompaSpot is assisted-drafting software, not a provider of legal or technical consultancy services. Review and take responsibility for the content of the documents before electronic signature and submission in SEAP.',
+  'Vezi': 'See',
+  'Termenii și Condițiile': 'Terms and Conditions',
+  'Redactare ofertă tehnică SEAP — CompaSpot AI': 'Draft technical SEAP offers — CompaSpot AI',
+
+  // Document Repository (Company Vault) readiness prompt
+  'Depozit de Documente pentru ofertare automată': 'Document Repository for automatic bidding',
+  'Pentru a asigura că ofertarea are cele mai mari șanse de reușită, încarcă în Depozitul de Documente cât mai multe documente relevante pentru licitațiile la care participi.': 'To give your bidding the best chance of success, upload as many relevant documents as possible to the Document Repository for the tenders you take part in.',
+  'Link la Depozit de Documente': 'Link to Document Repository',
+  'Amintește-mi mai târziu': 'Remind me later',
+  'Am înțeles, nu mai arăta acest mesaj. Am făcut toate setările.': 'I understand, don’t show this message again. I have made all the settings.',
 };

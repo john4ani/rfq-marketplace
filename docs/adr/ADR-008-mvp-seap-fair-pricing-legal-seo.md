@@ -8,7 +8,7 @@ profiles, messaging, notifications, supplier discovery) moves behind the live fe
 **false**. Only the standalone **Anunțuri SEAP** product and the **Administrator** workspace remain visible,
 **plus the user's own account surfaces**: **Cont** (`/account`, profile + represented companies) and **Firma**
 (`/account/company/*`, create/register and edit the companies the user represents) stay reachable because SEAP
-auto-bidding needs the user's company data (Company Vault, categories, county). The SEAP list page shows an
+auto-bidding needs the user's company data (Depozit de Documente, categories, county). The SEAP list page shows an
 "Înregistrează firma" CTA when the user has no company yet. The SEAP radius filter is sourced from the
 company profile's `MarketRadiusKm` and is **editable in Cont → Firma → setările firmei** (Rază de interes
 pentru anunțuri); saving it updates the SEAP list on the next load.

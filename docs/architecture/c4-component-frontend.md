@@ -93,7 +93,7 @@ flowchart LR
 | Offer workflow | Create/revise/submit/withdraw Provider offers with explicit coverage, tax, alternatives and delivery terms; compare every requested line, select a complete offer, and record the terminal procurement outcome in a focused child component |
 | Private messaging | Poll and send messages within the conversation authorized for one submitted offer |
 | Supplier discovery | Let Administrators source and review unverified candidates, generate a request-linked link for manual sharing, and let a Supplier complete the public claim journey |
-| Anunțuri SEAP | Standalone Main Menu product surface: public tender list/detail, AI auto-bid with Stripe checkout or shadow mode, and bid-status polling; Company Vault uploads support the RAG context |
+| Anunțuri SEAP | Standalone Main Menu product surface: public tender list/detail, AI auto-bid with Stripe checkout or shadow mode, and bid-status polling; Depozit de Documente (Company Vault) uploads support the RAG context |
 | Notification menu | Poll unread count, load notifications, mark items read, and follow notification links |
 | Auth service and state | Access token, linked profiles, active role, refresh, logout, and online-presence heartbeat |
 | Typed API clients | Feature-focused HTTP contracts; keep transport calls out of presentation components |

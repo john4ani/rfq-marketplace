@@ -41,7 +41,7 @@ import { RouterLink } from '@angular/router';
       de achiziții publice.</p>
 
     <h2>5. Date și confidențialitate</h2>
-    <p>Documentele încărcate în Company Vault sunt utilizate exclusiv pentru generarea ofertelor solicitate și sunt
+    <p>Documentele încărcate în Depozitul de Documente sunt utilizate exclusiv pentru generarea ofertelor solicitate și sunt
       protejate conform politicii de confidențialitate. Nu vindem și nu partajăm datele firmei tale cu terți în scopuri
       comerciale.</p>
 
