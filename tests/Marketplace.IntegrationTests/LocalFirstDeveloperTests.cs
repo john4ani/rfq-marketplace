@@ -12,7 +12,11 @@ namespace Marketplace.IntegrationTests;
 
 // Local-first developer experience guardrails: the local-file storage provider used when
 // Storage:UseLocalStorage=true, and the SEAP golden-payload fallback used when the live endpoint is
-// unreachable in Development (Seap:LocalFallbackEnabled).
+// unreachable in Development (Seap:LocalFallbackEnabled). Runs inside IntegrationTestGroup so the
+// DevelopmentConfiguration test's factory host sees the deterministic Testcontainers connection string
+// (the shared fixture sets/restores ConnectionStrings__MarketplaceDatabase) instead of racing with the
+// default xUnit collection and falling back to the appsettings.Development.json local password.
+[Collection(IntegrationTestGroup.Name)]
 public sealed class LocalFirstDeveloperTests
 {
     [Fact]

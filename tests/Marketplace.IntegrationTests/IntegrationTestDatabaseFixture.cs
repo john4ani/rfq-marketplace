@@ -15,9 +15,15 @@ public sealed class IntegrationTestDatabaseFixture : IAsyncLifetime
 {
     private const string ConnectionStringEnvironmentVariable = "ConnectionStrings__MarketplaceDatabase";
     private PostgreSqlContainer? _postgres;
+    private string? _previousConnectionString;
 
     public async Task InitializeAsync()
     {
+        // Preserve whatever the caller (CI env / local config) had so Dispose can restore it instead of
+        // removing the variable — a default-collection test that starts a factory host after this
+        // collection must not fall back to appsettings.Development.json's local-only password.
+        _previousConnectionString = Environment.GetEnvironmentVariable(ConnectionStringEnvironmentVariable);
+
         _postgres = new PostgreSqlBuilder("pgvector/pgvector:pg17")
             .WithDatabase("marketplace_test")
             .Build();
@@ -38,7 +44,7 @@ public sealed class IntegrationTestDatabaseFixture : IAsyncLifetime
 
     public async Task DisposeAsync()
     {
-        Environment.SetEnvironmentVariable(ConnectionStringEnvironmentVariable, null);
+        Environment.SetEnvironmentVariable(ConnectionStringEnvironmentVariable, _previousConnectionString);
         if (_postgres is not null) await _postgres.DisposeAsync();
     }
 }
