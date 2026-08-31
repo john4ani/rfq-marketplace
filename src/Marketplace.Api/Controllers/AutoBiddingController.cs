@@ -62,7 +62,26 @@ public sealed partial class AutoBiddingController(
     public async Task<IActionResult> GetTender(Guid tenderId, CancellationToken cancellationToken)
     {
         SeapTender? tender = await biddingService.GetTenderAsync(tenderId, cancellationToken);
-        return tender is null ? NotFound() : Ok(tender);
+        return tender is null ? NotFound() : Ok(SeapTenderDetailsDto.From(tender, DateTimeOffset.UtcNow));
+    }
+
+    /// <summary>
+    /// Streams one of the original files published by the contracting authority (Fișa de date, Caiet de
+    /// sarcini, clarificări). The persisted storage reference (<c>local://…</c> or <c>s3://…</c>) is resolved
+    /// server-side and the response streams directly (no in-memory buffering); the attachment is verified to
+    /// belong to the tender so a user cannot read other tenders' files (IDOR guard).
+    /// </summary>
+    [HttpGet("tenders/{tenderId:guid}/attachments/{attachmentId:guid}")]
+    public async Task<IActionResult> DownloadAttachment(
+        Guid tenderId, Guid attachmentId, CancellationToken cancellationToken)
+    {
+        SeapTender? tender = await biddingService.GetTenderAsync(tenderId, cancellationToken);
+        SeapTenderAttachment? attachment = tender?.Attachments.FirstOrDefault(item => item.Id == attachmentId);
+        if (attachment is null) return NotFound();
+        StorageObject? stored = await storage.OpenReadAsync(attachment.S3Url, cancellationToken);
+        return stored is null
+            ? NotFound()
+            : File(stored.Content, stored.ContentType, StorageObject.FileNameFromReference(attachment.S3Url));
     }
 
     /// <summary>Fair-pricing preview shown before starting the generation (Task 3: 1 free generation, then

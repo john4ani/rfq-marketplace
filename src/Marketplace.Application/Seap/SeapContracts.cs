@@ -94,3 +94,93 @@ public interface ISeapCategorizer
     Task<SeapCategorizationResult?> CategorizeAsync(
         string? cpvCode, string? cpvName, string title, CancellationToken cancellationToken);
 }
+
+/// <summary>Lightweight category reference exposed on the SEAP tender detail page.</summary>
+public sealed record SeapTenderCategoryRef(Guid Id, string Name);
+
+/// <summary>One original file published by the contracting authority. The <see cref="DownloadUrl"/> is the
+/// authenticated API route that streams the stored file (browsers cannot navigate the persisted
+/// <c>local://</c>/<c>s3://</c> references directly).</summary>
+public sealed record SeapTenderAttachmentRef(Guid Id, string FileName, string DownloadUrl);
+
+/// <summary>
+/// Detail projection of a SEAP tender returned by <c>GET /api/v1/seap/tenders/{id}</c>. Kept as a dedicated
+/// DTO (instead of serializing the aggregate) so the page can evolve independently of persistence.
+/// <c>ProcedureType</c> and <c>ProcedureState</c> are derived deterministically from the external id and the
+/// deadline; the fields the current notice-search parser does not extract yet (award criterion, funding
+/// source, contract duration, guarantees, qualification requirements, certificates, AI summary) are null —
+/// the SPA shows elegant placeholders until full notice-detail extraction lands.
+/// </summary>
+public sealed record SeapTenderDetailsDto(
+    Guid Id,
+    string SeapExternalId,
+    string Title,
+    string? Description,
+    IReadOnlyCollection<string> CpvCodes,
+    IReadOnlyCollection<string> CpvNames,
+    string? County,
+    Guid? CategoryId,
+    SeapTenderCategoryRef? Category,
+    decimal? EstimatedValue,
+    string? Currency,
+    string BuyerName,
+    DateTimeOffset PublicationDate,
+    DateTimeOffset Deadline,
+    string Status,
+    string? ProposalTitle,
+    string? TechnicalProposalUrl,
+    string? BillOfQuantitiesUrl,
+    IReadOnlyCollection<SeapTenderAttachmentRef> Attachments,
+    string ProcedureType,
+    string ProcedureState,
+    string? AwardCriterion,
+    string? FundingSource,
+    string? ContractDuration,
+    string? ParticipationGuarantee,
+    IReadOnlyCollection<string>? QualificationRequirements,
+    IReadOnlyCollection<string>? KeyPersonnel,
+    IReadOnlyCollection<string>? Certificates,
+    IReadOnlyCollection<string>? SummaryPoints)
+{
+    /// <summary>Maps the aggregate to the detail projection. The SEAP external id distinguishes the simplified
+    /// procedure ("SCN" = „Procedură simplificată") from a standard contract notice ("CN" = „Licitare deschisă");
+    /// the procedure state is derived from the tender deadline („În desfășurare" while accepting offers).
+    /// </summary>
+    public static SeapTenderDetailsDto From(SeapTender tender, DateTimeOffset now) => new(
+        tender.Id,
+        tender.SeapExternalId,
+        tender.Title,
+        tender.Description,
+        tender.CpvCodes,
+        tender.CpvNames,
+        tender.County,
+        tender.CategoryId,
+        tender.Category is null ? null : new SeapTenderCategoryRef(tender.Category.Id, tender.Category.Name),
+        tender.EstimatedValue,
+        tender.Currency,
+        tender.BuyerName,
+        tender.PublicationDate,
+        tender.Deadline,
+        tender.Status.ToString(),
+        tender.ProposalTitle,
+        tender.TechnicalProposalUrl,
+        tender.BillOfQuantitiesUrl,
+        tender.Attachments
+            .Select(attachment => new SeapTenderAttachmentRef(
+                attachment.Id,
+                attachment.FileName,
+                $"api/v1/seap/tenders/{tender.Id}/attachments/{attachment.Id}"))
+            .ToArray(),
+        ProcedureType: tender.SeapExternalId.StartsWith("SCN", StringComparison.OrdinalIgnoreCase)
+            ? "Procedură simplificată"
+            : "Licitare deschisă",
+        ProcedureState: tender.Deadline >= now ? "În desfășurare" : "Încheiată",
+        AwardCriterion: null,
+        FundingSource: null,
+        ContractDuration: null,
+        ParticipationGuarantee: null,
+        QualificationRequirements: null,
+        KeyPersonnel: null,
+        Certificates: null,
+        SummaryPoints: null);
+}

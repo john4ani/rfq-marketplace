@@ -2,6 +2,14 @@ import { HttpClient, HttpParams } from '@angular/common/http';
 import { inject, Injectable } from '@angular/core';
 import { PipelineProgress } from '../companies/company-vault.service';
 
+export interface SeapTenderAttachment {
+  id: string;
+  fileName: string;
+  /** Authenticated API route that streams the stored file (the list endpoint may instead send the raw
+   *  storage reference as s3Url — browsers cannot navigate it, so downloads always go through the API). */
+  downloadUrl?: string;
+}
+
 export interface SeapTender {
   id: string;
   seapExternalId: string;
@@ -21,7 +29,20 @@ export interface SeapTender {
   proposalTitle: string | null;
   technicalProposalUrl: string | null;
   billOfQuantitiesUrl: string | null;
-  attachments: { id: string; fileName: string; s3Url: string }[];
+  attachments: SeapTenderAttachment[];
+  /** Derived by the detail endpoint: „Procedură simplificată" for SCN notices, „Licitare deschisă" otherwise. */
+  procedureType?: string;
+  /** Derived by the detail endpoint from the deadline: „În desfășurare" / „Încheiată". */
+  procedureState?: string;
+  /** Detail fields exposed by the detail endpoint; null until the notice-detail parser extracts them. */
+  awardCriterion?: string | null;
+  fundingSource?: string | null;
+  contractDuration?: string | null;
+  participationGuarantee?: string | null;
+  qualificationRequirements?: string[] | null;
+  keyPersonnel?: string[] | null;
+  certificates?: string[] | null;
+  summaryPoints?: string[] | null;
 }
 
 export interface SeapTenderFilter {
@@ -117,6 +138,11 @@ export class SeapService {
   /** Downloads one auto-generated proposal file (technical .docx or bill of quantities .xlsx) as a blob. */
   downloadBidFile(id: string, kind: 'TechnicalProposal' | 'BillOfQuantities') {
     return this.http.get(`/api/v1/seap/tenders/${id}/bid-file`, { params: { kind }, responseType: 'blob' });
+  }
+
+  /** Downloads one original authority file (Fișa de date, Caiet de sarcini, clarificări) as a blob. */
+  downloadAttachment(id: string, attachmentId: string) {
+    return this.http.get(`/api/v1/seap/tenders/${id}/attachments/${attachmentId}`, { responseType: 'blob' });
   }
   matchTenderAvailability() { return this.http.get<SeapTenderMatchAvailability>('/api/v1/seap/tender-match/availability'); }
   matchTenders(input: string, turns: SeapClarificationTurn[] = []) {

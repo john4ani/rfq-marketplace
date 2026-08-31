@@ -184,12 +184,13 @@ All V3 endpoints require authentication unless noted. Shadow Mode (AutoBidding:I
 ```text
 GET  /api/v1/features                        [AllowAnonymous — SPA feature flags]
 GET  /api/v1/seap/tenders                    [also accepts cpvPrefixes[]/counties[] filters; search=true + from/to (yyyy-MM-dd) triggers an on-demand live SEAP search — always complemented by a trailing-30-days scan because the anonymous search's wide-window slice is capped and unstable]
-GET  /api/v1/seap/tenders/{tenderId}
+GET  /api/v1/seap/tenders/{tenderId}           [SeapTenderDetailsDto projection — adds derived ProcedureType (SCN ⇒ „Procedură simplificată”, else „Licitare deschisă”), ProcedureState (deadline ⇒ „În desfășurare”/„Încheiată”) and per-attachment downloadUrl; the detail fields (award criterion, funding source, guarantees, qualifications, AI summary) stay null until the notice-detail parser extracts them]
 GET  /api/v1/seap/tenders/{tenderId}/pricing  [fair-pricing preview: EUR value, price, free generations]
 POST /api/v1/seap/tenders/{tenderId}/auto-bid  [body may carry progressRequestId; the SPA polls GET …/auto-bid/progress/{requestId} for real per-stage progress while the request runs]
 GET  /api/v1/seap/tenders/{tenderId}/auto-bid/progress/{requestId}  [Generating → Finalizing → Completed/Failed, reported by the pipeline]
 GET  /api/v1/seap/tenders/{tenderId}/bid-status
 GET  /api/v1/seap/tenders/{tenderId}/bid-file?kind=TechnicalProposal|BillOfQuantities  [streams the generated .docx/.xlsx; the stored local://s3:// reference is resolved server-side]
+GET  /api/v1/seap/tenders/{tenderId}/attachments/{attachmentId}  [streams one original authority file (Fișa de date, Caiet de sarcini, clarificări); the attachment must belong to the tender (IDOR guard) and the stored reference is resolved server-side]
 GET  /api/v1/seap/tender-match/availability   [SEAP Tender Match chat availability]
 POST /api/v1/seap/tender-match                [natural language → CPV prefixes + counties, one clarification at a time]
 PUT  /api/v1/seap/tender-match/profile        [persist confirmed filters on the represented company]

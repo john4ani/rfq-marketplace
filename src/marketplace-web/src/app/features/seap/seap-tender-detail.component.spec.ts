@@ -31,7 +31,12 @@ describe('SeapTenderDetailComponent', () => {
     proposalTitle: null,
     technicalProposalUrl: null,
     billOfQuantitiesUrl: null,
-    attachments: []
+    attachments: [
+      { id: 'att-1', fileName: 'Fisa de date.pdf', downloadUrl: 'api/v1/seap/tenders/t1/attachments/att-1' },
+      { id: 'att-2', fileName: 'Caiet de sarcini.zip', downloadUrl: 'api/v1/seap/tenders/t1/attachments/att-2' }
+    ],
+    procedureType: 'Procedură simplificată',
+    procedureState: 'În desfășurare'
   };
   const bidStatus = { status: 'Imported' as const, proposalTitle: null, technicalProposalUrl: null, billOfQuantitiesUrl: null };
   const pricing = { estimatedValueEur: 989_871, priceEur: 500, freeGenerationsRemaining: 1, shadowMode: true };
@@ -54,7 +59,7 @@ describe('SeapTenderDetailComponent', () => {
       imports: [SeapTenderDetailComponent],
       providers: [
         provideRouter([]),
-        { provide: ActivatedRoute, useValue: { snapshot: { paramMap: convertToParamMap({ id: 't1' }) } } },
+        { provide: ActivatedRoute, useValue: { snapshot: { paramMap: convertToParamMap({ id: 't1' }), queryParamMap: convertToParamMap({}) } } },
         { provide: ProfileService, useValue: profiles },
         { provide: CompanyVaultService, useValue: { list: vi.fn().mockReturnValue(of([usableDoc])) } },
         {
@@ -65,7 +70,8 @@ describe('SeapTenderDetailComponent', () => {
             getTenderPricing: vi.fn().mockReturnValue(of(pricing)),
             getAutoBidProgress: vi.fn().mockReturnValue(of({ stage: 'Generating' as const, message: 'Claude redactează propunerea tehnică…' })),
             startAutoBid: options.startAutoBid,
-            downloadBidFile: vi.fn()
+            downloadBidFile: vi.fn(),
+            downloadAttachment: vi.fn().mockReturnValue(of(new Blob(['pdf'])))
           }
         }
       ]
@@ -74,9 +80,10 @@ describe('SeapTenderDetailComponent', () => {
   }
 
   function clickAutoBid(fixture: ReturnType<typeof setup>): void {
-    const button = (fixture.nativeElement as HTMLElement).querySelector<HTMLButtonElement>('button');
-    expect(button).not.toBeNull();
-    button!.click();
+    const button = Array.from(fixture.nativeElement.querySelectorAll('button') as NodeListOf<HTMLButtonElement>)
+      .find(item => item.textContent?.includes('AI Auto-Bid'))!;
+    expect(button).toBeTruthy();
+    button.click();
     fixture.detectChanges();
   }
 
@@ -162,7 +169,7 @@ describe('SeapTenderDetailComponent', () => {
       imports: [SeapTenderDetailComponent],
       providers: [
         provideRouter([]),
-        { provide: ActivatedRoute, useValue: { snapshot: { paramMap: convertToParamMap({ id: 't1' }) } } },
+        { provide: ActivatedRoute, useValue: { snapshot: { paramMap: convertToParamMap({ id: 't1' }), queryParamMap: convertToParamMap({}) } } },
         { provide: ProfileService, useValue: profiles },
         { provide: CompanyVaultService, useValue: { list: vi.fn().mockReturnValue(of([])) } },
         {
@@ -234,7 +241,7 @@ describe('SeapTenderDetailComponent', () => {
       imports: [SeapTenderDetailComponent],
       providers: [
         provideRouter([]),
-        { provide: ActivatedRoute, useValue: { snapshot: { paramMap: convertToParamMap({ id: 't1' }) } } },
+        { provide: ActivatedRoute, useValue: { snapshot: { paramMap: convertToParamMap({ id: 't1' }), queryParamMap: convertToParamMap({}) } } },
         { provide: ProfileService, useValue: profiles },
         { provide: CompanyVaultService, useValue: { list: vi.fn().mockReturnValue(throwError(() => new Error('offline'))) } },
         {
@@ -256,5 +263,152 @@ describe('SeapTenderDetailComponent', () => {
 
     expect(startAutoBid).toHaveBeenCalledWith('t1', 'req-progress');
     expect((fixture.nativeElement as HTMLElement).textContent ?? '').not.toContain('Pentru a asigura că ofertarea');
+  });
+
+  it('opens on the „Sinteză & Ofertare AI" tab by default with the orientative AI summary and the status card', () => {
+    const fixture = setup({ startAutoBid: vi.fn() });
+    fixture.detectChanges();
+
+    const text = (fixture.nativeElement as HTMLElement).textContent ?? '';
+    expect(text).toContain('Sinteză AI');
+    expect(text).toContain('Garanția de participare');
+    expect(text).toContain('Orientativ');
+    expect(text).toContain('AI Auto-Bid · gratuit');
+    // The header keeps the existing cards and adds the derived procedure state.
+    expect(text).toContain('Stare procedură');
+    expect(text).toContain('În desfășurare');
+
+    const activeTabs = (fixture.nativeElement as HTMLElement).querySelectorAll<HTMLButtonElement>('button[role="tab"][aria-selected="true"]');
+    expect(activeTabs.length).toBe(1);
+    expect(activeTabs[0].textContent).toContain('Sinteză & Ofertare AI');
+    // The visual highlight must be present: the buttons carry the "tab" class and the selected one adds
+    // .active / aria-selected=true, so the forest-pill CSS (.tab.active, .tab[aria-selected="true"]) matches.
+    expect(activeTabs[0].classList.contains('tab')).toBe(true);
+    expect(activeTabs[0].classList.contains('active')).toBe(true);
+    const selectedByStyle = (fixture.nativeElement as HTMLElement).querySelectorAll<HTMLButtonElement>('button.tab.active, button.tab[aria-selected="true"]');
+    expect(selectedByStyle.length).toBe(1);
+  });
+
+  it('switches to „Detalii Achiziție" and shows the detail rows with elegant placeholders', () => {
+    const fixture = setup({ startAutoBid: vi.fn() });
+    fixture.detectChanges();
+
+    const tab = Array.from(fixture.nativeElement.querySelectorAll('button[role="tab"]') as NodeListOf<HTMLButtonElement>)
+      .find(button => button.textContent?.includes('Detalii Achiziție'))!;
+    tab.click();
+    fixture.detectChanges();
+
+    const text = (fixture.nativeElement as HTMLElement).textContent ?? '';
+    expect(text).toContain('Criteriul de atribuire');
+    expect(text).toContain('Prețul cel mai scăzut');
+    expect(text).toContain('Tipul procedurii');
+    expect(text).toContain('Procedură simplificată');
+    expect(text).toContain('Sursa de finanțare');
+    expect(text).toContain('Durata contractului');
+    // The summary tab content is no longer rendered.
+    expect(text).not.toContain('Sinteză AI');
+  });
+
+  it('opens directly on a tab from the shareable ?tab= query parameter', () => {
+    TestBed.configureTestingModule({
+      imports: [SeapTenderDetailComponent],
+      providers: [
+        provideRouter([]),
+        { provide: ActivatedRoute, useValue: { snapshot: { paramMap: convertToParamMap({ id: 't1' }), queryParamMap: convertToParamMap({ tab: 'details' }) } } },
+        { provide: ProfileService, useValue: profiles },
+        { provide: CompanyVaultService, useValue: { list: vi.fn().mockReturnValue(of([usableDoc])) } },
+        {
+          provide: SeapService,
+          useValue: {
+            getTender: vi.fn().mockReturnValue(of(tender)),
+            getBidStatus: vi.fn().mockReturnValue(of(bidStatus)),
+            getTenderPricing: vi.fn().mockReturnValue(of(pricing)),
+            getAutoBidProgress: vi.fn(),
+            startAutoBid: vi.fn(),
+            downloadBidFile: vi.fn(),
+            downloadAttachment: vi.fn()
+          }
+        }
+      ]
+    });
+    const fixture = TestBed.createComponent(SeapTenderDetailComponent);
+    fixture.detectChanges();
+
+    const text = (fixture.nativeElement as HTMLElement).textContent ?? '';
+    expect(text).toContain('Criteriul de atribuire');
+    expect(text).not.toContain('Sinteză AI');
+  });
+
+  it('shows the qualification tab with placeholders until the parser extracts them', () => {
+    const fixture = setup({ startAutoBid: vi.fn() });
+    fixture.detectChanges();
+
+    const tab = Array.from(fixture.nativeElement.querySelectorAll('button[role="tab"]') as NodeListOf<HTMLButtonElement>)
+      .find(button => button.textContent?.includes('Condiții de Calificare'))!;
+    tab.click();
+    fixture.detectChanges();
+
+    const text = (fixture.nativeElement as HTMLElement).textContent ?? '';
+    expect(text).toContain('Cuantumul garanției de participare');
+    expect(text).toContain('Capacitate tehnică / profesională');
+    expect(text).toContain('Personal solicitat');
+    expect(text).toContain('Certificate și standarde (ISO)');
+  });
+
+  it('lists the original documents and downloads one through the authenticated API', () => {
+    Object.defineProperty(URL, 'createObjectURL', { value: vi.fn(() => 'blob:mock'), configurable: true });
+    Object.defineProperty(URL, 'revokeObjectURL', { value: vi.fn(), configurable: true });
+    const fixture = setup({ startAutoBid: vi.fn() });
+    fixture.detectChanges();
+
+    const tab = Array.from(fixture.nativeElement.querySelectorAll('button[role="tab"]') as NodeListOf<HTMLButtonElement>)
+      .find(button => button.textContent?.includes('Documente Originale'))!;
+    tab.click();
+    fixture.detectChanges();
+
+    const text = (fixture.nativeElement as HTMLElement).textContent ?? '';
+    expect(text).toContain('Fisa de date.pdf');
+    expect(text).toContain('Caiet de sarcini.zip');
+
+    const downloadButton = Array.from(fixture.nativeElement.querySelectorAll('button') as NodeListOf<HTMLButtonElement>)
+      .find(button => button.textContent?.includes('Descarcă'))!;
+    downloadButton.click();
+    fixture.detectChanges();
+
+    expect(TestBed.inject(SeapService).downloadAttachment).toHaveBeenCalledWith('t1', 'att-1');
+  });
+
+  it('shows an empty state on the documents tab when the authority published no files', () => {
+    const tenderWithoutAttachments: SeapTender = { ...tender, attachments: [] };
+    TestBed.configureTestingModule({
+      imports: [SeapTenderDetailComponent],
+      providers: [
+        provideRouter([]),
+        { provide: ActivatedRoute, useValue: { snapshot: { paramMap: convertToParamMap({ id: 't1' }), queryParamMap: convertToParamMap({}) } } },
+        { provide: ProfileService, useValue: profiles },
+        { provide: CompanyVaultService, useValue: { list: vi.fn().mockReturnValue(of([usableDoc])) } },
+        {
+          provide: SeapService,
+          useValue: {
+            getTender: vi.fn().mockReturnValue(of(tenderWithoutAttachments)),
+            getBidStatus: vi.fn().mockReturnValue(of(bidStatus)),
+            getTenderPricing: vi.fn().mockReturnValue(of(pricing)),
+            getAutoBidProgress: vi.fn(),
+            startAutoBid: vi.fn(),
+            downloadBidFile: vi.fn(),
+            downloadAttachment: vi.fn()
+          }
+        }
+      ]
+    });
+    const fixture = TestBed.createComponent(SeapTenderDetailComponent);
+    fixture.detectChanges();
+
+    const tab = Array.from(fixture.nativeElement.querySelectorAll('button[role="tab"]') as NodeListOf<HTMLButtonElement>)
+      .find(button => button.textContent?.includes('Documente Originale'))!;
+    tab.click();
+    fixture.detectChanges();
+
+    expect((fixture.nativeElement as HTMLElement).textContent ?? '').toContain('Niciun document atașat încă');
   });
 });
