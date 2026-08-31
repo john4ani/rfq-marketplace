@@ -655,6 +655,147 @@ namespace Marketplace.Infrastructure.Persistence.Migrations
                     b.ToTable("SupplierProfiles", (string)null);
                 });
 
+            modelBuilder.Entity("Marketplace.Domain.Qualification.CompanyCertificate", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("CertificateType")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)");
+
+                    b.Property<string>("Issuer")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<string>("SerialNumber")
+                        .HasMaxLength(120)
+                        .HasColumnType("character varying(120)");
+
+                    b.Property<Guid>("SupplierId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateOnly?>("ValidUntil")
+                        .HasColumnType("date");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("SupplierId", "ValidUntil");
+
+                    b.ToTable("CompanyCertificates", (string)null);
+                });
+
+            modelBuilder.Entity("Marketplace.Domain.Qualification.CompanyExperience", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("ClientName")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<DateOnly?>("CompletionDate")
+                        .HasColumnType("date");
+
+                    b.Property<string>("ContractNumberDate")
+                        .HasMaxLength(120)
+                        .HasColumnType("character varying(120)");
+
+                    b.Property<string>("ContractTitle")
+                        .IsRequired()
+                        .HasMaxLength(300)
+                        .HasColumnType("character varying(300)");
+
+                    b.Property<string>("CpvCode")
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)");
+
+                    b.Property<string>("DocumentRefUrl")
+                        .HasMaxLength(1024)
+                        .HasColumnType("character varying(1024)");
+
+                    b.Property<Guid>("SupplierId")
+                        .HasColumnType("uuid");
+
+                    b.Property<decimal?>("ValueAmount")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)");
+
+                    b.Property<string>("ValueCurrency")
+                        .HasMaxLength(3)
+                        .HasColumnType("character varying(3)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("SupplierId", "CompletionDate");
+
+                    b.ToTable("CompanyExperiences", (string)null);
+                });
+
+            modelBuilder.Entity("Marketplace.Domain.Qualification.CompanyLegalProfile", b =>
+                {
+                    b.Property<Guid>("SupplierId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("LegalForm")
+                        .HasMaxLength(80)
+                        .HasColumnType("character varying(80)");
+
+                    b.Property<string>("LegalRepresentativeName")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<string>("LegalRepresentativeRole")
+                        .HasMaxLength(120)
+                        .HasColumnType("character varying(120)");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("SupplierId");
+
+                    b.ToTable("CompanyLegalProfiles", (string)null);
+                });
+
+            modelBuilder.Entity("Marketplace.Domain.Qualification.CompanyPersonnel", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("CvUrl")
+                        .HasMaxLength(1024)
+                        .HasColumnType("character varying(1024)");
+
+                    b.Property<string>("FullName")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.PrimitiveCollection<string[]>("ProfessionalCertificates")
+                        .IsRequired()
+                        .HasColumnType("text[]");
+
+                    b.Property<string>("Role")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<Guid>("SupplierId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("SupplierId");
+
+                    b.ToTable("CompanyPersonnel", (string)null);
+                });
+
             modelBuilder.Entity("Marketplace.Domain.Rfqs.NeedCategory", b =>
                 {
                     b.Property<Guid>("Id")
@@ -2564,6 +2705,78 @@ namespace Marketplace.Infrastructure.Persistence.Migrations
                         .IsRequired();
                 });
 
+            modelBuilder.Entity("Marketplace.Domain.Qualification.CompanyCertificate", b =>
+                {
+                    b.HasOne("Marketplace.Domain.Profiles.SupplierProfile", null)
+                        .WithMany("Certificates")
+                        .HasForeignKey("SupplierId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Marketplace.Domain.Qualification.CompanyExperience", b =>
+                {
+                    b.HasOne("Marketplace.Domain.Profiles.SupplierProfile", null)
+                        .WithMany("Experience")
+                        .HasForeignKey("SupplierId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Marketplace.Domain.Qualification.CompanyLegalProfile", b =>
+                {
+                    b.HasOne("Marketplace.Domain.Profiles.SupplierProfile", null)
+                        .WithOne("LegalProfile")
+                        .HasForeignKey("Marketplace.Domain.Qualification.CompanyLegalProfile", "SupplierId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.OwnsMany("Marketplace.Domain.Qualification.BankAccount", "BankAccounts", b1 =>
+                        {
+                            b1.Property<Guid>("CompanyLegalProfileSupplierId")
+                                .HasColumnType("uuid");
+
+                            b1.Property<int>("Id")
+                                .ValueGeneratedOnAdd()
+                                .HasColumnType("integer");
+
+                            NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b1.Property<int>("Id"));
+
+                            b1.Property<string>("BankName")
+                                .IsRequired()
+                                .HasMaxLength(160)
+                                .HasColumnType("character varying(160)");
+
+                            b1.Property<string>("Currency")
+                                .IsRequired()
+                                .HasMaxLength(3)
+                                .HasColumnType("character varying(3)");
+
+                            b1.Property<string>("Iban")
+                                .IsRequired()
+                                .HasMaxLength(34)
+                                .HasColumnType("character varying(34)");
+
+                            b1.HasKey("CompanyLegalProfileSupplierId", "Id");
+
+                            b1.ToTable("CompanyLegalProfiles_BankAccounts", (string)null);
+
+                            b1.WithOwner()
+                                .HasForeignKey("CompanyLegalProfileSupplierId");
+                        });
+
+                    b.Navigation("BankAccounts");
+                });
+
+            modelBuilder.Entity("Marketplace.Domain.Qualification.CompanyPersonnel", b =>
+                {
+                    b.HasOne("Marketplace.Domain.Profiles.SupplierProfile", null)
+                        .WithMany("Personnel")
+                        .HasForeignKey("SupplierId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("Marketplace.Domain.Rfqs.NeedCategory", b =>
                 {
                     b.HasOne("Marketplace.Domain.Suppliers.Category", null)
@@ -3006,6 +3219,17 @@ namespace Marketplace.Infrastructure.Persistence.Migrations
             modelBuilder.Entity("Marketplace.Domain.Offers.Offer", b =>
                 {
                     b.Navigation("Items");
+                });
+
+            modelBuilder.Entity("Marketplace.Domain.Profiles.SupplierProfile", b =>
+                {
+                    b.Navigation("Certificates");
+
+                    b.Navigation("Experience");
+
+                    b.Navigation("LegalProfile");
+
+                    b.Navigation("Personnel");
                 });
 
             modelBuilder.Entity("Marketplace.Domain.Rfqs.ProjectTemplate", b =>

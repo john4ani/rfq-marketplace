@@ -12,6 +12,7 @@ using Marketplace.Domain.Trust;
 using Marketplace.Domain.Operations;
 using Marketplace.Domain.Seap;
 using Marketplace.Domain.Vault;
+using Marketplace.Domain.Qualification;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
@@ -26,6 +27,10 @@ public sealed class MarketplaceDbContext(DbContextOptions<MarketplaceDbContext> 
     public DbSet<BuyerProfile> BuyerProfiles => Set<BuyerProfile>();
     public DbSet<SupplierProfile> SupplierProfiles => Set<SupplierProfile>();
     public DbSet<CompanyMembership> CompanyMemberships => Set<CompanyMembership>();
+    public DbSet<CompanyLegalProfile> CompanyLegalProfiles => Set<CompanyLegalProfile>();
+    public DbSet<CompanyExperience> CompanyExperiences => Set<CompanyExperience>();
+    public DbSet<CompanyCertificate> CompanyCertificates => Set<CompanyCertificate>();
+    public DbSet<CompanyPersonnel> CompanyPersonnel => Set<CompanyPersonnel>();
     public DbSet<Category> Categories => Set<Category>();
     public DbSet<Vertical> Verticals => Set<Vertical>();
     public DbSet<SupplierCategory> SupplierCategories => Set<SupplierCategory>();

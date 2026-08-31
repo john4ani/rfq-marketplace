@@ -5,10 +5,11 @@ import { CompanyRegistryService } from '../../core/companies/company-registry.se
 import { ProfileService, SupplierProfile } from '../../core/profiles/profile.service';
 import { SupplierSettingsComponent } from './supplier-settings.component';
 import { CompanyVaultComponent } from './company-vault.component';
+import { CompanyQualificationComponent } from './company-qualification.component';
 
 @Component({
   selector: 'app-company-details',
-  imports: [RouterLink, SupplierSettingsComponent, CompanyVaultComponent],
+  imports: [RouterLink, SupplierSettingsComponent, CompanyVaultComponent, CompanyQualificationComponent],
   template: `<section class="account-shell"><a class="back" routerLink="/account">← Înapoi la cont</a>
     @if (loading()) { <p role="status">Se încarcă firma…</p> }
     @else if (company()) { <header><p class="eyebrow">Firmă reprezentată</p><h1>{{ company()!.tradingName }}</h1><p>{{ company()!.description || 'Detaliile acestei firme sunt disponibile pentru contextul tău de reprezentare.' }}</p></header>
@@ -26,6 +27,7 @@ import { CompanyVaultComponent } from './company-vault.component';
       }
       <app-supplier-settings [companyId]="company()!.id" />
       <app-company-vault [companyId]="company()!.id" />
+      <app-company-qualification [companyId]="company()!.id" />
       <p class="account-note">Setările și oportunitățile firmei rămân în fluxurile dedicate de furnizor. Nu schimbă modul în care folosești contul personal.</p>
     } @else { <div class="profile-load-error" role="alert"><p>Firma nu este disponibilă pentru contul tău.</p><a routerLink="/account">Înapoi la cont</a></div> }
   </section>`,

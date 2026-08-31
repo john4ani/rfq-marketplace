@@ -208,7 +208,7 @@ classDiagram
 | `ApplicationUser` | Refresh-token families | Email uniqueness; token rotation and revocation |
 | `UserPresence` | Last activity heartbeat | One record per user; online status expires after two minutes |
 | `BuyerProfile` | Buyer profile fields and market radius | One profile per user; radius is 1–1,000 km and defaults to 30 km |
-| `SupplierProfile` | Categories, delivery areas, preferences | Approved and active to participate; valid radii |
+| `SupplierProfile` | Categories, delivery areas, preferences, SEAP filters (CPV prefixes + counties), and the Company qualification vault (legal record, experience portfolio, certificates, key experts) | Approved and active to participate; valid radii; qualification collections optional and empty by default |
 | `Vertical` | Market boundary and active state | Construction is the only active MVP vertical |
 | `Category` | Central category identity, vertical, and optional parent link | One taxonomy is reused by needs, Providers, templates, and discovery; unique slug; no parent cycle |
 | `Rfq` / `ProcurementNeed` | Need type, exactly one primary `NeedCategory`, optional requirement lines, optional project template, and supplier-search radius | Need type never controls category; requirement lines have no category association; publication requires a future deadline; published needs are immutable |

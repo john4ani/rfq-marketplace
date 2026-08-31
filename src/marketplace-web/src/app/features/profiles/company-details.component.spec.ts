@@ -7,6 +7,7 @@ import { ActivatedRoute } from '@angular/router';
 import { AuthService } from '../../core/auth/auth.service';
 import { CompanyRegistryService } from '../../core/companies/company-registry.service';
 import { CompanyVaultService } from '../../core/companies/company-vault.service';
+import { CompanyQualificationService } from '../../core/companies/company-qualification.service';
 import { FeaturesService } from '../../core/features/features.service';
 import { ProfileService, SupplierProfile } from '../../core/profiles/profile.service';
 import { SeapService } from '../../core/seap/seap.service';
@@ -36,6 +37,7 @@ describe('CompanyDetailsComponent', () => {
           getDeliverySettings: () => of({ normalDeliveryRadiusKm: 30, maximumDeliveryRadiusKm: 30, minimumOrderValue: null, nationwideDelivery: false, counties: [] })
         } },
         { provide: CompanyVaultService, useValue: { list: () => of([]) } },
+        { provide: CompanyQualificationService, useValue: { get: () => of({ legal: null, experience: [], certificates: [], personnel: [] }) } },
         // SEAP-first MVP: the marketplace is hidden, so Firma shows only the SEAP niche + interest radius.
         { provide: FeaturesService, useValue: { marketplaceEnabled: computed(() => false) } },
         { provide: SeapService, useValue: { saveMatchProfile: vi.fn().mockReturnValue(of({ companyId: 'company-1', cpvPrefixes: [], counties: [] })) } }
@@ -96,6 +98,7 @@ describe('CompanyDetailsComponent', () => {
           getDeliverySettings: () => of({ normalDeliveryRadiusKm: 30, maximumDeliveryRadiusKm: 30, minimumOrderValue: null, nationwideDelivery: false, counties: [] })
         } },
         { provide: CompanyVaultService, useValue: { list: () => of([]) } },
+        { provide: CompanyQualificationService, useValue: { get: () => of({ legal: null, experience: [], certificates: [], personnel: [] }) } },
         { provide: FeaturesService, useValue: { marketplaceEnabled: computed(() => false) } },
         { provide: SeapService, useValue: { saveMatchProfile } }
       ]
@@ -144,6 +147,7 @@ describe('CompanyDetailsComponent', () => {
           getDeliverySettings: () => of({ normalDeliveryRadiusKm: 30, maximumDeliveryRadiusKm: 30, minimumOrderValue: null, nationwideDelivery: false, counties: [] })
         } },
         { provide: CompanyVaultService, useValue: { list: () => of([]) } },
+        { provide: CompanyQualificationService, useValue: { get: () => of({ legal: null, experience: [], certificates: [], personnel: [] }) } },
         { provide: FeaturesService, useValue: { marketplaceEnabled: computed(() => false) } },
         { provide: SeapService, useValue: { saveMatchProfile: vi.fn() } }
       ]

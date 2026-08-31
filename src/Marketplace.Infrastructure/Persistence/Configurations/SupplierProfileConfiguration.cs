@@ -1,4 +1,5 @@
 using Marketplace.Domain.Profiles;
+using Marketplace.Domain.Qualification;
 using Marketplace.Infrastructure.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
@@ -29,5 +30,13 @@ public sealed class SupplierProfileConfiguration : IEntityTypeConfiguration<Supp
         builder.Property(profile => profile.SeapCpvPrefixes).HasColumnType("text[]");
         builder.Property(profile => profile.SeapCounties).HasColumnType("text[]");
         builder.HasOne<ApplicationUser>().WithOne().HasForeignKey<SupplierProfile>(profile => profile.Id).OnDelete(DeleteBehavior.Cascade);
+        builder.HasOne(profile => profile.LegalProfile).WithOne().HasForeignKey<CompanyLegalProfile>(item => item.SupplierId).OnDelete(DeleteBehavior.Cascade);
+        builder.HasMany(profile => profile.Experience).WithOne().HasForeignKey(item => item.SupplierId).OnDelete(DeleteBehavior.Cascade);
+        builder.HasMany(profile => profile.Certificates).WithOne().HasForeignKey(item => item.SupplierId).OnDelete(DeleteBehavior.Cascade);
+        builder.HasMany(profile => profile.Personnel).WithOne().HasForeignKey(item => item.SupplierId).OnDelete(DeleteBehavior.Cascade);
+        builder.Navigation(profile => profile.LegalProfile).UsePropertyAccessMode(PropertyAccessMode.Field);
+        builder.Navigation(profile => profile.Experience).UsePropertyAccessMode(PropertyAccessMode.Field);
+        builder.Navigation(profile => profile.Certificates).UsePropertyAccessMode(PropertyAccessMode.Field);
+        builder.Navigation(profile => profile.Personnel).UsePropertyAccessMode(PropertyAccessMode.Field);
     }
 }

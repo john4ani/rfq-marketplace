@@ -1,5 +1,7 @@
 namespace Marketplace.Domain.Profiles;
 
+using Marketplace.Domain.Qualification;
+
 public enum SupplierApprovalStatus { Pending, Approved, Suspended }
 
 public sealed class SupplierProfile
@@ -31,6 +33,18 @@ public sealed class SupplierProfile
     public bool IsActive { get; private set; }
     public DateTimeOffset CreatedAt { get; private set; }
     public DateTimeOffset UpdatedAt { get; private set; }
+
+    /// <summary>Legal/administrative qualification data (1-to-0..1); null until the company saves it.</summary>
+    public CompanyLegalProfile? LegalProfile { get; private set; }
+    private readonly List<CompanyExperience> _experience = [];
+    private readonly List<CompanyCertificate> _certificates = [];
+    private readonly List<CompanyPersonnel> _personnel = [];
+    /// <summary>Previous contracts proving similar experience; empty until added.</summary>
+    public IReadOnlyCollection<CompanyExperience> Experience => _experience;
+    /// <summary>Certificates / authorizations (ISO, ANRE, CNSAS, …); empty until added.</summary>
+    public IReadOnlyCollection<CompanyCertificate> Certificates => _certificates;
+    /// <summary>Key experts (Inginer RTE, Diriginte de Șantier, Arhitect, …); empty until added.</summary>
+    public IReadOnlyCollection<CompanyPersonnel> Personnel => _personnel;
 
     public GeographicLocation Location => new(Address, City, County, Country, Latitude, Longitude);
 
@@ -71,6 +85,96 @@ public sealed class SupplierProfile
     {
         IsActive = active;
         UpdatedAt = now;
+    }
+
+    /// <summary>Upserts the company's legal/administrative qualification record (replaces the IBAN list).</summary>
+    public CompanyLegalProfile SetLegalProfile(
+        string representativeName, string? representativeRole, string? legalForm,
+        IReadOnlyCollection<BankAccount> bankAccounts, DateTimeOffset now)
+    {
+        if (LegalProfile is null)
+            LegalProfile = CompanyLegalProfile.Create(Id, representativeName, representativeRole, legalForm, bankAccounts, now);
+        else
+            LegalProfile.Update(representativeName, representativeRole, legalForm, bankAccounts, now);
+        UpdatedAt = now;
+        return LegalProfile;
+    }
+
+    public CompanyExperience AddExperience(
+        string clientName, string contractTitle, string? contractNumberDate, decimal? valueAmount,
+        string? valueCurrency, string? cpvCode, DateOnly? completionDate, string? documentRefUrl, DateTimeOffset now)
+    {
+        CompanyExperience experience = CompanyExperience.Create(
+            Id, clientName, contractTitle, contractNumberDate, valueAmount, valueCurrency, cpvCode, completionDate, documentRefUrl);
+        _experience.Add(experience);
+        UpdatedAt = now;
+        return experience;
+    }
+
+    public bool UpdateExperience(
+        Guid experienceId, string clientName, string contractTitle, string? contractNumberDate,
+        decimal? valueAmount, string? valueCurrency, string? cpvCode, DateOnly? completionDate, string? documentRefUrl, DateTimeOffset now)
+    {
+        CompanyExperience? item = _experience.SingleOrDefault(entry => entry.Id == experienceId);
+        if (item is null) return false;
+        item.Update(clientName, contractTitle, contractNumberDate, valueAmount, valueCurrency, cpvCode, completionDate, documentRefUrl);
+        UpdatedAt = now;
+        return true;
+    }
+
+    public bool RemoveExperience(Guid experienceId, DateTimeOffset now)
+    {
+        bool removed = _experience.RemoveAll(entry => entry.Id == experienceId) > 0;
+        if (removed) UpdatedAt = now;
+        return removed;
+    }
+
+    public CompanyCertificate AddCertificate(CompanyCertificateType certificateType, string? serialNumber, string? issuer, DateOnly? validUntil, DateTimeOffset now)
+    {
+        CompanyCertificate certificate = CompanyCertificate.Create(Id, certificateType, serialNumber, issuer, validUntil);
+        _certificates.Add(certificate);
+        UpdatedAt = now;
+        return certificate;
+    }
+
+    public bool UpdateCertificate(Guid certificateId, CompanyCertificateType certificateType, string? serialNumber, string? issuer, DateOnly? validUntil, DateTimeOffset now)
+    {
+        CompanyCertificate? item = _certificates.SingleOrDefault(entry => entry.Id == certificateId);
+        if (item is null) return false;
+        item.Update(certificateType, serialNumber, issuer, validUntil);
+        UpdatedAt = now;
+        return true;
+    }
+
+    public bool RemoveCertificate(Guid certificateId, DateTimeOffset now)
+    {
+        bool removed = _certificates.RemoveAll(entry => entry.Id == certificateId) > 0;
+        if (removed) UpdatedAt = now;
+        return removed;
+    }
+
+    public CompanyPersonnel AddPersonnel(string fullName, string role, IReadOnlyCollection<string> professionalCertificates, string? cvUrl, DateTimeOffset now)
+    {
+        CompanyPersonnel personnel = CompanyPersonnel.Create(Id, fullName, role, professionalCertificates, cvUrl);
+        _personnel.Add(personnel);
+        UpdatedAt = now;
+        return personnel;
+    }
+
+    public bool UpdatePersonnel(Guid personnelId, string fullName, string role, IReadOnlyCollection<string> professionalCertificates, string? cvUrl, DateTimeOffset now)
+    {
+        CompanyPersonnel? item = _personnel.SingleOrDefault(entry => entry.Id == personnelId);
+        if (item is null) return false;
+        item.Update(fullName, role, professionalCertificates, cvUrl);
+        UpdatedAt = now;
+        return true;
+    }
+
+    public bool RemovePersonnel(Guid personnelId, DateTimeOffset now)
+    {
+        bool removed = _personnel.RemoveAll(entry => entry.Id == personnelId) > 0;
+        if (removed) UpdatedAt = now;
+        return removed;
     }
 
     private static void ValidateRadius(int radiusKm)

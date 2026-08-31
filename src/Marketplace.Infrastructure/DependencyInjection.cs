@@ -199,6 +199,7 @@ public static class DependencyInjection
         services.Configure<StripeOptions>(configuration.GetSection(StripeOptions.SectionName));
         services.AddScoped<IStripeGateway, StripeGateway>();
         services.AddScoped<ICompanyVaultService, CompanyVaultService>();
+        services.AddScoped<ICompanyQualificationService, CompanyQualificationService>();
         services.AddScoped<IAutoBiddingService, AutoBiddingService>();
         services.AddSingleton<IPipelineProgressStore, PipelineProgressStore>();
         return services;

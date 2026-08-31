@@ -197,8 +197,21 @@ PUT  /api/v1/seap/tender-match/profile        [persist confirmed filters on the 
 POST /api/v1/webhooks/stripe            [AllowAnonymous, signature-verified]
 GET  /api/v1/companies/{companyId}/vault
 POST /api/v1/companies/{companyId}/vault/documents   [multipart PDF]
+GET  /api/v1/companies/{companyId}/qualification   [SEAP qualification vault — legal data, portfolio, certificates, key experts]
+PUT  /api/v1/companies/{companyId}/qualification/legal   [upsert legal representative / legal form / IBAN accounts; replaces the bank-account list]
+POST /api/v1/companies/{companyId}/qualification/experience   [add a previous contract to the portfolio]
+PUT  /api/v1/companies/{companyId}/qualification/experience/{experienceId}
+DELETE /api/v1/companies/{companyId}/qualification/experience/{experienceId}
+POST /api/v1/companies/{companyId}/qualification/certificates   [add a certificate / authorization (ISO, ANRE, CNSAS, …)]
+PUT  /api/v1/companies/{companyId}/qualification/certificates/{certificateId}
+DELETE /api/v1/companies/{companyId}/qualification/certificates/{certificateId}
+POST /api/v1/companies/{companyId}/qualification/personnel   [add a key expert (Inginer RTE, Diriginte de Șantier, …)]
+PUT  /api/v1/companies/{companyId}/qualification/personnel/{personnelId}
+DELETE /api/v1/companies/{companyId}/qualification/personnel/{personnelId}
 ```
 
 Auto-bid failures are returned as RFC-7807 `ProblemDetails` with a user-facing Romanian `detail` (e.g. 422 „Răspunsul LLM a fost trunchiat (JSON incomplet)…”, 502 „Modelul nu a returnat un răspuns text…”, 503 „Serviciul Claude este temporar indisponibil…” or the one-hour circuit-breaker message). The tender-detail SPA surfaces that `detail` verbatim and falls back to a generic message only when the API provides none.
 
 SEAP tenders are a distinct aggregate (SeapTender); they are public opportunities, not CompaSpot buyer needs, and the buying institution is not an ApplicationUser. auto-bid prices dynamically with the **fair-pricing EUR tiers** (25/75/300/500/1000 € up to 1M€, then 2000 € per 5M€ band from 5M€ to 10M€, 3000–10000 € for the 10M€–50M€ bands, and 20000 € above 50M€, converted from the RON estimated value with `AutoBidding:RonToEurRate`) via a Stripe Checkout session with PriceData, **except the first generation per account which is free** (`ApplicationUser.FreeGenerationsRemaining`); bid-status is polled after checkout completes. The launch offer is consumed in Shadow Mode too (the Staging/Prod rehearsal still decrements the counter, so the pricing preview reflects the real remaining entitlement), and an Administrator can re-grant one free generation through `POST /api/v1/admin/companies/registered/{companyId}/free-generation` from the company details. In Shadow Mode the SPA labels every generation as free (test mode) and shows the go-live price only as information, because no Stripe charge is created during rehearsal. The webhook verifies the Stripe-Signature header before triggering generation. Vault uploads accept a PDF; OCR (Azure Document Intelligence) and embeddings (OpenAI) run only when configured, and the document stays indexed-less otherwise. `GET /api/v1/features` exposes `marketplaceEnabled` (default false) so the SPA hides every marketplace surface except Anunțuri SEAP and Admin.
+
+The **Company qualification vault** (`/qualification`) is an additive extension of the `SupplierProfile` aggregate: legal/administrative data (`CompanyLegalProfile` — legal representative, legal form, IBAN accounts), similar-experience portfolio (`CompanyExperience`), certificates/authorizations (`CompanyCertificate`, enum `CertificateType` persisted as string), and key experts (`CompanyPersonnel`, `ProfessionalCertificates` as `text[]`). CUI, RegCom and the registered address stay on `SupplierProfile` as the single source of truth — the read DTO composes them. All collections are optional and empty by default, so existing B2B companies are unaffected. Every endpoint is guarded by `CanRepresentCompany` (404 on no representation, no existence leak) and feeds the auto-bid proposal generation with real company capability data.
