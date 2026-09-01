@@ -4,7 +4,7 @@ using Microsoft.AspNetCore.Mvc.Testing;
 namespace Marketplace.IntegrationTests;
 
 [Collection(IntegrationTestGroup.Name)]
-public sealed class HealthEndpointTests : IClassFixture<MarketplaceWebApplicationFactory>
+public sealed class HealthEndpointTests : IntegrationTestBase, IClassFixture<MarketplaceWebApplicationFactory>
 {
     private readonly HttpClient _client;
 

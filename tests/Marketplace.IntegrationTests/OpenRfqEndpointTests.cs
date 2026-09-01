@@ -7,7 +7,7 @@ using Microsoft.AspNetCore.Mvc.Testing;
 namespace Marketplace.IntegrationTests;
 
 [Collection(IntegrationTestGroup.Name)]
-public sealed class OpenRfqEndpointTests : IClassFixture<MarketplaceWebApplicationFactory>
+public sealed class OpenRfqEndpointTests : IntegrationTestBase, IClassFixture<MarketplaceWebApplicationFactory>
 {
     private static readonly string[] IasiCounty = ["Iași"];
     private static readonly JsonSerializerOptions WebJson = new(JsonSerializerDefaults.Web);

@@ -12,7 +12,7 @@ namespace Marketplace.IntegrationTests;
 // resolved to Guid.Empty for every authenticated request and made every vault endpoint return 404.
 // The controller now reads both claim names (the same dual fallback ProfilesController uses).
 [Collection(IntegrationTestGroup.Name)]
-public sealed class CompanyVaultAuthorizationEndpointTests : IClassFixture<MarketplaceWebApplicationFactory>
+public sealed class CompanyVaultAuthorizationEndpointTests : IntegrationTestBase, IClassFixture<MarketplaceWebApplicationFactory>
 {
     private readonly MarketplaceWebApplicationFactory factory;
     public CompanyVaultAuthorizationEndpointTests(MarketplaceWebApplicationFactory factory) => this.factory = factory;

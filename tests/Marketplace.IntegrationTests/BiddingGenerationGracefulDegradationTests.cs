@@ -11,31 +11,19 @@ using Marketplace.Infrastructure.Storage;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
-using Testcontainers.PostgreSql;
 
 namespace Marketplace.IntegrationTests;
 
 // Regression: auto-bid generation must degrade gracefully when embeddings are not configured
 // (missing OpenAI key), generating the proposal from the LLM without CompanyVault RAG context
 // instead of failing the request with a 500.
-public sealed class BiddingGenerationGracefulDegradationTests
+[Collection(IntegrationTestGroup.Name)]
+public sealed class BiddingGenerationGracefulDegradationTests : IntegrationTestBase
 {
     [Fact]
     public async Task GenerateForTenderSucceedsWithoutEmbeddingsWhenTheyAreUnavailable()
     {
-        await using PostgreSqlContainer postgres = new PostgreSqlBuilder("pgvector/pgvector:pg17")
-            .WithDatabase("marketplace_bidding_degrade_test")
-            .Build();
-        await postgres.StartAsync();
-
-        DbContextOptions<MarketplaceDbContext> options = new DbContextOptionsBuilder<MarketplaceDbContext>()
-            .UseNpgsql(postgres.GetConnectionString(), npgsql =>
-            {
-                npgsql.EnableRetryOnFailure(5, TimeSpan.FromSeconds(5), null);
-                npgsql.MigrationsAssembly(typeof(MarketplaceDbContext).Assembly.FullName);
-                npgsql.UseVector();
-            })
-            .Options;
+        DbContextOptions<MarketplaceDbContext> options = TestDatabase.CreateOptions();
         await using MarketplaceDbContext db = new(options);
         await db.Database.MigrateAsync();
 
@@ -70,19 +58,7 @@ public sealed class BiddingGenerationGracefulDegradationTests
     [Fact]
     public async Task ListTendersFiltersBySelectedCategoryCpvPrefixes()
     {
-        await using PostgreSqlContainer postgres = new PostgreSqlBuilder("pgvector/pgvector:pg17")
-            .WithDatabase("marketplace_seap_filter_test")
-            .Build();
-        await postgres.StartAsync();
-
-        DbContextOptions<MarketplaceDbContext> options = new DbContextOptionsBuilder<MarketplaceDbContext>()
-            .UseNpgsql(postgres.GetConnectionString(), npgsql =>
-            {
-                npgsql.EnableRetryOnFailure(5, TimeSpan.FromSeconds(5), null);
-                npgsql.MigrationsAssembly(typeof(MarketplaceDbContext).Assembly.FullName);
-                npgsql.UseVector();
-            })
-            .Options;
+        DbContextOptions<MarketplaceDbContext> options = TestDatabase.CreateOptions();
         await using MarketplaceDbContext db = new(options);
         await db.Database.MigrateAsync();
 

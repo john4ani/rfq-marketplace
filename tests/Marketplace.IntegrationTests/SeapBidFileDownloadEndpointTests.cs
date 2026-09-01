@@ -16,7 +16,7 @@ namespace Marketplace.IntegrationTests;
 // bytes with an attachment disposition — browsers cannot navigate local:// or s3:// schemes directly,
 // which used to make the „Descarcă propunerea tehnică / lista de cantități" downloads empty.
 [Collection(IntegrationTestGroup.Name)]
-public sealed class SeapBidFileDownloadEndpointTests : IClassFixture<MarketplaceWebApplicationFactory>
+public sealed class SeapBidFileDownloadEndpointTests : IntegrationTestBase, IClassFixture<MarketplaceWebApplicationFactory>
 {
     private readonly MarketplaceWebApplicationFactory factory;
     public SeapBidFileDownloadEndpointTests(MarketplaceWebApplicationFactory factory) => this.factory = factory;

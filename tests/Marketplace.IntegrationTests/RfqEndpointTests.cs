@@ -10,7 +10,7 @@ using Microsoft.Extensions.DependencyInjection;
 namespace Marketplace.IntegrationTests;
 
 [Collection(IntegrationTestGroup.Name)]
-public sealed class RfqEndpointTests : IClassFixture<MarketplaceWebApplicationFactory>
+public sealed class RfqEndpointTests : IntegrationTestBase, IClassFixture<MarketplaceWebApplicationFactory>
 {
     private readonly MarketplaceWebApplicationFactory _factory;
     private readonly HttpClient _client;

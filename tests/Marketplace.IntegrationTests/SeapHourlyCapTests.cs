@@ -5,16 +5,16 @@ using Marketplace.Infrastructure.Seap;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
-using Testcontainers.PostgreSql;
 
 namespace Marketplace.IntegrationTests;
 
 /// <summary>
 /// Guards the SEAP hourly import cap (cost guardrail): at most <c>Seap:MaxNewNoticesPerHour</c> new
-/// tenders are imported per rolling hour, even when the public API returns more notices. Runs on a
-/// dedicated disposable pgvector container so it cannot interfere with the shared integration database.
+/// tenders are imported per rolling hour, even when the public API returns more notices. Runs on the
+/// shared integration database (reset before each test by <see cref="IntegrationTestBase"/>).
 /// </summary>
-public sealed class SeapHourlyCapTests
+[Collection(IntegrationTestGroup.Name)]
+public sealed class SeapHourlyCapTests : IntegrationTestBase
 {
     private const int HourlyCap = 5;
     private static readonly string[] TargetCpv = ["33652100-6"];
@@ -22,19 +22,7 @@ public sealed class SeapHourlyCapTests
     [Fact]
     public async Task PollAndImportNeverExceedsTheHourlyCap()
     {
-        await using PostgreSqlContainer postgres = new PostgreSqlBuilder("pgvector/pgvector:pg17")
-            .WithDatabase("marketplace_hourly_cap_test")
-            .Build();
-        await postgres.StartAsync();
-
-        DbContextOptions<MarketplaceDbContext> options = new DbContextOptionsBuilder<MarketplaceDbContext>()
-            .UseNpgsql(postgres.GetConnectionString(), npgsql =>
-            {
-                npgsql.EnableRetryOnFailure(5, TimeSpan.FromSeconds(5), null);
-                npgsql.MigrationsAssembly(typeof(MarketplaceDbContext).Assembly.FullName);
-                npgsql.UseVector();
-            })
-            .Options;
+        DbContextOptions<MarketplaceDbContext> options = TestDatabase.CreateOptions();
         await using MarketplaceDbContext db = new(options);
         await db.Database.MigrateAsync();
 
@@ -80,19 +68,7 @@ public sealed class SeapHourlyCapTests
     [Fact]
     public async Task RealPayloadWithNonUtcOffsetsPersistsAsUtc()
     {
-        await using PostgreSqlContainer postgres = new PostgreSqlBuilder("pgvector/pgvector:pg17")
-            .WithDatabase("marketplace_seap_utc_test")
-            .Build();
-        await postgres.StartAsync();
-
-        DbContextOptions<MarketplaceDbContext> options = new DbContextOptionsBuilder<MarketplaceDbContext>()
-            .UseNpgsql(postgres.GetConnectionString(), npgsql =>
-            {
-                npgsql.EnableRetryOnFailure(5, TimeSpan.FromSeconds(5), null);
-                npgsql.MigrationsAssembly(typeof(MarketplaceDbContext).Assembly.FullName);
-                npgsql.UseVector();
-            })
-            .Options;
+        DbContextOptions<MarketplaceDbContext> options = TestDatabase.CreateOptions();
         await using MarketplaceDbContext db = new(options);
         await db.Database.MigrateAsync();
 

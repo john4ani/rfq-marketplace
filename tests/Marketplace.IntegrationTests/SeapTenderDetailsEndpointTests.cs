@@ -21,7 +21,7 @@ namespace Marketplace.IntegrationTests;
 // stored file server-side (browsers cannot navigate local:// or s3:// references) and must never serve an
 // attachment that does not belong to the requested tender (IDOR guard).
 [Collection(IntegrationTestGroup.Name)]
-public sealed class SeapTenderDetailsEndpointTests : IClassFixture<MarketplaceWebApplicationFactory>
+public sealed class SeapTenderDetailsEndpointTests : IntegrationTestBase, IClassFixture<MarketplaceWebApplicationFactory>
 {
     private readonly MarketplaceWebApplicationFactory factory;
     public SeapTenderDetailsEndpointTests(MarketplaceWebApplicationFactory factory) => this.factory = factory;

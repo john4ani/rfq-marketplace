@@ -10,7 +10,7 @@ namespace Marketplace.IntegrationTests;
 /// variables are restored afterwards so other tests in the shared collection keep their Development host.
 /// </summary>
 [Collection(IntegrationTestGroup.Name)]
-public sealed class ProductionHealthEndpointTests : IClassFixture<MarketplaceWebApplicationFactory>, IDisposable
+public sealed class ProductionHealthEndpointTests : IntegrationTestBase, IClassFixture<MarketplaceWebApplicationFactory>, IDisposable
 {
     private const string Origin = "https://compaspot.com";
     private readonly MarketplaceWebApplicationFactory factory;

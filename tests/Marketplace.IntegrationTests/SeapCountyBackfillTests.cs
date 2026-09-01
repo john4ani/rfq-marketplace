@@ -5,31 +5,19 @@ using Marketplace.Infrastructure.Seap;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
-using Testcontainers.PostgreSql;
 
 namespace Marketplace.IntegrationTests;
 
 // Deterministic county backfill for tenders imported before the county enrichment existed (e.g. rows
 // created before the AddSeapEnrichmentFields migration): the county is re-derived from the
 // contracting-authority name via CountyParser — no AI, idempotent, unrecognizable names stay null.
-public sealed class SeapCountyBackfillTests
+[Collection(IntegrationTestGroup.Name)]
+public sealed class SeapCountyBackfillTests : IntegrationTestBase
 {
     [Fact]
     public async Task BackfillDerivesCountyForPreviouslyImportedTendersWithoutOne()
     {
-        await using PostgreSqlContainer postgres = new PostgreSqlBuilder("pgvector/pgvector:pg17")
-            .WithDatabase("marketplace_seap_backfill_test")
-            .Build();
-        await postgres.StartAsync();
-
-        DbContextOptions<MarketplaceDbContext> options = new DbContextOptionsBuilder<MarketplaceDbContext>()
-            .UseNpgsql(postgres.GetConnectionString(), npgsql =>
-            {
-                npgsql.EnableRetryOnFailure(5, TimeSpan.FromSeconds(5), null);
-                npgsql.MigrationsAssembly(typeof(MarketplaceDbContext).Assembly.FullName);
-                npgsql.UseVector();
-            })
-            .Options;
+        DbContextOptions<MarketplaceDbContext> options = TestDatabase.CreateOptions();
         await using MarketplaceDbContext db = new(options);
         await db.Database.MigrateAsync();
 

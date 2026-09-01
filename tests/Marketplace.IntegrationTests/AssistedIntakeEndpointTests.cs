@@ -15,7 +15,7 @@ using Microsoft.Extensions.DependencyInjection.Extensions;
 namespace Marketplace.IntegrationTests;
 
 [Collection(IntegrationTestGroup.Name)]
-public sealed class AssistedIntakeEndpointTests : IClassFixture<MarketplaceWebApplicationFactory>
+public sealed class AssistedIntakeEndpointTests : IntegrationTestBase, IClassFixture<MarketplaceWebApplicationFactory>
 {
     private readonly MarketplaceWebApplicationFactory factory;
     public AssistedIntakeEndpointTests(MarketplaceWebApplicationFactory factory) => this.factory = factory;

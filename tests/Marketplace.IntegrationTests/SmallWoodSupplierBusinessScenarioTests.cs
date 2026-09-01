@@ -7,7 +7,7 @@ using Microsoft.AspNetCore.Mvc.Testing;
 namespace Marketplace.IntegrationTests;
 
 [Collection(IntegrationTestGroup.Name)]
-public sealed class SmallWoodSupplierBusinessScenarioTests : IClassFixture<MarketplaceWebApplicationFactory>
+public sealed class SmallWoodSupplierBusinessScenarioTests : IntegrationTestBase, IClassFixture<MarketplaceWebApplicationFactory>
 {
     private static readonly string[] SuceavaCounty = ["Suceava"];
     private static readonly decimal[] ExpectedLineTotals = [2880m, 900m];

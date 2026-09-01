@@ -5,7 +5,6 @@ using Marketplace.Infrastructure.Seap;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
-using Testcontainers.PostgreSql;
 
 namespace Marketplace.IntegrationTests;
 
@@ -13,24 +12,13 @@ namespace Marketplace.IntegrationTests;
 // search (honoring the publication-date window), derives each notice's county deterministically, imports
 // only the matching notices (no LLM, no attachments), and returns them — bypassing the background
 // hourly import cap because it is a user-initiated action.
-public sealed class SeapSearchTests
+[Collection(IntegrationTestGroup.Name)]
+public sealed class SeapSearchTests : IntegrationTestBase
 {
     [Fact]
     public async Task SearchAndImportTakesParametersAndAddsMatchingNoticesFromThePlatform()
     {
-        await using PostgreSqlContainer postgres = new PostgreSqlBuilder("pgvector/pgvector:pg17")
-            .WithDatabase("marketplace_seap_search_test")
-            .Build();
-        await postgres.StartAsync();
-
-        DbContextOptions<MarketplaceDbContext> options = new DbContextOptionsBuilder<MarketplaceDbContext>()
-            .UseNpgsql(postgres.GetConnectionString(), npgsql =>
-            {
-                npgsql.EnableRetryOnFailure(5, TimeSpan.FromSeconds(5), null);
-                npgsql.MigrationsAssembly(typeof(MarketplaceDbContext).Assembly.FullName);
-                npgsql.UseVector();
-            })
-            .Options;
+        DbContextOptions<MarketplaceDbContext> options = TestDatabase.CreateOptions();
         await using MarketplaceDbContext db = new(options);
         await db.Database.MigrateAsync();
 
@@ -83,19 +71,7 @@ public sealed class SeapSearchTests
     [Fact]
     public async Task SearchAlsoScansRecentWindowWhenTheRequestedWindowMissesRecentNotices()
     {
-        await using PostgreSqlContainer postgres = new PostgreSqlBuilder("pgvector/pgvector:pg17")
-            .WithDatabase("marketplace_seap_search_recent_test")
-            .Build();
-        await postgres.StartAsync();
-
-        DbContextOptions<MarketplaceDbContext> options = new DbContextOptionsBuilder<MarketplaceDbContext>()
-            .UseNpgsql(postgres.GetConnectionString(), npgsql =>
-            {
-                npgsql.EnableRetryOnFailure(5, TimeSpan.FromSeconds(5), null);
-                npgsql.MigrationsAssembly(typeof(MarketplaceDbContext).Assembly.FullName);
-                npgsql.UseVector();
-            })
-            .Options;
+        DbContextOptions<MarketplaceDbContext> options = TestDatabase.CreateOptions();
         await using MarketplaceDbContext db = new(options);
         await db.Database.MigrateAsync();
 
@@ -125,19 +101,7 @@ public sealed class SeapSearchTests
     [Fact]
     public async Task SearchImportedTenderPersistsTheNoticeSourceForOnDemandDocumentResolution()
     {
-        await using PostgreSqlContainer postgres = new PostgreSqlBuilder("pgvector/pgvector:pg17")
-            .WithDatabase("marketplace_seap_docs_test")
-            .Build();
-        await postgres.StartAsync();
-
-        DbContextOptions<MarketplaceDbContext> options = new DbContextOptionsBuilder<MarketplaceDbContext>()
-            .UseNpgsql(postgres.GetConnectionString(), npgsql =>
-            {
-                npgsql.EnableRetryOnFailure(5, TimeSpan.FromSeconds(5), null);
-                npgsql.MigrationsAssembly(typeof(MarketplaceDbContext).Assembly.FullName);
-                npgsql.UseVector();
-            })
-            .Options;
+        DbContextOptions<MarketplaceDbContext> options = TestDatabase.CreateOptions();
         await using MarketplaceDbContext db = new(options);
         await db.Database.MigrateAsync();
 
@@ -170,19 +134,7 @@ public sealed class SeapSearchTests
     [Fact]
     public async Task SearchSkipsNoticesWhoseSubmissionDeadlineAlreadyPassed()
     {
-        await using PostgreSqlContainer postgres = new PostgreSqlBuilder("pgvector/pgvector:pg17")
-            .WithDatabase("marketplace_seap_expired_search_test")
-            .Build();
-        await postgres.StartAsync();
-
-        DbContextOptions<MarketplaceDbContext> options = new DbContextOptionsBuilder<MarketplaceDbContext>()
-            .UseNpgsql(postgres.GetConnectionString(), npgsql =>
-            {
-                npgsql.EnableRetryOnFailure(5, TimeSpan.FromSeconds(5), null);
-                npgsql.MigrationsAssembly(typeof(MarketplaceDbContext).Assembly.FullName);
-                npgsql.UseVector();
-            })
-            .Options;
+        DbContextOptions<MarketplaceDbContext> options = TestDatabase.CreateOptions();
         await using MarketplaceDbContext db = new(options);
         await db.Database.MigrateAsync();
 

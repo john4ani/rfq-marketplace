@@ -13,7 +13,7 @@ using Microsoft.Extensions.DependencyInjection.Extensions;
 namespace Marketplace.IntegrationTests;
 
 [Collection(IntegrationTestGroup.Name)]
-public sealed class SeapTenderMatchEndpointTests : IClassFixture<MarketplaceWebApplicationFactory>
+public sealed class SeapTenderMatchEndpointTests : IntegrationTestBase, IClassFixture<MarketplaceWebApplicationFactory>
 {
     private readonly MarketplaceWebApplicationFactory factory;
     public SeapTenderMatchEndpointTests(MarketplaceWebApplicationFactory factory) => this.factory = factory;

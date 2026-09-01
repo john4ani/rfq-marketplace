@@ -19,7 +19,7 @@ namespace Marketplace.IntegrationTests;
 // stops showing "Prima generare este gratuită" after the offer was used) and re-grantable by an
 // Administrator from the registered-company details.
 [Collection(IntegrationTestGroup.Name)]
-public sealed class SeapFreeGenerationEndpointTests : IClassFixture<MarketplaceWebApplicationFactory>
+public sealed class SeapFreeGenerationEndpointTests : IntegrationTestBase, IClassFixture<MarketplaceWebApplicationFactory>
 {
     private readonly MarketplaceWebApplicationFactory _factory;
 

@@ -11,31 +11,19 @@ using Marketplace.Infrastructure.Storage;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
-using Testcontainers.PostgreSql;
 
 namespace Marketplace.IntegrationTests;
 
 // End-to-end guardrails for the Caiet de sarcini auto-bidding pipeline:
 // PDF -> object storage (local in tests) -> Markdown via (stubbed) Azure Document Intelligence ->
 // persisted Markdown -> LLM proposal -> .docx/.xlsx stored.
-public sealed class AutoBiddingPipelineTests
+[Collection(IntegrationTestGroup.Name)]
+public sealed class AutoBiddingPipelineTests : IntegrationTestBase
 {
     [Fact]
     public async Task ProcessSpecificationPersistsPdfMarkdownAndGeneratesProposal()
     {
-        await using PostgreSqlContainer postgres = new PostgreSqlBuilder("pgvector/pgvector:pg17")
-            .WithDatabase("marketplace_autobid_pipeline_test")
-            .Build();
-        await postgres.StartAsync();
-
-        DbContextOptions<MarketplaceDbContext> options = new DbContextOptionsBuilder<MarketplaceDbContext>()
-            .UseNpgsql(postgres.GetConnectionString(), npgsql =>
-            {
-                npgsql.EnableRetryOnFailure(5, TimeSpan.FromSeconds(5), null);
-                npgsql.MigrationsAssembly(typeof(MarketplaceDbContext).Assembly.FullName);
-                npgsql.UseVector();
-            })
-            .Options;
+        DbContextOptions<MarketplaceDbContext> options = TestDatabase.CreateOptions();
         await using MarketplaceDbContext db = new(options);
         await db.Database.MigrateAsync();
 
@@ -103,19 +91,7 @@ public sealed class AutoBiddingPipelineTests
     [Fact]
     public async Task ProcessSpecificationThrowsWhenOcrReturnsInsufficientText()
     {
-        await using PostgreSqlContainer postgres = new PostgreSqlBuilder("pgvector/pgvector:pg17")
-            .WithDatabase("marketplace_autobid_ocr_guard_test")
-            .Build();
-        await postgres.StartAsync();
-
-        DbContextOptions<MarketplaceDbContext> options = new DbContextOptionsBuilder<MarketplaceDbContext>()
-            .UseNpgsql(postgres.GetConnectionString(), npgsql =>
-            {
-                npgsql.EnableRetryOnFailure(5, TimeSpan.FromSeconds(5), null);
-                npgsql.MigrationsAssembly(typeof(MarketplaceDbContext).Assembly.FullName);
-                npgsql.UseVector();
-            })
-            .Options;
+        DbContextOptions<MarketplaceDbContext> options = TestDatabase.CreateOptions();
         await using MarketplaceDbContext db = new(options);
         await db.Database.MigrateAsync();
 
@@ -162,19 +138,7 @@ public sealed class AutoBiddingPipelineTests
     [Fact]
     public async Task GenerateFromSpecificationRequiresExtractedMarkdown()
     {
-        await using PostgreSqlContainer postgres = new PostgreSqlBuilder("pgvector/pgvector:pg17")
-            .WithDatabase("marketplace_autobid_validate_test")
-            .Build();
-        await postgres.StartAsync();
-
-        DbContextOptions<MarketplaceDbContext> options = new DbContextOptionsBuilder<MarketplaceDbContext>()
-            .UseNpgsql(postgres.GetConnectionString(), npgsql =>
-            {
-                npgsql.EnableRetryOnFailure(5, TimeSpan.FromSeconds(5), null);
-                npgsql.MigrationsAssembly(typeof(MarketplaceDbContext).Assembly.FullName);
-                npgsql.UseVector();
-            })
-            .Options;
+        DbContextOptions<MarketplaceDbContext> options = TestDatabase.CreateOptions();
         await using MarketplaceDbContext db = new(options);
         await db.Database.MigrateAsync();
 

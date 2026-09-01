@@ -10,7 +10,7 @@ using Microsoft.Extensions.DependencyInjection;
 namespace Marketplace.IntegrationTests;
 
 [Collection(IntegrationTestGroup.Name)]
-public sealed class ProcurementFlowEndpointTests : IClassFixture<MarketplaceWebApplicationFactory>
+public sealed class ProcurementFlowEndpointTests : IntegrationTestBase, IClassFixture<MarketplaceWebApplicationFactory>
 {
     private const string Password = "password";
     private static readonly string[] IasiCounty = ["Iași"];

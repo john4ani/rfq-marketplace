@@ -23,7 +23,7 @@ namespace Marketplace.IntegrationTests;
 // data. When no qualification data is available the generation never blocks — the prompt falls back to
 // clearly marked „[De completat: …]\" placeholders and the document still renders.
 [Collection(IntegrationTestGroup.Name)]
-public sealed class SeapBidQualificationContextTests : IClassFixture<MarketplaceWebApplicationFactory>
+public sealed class SeapBidQualificationContextTests : IntegrationTestBase, IClassFixture<MarketplaceWebApplicationFactory>
 {
     private static readonly string[] PersonnelCerts = ["Autorizație RTE"];
     private readonly MarketplaceWebApplicationFactory factory;
@@ -45,16 +45,16 @@ public sealed class SeapBidQualificationContextTests : IClassFixture<Marketplace
         Assert.Equal(HttpStatusCode.OK, autoBid.StatusCode);
 
         // The prompt must carry the qualification block with the real company data.
-        Assert.NotNull(echo.LastUserPrompt);
-        Assert.Contains("Date de calificare ale firmei (din Vault-ul de calificare):", echo.LastUserPrompt);
-        Assert.Contains("Reprezentant legal: Ion Popescu (Administrator)", echo.LastUserPrompt);
-        Assert.Contains("Cont IBAN: BCR RO49BCR12345678901234 (RON)", echo.LastUserPrompt);
-        Assert.Contains("Experiență similară:", echo.LastUserPrompt);
-        Assert.Contains("Primăria Udești", echo.LastUserPrompt);
-        Assert.Contains("Certificate:", echo.LastUserPrompt);
-        Assert.Contains("ISO 9001", echo.LastUserPrompt);
-        Assert.Contains("Experți cheie:", echo.LastUserPrompt);
-        Assert.Contains("Maria Ionescu — Inginer RTE", echo.LastUserPrompt);
+        string bidPrompt = AutoBidPrompt(echo);
+        Assert.Contains("Date de calificare ale firmei (din Vault-ul de calificare):", bidPrompt);
+        Assert.Contains("Reprezentant legal: Ion Popescu (Administrator)", bidPrompt);
+        Assert.Contains("Cont IBAN: BCR RO49BCR12345678901234 (RON)", bidPrompt);
+        Assert.Contains("Experiență similară:", bidPrompt);
+        Assert.Contains("Primăria Udești", bidPrompt);
+        Assert.Contains("Certificate:", bidPrompt);
+        Assert.Contains("ISO 9001", bidPrompt);
+        Assert.Contains("Experți cheie:", bidPrompt);
+        Assert.Contains("Maria Ionescu — Inginer RTE", bidPrompt);
 
         // The generated .docx must contain the real company data (echoed by the mock LLM into sections).
         byte[] docx = await DownloadAsync(client, tenderId, "TechnicalProposal");
@@ -90,9 +90,9 @@ public sealed class SeapBidQualificationContextTests : IClassFixture<Marketplace
             new { companyId });
         Assert.Equal(HttpStatusCode.OK, autoBid.StatusCode);
 
-        Assert.NotNull(echo.LastUserPrompt);
-        Assert.Contains("nu sunt disponibile în Vault-ul de calificare", echo.LastUserPrompt);
-        Assert.Contains("[De completat", echo.LastUserPrompt);
+        string bidPrompt = AutoBidPrompt(echo);
+        Assert.Contains("nu sunt disponibile în Vault-ul de calificare", bidPrompt);
+        Assert.Contains("[De completat", bidPrompt);
 
         // The mock LLM echoes the placeholder, so the generated .docx carries it instead of invented data.
         byte[] docx = await DownloadAsync(client, tenderId, "TechnicalProposal");
@@ -196,6 +196,12 @@ public sealed class SeapBidQualificationContextTests : IClassFixture<Marketplace
         return tender.Id;
     }
 
+    /// <summary>Selects the auto-bid LLM call deterministically: the SEAP background worker also calls the
+    /// LLM (summary/categorization) on its own schedule, so the last captured prompt is not necessarily
+    /// the auto-bid one. The auto-bid user prompt always starts with the requirements marker.</summary>
+    private static string AutoBidPrompt(QualificationEchoLlm echo) =>
+        echo.UserPrompts.Single(prompt => prompt.Contains("Cerințele anunțului:", StringComparison.Ordinal));
+
     private static async Task<byte[]> DownloadAsync(HttpClient client, Guid tenderId, string kind)
     {
         HttpResponseMessage response = await client.GetAsync($"/api/v1/seap/tenders/{tenderId}/bid-file?kind={kind}");
@@ -232,15 +238,16 @@ public sealed class SeapBidQualificationContextTests : IClassFixture<Marketplace
 
     private sealed record TokenResponse(string AccessToken, DateTimeOffset ExpiresAt);
 
-    /// <summary>Records the user prompt and returns a fixed proposal that echoes the company data found in
-    /// the qualification block — so the generated .docx deterministically proves the injection.</summary>
+    /// <summary>Records every user prompt (the SEAP background worker also calls the LLM) and returns a
+    /// fixed proposal that echoes the company data found in the qualification block — so the generated
+    /// .docx deterministically proves the injection.</summary>
     private sealed class QualificationEchoLlm : ILlmProvider
     {
-        public string? LastUserPrompt { get; private set; }
+        public List<string> UserPrompts { get; } = [];
 
         public Task<string> CompleteAsync(string systemPrompt, string userPrompt, CancellationToken cancellationToken)
         {
-            LastUserPrompt = userPrompt;
+            UserPrompts.Add(userPrompt);
             string representative = Match(userPrompt, @"Reprezentant legal:\s*([^\r\n]+)", "[De completat: Reprezentant Legal]");
             string iban = Match(userPrompt, @"Cont IBAN:\s*([^\r\n]+)", "[De completat: Cont IBAN]");
             string expert = Match(userPrompt, @"Experți cheie:[\s\S]*?\n-\s*([^\r\n]+)", "[De completat: Expert cheie]");

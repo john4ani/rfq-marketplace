@@ -13,7 +13,7 @@ namespace Marketplace.IntegrationTests;
 // Fair-pricing (Task 3): the pricing endpoint previews the dynamic EUR tier from the tender's estimated
 // value, and every account starts with one free generation (launch offer).
 [Collection(IntegrationTestGroup.Name)]
-public sealed class SeapFairPricingEndpointTests : IClassFixture<MarketplaceWebApplicationFactory>
+public sealed class SeapFairPricingEndpointTests : IntegrationTestBase, IClassFixture<MarketplaceWebApplicationFactory>
 {
     private readonly MarketplaceWebApplicationFactory factory;
     public SeapFairPricingEndpointTests(MarketplaceWebApplicationFactory factory) => this.factory = factory;

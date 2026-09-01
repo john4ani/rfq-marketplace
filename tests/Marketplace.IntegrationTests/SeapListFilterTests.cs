@@ -10,24 +10,19 @@ using Marketplace.Infrastructure.Storage;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
-using Testcontainers.PostgreSql;
 
 namespace Marketplace.IntegrationTests;
 
 // Seap list filtering: the AI-mapped CategoryId is authoritative, the CPV-prefix match is the fallback
 // for uncategorized tenders, and the radius filter measures county-seat distances (tenders without a
 // recognizable county are excluded only while the radius filter is active).
-public sealed class SeapListFilterTests
+[Collection(IntegrationTestGroup.Name)]
+public sealed class SeapListFilterTests : IntegrationTestBase
 {
     [Fact]
     public async Task CategoryFilterUsesAiCategoryAndFallsBackToCpvPrefix()
     {
-        await using PostgreSqlContainer postgres = new PostgreSqlBuilder("pgvector/pgvector:pg17")
-            .WithDatabase("marketplace_seap_list_filter_test")
-            .Build();
-        await postgres.StartAsync();
-
-        DbContextOptions<MarketplaceDbContext> options = NewOptions(postgres);
+        DbContextOptions<MarketplaceDbContext> options = TestDatabase.CreateOptions();
         await using MarketplaceDbContext db = new(options);
         await db.Database.MigrateAsync();
 
@@ -51,12 +46,7 @@ public sealed class SeapListFilterTests
     [Fact]
     public async Task RadiusFilterExcludesFarAndUnknownCounties()
     {
-        await using PostgreSqlContainer postgres = new PostgreSqlBuilder("pgvector/pgvector:pg17")
-            .WithDatabase("marketplace_seap_radius_filter_test")
-            .Build();
-        await postgres.StartAsync();
-
-        DbContextOptions<MarketplaceDbContext> options = NewOptions(postgres);
+        DbContextOptions<MarketplaceDbContext> options = TestDatabase.CreateOptions();
         await using MarketplaceDbContext db = new(options);
         await db.Database.MigrateAsync();
 
@@ -82,12 +72,7 @@ public sealed class SeapListFilterTests
     [Fact]
     public async Task ProfileCpvPrefixAndCountyFiltersAreDeterministic()
     {
-        await using PostgreSqlContainer postgres = new PostgreSqlBuilder("pgvector/pgvector:pg17")
-            .WithDatabase("marketplace_seap_profile_filter_test")
-            .Build();
-        await postgres.StartAsync();
-
-        DbContextOptions<MarketplaceDbContext> options = NewOptions(postgres);
+        DbContextOptions<MarketplaceDbContext> options = TestDatabase.CreateOptions();
         await using MarketplaceDbContext db = new(options);
         await db.Database.MigrateAsync();
 
@@ -120,12 +105,7 @@ public sealed class SeapListFilterTests
     [Fact]
     public async Task GroupCpvPrefixesMatchGranularTenderCodes()
     {
-        await using PostgreSqlContainer postgres = new PostgreSqlBuilder("pgvector/pgvector:pg17")
-            .WithDatabase("marketplace_seap_group_prefix_test")
-            .Build();
-        await postgres.StartAsync();
-
-        DbContextOptions<MarketplaceDbContext> options = NewOptions(postgres);
+        DbContextOptions<MarketplaceDbContext> options = TestDatabase.CreateOptions();
         await using MarketplaceDbContext db = new(options);
         await db.Database.MigrateAsync();
 
@@ -160,12 +140,7 @@ public sealed class SeapListFilterTests
     [Fact]
     public async Task ClosedTendersAreExcludedFromTheDiscoveryList()
     {
-        await using PostgreSqlContainer postgres = new PostgreSqlBuilder("pgvector/pgvector:pg17")
-            .WithDatabase("marketplace_seap_closed_test")
-            .Build();
-        await postgres.StartAsync();
-
-        DbContextOptions<MarketplaceDbContext> options = NewOptions(postgres);
+        DbContextOptions<MarketplaceDbContext> options = TestDatabase.CreateOptions();
         await using MarketplaceDbContext db = new(options);
         await db.Database.MigrateAsync();
 
@@ -190,12 +165,7 @@ public sealed class SeapListFilterTests
     [Fact]
     public async Task GeneratedOffersTabIsTheCompanyHistoryAndKeepsClosedTenders()
     {
-        await using PostgreSqlContainer postgres = new PostgreSqlBuilder("pgvector/pgvector:pg17")
-            .WithDatabase("marketplace_seap_history_test")
-            .Build();
-        await postgres.StartAsync();
-
-        DbContextOptions<MarketplaceDbContext> options = NewOptions(postgres);
+        DbContextOptions<MarketplaceDbContext> options = TestDatabase.CreateOptions();
         await using MarketplaceDbContext db = new(options);
         await db.Database.MigrateAsync();
 
@@ -274,16 +244,6 @@ public sealed class SeapListFilterTests
         new MemoryStorageService(),
         TimeProvider.System,
         NullLogger<BiddingGenerationService>.Instance);
-
-    private static DbContextOptions<MarketplaceDbContext> NewOptions(PostgreSqlContainer postgres) =>
-        new DbContextOptionsBuilder<MarketplaceDbContext>()
-            .UseNpgsql(postgres.GetConnectionString(), npgsql =>
-            {
-                npgsql.EnableRetryOnFailure(5, TimeSpan.FromSeconds(5), null);
-                npgsql.MigrationsAssembly(typeof(MarketplaceDbContext).Assembly.FullName);
-                npgsql.UseVector();
-            })
-            .Options;
 
     private sealed class UnavailableEmbeddingService : IEmbeddingService
     {

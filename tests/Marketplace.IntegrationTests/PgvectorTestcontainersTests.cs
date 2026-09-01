@@ -5,21 +5,20 @@ using Marketplace.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Pgvector;
-using Testcontainers.PostgreSql;
 
 namespace Marketplace.IntegrationTests;
 
-// Real PostgreSQL 17 with the pgvector extension via Testcontainers — never EF InMemory.
-public sealed class PgvectorTestcontainersTests
+// Real PostgreSQL 17 with the pgvector extension via the shared IntegrationTestGroup Testcontainers
+// container — never EF InMemory.
+[Collection(IntegrationTestGroup.Name)]
+public sealed class PgvectorTestcontainersTests : IntegrationTestBase
 {
     [Fact]
     public async Task AddDbContextRegistrationKeepsVectorMapping()
     {
-        await using PostgreSqlContainer postgres = new PostgreSqlBuilder("pgvector/pgvector:pg17").Build();
-        await postgres.StartAsync();
         ServiceCollection services = new();
         services.AddDbContext<MarketplaceDbContext>(options => options.UseNpgsql(
-            postgres.GetConnectionString(),
+            TestDatabase.ConnectionString,
             npgsql =>
             {
                 npgsql.MigrationsAssembly(typeof(MarketplaceDbContext).Assembly.FullName);
@@ -48,18 +47,7 @@ public sealed class PgvectorTestcontainersTests
     [Fact]
     public async Task CosineSearchFindsClosestChunkOnRealPostgresWithVector()
     {
-        await using PostgreSqlContainer postgres = new PostgreSqlBuilder("pgvector/pgvector:pg17")
-            .Build();
-        await postgres.StartAsync();
-
-        DbContextOptions<MarketplaceDbContext> options = new DbContextOptionsBuilder<MarketplaceDbContext>()
-            .UseNpgsql(postgres.GetConnectionString(), npgsql =>
-            {
-                npgsql.EnableRetryOnFailure(5, TimeSpan.FromSeconds(5), null);
-                npgsql.MigrationsAssembly(typeof(MarketplaceDbContext).Assembly.FullName);
-                npgsql.UseVector();
-            })
-            .Options;
+        DbContextOptions<MarketplaceDbContext> options = TestDatabase.CreateOptions();
         await using MarketplaceDbContext db = new(options);
         await db.Database.MigrateAsync();
 

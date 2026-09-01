@@ -17,7 +17,7 @@ namespace Marketplace.IntegrationTests;
 // Development). The download endpoint must resolve those references server-side and stream the bytes
 // with an attachment disposition — browsers cannot navigate local:///s3:// schemes directly.
 [Collection(IntegrationTestGroup.Name)]
-public sealed class CompanyVaultDownloadEndpointTests : IClassFixture<MarketplaceWebApplicationFactory>
+public sealed class CompanyVaultDownloadEndpointTests : IntegrationTestBase, IClassFixture<MarketplaceWebApplicationFactory>
 {
     private readonly MarketplaceWebApplicationFactory factory;
     public CompanyVaultDownloadEndpointTests(MarketplaceWebApplicationFactory factory) => this.factory = factory;

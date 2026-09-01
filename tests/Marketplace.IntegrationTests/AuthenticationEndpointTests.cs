@@ -9,7 +9,7 @@ using Microsoft.Extensions.DependencyInjection;
 namespace Marketplace.IntegrationTests;
 
 [Collection(IntegrationTestGroup.Name)]
-public sealed class AuthenticationEndpointTests : IClassFixture<MarketplaceWebApplicationFactory>
+public sealed class AuthenticationEndpointTests : IntegrationTestBase, IClassFixture<MarketplaceWebApplicationFactory>
 {
     private static readonly string[] BuyerAndSupplierRoles = ["Buyer", "Supplier"];
     private readonly HttpClient _client;

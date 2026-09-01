@@ -7,7 +7,7 @@ using Microsoft.AspNetCore.Mvc.Testing;
 namespace Marketplace.IntegrationTests;
 
 [Collection(IntegrationTestGroup.Name)]
-public sealed class ProfileEndpointTests : IClassFixture<MarketplaceWebApplicationFactory>
+public sealed class ProfileEndpointTests : IntegrationTestBase, IClassFixture<MarketplaceWebApplicationFactory>
 {
     private readonly HttpClient _client;
     public ProfileEndpointTests(MarketplaceWebApplicationFactory factory)

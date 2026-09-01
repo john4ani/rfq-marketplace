@@ -6,10 +6,12 @@ using Testcontainers.PostgreSql;
 namespace Marketplace.IntegrationTests;
 
 /// <summary>
-/// Provisions a disposable PostgreSQL 17 + pgvector container (Testcontainers) for the whole integration
-/// test run, per the V3 testing addendum: real Postgres, never EF InMemory, never the shared local
-/// development database. The container connection string is exposed to the app host via the same
-/// environment variable the production configuration contract already honours.
+/// Provisions ONE disposable PostgreSQL 17 + pgvector container (Testcontainers) for the whole
+/// integration test run, per the V3 testing addendum: real Postgres, never EF InMemory, never the shared
+/// local development database. The container connection string is exposed to the app host via the same
+/// environment variable the production configuration contract already honours. All DB-touching test
+/// classes join this collection (assembly-level parallelism is disabled), so a single container serves
+/// the entire suite; <see cref="IntegrationTestBase"/> resets (truncates) the database before each test.
 /// </summary>
 public sealed class IntegrationTestDatabaseFixture : IAsyncLifetime
 {
@@ -52,6 +54,6 @@ public sealed class IntegrationTestDatabaseFixture : IAsyncLifetime
 [CollectionDefinition(Name)]
 public sealed class IntegrationTestGroup : ICollectionFixture<IntegrationTestDatabaseFixture>
 {
-    public const string Name = "Integration database";
+    public const string Name = "IntegrationTests";
 }
 

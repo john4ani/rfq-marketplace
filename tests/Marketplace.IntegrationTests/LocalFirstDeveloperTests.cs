@@ -17,7 +17,7 @@ namespace Marketplace.IntegrationTests;
 // (the shared fixture sets/restores ConnectionStrings__MarketplaceDatabase) instead of racing with the
 // default xUnit collection and falling back to the appsettings.Development.json local password.
 [Collection(IntegrationTestGroup.Name)]
-public sealed class LocalFirstDeveloperTests
+public sealed class LocalFirstDeveloperTests : IntegrationTestBase
 {
     [Fact]
     public async Task LocalFileStorageServiceWritesFilesUnderConfiguredRoot()

@@ -8,7 +8,7 @@ using Microsoft.AspNetCore.Mvc.Testing;
 namespace Marketplace.IntegrationTests;
 
 [Collection(IntegrationTestGroup.Name)]
-public sealed class CompanyQualificationEndpointTests : IClassFixture<MarketplaceWebApplicationFactory>
+public sealed class CompanyQualificationEndpointTests : IntegrationTestBase, IClassFixture<MarketplaceWebApplicationFactory>
 {
     private static readonly string[] PersonnelCerts = ["Autorizație RTE"];
     private readonly MarketplaceWebApplicationFactory factory;

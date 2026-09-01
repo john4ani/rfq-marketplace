@@ -7,24 +7,19 @@ using Marketplace.Infrastructure.Persistence.Configurations;
 using Marketplace.Infrastructure.Seap;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
-using Testcontainers.PostgreSql;
 
 namespace Marketplace.IntegrationTests;
 
 // SeapCategorizer: CPV code → CompaSpot category. Guards the persistent CPV→category cache (the LLM is
 // called once per standardized CPV code, never per tender), the auto-creation of missing categories under
 // the General Procurement root, and the graceful null fallback on any LLM failure.
-public sealed class SeapCategorizerTests
+[Collection(IntegrationTestGroup.Name)]
+public sealed class SeapCategorizerTests : IntegrationTestBase
 {
     [Fact]
     public async Task ExistingCategoryIsResolvedAndCachedForTheSameCpvCode()
     {
-        await using PostgreSqlContainer postgres = new PostgreSqlBuilder("pgvector/pgvector:pg17")
-            .WithDatabase("marketplace_categorizer_test")
-            .Build();
-        await postgres.StartAsync();
-
-        DbContextOptions<MarketplaceDbContext> options = NewOptions(postgres);
+        DbContextOptions<MarketplaceDbContext> options = TestDatabase.CreateOptions();
         await using MarketplaceDbContext db = new(options);
         await db.Database.MigrateAsync();
 
@@ -53,12 +48,7 @@ public sealed class SeapCategorizerTests
     [Fact]
     public async Task UnknownCategoryIsAutoCreatedUnderGeneralProcurementRoot()
     {
-        await using PostgreSqlContainer postgres = new PostgreSqlBuilder("pgvector/pgvector:pg17")
-            .WithDatabase("marketplace_categorizer_autocreate_test")
-            .Build();
-        await postgres.StartAsync();
-
-        DbContextOptions<MarketplaceDbContext> options = NewOptions(postgres);
+        DbContextOptions<MarketplaceDbContext> options = TestDatabase.CreateOptions();
         await using MarketplaceDbContext db = new(options);
         await db.Database.MigrateAsync();
 
@@ -82,12 +72,7 @@ public sealed class SeapCategorizerTests
     [Fact]
     public async Task LlmOutputVariantsAreToleratedAndFailuresDegradeToNull()
     {
-        await using PostgreSqlContainer postgres = new PostgreSqlBuilder("pgvector/pgvector:pg17")
-            .WithDatabase("marketplace_categorizer_degrade_test")
-            .Build();
-        await postgres.StartAsync();
-
-        DbContextOptions<MarketplaceDbContext> options = NewOptions(postgres);
+        DbContextOptions<MarketplaceDbContext> options = TestDatabase.CreateOptions();
         await using MarketplaceDbContext db = new(options);
         await db.Database.MigrateAsync();
 
@@ -110,16 +95,6 @@ public sealed class SeapCategorizerTests
         // LLM outputs degraded to null without writing anything.
         Assert.Equal(["45321000-1"], await db.CpvCategoryMappings.Select(mapping => mapping.CpvCode).ToArrayAsync());
     }
-
-    private static DbContextOptions<MarketplaceDbContext> NewOptions(PostgreSqlContainer postgres) =>
-        new DbContextOptionsBuilder<MarketplaceDbContext>()
-            .UseNpgsql(postgres.GetConnectionString(), npgsql =>
-            {
-                npgsql.EnableRetryOnFailure(5, TimeSpan.FromSeconds(5), null);
-                npgsql.MigrationsAssembly(typeof(MarketplaceDbContext).Assembly.FullName);
-                npgsql.UseVector();
-            })
-            .Options;
 
     private sealed class CountingCategoryLlmProvider(string jsonResponse) : ILlmProvider
     {

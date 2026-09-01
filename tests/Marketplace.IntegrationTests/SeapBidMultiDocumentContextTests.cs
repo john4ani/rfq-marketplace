@@ -33,7 +33,7 @@ namespace Marketplace.IntegrationTests;
 /// not involved in this flow.
 /// </summary>
 [Collection(IntegrationTestGroup.Name)]
-public sealed class SeapBidMultiDocumentContextTests : IClassFixture<MarketplaceWebApplicationFactory>
+public sealed class SeapBidMultiDocumentContextTests : IntegrationTestBase, IClassFixture<MarketplaceWebApplicationFactory>
 {
     private const int EmbeddingDimensions = 1536;
     private static readonly float[] FixedEmbedding = Enumerable.Repeat(0.5f, EmbeddingDimensions).ToArray();

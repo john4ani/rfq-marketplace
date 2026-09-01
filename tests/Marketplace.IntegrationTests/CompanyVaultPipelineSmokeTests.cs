@@ -28,7 +28,7 @@ namespace Marketplace.IntegrationTests;
 /// the extracted text, diacritics and chunking are validated against the real file content.
 /// </summary>
 [Collection(IntegrationTestGroup.Name)]
-public sealed class CompanyVaultPipelineSmokeTests : IClassFixture<MarketplaceWebApplicationFactory>
+public sealed class CompanyVaultPipelineSmokeTests : IntegrationTestBase, IClassFixture<MarketplaceWebApplicationFactory>
 {
     private readonly MarketplaceWebApplicationFactory factory;
     public CompanyVaultPipelineSmokeTests(MarketplaceWebApplicationFactory factory) => this.factory = factory;
