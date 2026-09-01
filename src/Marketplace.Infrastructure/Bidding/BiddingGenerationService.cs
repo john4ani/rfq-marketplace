@@ -42,7 +42,10 @@ public sealed partial class BiddingGenerationService : IBiddingGenerationService
         "și referă-l explicit (client, titlu, cod CPV, valoare). " +
         "3) În secțiunea de resurse umane nominalizează DOAR experții enumerați în bloc (nume, rol, calificări); " +
         "dacă nu există experți, scrie „[De completat: Expert cheie]”. " +
-        "4) Nu inventa nicio dată de firmă (CUI, IBAN, contract, certificat, expert) care nu apare explicit în bloc.";
+        "4) Nu inventa nicio dată de firmă (CUI, IBAN, contract, certificat, expert) care nu apare explicit în bloc. " +
+        "5) Pentru o cerință a anunțului care nu este acoperită de fragmentele CompanyVault din prompt (certificare, " +
+        "autorizație, capacitate tehnică, document cerut de caietul de sarcini), scrie exact „[Document lipsă: <denumirea cerinței>]” " +
+        "în loc să inventezi date.";
 
     private readonly MarketplaceDbContext dbContext;
     private readonly ILlmProvider llmProvider;
@@ -91,7 +94,7 @@ public sealed partial class BiddingGenerationService : IBiddingGenerationService
             ?? throw new KeyNotFoundException("Anunțul SEAP nu există.");
 
         string requirements = BuildRequirementsText(tender);
-        string vaultContext = await BuildVaultContextAsync(requirements, cancellationToken);
+        string vaultContext = await BuildVaultContextAsync(companyId, requirements, cancellationToken);
         string qualificationContext = await BuildQualificationContextAsync(companyId, cancellationToken);
 
         string userPrompt = string.IsNullOrWhiteSpace(vaultContext)
@@ -263,19 +266,48 @@ public sealed partial class BiddingGenerationService : IBiddingGenerationService
     }
 
     /// <summary>
-    /// RAG over CompanyVault chunks. When embeddings are not configured (no OpenAI key), the flow
-    /// degrades to a plain LLM generation without company context instead of failing the request —
-    /// mirroring CompanyVaultService.TryEmbedAsync.
+    /// RAG over the requesting company's CompanyVault chunks. The context is **scoped to the company** —
+    /// another company's documents never leak into the prompt — and when the same file name was uploaded
+    /// more than once, only the chunks of the **most recently uploaded version** are used (a re-upload
+    /// supersedes the previous one). When no company is known or embeddings are not configured (no OpenAI
+    /// key), the flow degrades to a plain LLM generation without company context instead of failing the
+    /// request — mirroring CompanyVaultService.TryEmbedAsync.
     /// </summary>
-    private async Task<string> BuildVaultContextAsync(string requirements, CancellationToken cancellationToken)
+    private async Task<string> BuildVaultContextAsync(Guid? companyId, string requirements, CancellationToken cancellationToken)
     {
+        if (companyId is not Guid id) return string.Empty;
         try
         {
+            Guid? vaultId = await dbContext.CompanyVaults.AsNoTracking()
+                .Where(vault => vault.SupplierId == id)
+                .Select(vault => (Guid?)vault.Id)
+                .SingleOrDefaultAsync(cancellationToken);
+            if (vaultId is null) return string.Empty;
+
+            VaultDocument[] documents = await dbContext.VaultDocuments.AsNoTracking()
+                .Where(document => document.VaultId == vaultId.Value)
+                .ToArrayAsync(cancellationToken);
+            // Newest document per normalized file name: a re-upload supersedes the previous version, so the
+            // context-retriever never mixes two versions of the same document.
+            Guid[] newestDocumentIds = documents
+                .GroupBy(document => document.FileName, StringComparer.OrdinalIgnoreCase)
+                .Select(group => group.OrderByDescending(document => document.UploadedAt).First().Id)
+                .ToArray();
+            if (newestDocumentIds.Length == 0) return string.Empty;
+
             float[] queryEmbedding = await embeddingService.EmbedAsync(requirements, cancellationToken);
             Vector vector = new(queryEmbedding);
+            // NpgsqlParameter with an explicit array type: a bare Guid[] argument is sent as a scalar and
+            // `= ANY` then fails to parse it as an array.
+            NpgsqlParameter documentIds = new()
+            {
+                NpgsqlDbType = NpgsqlDbType.Array | NpgsqlDbType.Uuid,
+                Value = newestDocumentIds
+            };
             List<DocumentChunk> chunks = await dbContext.DocumentChunks
                 .FromSqlInterpolated($"""
                     SELECT * FROM "DocumentChunks"
+                    WHERE "DocumentId" = ANY({documentIds})
                     ORDER BY "Embedding" <=> {vector}
                     LIMIT {Math.Max(1, settings.TopChunks)}
                     """)
