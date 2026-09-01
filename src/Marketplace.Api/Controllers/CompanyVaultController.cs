@@ -41,8 +41,16 @@ public sealed class CompanyVaultController(
             return DocumentValidationProblem("Încarcă un fișier PDF.");
 
         await using Stream content = file.OpenReadStream();
-        VaultDocumentView? document = await vaultService.UploadDocumentAsync(
-            companyId, file.FileName, content, VaultDocumentType.Other, UserId, cancellationToken);
+        VaultDocumentView? document;
+        try
+        {
+            document = await vaultService.UploadDocumentAsync(
+                companyId, file.FileName, content, VaultDocumentType.Other, UserId, cancellationToken);
+        }
+        catch (VaultValidationException exception)
+        {
+            return DocumentValidationProblem(exception.Message);
+        }
         return document is null ? NotFound() : Ok(document);
     }
 

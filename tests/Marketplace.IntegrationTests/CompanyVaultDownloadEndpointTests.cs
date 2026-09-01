@@ -49,7 +49,7 @@ public sealed class CompanyVaultDownloadEndpointTests : IClassFixture<Marketplac
             (await client.PutAsJsonAsync($"/api/v1/suppliers/{userId}", SupplierProfileRequest(email))).StatusCode);
 
         // Run the full pipeline: upload → (fake) extraction → mock LLM proposal → .docx/.xlsx stored locally.
-        using var fileContent = new ByteArrayContent("caiet de sarcini de test"u8.ToArray());
+        using var fileContent = new ByteArrayContent("%PDF-caiet de sarcini de test"u8.ToArray());
         using var form = new MultipartFormDataContent();
         form.Add(fileContent, "file", "caiet-de-sarcini.pdf");
         HttpResponseMessage processed = await client.PostAsync($"/api/v1/companies/{userId}/vault/specifications", form);
@@ -65,7 +65,7 @@ public sealed class CompanyVaultDownloadEndpointTests : IClassFixture<Marketplac
 
         // A second upload for the SAME company must also work (regression: the existing-vault path used
         // to fail with DbUpdateConcurrencyException because the new document was tracked as Modified).
-        using var secondContent = new ByteArrayContent("al doilea caiet de sarcini"u8.ToArray());
+        using var secondContent = new ByteArrayContent("%PDF-al doilea caiet de sarcini"u8.ToArray());
         using var secondForm = new MultipartFormDataContent();
         secondForm.Add(secondContent, "file", "caiet-de-sarcini-2.pdf");
         HttpResponseMessage reprocessed = await client.PostAsync($"/api/v1/companies/{userId}/vault/specifications", secondForm);

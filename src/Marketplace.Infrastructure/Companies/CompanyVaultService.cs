@@ -80,7 +80,8 @@ public sealed partial class CompanyVaultService : ICompanyVaultService
 
         using MemoryStream buffer = new();
         await content.CopyToAsync(buffer, cancellationToken);
-        buffer.Position = 0;
+        if (!PdfFileValidator.HasPdfHeader(buffer))
+            throw new VaultValidationException("Fișierul nu este un PDF valid sau este corupt. Verifică fișierul și încearcă din nou.");
         string s3Url = await UploadToStorageAsync(companyId, fileName, buffer, cancellationToken);
         VaultDocument document = vault.AddDocument(fileName, s3Url, documentType, actorId, now);
         // CompanyVault.Create assigns a new Guid, so a fresh vault must be attached explicitly.
@@ -94,9 +95,11 @@ public sealed partial class CompanyVaultService : ICompanyVaultService
             buffer.Position = 0;
             await ExtractAndEmbedAsync(document, buffer, cancellationToken);
         }
-        catch (InvalidOperationException exception)
+        catch (Exception exception) when (exception is not OperationCanceledException)
         {
-            // Extraction/embeddings not configured or unavailable: the document stays uploaded, unprocessed.
+            // Extraction/embeddings not configured, provider failure or corrupt content: the document
+            // stays uploaded and unprocessed (the SPA shows the pending state) instead of failing the
+            // upload or leaving an orphaned storage object behind.
             LogExtractionSkipped(logger, fileName, exception.Message);
         }
         await dbContext.SaveChangesAsync(cancellationToken);

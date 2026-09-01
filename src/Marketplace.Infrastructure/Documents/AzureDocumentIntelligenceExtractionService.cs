@@ -77,6 +77,18 @@ public sealed partial class AzureDocumentIntelligenceExtractionService : IDocume
             LogExtractionCompleted(logger, ordered.Count, fullText.Length);
             return new(fullText, ordered);
         }
+        catch (RequestFailedException exception)
+        {
+            // Azure rejected the document (corrupt/encrypted content → 4xx) or the service is
+            // unavailable (429/5xx): surface a clear 503 instead of a raw 500 crash, and open the
+            // circuit after consecutive failures so later uploads fail fast.
+            circuitBreaker.RecordFailure();
+            LogAzureFailure(logger, exception.Status, exception.Message);
+            throw new AutoBiddingPipelineException(503,
+                $"Serviciul Azure Document Intelligence a întâmpinat o eroare (cod {exception.Status}). " +
+                "Verifică dacă fișierul este un PDF valid, care nu este corupt sau protejat, apoi încearcă din nou.",
+                exception);
+        }
         catch
         {
             circuitBreaker.RecordFailure();
@@ -161,4 +173,7 @@ public sealed partial class AzureDocumentIntelligenceExtractionService : IDocume
 
     [LoggerMessage(EventId = 5203, Level = LogLevel.Warning, Message = "Azure returned only {ReturnedPages} of {RealPages} pages; re-analyzing page-by-page and merging.")]
     private static partial void LogTruncationDetected(ILogger logger, int returnedPages, int realPages);
+
+    [LoggerMessage(EventId = 5204, Level = LogLevel.Error, Message = "Azure Document Intelligence failed with status {StatusCode}: {Reason}")]
+    private static partial void LogAzureFailure(ILogger logger, int statusCode, string reason);
 }

@@ -80,6 +80,9 @@ public sealed partial class AutoBiddingService : IAutoBiddingService
         LogUploadStarted(logger, fileName);
         using MemoryStream buffer = new();
         await content.CopyToAsync(buffer, cancellationToken);
+        if (!PdfFileValidator.HasPdfHeader(buffer))
+            throw new AutoBiddingPipelineException(422,
+                "Fișierul nu este un PDF valid sau este corupt. Verifică fișierul și încearcă din nou.");
 
         // Step 1 — save the PDF to object storage (R2/local/memory fallback).
         string documentUrl = await UploadSpecificationAsync(companyId, fileName, buffer, cancellationToken);
