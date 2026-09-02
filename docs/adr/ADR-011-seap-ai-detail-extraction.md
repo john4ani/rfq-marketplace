@@ -80,3 +80,18 @@ full published documents as soon as an OCR/extraction step exists.
 - The SPA no longer shows mock „Orientativ" bullets; it renders the real `summaryPoints` and detail rows.
   The summary card is an honest state machine (bullets / real skeleton while the on-demand request runs /
   actionable empty state / recoverable error with deliberate retry) — no endless fake-progress skeleton.
+
+## Addendum (2026-09-02) — Deep document grounding + certificates
+
+The on-demand `POST /api/v1/seap/tenders/{id}/summary` path now implements the attachment-text hook that the
+original decision deferred: before calling the LLM it resolves the published documents (Fișa de date / Caiet
+de sarcini, ADR-012), downloads them (remote e-licitatie.ro references or the locally stored copy) and reads
+readable text (PDF text layer via PdfPig, DOCX via Open XML, plain text, ZIP members) through the new
+`ISeapAttachmentTextReader`/`SeapAttachmentTextReader`. The extracted text is fed to the same summarizer, so
+the decision-critical rows (`Criteriul de atribuire`, `Garanția de participare`, `Durata contractului`,
+`Condiții de calificare`, `Personal cheie`) and the new **`certificates`** field (mandatory ISO/ANRE standards,
+migration `AddSeapAiCertificates`) are grounded in the real document content. When no document can be
+resolved/downloaded/read the synthesis still runs from the notice metadata and the response carries a
+transient `SummaryDocumentNote` that the SPA shows as a warning („Fișa de date nu a putut fi descărcată
+automat…”) above the bullets — enrichment is still never a gate.
+

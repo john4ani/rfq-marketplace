@@ -34,7 +34,52 @@ public sealed record SeapNoticeDocumentDto(
 
 public sealed record SeapAttachmentDto(string FileName, string DownloadUrl);
 
+/// <summary>
+/// Thrown when the live e-licitatie.ro platform cannot answer a direct notice-number lookup at all —
+/// transport failure/timeout, an HTTP 4xx/5xx answer (403 bot-block, 500) or a non-JSON payload. The API
+/// maps it to a 502 Bad Gateway with a friendly detail (never a misleading 404). It is NOT thrown when the
+/// platform answered normally and simply does not know the number — that case is a plain null result.
+/// </summary>
+public sealed class SeapSourceUnavailableException(string message, Exception? innerException = null) : Exception(message, innerException);
+
+/// <summary>Thrown when the global cap of simultaneously active resolve runs is reached (cost guardrail).
+/// Mapped by the API to HTTP 429 so the client can retry later instead of queueing unbounded LLM work.</summary>
+public sealed class SeapResolveLimitReachedException(string message) : Exception(message);
+
 public sealed record SeapTenderImportResult(SeapTender? Tender, int DownloadedAttachmentCount, bool Duplicate);
+
+/// <summary>Outcome of <c>POST /api/v1/seap/tenders/resolve</c>. <c>Status</c> is <see cref="SeapIngestionStatus.Ready"/>
+/// when the local tender already has a document-grounded analysis (HTTP 200 returns <see cref="ReadyTender"/>, the
+/// full detail DTO); otherwise the status is the persisted run status (<c>Pending</c> until the ingestion worker
+/// runs — HTTP 202 returns only <see cref="TenderId"/>/<see cref="RunId"/>/<see cref="Status"/>, never a big DTO).</summary>
+public sealed record SeapResolveResult(
+    Guid TenderId,
+    string NoticeNo,
+    string Status,
+    Guid? RunId,
+    SeapTenderDetailsDto? ReadyTender);
+
+/// <summary>Status payload of <c>GET /api/v1/seap/tenders/{id}/ingestion-status</c>. Status is derived from the
+/// actual tender state: a document-grounded analysis wins (<see cref="SeapIngestionStatus.Ready"/>); otherwise the
+/// latest run status is reported. The remaining fields are the tender-level markers that let the future worker
+/// skip unchanged document sets (<c>DocumentSetHash</c>) and re-run only when the analysis schema changed
+/// (<c>AnalysisVersion</c>).</summary>
+public sealed record SeapIngestionStatusDto(
+    Guid TenderId,
+    string NoticeNo,
+    string Status,
+    string ImportMode,
+    Guid? RunId,
+    int AttemptCount,
+    DateTimeOffset? StartedAt,
+    DateTimeOffset? CompletedAt,
+    string? LastErrorCode,
+    string? LastErrorMessage,
+    string? DocumentSetHash,
+    int? AnalysisVersion,
+    string? DigestStatus = null,
+    DateTimeOffset? DocumentsFetchedAt = null,
+    DateTimeOffset? TextExtractedAt = null);
 
 /// <summary>Envelope returned by the real public e-licitatie.ro notice search (GetCNoticeList).</summary>
 public sealed record SeapNoticeSearchResponse(
@@ -75,6 +120,18 @@ public interface ISeapApiClient
     Task<Stream> DownloadAttachmentAsync(string downloadUrl, CancellationToken cancellationToken);
 
     /// <summary>
+    /// Direct notice-number lookup („direct hit", e.g. <c>SCN1179200</c> / <c>CN1010518</c>): asks the live
+    /// public SEAP search for the exact notice and returns it with the numeric <c>NoticeId</c>/
+    /// <c>SysNoticeTypeId</c> populated (the search payload carries them), so the published documents can be
+    /// resolved afterwards. Best-effort by design: the anonymous search is first probed with a notice-number
+    /// filter key (<c>sysNoticeNo</c> — not documented on the public API); when the platform ignores it, the
+    /// client falls back to a bounded scan of the most recent window. Returns null when SEAP answered
+    /// normally and does not know the number; throws <see cref="SeapSourceUnavailableException"/> when the
+    /// platform is unreachable, answers 4xx/5xx or returns a non-JSON payload.
+    /// </summary>
+    Task<SeapTenderNoticeDto?> FetchNoticeByNumberAsync(string noticeNo, CancellationToken cancellationToken);
+
+    /// <summary>
     /// Fetches the published documents of a notice (Fișa de date, Caiet de sarcini, formulare, model
     /// contract) from the public e-licitatie.ro notice-detail API (<c>GetDfNoticeSectionFiles</c>). The
     /// notice-search payload does not carry them. Returns an empty collection on any failure (the import
@@ -106,6 +163,35 @@ public interface ISeapIngestionService
     Task<IReadOnlyCollection<SeapTender>> SearchAndImportAsync(
         string[]? cpvPrefixes, string[]? counties, DateOnly? fromDate, DateOnly? toDate,
         CancellationToken cancellationToken);
+
+    /// <summary>
+    /// „Direct hit" resolve by SEAP notice number (<c>SCN…</c>/<c>CN…</c>). Local first: a tender that
+    /// already carries a document-grounded analysis is returned as ready (no network call). A local row that
+    /// is not ready yet gets an ingestion run (no re-search — the numeric <c>NoticeId</c> is already known).
+    /// Only on a genuine local miss is the live platform queried with an exact notice-number match; when the
+    /// notice exists it is upserted by the unique normalized id (metadata + <c>NoticeId</c>) and an ingestion
+    /// run is started — even when the deadline already passed (a <see cref="SeapImportMode.DirectHistoricalLookup"/>
+    /// that is never surfaced as an active opportunity). Returns null when SEAP answered normally and has no
+    /// such notice; throws <see cref="SeapSourceUnavailableException"/> when the platform is unreachable.
+    /// Document download and the LLM analysis are deliberately NOT part of this call — they belong to the
+    /// background ingestion worker and are tracked on the returned run.
+    /// </summary>
+    Task<SeapResolveResult?> ResolveNoticeByNumberAsync(string noticeNo, CancellationToken cancellationToken);
+
+    /// <summary>Returns the current ingestion state of a tender (its latest run + the tender-level import
+    /// markers). Null when the tender does not exist.</summary>
+    Task<SeapIngestionStatusDto?> GetIngestionStatusAsync(Guid tenderId, CancellationToken cancellationToken);
+
+    /// <summary>Worker tick entry point (Livrarea 2): claims and processes up to <paramref name="maxRuns"/>
+    /// active runs whose lease is free/expired, advancing each through the persistent checkpoints
+    /// (fetch documents → extract text → LLM analysis). Idempotent and restart-safe; every checkpoint is
+    /// fenced on ClaimedBy + ClaimVersion, so a worker that lost its lease can never overwrite the run.</summary>
+    Task<int> ProcessPendingIngestionRunsAsync(string workerId, int maxRuns, CancellationToken cancellationToken);
+
+    /// <summary>Lease heartbeat: renews the lease of every run currently claimed by <paramref name="workerId"/>.
+    /// Invoked periodically by the lease-heartbeat background worker so long document/OCR/LLM operations do
+    /// not let the lease expire under a live worker. Returns the number of renewed runs.</summary>
+    Task<int> RenewActiveLeasesAsync(string workerId, CancellationToken cancellationToken);
 }
 
 /// <summary>Outcome of the AI categorizer for a standardized CPV code.</summary>
@@ -126,15 +212,39 @@ public interface ISeapCategorizer
 /// <summary>
 /// AI summarizer for a SEAP tender: sends the available notice data (title, CPV, estimated value, buyer,
 /// county, deadlines, description when present) — plus the text of already-processed attachments (Fișa de
-/// Date / Caiet de Sarcini) when the ingestion pipeline has extracted it — to the shared <c>ILlmProvider</c>
+/// Date / Caiet de Sarcini) when it has been read — to the shared <c>ILlmProvider</c>
 /// and returns structured, decision-critical values („Sinteză AI" bullets, award criterion, participation
-/// guarantee, funding source, duration, qualification requirements, key personnel). Enrichment is never a
+/// guarantee, funding source, duration, qualification requirements, key personnel, mandatory certificates).
+/// Enrichment is never a
 /// gate: every failure degrades to null and the tender still imports without AI details.
 /// </summary>
 public interface ISeapSummaryGenerator
 {
     Task<SeapAiExtraction?> GenerateAsync(
         SeapTender tender, string? attachmentText, CancellationToken cancellationToken);
+}
+
+/// <summary>
+/// Reads readable text (PDF text layer, DOCX, ZIP archives and plain text) from a SEAP tender's published
+/// attachments — downloading remote e-licitatie.ro files on demand or reading the locally stored copy — so
+/// the on-demand „Sinteză AI\" generation can be grounded in the original Fișa de Date / Caietul de Sarcini
+/// content. Best-effort: an attachment that cannot be downloaded or yields no readable text is skipped;
+/// returns null when no attachment produced readable text.
+/// </summary>
+/// <summary>Content digest of one published attachment, captured from the actual downloaded bytes.</summary>
+public sealed record SeapAttachmentContentDigest(string FileName, string SourceUrl, string ContentSha256, long SizeBytes);
+
+/// <summary>Outcome of a text-extraction pass over a tender's published attachments: the concatenated readable
+/// text (null when no attachment yields text) plus the per-file SHA-256 content digests that let the worker
+/// stamp content-based document hashes (a file replaced upstream keeping URL + name changes the digest).</summary>
+public sealed record SeapAttachmentReadResult(
+    string? Text,
+    IReadOnlyCollection<SeapAttachmentContentDigest> Digests);
+
+public interface ISeapAttachmentTextReader
+{
+    Task<SeapAttachmentReadResult> ReadPublishedTextAsync(
+        IReadOnlyCollection<SeapTenderAttachment> attachments, CancellationToken cancellationToken);
 }
 
 /// <summary>Lightweight category reference exposed on the SEAP tender detail page.</summary>
@@ -150,9 +260,11 @@ public sealed record SeapTenderAttachmentRef(Guid Id, string FileName, string Do
 /// DTO (instead of serializing the aggregate) so the page can evolve independently of persistence.
 /// <c>ProcedureType</c> and <c>ProcedureState</c> are derived deterministically from the external id and the
 /// deadline; the AI-extracted fields (award criterion, funding source, contract duration, guarantees,
-/// qualification requirements, key personnel, summary bullets) carry real values once the AI summarizer ran
-/// at import and are null before that — the SPA shows a skeleton/placeholders until then. <c>Certificates</c>
-/// stays null (not part of the extraction contract yet).
+/// qualification requirements, key personnel, mandatory certificates, summary bullets) carry real values
+/// once the AI summarizer ran (at import or on demand) and are null before that — the SPA shows a
+/// skeleton/placeholders until then. <c>SummaryDocumentNote</c> is a transient per-response value set only by
+/// <c>POST /api/v1/seap/tenders/{id}/summary</c> when the synthesis had to fall back to notice metadata
+/// because the published documents could not be downloaded/read automatically.
 /// </summary>
 public sealed record SeapTenderDetailsDto(
     Guid Id,
@@ -183,7 +295,10 @@ public sealed record SeapTenderDetailsDto(
     IReadOnlyCollection<string>? QualificationRequirements,
     IReadOnlyCollection<string>? KeyPersonnel,
     IReadOnlyCollection<string>? Certificates,
-    IReadOnlyCollection<string>? SummaryPoints)
+    IReadOnlyCollection<string>? SummaryPoints,
+    int? NoticeId,
+    bool SummaryGroundedInDocuments,
+    string? SummaryDocumentNote = null)
 {
     /// <summary>Maps the aggregate to the detail projection. The SEAP external id distinguishes the simplified
     /// procedure ("SCN" = „Procedură simplificată") from a standard contract notice ("CN" = „Licitare deschisă");
@@ -224,6 +339,8 @@ public sealed record SeapTenderDetailsDto(
         ParticipationGuarantee: tender.ParticipationGuarantee,
         QualificationRequirements: tender.QualificationRequirements is null ? null : [tender.QualificationRequirements],
         KeyPersonnel: tender.KeyPersonnel is null ? null : [tender.KeyPersonnel],
-        Certificates: null,
-        SummaryPoints: tender.SummaryPoints.Count > 0 ? tender.SummaryPoints : null);
+        Certificates: tender.Certificates is null ? null : [tender.Certificates],
+        SummaryPoints: tender.SummaryPoints.Count > 0 ? tender.SummaryPoints : null,
+        NoticeId: tender.NoticeId,
+        SummaryGroundedInDocuments: tender.SummaryGroundedInDocuments);
 }

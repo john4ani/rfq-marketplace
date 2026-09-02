@@ -10,7 +10,8 @@ namespace Marketplace.Infrastructure;
 public sealed class FeaturesOptions
 {
     public const string SectionName = "Features";
-    public bool SeapIngestionEnabled { get; init; }
+    public bool SeapDirectHitEnabled { get; init; }
+    public bool SeapIngestionWorkerEnabled { get; init; }
     public bool AutoBiddingEnabled { get; init; }
     public bool MarketPlaceEnabled { get; init; }
 }

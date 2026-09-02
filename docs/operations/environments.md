@@ -82,6 +82,24 @@ completeness and placeholder checks still apply in Staging.
    to the Lightsail static IP `3.64.174.227` (A records; previously a CNAME to CloudFront).
 3. Staging: `http://<static-ip>:8081` from the admin IP only.
 
+## Post-deploy smoke tests on Staging (Playwright)
+
+After every **Staging** deployment the workflow runs the Playwright smoke suite
+(`src/marketplace-web/e2e/`, script `pnpm run test:e2e:staging`):
+
+- **Golden path** — loads `STAGING_URL`, signs in with a test account, asserts no console errors.
+- **Live SEAP search (Suceava)** — runs „Caută în SEAP" with the county filter and requires at least
+  one tender result, validating real connectivity to e-licitatie.ro and PostgreSQL reads.
+
+Setup required once:
+
+- GitHub **repository secrets** `E2E_TEST_EMAIL` / `E2E_TEST_PASSWORD` — the Staging test account.
+  The account must exist (register through the UI) and should have a registered company so the
+  advanced county filter is available (otherwise the SEAP test falls back to an unfiltered search).
+- Staging must be able to reach `https://e-licitatie.ro` from the API container.
+
+See `src/marketplace-web/e2e/README.md` for local run instructions.
+
 ## Cutover / cleanup of the CloudFront era
 
 After the new topology is verified live on `compaspot.com` via Caddy:

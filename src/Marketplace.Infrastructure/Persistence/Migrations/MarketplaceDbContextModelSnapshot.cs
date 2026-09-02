@@ -1169,6 +1169,94 @@ namespace Marketplace.Infrastructure.Persistence.Migrations
                     b.ToTable("CpvCategoryMappings", (string)null);
                 });
 
+            modelBuilder.Entity("Marketplace.Domain.Seap.SeapIngestionRun", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("AnalysisAttemptId")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<string>("AnalysisRequestHash")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<int>("AttemptCount")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasDefaultValue(0);
+
+                    b.Property<long>("ClaimVersion")
+                        .IsConcurrencyToken()
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint")
+                        .HasDefaultValue(0L);
+
+                    b.Property<string>("ClaimedBy")
+                        .HasMaxLength(128)
+                        .HasColumnType("character varying(128)");
+
+                    b.Property<DateTimeOffset?>("CompletedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTimeOffset?>("DocumentsFetchedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("ExtractedText")
+                        .HasColumnType("text");
+
+                    b.Property<string>("LastErrorCode")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<string>("LastErrorMessage")
+                        .HasColumnType("text");
+
+                    b.Property<DateTimeOffset?>("LastHeartbeatAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTimeOffset?>("LeaseExpiresAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTimeOffset?>("NextAttemptAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("NoticeNo")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<DateTimeOffset>("StartedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(24)
+                        .HasColumnType("character varying(24)");
+
+                    b.Property<Guid>("TenderId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset?>("TextExtractedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TenderId")
+                        .IsUnique()
+                        .HasFilter("\"Status\" IN ('Pending', 'FetchingDocuments', 'Analyzing')");
+
+                    b.ToTable("SeapIngestionRuns", (string)null);
+                });
+
             modelBuilder.Entity("Marketplace.Domain.Seap.SeapRawIngestion", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1211,6 +1299,17 @@ namespace Marketplace.Infrastructure.Persistence.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
+                    b.Property<int?>("AnalysisVersion")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("AnalyzedDocumentSetHash")
+                        .HasColumnType("text");
+
+                    b.Property<int>("AttemptCount")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasDefaultValue(0);
+
                     b.Property<string>("AwardCriterion")
                         .HasColumnType("text");
 
@@ -1224,6 +1323,12 @@ namespace Marketplace.Infrastructure.Persistence.Migrations
 
                     b.Property<Guid?>("CategoryId")
                         .HasColumnType("uuid");
+
+                    b.Property<string>("Certificates")
+                        .HasColumnType("text");
+
+                    b.Property<DateTimeOffset?>("CompletedAt")
+                        .HasColumnType("timestamp with time zone");
 
                     b.Property<string>("ContractDuration")
                         .HasColumnType("text");
@@ -1253,6 +1358,14 @@ namespace Marketplace.Infrastructure.Persistence.Migrations
                     b.Property<string>("Description")
                         .HasColumnType("text");
 
+                    b.Property<string>("DocumentDigestStatus")
+                        .IsRequired()
+                        .HasMaxLength(12)
+                        .HasColumnType("character varying(12)");
+
+                    b.Property<string>("DocumentSetHash")
+                        .HasColumnType("text");
+
                     b.Property<decimal?>("EstimatedValue")
                         .HasPrecision(18, 2)
                         .HasColumnType("numeric(18,2)");
@@ -1260,8 +1373,27 @@ namespace Marketplace.Infrastructure.Persistence.Migrations
                     b.Property<string>("FundingSource")
                         .HasColumnType("text");
 
+                    b.Property<string>("ImportMode")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)")
+                        .HasDefaultValue("Standard");
+
                     b.Property<string>("KeyPersonnel")
                         .HasColumnType("text");
+
+                    b.Property<string>("LastErrorCode")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<string>("LastErrorMessage")
+                        .HasColumnType("text");
+
+                    b.Property<string>("NormalizedExternalId")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
 
                     b.Property<int?>("NoticeId")
                         .HasColumnType("integer");
@@ -1283,10 +1415,18 @@ namespace Marketplace.Infrastructure.Persistence.Migrations
                         .HasMaxLength(64)
                         .HasColumnType("character varying(64)");
 
+                    b.Property<DateTimeOffset?>("StartedAt")
+                        .HasColumnType("timestamp with time zone");
+
                     b.Property<string>("Status")
                         .IsRequired()
                         .HasMaxLength(24)
                         .HasColumnType("character varying(24)");
+
+                    b.Property<bool>("SummaryGroundedInDocuments")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false);
 
                     b.PrimitiveCollection<string[]>("SummaryPoints")
                         .IsRequired()
@@ -1312,6 +1452,9 @@ namespace Marketplace.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("County");
 
+                    b.HasIndex("NormalizedExternalId")
+                        .IsUnique();
+
                     b.HasIndex("PublicationDate")
                         .IsDescending();
 
@@ -1329,6 +1472,10 @@ namespace Marketplace.Infrastructure.Persistence.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
+                    b.Property<string>("ContentSha256")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
                     b.Property<DateTimeOffset>("DownloadedAt")
                         .HasColumnType("timestamp with time zone");
 
@@ -1341,6 +1488,13 @@ namespace Marketplace.Infrastructure.Persistence.Migrations
                         .IsRequired()
                         .HasMaxLength(1024)
                         .HasColumnType("character varying(1024)");
+
+                    b.Property<long?>("SizeBytes")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("SourceDocumentId")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
 
                     b.Property<Guid>("TenderId")
                         .HasColumnType("uuid");
@@ -2873,6 +3027,15 @@ namespace Marketplace.Infrastructure.Persistence.Migrations
                         .IsRequired();
 
                     b.Navigation("Category");
+                });
+
+            modelBuilder.Entity("Marketplace.Domain.Seap.SeapIngestionRun", b =>
+                {
+                    b.HasOne("Marketplace.Domain.Seap.SeapTender", null)
+                        .WithMany()
+                        .HasForeignKey("TenderId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
                 });
 
             modelBuilder.Entity("Marketplace.Domain.Seap.SeapTender", b =>

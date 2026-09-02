@@ -230,6 +230,21 @@ jobs:
           echo "Deployment did not pass readiness within four minutes." >&2
           exit 1
 
+      # Last verification step after every Staging deployment: the Playwright smoke suite
+      # signs in with the test account and validates the live SEAP search (SEAP connectivity
+      # + PostgreSQL reads). Requires repo/org secrets E2E_TEST_EMAIL and E2E_TEST_PASSWORD.
+      # Port 8081 is already open to the runner IP for the duration of this job.
+      - name: Run Staging smoke tests (Playwright E2E)
+        if: inputs.environment == 'staging' && success()
+        working-directory: src/marketplace-web
+        env:
+          STAGING_URL: http://${{ steps.ssh.outputs.instance_ip }}:8081
+          E2E_TEST_EMAIL: ${{ secrets.E2E_TEST_EMAIL }}
+          E2E_TEST_PASSWORD: ${{ secrets.E2E_TEST_PASSWORD }}
+        run: |
+          pnpm exec playwright install --with-deps chromium
+          pnpm run test:e2e:staging
+
       - name: Restore restricted SSH access
         if: always() && steps.config.outputs.instance_name != ''
         shell: bash

@@ -16,6 +16,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -36,6 +37,7 @@ public sealed partial class AutoBiddingController(
     ISeapIngestionService seapIngestionService,
     ISeapApiClient seapApiClient,
     ISeapSummaryGenerator summaryGenerator,
+    ISeapAttachmentTextReader attachmentTextReader,
     MarketplaceDbContext dbContext,
     IStorageService storage,
     IPipelineProgressStore progressStore,
@@ -66,6 +68,96 @@ public sealed partial class AutoBiddingController(
         return Ok(await biddingService.ListTendersAsync(categoryIds, radiusKm, county, cancellationToken, cpvPrefixes, counties, status));
     }
 
+    /// <summary>
+    /// „Direct hit" resolve by SEAP notice number (SCN…/CN…). Local first: a document-grounded local tender
+    /// is returned as ready (HTTP 200, full detail DTO). A local row that is not ready yet — or a notice that
+    /// only exists live — gets a persistent ingestion run: metadata + the numeric NoticeId are saved (expired
+    /// notices as <see cref="SeapImportMode.DirectHistoricalLookup"/>, never an active opportunity) and the
+    /// endpoint answers HTTP 202 with only <c>tenderId</c>/<c>runId</c>/<c>status</c>. Documents and the LLM
+    /// analysis are executed by the background ingestion worker (separate delivery), not inside this request.
+    /// 404 only when SEAP answered and has no exact match; 502 when the platform is unreachable/erroring.
+    /// </summary>
+    [HttpPost("tenders/resolve")]
+    [EnableRateLimiting("seap-resolve")]
+    public async Task<IActionResult> ResolveTender(ResolveSeapTenderRequest request, CancellationToken cancellationToken)
+    {
+        if (request is null || !SeapNoticeNumber.TryNormalize(request.NoticeNo, out string noticeNo))
+            return ValidationProblem(new ValidationProblemDetails(new Dictionary<string, string[]>
+            {
+                ["noticeNo"] = ["Numărul anunțului lipsește sau are un format neacceptat (ex. SCN1179200 / CN1010518)."]
+            })
+            { Title = "Cerere invalidă." });
+
+        // Rollout gate: the Direct Hit surface must never create ingestion runs nobody processes. It is only
+        // available when BOTH the Direct Hit surface AND the ingestion worker are enabled — otherwise resolve
+        // answers 503 explicitly and no tender/run is created or touched.
+        if (!features.CurrentValue.SeapDirectHitEnabled || !features.CurrentValue.SeapIngestionWorkerEnabled)
+            return Problem(
+                statusCode: StatusCodes.Status503ServiceUnavailable,
+                title: "SEAP Direct Hit este indisponibil momentan.",
+                detail: "Importul direct de anunțuri SEAP este dezactivat temporar. Încearcă din nou mai târziu.");
+
+        try
+        {
+            SeapResolveResult? result = await seapIngestionService.ResolveNoticeByNumberAsync(noticeNo, cancellationToken);
+            if (result is null)
+                return NotFound(new
+                {
+                    message = $"Anunțul {noticeNo} nu a fost găsit pe SEAP.",
+                    detail = $"Anunțul {noticeNo} nu a fost găsit pe SEAP. Verifică numărul și încearcă din nou."
+                });
+
+            // Unified envelope: the same shape for HTTP 200 (Ready/Partial — tender present) and 202
+            // (processing — tender null). The SPA only needs tenderId/runId/status while work runs.
+            if (result.ReadyTender is not null)
+            {
+                return Ok(new
+                {
+                    tenderId = result.TenderId,
+                    runId = (Guid?)null,
+                    noticeNo = result.NoticeNo,
+                    status = result.Status,
+                    tender = result.ReadyTender
+                });
+            }
+            Response.Headers["Location"] = $"/api/v1/seap/tenders/{result.TenderId}/ingestion-status";
+            Response.Headers["Retry-After"] = "30"; // best-effort ETA for the next worker tick
+            return Accepted(new
+            {
+                tenderId = result.TenderId,
+                runId = result.RunId,
+                noticeNo = result.NoticeNo,
+                status = result.Status,
+                tender = (SeapTenderDetailsDto?)null,
+                message = "Anunțul a fost găsit și metadatele au fost importate. Procesarea în fundal (documente + analiză AI) a fost înregistrată; verifică statusul de ingestie în scurt timp."
+            });
+        }
+        catch (SeapSourceUnavailableException exception)
+        {
+            LogSeapLookupUnavailable(logger, noticeNo, exception);
+            return Problem(
+                statusCode: StatusCodes.Status502BadGateway,
+                title: "SEAP indisponibil",
+                detail: "Platforma SEAP nu a putut fi interogată în acest moment (acces restricționat sau serviciu întrerupt). Încearcă din nou mai târziu.");
+        }
+        catch (SeapResolveLimitReachedException exception)
+        {
+            Response.Headers["Retry-After"] = "30"; // global cap window — poll back after the worker drains runs
+            return Problem(
+                statusCode: StatusCodes.Status429TooManyRequests,
+                title: "Prea multe procesări",
+                detail: exception.Message);
+        }
+    }
+
+    /// <summary>Persistent ingestion state of a tender — the SPA polls this while a resolve run is active.</summary>
+    [HttpGet("tenders/{tenderId:guid}/ingestion-status")]
+    public async Task<IActionResult> GetIngestionStatus(Guid tenderId, CancellationToken cancellationToken)
+    {
+        SeapIngestionStatusDto? status = await seapIngestionService.GetIngestionStatusAsync(tenderId, cancellationToken);
+        return status is null ? NotFound() : Ok(status);
+    }
+
     [HttpGet("tenders/{tenderId:guid}")]
     public async Task<IActionResult> GetTender(Guid tenderId, CancellationToken cancellationToken)
     {
@@ -88,20 +180,82 @@ public sealed partial class AutoBiddingController(
             .SingleOrDefaultAsync(item => item.Id == tenderId, cancellationToken);
         if (tender is null) return NotFound();
 
-        if (tender.SummaryPoints.Count > 0)
+        bool hasSummary = tender.SummaryPoints.Count > 0;
+        bool canResolveDocuments = tender.NoticeId is not null || tender.Attachments.Count > 0;
+        // A summary that was already grounded in the published document text — or that can never be enriched
+        // (no numeric notice id / documents) — is returned as-is: idempotent, no LLM call.
+        if (hasSummary && (tender.SummaryGroundedInDocuments || !canResolveDocuments))
             return Ok(SeapTenderDetailsDto.From(tender, DateTimeOffset.UtcNow));
 
-        SeapAiExtraction? extraction = await summaryGenerator.GenerateAsync(tender, attachmentText: null, cancellationToken);
+        (string? attachmentText, string? documentNote) = await ResolveDocumentsForSynthesisAsync(tender, cancellationToken);
+
+        // A metadata-only summary that could not be enriched right now (SEAP unreachable, no published
+        // document or an unreadable/scanned file): keep the existing bullets and tell the user why.
+        if (hasSummary && attachmentText is null)
+        {
+            SeapTenderDetailsDto unchanged = SeapTenderDetailsDto.From(tender, DateTimeOffset.UtcNow);
+            return Ok(documentNote is null ? unchanged : unchanged with { SummaryDocumentNote = documentNote });
+        }
+
+        SeapAiExtraction? extraction = await summaryGenerator.GenerateAsync(tender, attachmentText, cancellationToken);
         if (extraction is null)
             return Problem(
                 statusCode: StatusCodes.Status503ServiceUnavailable,
                 title: "Sinteza indisponibilă",
                 detail: "Sinteza AI nu a putut fi generată în acest moment. Încearcă din nou mai târziu.");
 
-        tender.ApplyAiExtraction(extraction, DateTimeOffset.UtcNow);
+        tender.ApplyAiExtraction(extraction, DateTimeOffset.UtcNow, groundedInDocuments: attachmentText is not null);
         await dbContext.SaveChangesAsync(cancellationToken);
-        return Ok(SeapTenderDetailsDto.From(tender, DateTimeOffset.UtcNow));
+        SeapTenderDetailsDto dto = SeapTenderDetailsDto.From(tender, DateTimeOffset.UtcNow);
+        return Ok(documentNote is null ? dto : dto with { SummaryDocumentNote = documentNote });
     }
+    /// <summary>
+    /// Resolves the published documents (Fișa de date / Caiet de sarcini) for a tender that has none and
+    /// reads their readable text, so the on-demand synthesis is grounded in the real document content.
+    /// Returns the attachment text to feed the LLM plus a user-facing note when the synthesis had to fall
+    /// back to the notice metadata (no document could be downloaded or read automatically).
+    /// </summary>
+    private async Task<(string? AttachmentText, string? DocumentNote)> ResolveDocumentsForSynthesisAsync(
+        SeapTender tender, CancellationToken cancellationToken)
+    {
+        bool attemptedFetch = false;
+        if (tender.Attachments.Count == 0 && tender.NoticeId is int noticeId)
+        {
+            attemptedFetch = true;
+            try
+            {
+                IReadOnlyCollection<SeapNoticeDocumentDto> documents = await seapApiClient.FetchNoticeDocumentsAsync(
+                    noticeId, tender.SysNoticeTypeId ?? 2, cancellationToken);
+                DateTimeOffset now = DateTimeOffset.UtcNow;
+                foreach (SeapNoticeDocumentDto document in documents)
+                {
+                    if (tender.Attachments.Any(attachment =>
+                            string.Equals(attachment.FileName, document.FileName, StringComparison.OrdinalIgnoreCase)))
+                        continue;
+                    dbContext.Add(SeapTenderAttachment.Create(tender.Id, document.FileName, document.DownloadUrl, now));
+                }
+                await dbContext.SaveChangesAsync(cancellationToken);
+            }
+            catch (Exception exception)
+            {
+                LogDocumentsResolveFailed(logger, tender.Id, exception);
+            }
+        }
+
+        if (tender.Attachments.Count == 0)
+        {
+            string? note = attemptedFetch
+                ? "Documentele publicate (Fișa de date, Caietul de sarcini) nu au putut fi descărcate automat de pe SEAP. Sinteza s-a generat doar din metadatele anunțului."
+                : null;
+            return (null, note);
+        }
+
+        SeapAttachmentReadResult read = await attachmentTextReader.ReadPublishedTextAsync(tender.Attachments, cancellationToken);
+        return read.Text is null
+            ? (null, "Fișa de date / Caietul de sarcini nu au putut fi citite automat (document scanat sau format neacceptat). Sinteza s-a generat doar din metadatele anunțului.")
+            : (read.Text, null);
+    }
+
 
     /// <summary>
     /// Resolves the published documents (Fișa de date, Caiet de sarcini, formulare) on demand for a tender
@@ -344,6 +498,8 @@ public sealed partial class AutoBiddingController(
     private static partial void LogWebhookGenerationFailed(ILogger logger, Guid tenderId, Exception exception);
     [LoggerMessage(EventId = 6002, Level = LogLevel.Warning, Message = "Published documents could not be resolved for tender {TenderId}.")]
     private static partial void LogDocumentsResolveFailed(ILogger logger, Guid tenderId, Exception exception);
+    [LoggerMessage(EventId = 6003, Level = LogLevel.Warning, Message = "Direct SEAP notice-number lookup for {NoticeNo} failed because the platform is unavailable.")]
+    private static partial void LogSeapLookupUnavailable(ILogger logger, string noticeNo, Exception exception);
 }
 
 /// <summary>Body of POST /auto-bid; <c>companyId</c> identifies the company whose SEAP qualification vault
@@ -351,3 +507,6 @@ public sealed partial class AutoBiddingController(
 /// optional <c>progressRequestId</c> lets the SPA poll real per-stage progress (Generating → Finalizing →
 /// Completed/Failed) while the request is in flight.</summary>
 public sealed record StartAutoBidRequest(Guid? ProgressRequestId, Guid? CompanyId = null);
+
+/// <summary>Body of POST /api/v1/seap/tenders/resolve — a notice-number direct-hit resolve (SCN…/CN…).</summary>
+public sealed record ResolveSeapTenderRequest(string NoticeNo);

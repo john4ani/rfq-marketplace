@@ -40,8 +40,9 @@ public sealed partial class SeapSummaryService(
         "returnează null pentru acel câmp, nu inventa date.\n" +
         "3. Formatează sumele financiar clar (ex: \"120.000 RON\").\n" +
         "4. Pentru \"summaryPoints\", generează maxim 5 bullet-uri scurte, la obiect (max 140 caractere fiecare), " +
-        "care să conțină cele mai importante bariere de intrare (garanții, experiență cerută, criteriu de atribuire, termene).\n" +
-        "5. Trebuie să răspunzi EXCLUSIV cu un obiect JSON valid, fără niciun alt text înainte sau după, folosind schema de mai jos.\n\n" +
+        "care să conțină cele mai importante bariere de intrare (garanții, certificări obligatorii, experiență cerută, criteriu de atribuire, termene).\n" +
+        "5. Pentru \"certificates\", enumeră certificările/standardele obligatorii cerute ofertantului (ex: ISO 9001, ISO 14001, ISO 45001, atestat ANRE) sau null dacă nu sunt cerute.\n" +
+        "6. Trebuie să răspunzi EXCLUSIV cu un obiect JSON valid, fără niciun alt text înainte sau după, folosind schema de mai jos.\n\n" +
         "Structura JSON (Function Calling / Structured Output):\n" +
         "{\n" +
         "  \"summaryPoints\": [\"string (bullet point 1)\", \"string (bullet point 2)\"],\n" +
@@ -51,7 +52,8 @@ public sealed partial class SeapSummaryService(
         "  \"fundingSource\": \"string (ex: PNRR, Fonduri Europene, Buget Local - dacă este specificat)\",\n" +
         "  \"contractDuration\": \"string (ex: 12 luni, 60 de zile)\",\n" +
         "  \"qualificationRequirements\": \"string (rezumatul cerințelor de experiență similară/cifră de afaceri)\",\n" +
-        "  \"keyPersonnel\": \"string (lista scurtă a experților cheie solicitați, ex: Manager de proiect, Inginer RTE)\"\n" +
+        "  \"keyPersonnel\": \"string (lista scurtă a experților cheie solicitați, ex: Manager de proiect, Inginer RTE)\",\n" +
+        "  \"certificates\": \"string (ex: ISO 9001, ISO 45001, atestat ANRE)\"\n" +
         "}";
 
     public async Task<SeapAiExtraction?> GenerateAsync(
@@ -115,6 +117,7 @@ public sealed partial class SeapSummaryService(
         string? contractDuration = ReadString(root, "contractDuration");
         string? qualificationRequirements = ReadString(root, "qualificationRequirements");
         string? keyPersonnel = ReadString(root, "keyPersonnel");
+        string? certificates = ReadString(root, "certificates");
 
         List<string> bullets = [];
         if (root.TryGetProperty("summaryPoints", out JsonElement points) && points.ValueKind == JsonValueKind.Array)
@@ -132,11 +135,11 @@ public sealed partial class SeapSummaryService(
 
         if (bullets.Count == 0 && description is null && awardCriterion is null
             && participationGuarantee is null && fundingSource is null && contractDuration is null
-            && qualificationRequirements is null && keyPersonnel is null)
+            && qualificationRequirements is null && keyPersonnel is null && certificates is null)
             return null;
 
         return new SeapAiExtraction(description, awardCriterion, participationGuarantee, fundingSource,
-            contractDuration, qualificationRequirements, keyPersonnel, bullets);
+            contractDuration, qualificationRequirements, keyPersonnel, certificates, bullets);
     }
 
     /// <summary>Strips a Markdown code fence around the JSON body when present (a truncated response without a

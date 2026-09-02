@@ -763,8 +763,202 @@ describe('SeapTenderDetailComponent', () => {
     tab.click();
     fixture.detectChanges();
 
+
     // Honest unavailable state: no published document was found for this notice — never a broken/mock row.
     expect((fixture.nativeElement as HTMLElement).textContent ?? '').toContain('Nu au fost găsite documente publicate');
     expect((fixture.nativeElement as HTMLElement).textContent ?? '').not.toContain('Niciun document atașat');
+  });
+
+
+  it('keeps the Sinteză AI tab focused on the summary bullets without duplicating the decision rows', () => {
+    const fixture = setup({
+      startAutoBid: vi.fn(),
+      tender: {
+        ...tender,
+        summaryPoints: ['Garanție de participare: 120.000 RON'],
+        awardCriterion: 'Prețul cel mai scăzut',
+        participationGuarantee: '120.000 RON',
+        certificates: ['ISO 9001, ISO 45001']
+      }
+    });
+    fixture.detectChanges();
+
+    const text = (fixture.nativeElement as HTMLElement).textContent ?? '';
+    // The summary card only carries the high-level bullets; the structured rows live in their own tabs.
+    expect(text).toContain('Garanție de participare: 120.000 RON');
+    expect(text).not.toContain('Date de decizie');
+    expect(text).not.toContain('Certificări obligatorii (ISO, ANRE)');
+  });
+
+  it('lets the user enrich a metadata-only summary with the published documents', () => {
+    const generateSummary = vi.fn().mockReturnValue(of({
+      ...tender,
+      summaryPoints: ['Termen scurt de depunere a ofertelor: 17.09.2026'],
+      summaryGroundedInDocuments: true,
+      awardCriterion: 'Prețul cel mai scăzut',
+      participationGuarantee: '120.000 RON',
+      certificates: ['ISO 9001, ISO 45001']
+    }));
+    const fixture = setup({
+      startAutoBid: vi.fn(),
+      generateSummary,
+      tender: { ...tender, summaryPoints: ['Termen scurt de depunere a ofertelor: 17.09.2026'], summaryGroundedInDocuments: false }
+    });
+    fixture.detectChanges();
+
+    const text = (fixture.nativeElement as HTMLElement).textContent ?? '';
+    expect(text).toContain('Analizează documentele publicate');
+
+    const button = Array.from(fixture.nativeElement.querySelectorAll('button') as NodeListOf<HTMLButtonElement>)
+      .find(item => item.textContent?.includes('Analizează documentele publicate'))!;
+    button.click();
+    fixture.detectChanges();
+
+    expect(generateSummary).toHaveBeenCalledWith('t1');
+    // Once the summary is grounded in the document text, the enrichment affordance disappears.
+    expect((fixture.nativeElement as HTMLElement).textContent ?? '').not.toContain('Analizează documentele publicate');
+  });
+
+  it('routes the extracted decision data to the dedicated detail and qualification tabs', () => {
+    const fixture = setup({
+      startAutoBid: vi.fn(),
+      tender: {
+        ...tender,
+        summaryPoints: ['Garanție de participare: 120.000 RON'],
+        awardCriterion: 'Prețul cel mai scăzut',
+        participationGuarantee: '120.000 RON',
+        contractDuration: '12 luni',
+        fundingSource: 'Buget local',
+        qualificationRequirements: ['Minim 2 contracte similare'],
+        keyPersonnel: ['Manager de proiect'],
+        certificates: ['ISO 9001, ISO 45001']
+      }
+    });
+    fixture.detectChanges();
+
+    // Detalii Achiziție: award criterion, funding source, duration.
+    const detailsTab = Array.from(fixture.nativeElement.querySelectorAll('button[role="tab"]') as NodeListOf<HTMLButtonElement>)
+      .find(button => button.textContent?.includes('Detalii Achiziție'))!;
+    detailsTab.click();
+    fixture.detectChanges();
+    const detailsText = (fixture.nativeElement as HTMLElement).textContent ?? '';
+    expect(detailsText).toContain('Criteriul de atribuire');
+    expect(detailsText).toContain('Prețul cel mai scăzut');
+    expect(detailsText).toContain('Buget local');
+    expect(detailsText).toContain('12 luni');
+    expect(detailsText).not.toContain('Certificări obligatorii (ISO, ANRE)');
+
+    // Condiții de Calificare: guarantee, experience, key personnel, certificates.
+    const qualificationTab = Array.from(fixture.nativeElement.querySelectorAll('button[role="tab"]') as NodeListOf<HTMLButtonElement>)
+      .find(button => button.textContent?.includes('Condiții de Calificare'))!;
+    qualificationTab.click();
+    fixture.detectChanges();
+    const qualificationText = (fixture.nativeElement as HTMLElement).textContent ?? '';
+    expect(qualificationText).toContain('Cuantumul garanției de participare');
+    expect(qualificationText).toContain('120.000 RON');
+    expect(qualificationText).toContain('Minim 2 contracte similare');
+    expect(qualificationText).toContain('Manager de proiect');
+    expect(qualificationText).toContain('Certificate și standarde (ISO)');
+    expect(qualificationText).toContain('ISO 9001, ISO 45001');
+  });
+
+  it('surfaces the document fallback note on the Documente Originale tab instead of the summary', () => {
+    const documentNote =
+      'Documentele publicate (Fișa de date, Caietul de sarcini) nu au putut fi descărcate automat de pe SEAP. Sinteza s-a generat doar din metadatele anunțului.';
+    const generateSummary = vi.fn().mockReturnValue(of({
+      ...tender,
+      summaryPoints: ['Termen de execuție: 12 luni'],
+      summaryDocumentNote: documentNote
+    }));
+    const fixture = setup({ startAutoBid: vi.fn(), generateSummary, tender: { ...tender, summaryPoints: [] } });
+    fixture.detectChanges();
+
+    const button = Array.from(fixture.nativeElement.querySelectorAll('button') as NodeListOf<HTMLButtonElement>)
+      .find(item => item.textContent?.includes('Generează sinteza AI'))!;
+    button.click();
+    fixture.detectChanges();
+
+    // The note is shown right where the generation happened (summary card)...
+    expect((fixture.nativeElement as HTMLElement).textContent ?? '').toContain('Sinteza s-a generat doar din metadatele anunțului');
+
+    // ...and it is also bound to the Documente Originale tab where the document state belongs.
+    const documentsTab = Array.from(fixture.nativeElement.querySelectorAll('button[role="tab"]') as NodeListOf<HTMLButtonElement>)
+      .find(item => item.textContent?.includes('Documente Originale'))!;
+    documentsTab.click();
+    fixture.detectChanges();
+    expect((fixture.nativeElement as HTMLElement).textContent ?? '').toContain('Sinteza s-a generat doar din metadatele anunțului');
+  });
+
+  it('deep-links by SEAP notice number through the direct-hit lookup and renders with the internal id', () => {
+    const getBidStatus = vi.fn().mockReturnValue(of(bidStatus));
+    const getTenderPricing = vi.fn().mockReturnValue(of(pricing));
+    TestBed.configureTestingModule({
+      imports: [SeapTenderDetailComponent],
+      providers: [
+        provideRouter([]),
+        { provide: ActivatedRoute, useValue: { snapshot: { paramMap: convertToParamMap({ id: 'SCN1178750' }), queryParamMap: convertToParamMap({}) } } },
+        { provide: ProfileService, useValue: profiles },
+        { provide: CompanyVaultService, useValue: { list: vi.fn().mockReturnValue(of([usableDoc])) } },
+        { provide: CompanyQualificationService, useValue: { get: vi.fn().mockReturnValue(of(completeQualification)) } },
+        {
+          provide: SeapService,
+          useValue: {
+            getTender: vi.fn(),
+            getTenderByExternalId: vi.fn().mockReturnValue(of(tender)),
+            getBidStatus,
+            getTenderPricing,
+            getAutoBidProgress: vi.fn(),
+            startAutoBid: vi.fn(),
+            refreshDocuments: vi.fn(),
+            downloadBidFile: vi.fn(),
+            downloadAttachment: vi.fn().mockReturnValue(of(new Blob(['pdf'])))
+          }
+        }
+      ]
+    });
+    const fixture = TestBed.createComponent(SeapTenderDetailComponent);
+    fixture.detectChanges();
+
+    // The direct-hit response carries the internal Guid; every follow-up call uses it, not the SCN number.
+    expect(getBidStatus).toHaveBeenCalledWith('t1');
+    expect(getTenderPricing).toHaveBeenCalledWith('t1');
+    expect((fixture.nativeElement as HTMLElement).textContent ?? '').toContain('SCN1178750');
+    expect((fixture.nativeElement as HTMLElement).textContent ?? '').toContain('Reabilitare infrastructură rutieră în comuna Udești');
+  });
+
+  it('shows an error state instead of a blank page when the tender cannot be loaded', () => {
+    TestBed.configureTestingModule({
+      imports: [SeapTenderDetailComponent],
+      providers: [
+        provideRouter([]),
+        { provide: ActivatedRoute, useValue: { snapshot: { paramMap: convertToParamMap({ id: 'SCN9999999' }), queryParamMap: convertToParamMap({}) } } },
+        { provide: ProfileService, useValue: profiles },
+        { provide: CompanyVaultService, useValue: { list: vi.fn().mockReturnValue(of([usableDoc])) } },
+        { provide: CompanyQualificationService, useValue: { get: vi.fn().mockReturnValue(of(emptyQualification)) } },
+        {
+          provide: SeapService,
+          useValue: {
+            getTender: vi.fn(),
+            getTenderByExternalId: vi.fn().mockReturnValue(throwError(() => ({
+              error: { detail: 'Anunțul SCN9999999 nu a fost găsit pe SEAP. Verifică numărul și încearcă din nou.' }
+            }))),
+            getBidStatus: vi.fn(),
+            getTenderPricing: vi.fn(),
+            getAutoBidProgress: vi.fn(),
+            startAutoBid: vi.fn(),
+            refreshDocuments: vi.fn(),
+            downloadBidFile: vi.fn(),
+            downloadAttachment: vi.fn()
+          }
+        }
+      ]
+    });
+    const fixture = TestBed.createComponent(SeapTenderDetailComponent);
+    fixture.detectChanges();
+
+    const text = (fixture.nativeElement as HTMLElement).textContent ?? '';
+    expect(text).toContain('Anunțul nu a putut fi afișat');
+    expect(text).toContain('nu a fost găsit pe SEAP');
+    expect(text).toContain('Încearcă din nou');
   });
 });

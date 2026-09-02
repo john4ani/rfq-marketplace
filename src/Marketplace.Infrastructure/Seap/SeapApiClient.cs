@@ -58,6 +58,63 @@ public sealed partial class SeapApiClient(
         return await FetchFromLocalFallbackAsync(cancellationToken);
     }
 
+    public async Task<SeapTenderNoticeDto?> FetchNoticeByNumberAsync(string noticeNo, CancellationToken cancellationToken)
+    {
+        string target = noticeNo?.Trim() ?? string.Empty;
+        if (target.Length == 0) return null;
+        target = target.ToUpperInvariant();
+        int pageSize = Math.Max(50, settings.OnDemandSearchPageSize);
+
+        // 1) Primary: probe the live search with the notice-number filter key. When the platform honours it
+        //    the first page carries exactly the requested notice; when the anonymous API ignores unknown keys
+        //    it still answers 200 with the newest slice — that case is covered by the bounded fallback below.
+        //    A transport error / HTTP 4xx / HTTP 5xx / non-JSON body is an unavailability (502 upstream),
+        //    never a "not found".
+        string body;
+        try
+        {
+            body = await PostSearchBodyAsync(BuildNoticeNumberSearchFilter(target, pageSize), cancellationToken);
+        }
+        catch (SeapSourceUnavailableException)
+        {
+            throw;
+        }
+        catch (Exception exception)
+        {
+            throw new SeapSourceUnavailableException($"Platforma SEAP nu a răspuns la interogarea anunțului {target}.", exception);
+        }
+
+        SeapTenderNoticeDto? direct = SeapNoticeParser.ParseNotices(body)
+            .FirstOrDefault(notice => string.Equals(notice.Id, target, StringComparison.OrdinalIgnoreCase));
+        if (direct is not null) return direct;
+
+        // 2) Fallback: the anonymous search may not support a per-notice filter, so page through the most
+        //    recent window (bounded by OnDemandSearchMaxPages x pageSize / OnDemandSearchMaxScanned) looking
+        //    for the exact number. Older notices that the anonymous slice no longer surfaces stay out of
+        //    reach until SEAP documents a per-notice detail endpoint (ADR-011 deferred FetchNoticeDetailAsync).
+        int maxPages = Math.Max(1, settings.OnDemandSearchMaxPages);
+        int maxScanned = Math.Max(pageSize, settings.OnDemandSearchMaxScanned);
+        DateTimeOffset now = DateTimeOffset.UtcNow;
+        DateOnly today = DateOnly.FromDateTime(now.UtcDateTime);
+        DateOnly windowFrom = today.AddDays(-150);
+        int scanned = 0;
+        for (int pageIndex = 0; pageIndex < maxPages; pageIndex++)
+        {
+            if (scanned >= maxScanned) break;
+            IReadOnlyCollection<SeapTenderNoticeDto> page = await FetchNoticePageAsync(
+                pageIndex, pageSize, windowFrom, today, cancellationToken);
+            if (page.Count == 0) break;
+            foreach (SeapTenderNoticeDto notice in page)
+            {
+                scanned++;
+                if (string.Equals(notice.Id, target, StringComparison.OrdinalIgnoreCase)) return notice;
+                if (scanned >= maxScanned) break;
+            }
+        }
+        LogSeapNoticeNumberNotFound(logger, target);
+        return null;
+    }
+
     public async Task<Stream> DownloadAttachmentAsync(string downloadUrl, CancellationToken cancellationToken)
     {
         HttpClient client = httpClientFactory.CreateClient("seap");
@@ -190,6 +247,34 @@ public sealed partial class SeapApiClient(
         return filter;
     }
 
+    /// <summary>Adds the notice-number filter key (<c>sysNoticeNo</c>) to the plain search filter used by the
+    /// direct-hit lookup. Kept as its own dictionary so the key is trivially adjustable if SEAP documents a
+    /// different equivalent parameter.</summary>
+    private Dictionary<string, object?> BuildNoticeNumberSearchFilter(string noticeNo, int pageSize)
+    {
+        Dictionary<string, object?> filter = BuildPageSearchFilter(0, pageSize, null, null);
+        filter["sysNoticeNo"] = noticeNo;
+        return filter;
+    }
+
+    /// <summary>Posts one filter to the live notice-search endpoint, throwing <see cref="SeapSourceUnavailableException"/>
+    /// on HTTP 4xx/5xx or non-JSON answers so the direct-hit caller can map them to a 502 instead of a 404.</summary>
+    private async Task<string> PostSearchBodyAsync(Dictionary<string, object?> filter, CancellationToken cancellationToken)
+    {
+        HttpClient client = httpClientFactory.CreateClient("seap");
+        client.Timeout = TimeSpan.FromSeconds(Math.Clamp(settings.RequestTimeoutSeconds, 5, 300));
+        using HttpRequestMessage request = new(HttpMethod.Post, BuildUrl());
+        request.Headers.Referrer = new Uri(new Uri(settings.BaseUrl), $"/pub/notices/contract-notices/list/{FirstNoticeTypeId()}/0");
+        request.Content = JsonContent.Create(filter, options: JsonOptions);
+        using HttpResponseMessage response = await client.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
+        string body = await response.Content.ReadAsStringAsync(cancellationToken);
+        if (!response.IsSuccessStatusCode)
+            throw new SeapSourceUnavailableException($"Platforma SEAP a răspuns cu {(int)response.StatusCode} la interogarea directă a unui anunț.");
+        if (body.TrimStart().FirstOrDefault() is not ('[' or '{'))
+            throw new SeapSourceUnavailableException("Platforma SEAP a răspuns cu un conținut neașteptat (non-JSON).");
+        return body;
+    }
+
     private bool MatchesTargetCpv(SeapTenderNoticeDto notice)
     {
         if (settings.TargetCpvPrefixes.Length == 0) return true;
@@ -211,4 +296,6 @@ public sealed partial class SeapApiClient(
     private static partial void LogSeapPageFetchFailed(ILogger logger, int pageIndex, Exception exception);
     [LoggerMessage(EventId = 5111, Level = LogLevel.Warning, Message = "SEAP notice {NoticeId} published-document list could not be fetched; tender stays without attachments.")]
     private static partial void LogSeapDocumentsFailed(ILogger logger, int noticeId, Exception exception);
+    [LoggerMessage(EventId = 5112, Level = LogLevel.Information, Message = "SEAP direct notice-number lookup found no notice {NoticeNo} on the live platform.")]
+    private static partial void LogSeapNoticeNumberNotFound(ILogger logger, string noticeNo);
 }

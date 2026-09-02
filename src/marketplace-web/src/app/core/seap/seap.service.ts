@@ -1,5 +1,6 @@
-import { HttpClient, HttpParams } from '@angular/common/http';
+import { HttpClient, HttpParams, HttpResponse } from '@angular/common/http';
 import { inject, Injectable } from '@angular/core';
+import { Observable, of, switchMap, throwError } from 'rxjs';
 import { PipelineProgress } from '../companies/company-vault.service';
 
 export interface SeapTenderAttachment {
@@ -13,6 +14,10 @@ export interface SeapTenderAttachment {
 export interface SeapTender {
   id: string;
   seapExternalId: string;
+  /** Numeric id of the notice in SEAP, when persisted — the source for resolving the published documents. */
+  noticeId?: number | null;
+  /** True when the AI summary was generated with the text of the published documents (not only metadata). */
+  summaryGroundedInDocuments?: boolean;
   title: string;
   description: string | null;
   cpvCodes: string[];
@@ -43,7 +48,52 @@ export interface SeapTender {
   keyPersonnel?: string[] | null;
   certificates?: string[] | null;
   summaryPoints?: string[] | null;
+  /** Transient note set by POST /summary when the synthesis fell back to notice metadata because the
+   *  published documents (Fișa de date / Caiet de sarcini) could not be downloaded or read automatically. */
+  summaryDocumentNote?: string | null;
 }
+
+/** Envelope returned by POST /api/v1/seap/tenders/resolve for BOTH HTTP 200 and 202: a ready/partial tender
+ *  carries <c>tender</c> (full detail DTO); while the ingestion run processes <c>tender</c> is null and the
+ *  SPA only needs <c>tenderId</c>/<c>runId</c>/<c>status</c>. */
+export interface SeapResolveResponse {
+  tenderId?: string;
+  noticeNo?: string;
+  runId?: string | null;
+  status?: 'Pending' | 'FetchingDocuments' | 'Analyzing' | 'Ready' | 'Partial' | 'Failed';
+  message?: string;
+  tender?: SeapTender | null;
+}
+
+export interface SeapIngestionStatus {
+  tenderId: string;
+  noticeNo: string;
+  status: 'Pending' | 'FetchingDocuments' | 'Analyzing' | 'Ready' | 'Partial' | 'Failed';
+  importMode: string;
+  runId: string | null;
+  attemptCount: number;
+  startedAt: string | null;
+  completedAt: string | null;
+  lastErrorCode: string | null;
+  lastErrorMessage: string | null;
+  documentSetHash: string | null;
+  analysisVersion: number | null;
+  /** Complete / Partial / None — how fully the published documents were content-verified. */
+  digestStatus?: string | null;
+  /** Stage checkpoints surfaced for progress UI (null until the checkpoint was persisted). */
+  documentsFetchedAt?: string | null;
+  textExtractedAt?: string | null;
+}
+
+/** Stage labels for the ingestion polling UI (Livrarea 3). */
+export const INGESTION_STAGE_LABELS: Record<SeapIngestionStatus['status'], string> = {
+  Pending: 'Anunțul a fost găsit. Pregătim importul…',
+  FetchingDocuments: 'Descărcăm documentele publicate…',
+  Analyzing: 'Analizăm cerințele anunțului…',
+  Ready: 'Anunțul este gata.',
+  Partial: 'Anunțul este disponibil parțial.',
+  Failed: 'Procesarea anunțului a eșuat.'
+};
 
 export interface SeapTenderFilter {
   categoryIds?: string[];
@@ -127,6 +177,30 @@ export class SeapService {
   }
 
   getTender(id: string) { return this.http.get<SeapTender>(`/api/v1/seap/tenders/${id}`); }
+  /** Direct-hit resolve by SEAP notice number (SCN…/CN…): the backend answers with the unified envelope —
+   *  HTTP 200 with a ready/partial <c>tender</c>, or HTTP 202 while the ingestion run processes (tender null;
+   *  this method surfaces the friendly message until the full polling UI lands). */
+  getTenderByExternalId(noticeNo: string): Observable<SeapTender> {
+    return this.http.post<SeapResolveResponse>('/api/v1/seap/tenders/resolve', { noticeNo }).pipe(
+      switchMap(envelope => {
+        if (envelope?.tender) return of(envelope.tender);
+        return throwError(() => ({
+          error: {
+            detail: envelope?.message ?? 'Anunțul a fost găsit, dar procesarea în fundal este încă în curs. Reîncearcă în scurt timp.'
+          }
+        }));
+      })
+    );
+  }
+  /** Direct-hit resolve exposing the full HTTP response (envelope + Location/Retry-After headers) so the SPA
+   *  can navigate to the ingestion status URL and honor Retry-After while the run processes (Livrarea 3). */
+  resolveNotice(noticeNo: string): Observable<HttpResponse<SeapResolveResponse>> {
+    return this.http.post<SeapResolveResponse>('/api/v1/seap/tenders/resolve', { noticeNo }, { observe: 'response' });
+  }
+  /** Polls the persisted ingestion state of a tender (status + per-stage checkpoints). */
+  getIngestionStatus(tenderId: string): Observable<SeapIngestionStatus> {
+    return this.http.get<SeapIngestionStatus>(`/api/v1/seap/tenders/${tenderId}/ingestion-status`);
+  }
   /** Resolves the published documents on demand for a tender that has none (idempotent server-side).
    *  Returns the same detail projection as <c>getTender</c>. */
   refreshDocuments(id: string) { return this.http.post<SeapTender>(`/api/v1/seap/tenders/${id}/documents`, {}); }

@@ -18,6 +18,11 @@ const AUTO_BID_STAGE_LABELS: Record<PipelineProgress['stage'], string> = {
   Failed: 'Generarea a eșuat.'
 };
 
+/** SEAP external notice numbers look like SCN1179200 / CN1010518. A route id matching this pattern is a
+ *  notice number (the backend runs the direct-hit lookup); anything else is treated as the internal Guid
+ *  tender id used by the canonical /seap/tenders/{id} links. */
+const NOTICE_NUMBER_PATTERN = /^(SCN|CN)\d+$/i;
+
 type TenderTab = 'summary' | 'details' | 'qualification' | 'documents' | 'history';
 
 const VALID_TABS: readonly TenderTab[] = ['summary', 'details', 'qualification', 'documents', 'history'];
@@ -77,7 +82,19 @@ const VALID_TABS: readonly TenderTab[] = ['summary', 'details', 'qualification',
                 </div>
               }
             }
+            @if (summaryDocumentNote(); as note) {
+              <p class="note warn" role="status">{{ note }}</p>
+            }
+            @if (hasAiSummary() && !tender.summaryGroundedInDocuments
+                && (tender.noticeId != null || tender.attachments.length > 0)) {
+              <div class="state-box enrich">
+                <p class="empty">Sinteza a fost generată doar din datele de bază ale anunțului. Analizează și documentele publicate (Fișa de date, Caietul de sarcini) pentru a completa Detaliile Achiziției și Condițiile de calificare.</p>
+                <button type="button" (click)="generateSummary()">{{ summaryGeneration() === 'generating' ? 'Se analizează documentele…' : 'Analizează documentele publicate' }}</button>
+              </div>
+            }
+
           </section>
+
           <section class="card">
             @if (bidStatus(); as status) {
           @if (status.status === 'BidGenerated') {
@@ -154,6 +171,10 @@ const VALID_TABS: readonly TenderTab[] = ['summary', 'details', 'qualification',
         @case ('documents') {
           <section class="card" id="panel-documents" role="tabpanel" aria-labelledby="tab-documents">
             <div class="card-head"><h2>Documente Originale</h2></div>
+            @if (summaryDocumentNote(); as documentNote) {
+              <p class="note warn" role="status">{{ documentNote }}</p>
+            }
+
             @if (documentsRefreshing()) {
               <div class="skeleton" role="status" aria-busy="true" aria-label="Se caută documentele anunțului">
                 <span></span><span></span><span></span>
@@ -199,6 +220,16 @@ const VALID_TABS: readonly TenderTab[] = ['summary', 'details', 'qualification',
         }
       }
     }
+    @else {
+      <section class="state" role="alert">
+        <strong>Anunțul nu a putut fi afișat.</strong>
+        <p class="empty">{{ loadErrorMessage() || 'Verifică numărul anunțului și încearcă din nou.' }}</p>
+        <div class="load-actions" style="display:flex;gap:.7rem;justify-content:center;margin-top:1rem;flex-wrap:wrap">
+          <a class="back-link" routerLink="/seap/tenders">← Înapoi la Anunțuri SEAP</a>
+          <button type="button" (click)="retryLoad()">Încearcă din nou</button>
+        </div>
+      </section>
+    }
   </section>`
 })
 
@@ -210,11 +241,18 @@ export class SeapTenderDetailComponent {
   private readonly profiles = inject(ProfileService);
   private readonly readiness = inject(VaultReadinessService);
   private readonly qualifications = inject(CompanyQualificationService);
-  private readonly tenderId = this.route.snapshot.paramMap.get('id') ?? '';
+  /** Route id — either the internal Guid tender id (canonical links) or a SEAP notice number (SCN…/CN…).
+   *  After a successful load it is replaced by the canonical internal id, which every follow-up API call
+   *  (bid status, pricing, downloads) requires. */
+  private tenderId = this.route.snapshot.paramMap.get('id') ?? '';
   readonly tender = signal<SeapTender | null>(null);
   readonly bidStatus = signal<BidStatus | null>(null);
   readonly pricing = signal<TenderPricing>({ estimatedValueEur: 0, priceEur: 0, freeGenerationsRemaining: 0, shadowMode: true });
   readonly loading = signal(true);
+  /** True when the tender failed to load (unknown Guid or a notice number SEAP does not know). */
+  readonly loadError = signal(false);
+  /** Friendly message for the failed-load state (the backend 404/502 ProblemDetails detail wins). */
+  readonly loadErrorMessage = signal('');
   readonly busy = signal(false);
   readonly message = signal('');
   readonly messageError = signal(false);
@@ -256,6 +294,10 @@ export class SeapTenderDetailComponent {
   /** On-demand generation state: 'idle' (not generated yet, not requested), 'generating' (request in
    *  flight), 'error' (last attempt failed — the user retries deliberately, never an endless skeleton). */
   readonly summaryGeneration = signal<'idle' | 'generating' | 'error'>('idle');
+  /** Transient warning returned by POST /summary when the published documents (Fișa de date / Caietul de
+   *  sarcini) could not be downloaded/read, so the synthesis is based only on the notice metadata. Kept
+   *  outside the tender object: the on-demand documents refresh replaces the tender without this note. */
+  readonly summaryDocumentNote = signal<string | null>(null);
   /** The „Sinteză AI" card state: 'ready' bullets, 'loading' skeleton only while a real request runs,
    *  'empty' actionable empty state, 'error' recoverable failure. */
   readonly summaryState = computed<'ready' | 'loading' | 'empty' | 'error'>(() => {
@@ -265,16 +307,19 @@ export class SeapTenderDetailComponent {
     return generation === 'error' ? 'error' : 'empty';
   });
 
-  /** Requests the AI summary on demand (idempotent server-side). A deliberate user action — the page never
-   *  auto-fires an LLM call or pretends to process when nothing is running. */
+  /** Requests (or enriches) the AI summary on demand. A deliberate user action — the page never auto-fires
+   *  an LLM call or pretends to process when nothing is running. The backend re-runs the document-grounded
+   *  extraction for summaries that were produced only from metadata. */
   generateSummary(): void {
     const tender = this.tender();
     if (!tender || this.summaryGeneration() === 'generating') return;
     this.summaryGeneration.set('generating');
+    this.summaryDocumentNote.set(null);
     this.service.generateSummary(tender.id).pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
       next: updated => {
         this.tender.set(updated);
         this.summaryGeneration.set('idle');
+        this.summaryDocumentNote.set(updated.summaryDocumentNote ?? null);
       },
       error: () => this.summaryGeneration.set('error')
     });
@@ -351,10 +396,45 @@ export class SeapTenderDetailComponent {
       },
       error: () => undefined
     });
-    this.service.getTender(this.tenderId).subscribe({
-      next: value => { this.tender.set(value); this.loading.set(false); },
-      error: () => this.loading.set(false)
+    this.loadTender();
+    // When the documents tab is open (directly or via ?tab=documents) and no document is attached yet,
+    // resolve the published documents on demand (once per view).
+    effect(() => {
+      if (this.activeTab() === 'documents' && this.tender() !== null) this.openDocumentsTab();
     });
+  }
+
+  /** Loads the tender. The route param is either the internal Guid (canonical link) or a SEAP notice number
+   *  (SCN…/CN… — a shared/direct link): for a notice number the backend runs the direct-hit lookup (live
+   *  import + document resolution + grounded AI extraction) and returns the fully hydrated detail DTO in one
+   *  request. After success the canonical internal id is kept for every follow-up API call. A failure shows
+   *  the honest error state instead of a blank page. */
+  private loadTender(): void {
+    const isNoticeNumber = NOTICE_NUMBER_PATTERN.test(this.tenderId);
+    this.loading.set(true);
+    this.loadError.set(false);
+    const request$ = isNoticeNumber
+      ? this.service.getTenderByExternalId(this.tenderId)
+      : this.service.getTender(this.tenderId);
+    request$.pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
+      next: value => {
+        this.tenderId = value.id;
+        this.tender.set(value);
+        this.summaryDocumentNote.set(value.summaryDocumentNote ?? null);
+        this.loading.set(false);
+        this.loadBidStatusAndPricing();
+      },
+      error: error => {
+        this.loading.set(false);
+        this.loadError.set(true);
+        this.loadErrorMessage.set(this.loadErrorMessageText(error));
+      }
+    });
+  }
+
+  /** Fetches the bid status + price preview using the canonical (internal) tender id. Kept separate so the
+   *  direct-hit notice-number path can fire them after the response reveals the internal Guid. */
+  private loadBidStatusAndPricing(): void {
     this.service.getBidStatus(this.tenderId).subscribe({
       next: value => {
         this.bidStatus.set(value);
@@ -363,11 +443,20 @@ export class SeapTenderDetailComponent {
       }
     });
     this.service.getTenderPricing(this.tenderId).subscribe({ next: value => this.pricing.set(value) });
-    // When the documents tab is open (directly or via ?tab=documents) and no document is attached yet,
-    // resolve the published documents on demand (once per view).
-    effect(() => {
-      if (this.activeTab() === 'documents' && this.tender() !== null) this.openDocumentsTab();
-    });
+  }
+
+  /** Turns a failed tender load into a friendly, specific message (the backend ProblemDetails detail/message
+   *  wins). Covers 404 (the number is not on SEAP) and 502 (the platform is unavailable). */
+  private loadErrorMessageText(error: unknown): string {
+    const problem = (error as { error?: { message?: string; detail?: string } })?.error;
+    const detail = problem?.detail ?? problem?.message;
+    if (detail) return detail;
+    return 'Anunțul nu a fost găsit sau SEAP nu a răspuns. Verifică numărul și încearcă din nou.';
+  }
+
+  /** Deliberate retry from the failed-load state (the user taps „Încearcă din nou"). */
+  retryLoad(): void {
+    this.loadTender();
   }
 
   /** Reads the active tab from the shareable ?tab= query parameter; defaults to „Sinteză & Ofertare AI". */

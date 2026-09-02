@@ -23,7 +23,8 @@ public sealed class SeapCountyBackfillTests : IntegrationTestBase
 
         DateTimeOffset now = DateTimeOffset.UtcNow;
         SeapIngestionService service = new(db, new StubSeapApiClient([]), new StubAttachmentStorage(),
-            new NullSeapCategorizer(), new NullSeapSummaryGenerator(), Options.Create(new SeapOptions()), new FakeTimeProvider(),
+            new NullSeapCategorizer(), new NullSeapSummaryGenerator(), new NullSeapAttachmentTextReader(),
+            Options.Create(new SeapOptions()), new FakeTimeProvider(),
             NullLogger<SeapIngestionService>.Instance);
 
         // Import tenders whose notices carry no county — exactly what pre-enrichment imports look like.
@@ -53,6 +54,8 @@ public sealed class SeapCountyBackfillTests : IntegrationTestBase
             int pageIndex, int pageSize, DateOnly? startPublicationDate, DateOnly? endPublicationDate,
             CancellationToken cancellationToken) =>
             Task.FromResult<IReadOnlyCollection<SeapTenderNoticeDto>>(Array.Empty<SeapTenderNoticeDto>());
+        public Task<SeapTenderNoticeDto?> FetchNoticeByNumberAsync(string noticeNo, CancellationToken cancellationToken) =>
+            Task.FromResult(notices.FirstOrDefault(notice => string.Equals(notice.Id, noticeNo, StringComparison.OrdinalIgnoreCase)));
         public Task<Stream> DownloadAttachmentAsync(string downloadUrl, CancellationToken cancellationToken) =>
             throw new NotSupportedException("Attachments are disabled in this test.");
         public Task<IReadOnlyCollection<SeapNoticeDocumentDto>> FetchNoticeDocumentsAsync(
@@ -70,6 +73,13 @@ public sealed class SeapCountyBackfillTests : IntegrationTestBase
     {
         public Task<SeapAiExtraction?> GenerateAsync(SeapTender tender, string? attachmentText, CancellationToken cancellationToken) =>
             Task.FromResult<SeapAiExtraction?>(null);
+    }
+
+    private sealed class NullSeapAttachmentTextReader : ISeapAttachmentTextReader
+    {
+        public Task<SeapAttachmentReadResult> ReadPublishedTextAsync(
+            IReadOnlyCollection<SeapTenderAttachment> attachments, CancellationToken cancellationToken) =>
+            Task.FromResult(new SeapAttachmentReadResult(null, []));
     }
 
     private sealed class StubAttachmentStorage : ISeapAttachmentStorage

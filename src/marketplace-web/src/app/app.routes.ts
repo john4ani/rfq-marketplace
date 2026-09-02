@@ -41,6 +41,7 @@ export const routes: Routes = [
   { path: 'offers/:offerId/conversation', canActivate: [marketplaceGuard, authGuard], loadComponent: () => import('./features/messaging/conversation.component').then(m => m.ConversationComponent) },
   { path: 'seap/tenders', canActivate: [authGuard], loadComponent: () => import('./features/seap/seap-tenders.component').then(m => m.SeapTendersComponent) },
   { path: 'seap/match', canActivate: [authGuard], loadComponent: () => import('./features/seap/seap-onboarding-chat.component').then(m => m.SeapOnboardingChatComponent) },
+{ path: 'seap/direct-hit', canActivate: [authGuard], loadComponent: () => import('./features/seap/seap-direct-hit.component').then(m => m.SeapDirectHitComponent) },
   { path: 'seap/tenders/:id', canActivate: [authGuard], loadComponent: () => import('./features/seap/seap-tender-detail.component').then(m => m.SeapTenderDetailComponent) },
   { path: '**', redirectTo: '' }
 ];

@@ -181,8 +181,12 @@ public static class DependencyInjection
         services.AddScoped<ISeapAttachmentStorage, SeapAttachmentStorage>();
         services.AddScoped<ISeapCategorizer, SeapCategorizerService>();
         services.AddScoped<ISeapSummaryGenerator, SeapSummaryService>();
+        services.AddScoped<ISeapAttachmentTextReader, SeapAttachmentTextReader>();
         services.AddScoped<ISeapIngestionService, SeapIngestionService>();
+        services.AddSingleton<SeapWorkerIdentity>();
         services.AddHostedService<SeapIngestionWorker>();
+        services.AddHostedService<SeapIngestionRunWorker>();
+        services.AddHostedService<SeapLeaseHeartbeatWorker>();
         services.Configure<DocumentIntelligenceOptions>(configuration.GetSection(DocumentIntelligenceOptions.SectionName));
         services.AddHttpClient("embeddings");
         services.AddHttpClient("claude");

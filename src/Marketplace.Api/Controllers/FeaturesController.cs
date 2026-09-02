@@ -17,6 +17,7 @@ public sealed class FeaturesController(IOptionsMonitor<FeaturesOptions> features
     {
         marketplaceEnabled = features.CurrentValue.MarketPlaceEnabled,
         autoBiddingEnabled = features.CurrentValue.AutoBiddingEnabled,
-        seapIngestionEnabled = features.CurrentValue.SeapIngestionEnabled
+        seapDirectHitEnabled = features.CurrentValue.SeapDirectHitEnabled,
+        seapIngestionWorkerEnabled = features.CurrentValue.SeapIngestionWorkerEnabled
     });
 }

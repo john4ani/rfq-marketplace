@@ -1,6 +1,8 @@
 using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
+using System.Text.Json;
+using System.Text.Json.Serialization;
 using Marketplace.Application.Seap;
 using Marketplace.Domain.Seap;
 using Marketplace.Infrastructure.Bidding;
@@ -12,6 +14,7 @@ using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Xunit.Abstractions;
 
 namespace Marketplace.IntegrationTests;
 
@@ -24,7 +27,18 @@ namespace Marketplace.IntegrationTests;
 public sealed class SeapTenderDetailsEndpointTests : IntegrationTestBase, IClassFixture<MarketplaceWebApplicationFactory>
 {
     private readonly MarketplaceWebApplicationFactory factory;
-    public SeapTenderDetailsEndpointTests(MarketplaceWebApplicationFactory factory) => this.factory = factory;
+    private readonly ITestOutputHelper output;
+    private static readonly JsonSerializerOptions ExampleJson = new(JsonSerializerDefaults.Web)
+    {
+        WriteIndented = true,
+        DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull
+    };
+
+    public SeapTenderDetailsEndpointTests(MarketplaceWebApplicationFactory factory, ITestOutputHelper output)
+    {
+        this.factory = factory;
+        this.output = output;
+    }
 
     [Fact]
     public async Task TenderDetailsExposeTheProjectionWithDerivedFieldsAndAttachments()
@@ -76,6 +90,7 @@ public sealed class SeapTenderDetailsEndpointTests : IntegrationTestBase, IClass
         Assert.Equal("12 luni", details.ContractDuration);
         Assert.Equal(["Minim 2 contracte similare"], details.QualificationRequirements);
         Assert.Equal(["Manager de proiect"], details.KeyPersonnel);
+        Assert.Equal(["ISO 9001, ISO 45001"], details.Certificates);
         Assert.Equal(["Garanție: 120.000 RON", "Experiență: minim 2 contracte"], details.SummaryPoints);
     }
 
@@ -91,9 +106,96 @@ public sealed class SeapTenderDetailsEndpointTests : IntegrationTestBase, IClass
 
         Assert.Equal("Prețul cel mai scăzut", details.AwardCriterion);
         Assert.Equal("120.000 RON", details.ParticipationGuarantee);
+        Assert.Equal(["ISO 9001, ISO 45001"], details.Certificates);
         Assert.Equal(["Garanție de participare: 120.000 RON", "Termen de execuție: 12 luni"], details.SummaryPoints);
         // The AI 2–3 sentence summary fills the description because the search payload carries no full text.
         Assert.Equal("Reabilitarea clădirii școlii din Chiajna.", details.Description);
+    }
+
+    [Fact]
+    public async Task SummaryEndpointGroundsTheSynthesisInTheDownloadedDocumentText()
+    {
+        RecordingSummaryLlmProvider llm = new();
+        GroundingSeapApiClient client = new("Garanție de participare: 120.000 RON\nCriteriu de atribuire: prețul cel mai scăzut\nTermen de execuție: 12 luni");
+        using WebApplicationFactory<Program> host = CreateSummaryDocumentHost(llm, client);
+        using HttpClient http = await CreateAuthenticatedClientAsync(host);
+        Guid tenderId = await SeedTenderAsync(DateTimeOffset.UtcNow.AddDays(20), description: null, noticeId: 900001, sysNoticeTypeId: 17);
+
+        SeapTenderDetailsDto details = (await (await http.PostAsJsonAsync($"/api/v1/seap/tenders/{tenderId}/summary", new { }))
+            .Content.ReadFromJsonAsync<SeapTenderDetailsDto>())!;
+
+        // The published document was resolved, downloaded and its text fed into the generation...
+        Assert.Single(details.Attachments);
+        Assert.Null(details.SummaryDocumentNote);
+        Assert.Contains("FisaDate.txt", llm.UserPrompt);
+        Assert.Contains("Garanție de participare: 120.000 RON", llm.UserPrompt);
+        Assert.Equal(["Garanție de participare: 120.000 RON", "Termen de execuție: 12 luni"], details.SummaryPoints);
+        Assert.Equal(["ISO 9001, ISO 45001"], details.Certificates);
+    }
+
+    [Fact]
+    public async Task SummaryEndpointFallsBackToMetadataAndNotifiesWhenDocumentsCannotBeResolved()
+    {
+        DocumentedSeapApiClient client = new() { ThrowOnFetch = true };
+        using WebApplicationFactory<Program> host = CreateSummaryDocumentHost(new SummaryMockLlmProvider(), client);
+        using HttpClient http = await CreateAuthenticatedClientAsync(host);
+        Guid tenderId = await SeedTenderAsync(DateTimeOffset.UtcNow.AddDays(20), description: null, noticeId: 900001, sysNoticeTypeId: 17);
+
+        SeapTenderDetailsDto details = (await (await http.PostAsJsonAsync($"/api/v1/seap/tenders/{tenderId}/summary", new { }))
+            .Content.ReadFromJsonAsync<SeapTenderDetailsDto>())!;
+
+        // The synthesis still ran from the notice metadata and the UI is explicitly notified.
+        Assert.Empty(details.Attachments);
+        Assert.Equal(["Garanție de participare: 120.000 RON", "Termen de execuție: 12 luni"], details.SummaryPoints);
+        Assert.NotNull(details.SummaryDocumentNote);
+        Assert.Contains("nu au putut fi descărcate automat", details.SummaryDocumentNote);
+    }
+
+    [Fact]
+    public async Task RealExampleDetailPayloadFeedsTheFourTabs()
+    {
+        RecordingSummaryLlmProvider llm = new();
+        GroundingSeapApiClient client = new(
+            "FISA DE DATE — servicii de conservare\n" +
+            "Criteriul de atribuire: prețul cel mai scăzut\n" +
+            "Garanția de participare: 120.000 RON\n" +
+            "Durata contractului: 12 luni\n" +
+            "Sursa de finanțare: Buget local\n" +
+            "Experiență similară: minim 2 contracte de construcții în ultimii 3 ani\n" +
+            "Personal solicitat: Manager de proiect, Inginer RTE\n" +
+            "Certificări: ISO 9001, ISO 45001, atestat ANRE");
+        using WebApplicationFactory<Program> host = CreateSummaryDocumentHost(llm, client);
+        using HttpClient http = await CreateAuthenticatedClientAsync(host);
+        Guid tenderId = await SeedTenderAsync(DateTimeOffset.UtcNow.AddDays(20), description: null, noticeId: 900003, sysNoticeTypeId: 17);
+
+        SeapTenderDetailsDto afterSummary = (await (await http.PostAsJsonAsync($"/api/v1/seap/tenders/{tenderId}/summary", new { }))
+            .Content.ReadFromJsonAsync<SeapTenderDetailsDto>())!;
+        SeapTenderDetailsDto fromDetailGet = (await (await http.GetAsync($"/api/v1/seap/tenders/{tenderId}"))
+            .Content.ReadFromJsonAsync<SeapTenderDetailsDto>())!;
+
+        string json = JsonSerializer.Serialize(fromDetailGet, ExampleJson);
+        output.WriteLine(json);
+
+        // Detalii Achiziție ← awardCriterion / fundingSource / contractDuration / description
+        Assert.NotNull(fromDetailGet.Description);
+        Assert.Equal("Prețul cel mai scăzut", fromDetailGet.AwardCriterion);
+        Assert.Equal("Buget local", fromDetailGet.FundingSource);
+        Assert.Equal("12 luni", fromDetailGet.ContractDuration);
+
+        // Condiții de Calificare ← participationGuarantee / qualificationRequirements / keyPersonnel / certificates
+        Assert.Equal("120.000 RON", fromDetailGet.ParticipationGuarantee);
+        Assert.Equal(["Minim 2 contracte similare"], fromDetailGet.QualificationRequirements);
+        Assert.Equal(["Manager de proiect"], fromDetailGet.KeyPersonnel);
+        Assert.Equal(["ISO 9001, ISO 45001"], fromDetailGet.Certificates);
+
+        // Documente Originale ← attachments
+        Assert.Single(fromDetailGet.Attachments);
+
+        // Sinteză & Ofertare AI ← summaryPoints
+        Assert.Equal(["Garanție de participare: 120.000 RON", "Termen de execuție: 12 luni"], fromDetailGet.SummaryPoints);
+
+        // The payload persisted through the real GET is identical to the POST /summary response.
+        Assert.Equal(fromDetailGet.SummaryPoints, afterSummary.SummaryPoints);
     }
 
     [Fact]
@@ -114,6 +216,47 @@ public sealed class SeapTenderDetailsEndpointTests : IntegrationTestBase, IClass
             .Content.ReadFromJsonAsync<SeapTenderDetailsDto>())!;
         Assert.Equal(first.SummaryPoints, second.SummaryPoints);
         Assert.Equal(1, llm.CallCount);
+    }
+
+    [Fact]
+    public async Task SummaryEndpointEnrichesAnExistingMetadataOnlySummaryWhenDocumentsBecomeAvailable()
+    {
+        RecordingSummaryLlmProvider llm = new();
+        GroundingSeapApiClient client = new(
+            "Garanție de participare: 120.000 RON\nCriteriu de atribuire: prețul cel mai scăzut\nTermen de execuție: 12 luni");
+        using WebApplicationFactory<Program> host = CreateSummaryDocumentHost(llm, client);
+        using HttpClient http = await CreateAuthenticatedClientAsync(host);
+        Guid tenderId = await SeedTenderAsync(DateTimeOffset.UtcNow.AddDays(20), description: null, noticeId: 900004, sysNoticeTypeId: 17);
+        await ApplyAiExtractionAsync(tenderId); // a metadata-only summary already exists (grounded = false)
+
+        SeapTenderDetailsDto details = (await (await http.PostAsJsonAsync($"/api/v1/seap/tenders/{tenderId}/summary", new { }))
+            .Content.ReadFromJsonAsync<SeapTenderDetailsDto>())!;
+
+        // The deliberate user action enriched the old metadata summary with the document text.
+        Assert.Equal("Prețul cel mai scăzut", details.AwardCriterion);
+        Assert.Equal("120.000 RON", details.ParticipationGuarantee);
+        Assert.Equal(["ISO 9001, ISO 45001"], details.Certificates);
+        Assert.Null(details.SummaryDocumentNote);
+        Assert.Contains("Garanție de participare: 120.000 RON", llm.UserPrompt);
+    }
+
+    [Fact]
+    public async Task SummaryEndpointKeepsAnExistingMetadataOnlySummaryWhenNoDocumentsCanBeFetched()
+    {
+        CountingSummaryLlmProvider llm = new();
+        using WebApplicationFactory<Program> host = CreateSummaryDocumentHost(llm, new StubSeapApiClient());
+        using HttpClient http = await CreateAuthenticatedClientAsync(host);
+        Guid tenderId = await SeedTenderAsync(DateTimeOffset.UtcNow.AddDays(20), description: null, noticeId: 900005, sysNoticeTypeId: 17);
+        await ApplyAiExtractionAsync(tenderId);
+
+        SeapTenderDetailsDto details = (await (await http.PostAsJsonAsync($"/api/v1/seap/tenders/{tenderId}/summary", new { }))
+            .Content.ReadFromJsonAsync<SeapTenderDetailsDto>())!;
+
+        // Nothing could be enriched → the existing bullets are preserved and the UI is told why.
+        Assert.Equal(0, llm.CallCount);
+        Assert.Equal(["Garanție: 120.000 RON", "Experiență: minim 2 contracte"], details.SummaryPoints);
+        Assert.NotNull(details.SummaryDocumentNote);
+        Assert.Contains("nu au putut fi descărcate automat", details.SummaryDocumentNote);
     }
 
     [Fact]
@@ -303,6 +446,22 @@ public sealed class SeapTenderDetailsEndpointTests : IntegrationTestBase, IClass
             });
         });
 
+    /// <summary>Host for the summary endpoints that also replaces the SEAP client, so the document-grounding
+    /// path (resolve published documents → download → read text) never hits the live platform.</summary>
+    private WebApplicationFactory<Program> CreateSummaryDocumentHost(ILlmProvider llm, ISeapApiClient seap) =>
+        factory.WithWebHostBuilder(builder =>
+        {
+            builder.ConfigureAppConfiguration((_, configuration) => configuration.AddInMemoryCollection(
+                new Dictionary<string, string?> { ["AI:UseMockProvider"] = "true" }));
+            builder.ConfigureTestServices(services =>
+            {
+                services.RemoveAll<ILlmProvider>();
+                services.AddSingleton(llm);
+                services.RemoveAll<ISeapApiClient>();
+                services.AddSingleton(seap);
+            });
+        });
+
     private static async Task<HttpClient> CreateAuthenticatedClientAsync(WebApplicationFactory<Program> host)
     {
         HttpClient client = host.CreateClient(new() { BaseAddress = new Uri("https://localhost") });
@@ -358,7 +517,7 @@ public sealed class SeapTenderDetailsEndpointTests : IntegrationTestBase, IClass
         SeapTender tender = db.SeapTenders.Single(item => item.Id == tenderId);
         tender.ApplyAiExtraction(new SeapAiExtraction(
             "Reabilitarea clădirii școlii din Chiajna.", "Prețul cel mai scăzut", "120.000 RON", "Buget local", "12 luni",
-            "Minim 2 contracte similare", "Manager de proiect",
+            "Minim 2 contracte similare", "Manager de proiect", "ISO 9001, ISO 45001",
             ["Garanție: 120.000 RON", "Experiență: minim 2 contracte"]), DateTimeOffset.UtcNow);
         await db.SaveChangesAsync();
     }
@@ -409,6 +568,9 @@ public sealed class SeapTenderDetailsEndpointTests : IntegrationTestBase, IClass
             CancellationToken cancellationToken) =>
             Task.FromResult<IReadOnlyCollection<SeapTenderNoticeDto>>([]);
 
+        public Task<SeapTenderNoticeDto?> FetchNoticeByNumberAsync(string noticeNo, CancellationToken cancellationToken) =>
+            Task.FromResult<SeapTenderNoticeDto?>(null);
+
         public Task<IReadOnlyCollection<SeapNoticeDocumentDto>> FetchNoticeDocumentsAsync(
             int noticeId, int sysNoticeTypeId, CancellationToken cancellationToken) =>
             Task.FromResult<IReadOnlyCollection<SeapNoticeDocumentDto>>([]);
@@ -435,6 +597,9 @@ public sealed class SeapTenderDetailsEndpointTests : IntegrationTestBase, IClass
             CancellationToken cancellationToken) =>
             Task.FromResult<IReadOnlyCollection<SeapTenderNoticeDto>>([]);
 
+        public Task<SeapTenderNoticeDto?> FetchNoticeByNumberAsync(string noticeNo, CancellationToken cancellationToken) =>
+            Task.FromResult<SeapTenderNoticeDto?>(null);
+
         public Task<Stream> DownloadAttachmentAsync(string downloadUrl, CancellationToken cancellationToken) =>
             throw new NotSupportedException("Attachments are disabled in this test.");
 
@@ -459,7 +624,8 @@ public sealed class SeapTenderDetailsEndpointTests : IntegrationTestBase, IClass
       "fundingSource": "Buget local",
       "contractDuration": "12 luni",
       "qualificationRequirements": "Minim 2 contracte similare",
-      "keyPersonnel": "Manager de proiect"
+      "keyPersonnel": "Manager de proiect",
+      "certificates": "ISO 9001, ISO 45001"
     }
     """;
 
@@ -484,5 +650,42 @@ public sealed class SeapTenderDetailsEndpointTests : IntegrationTestBase, IClass
     {
         public Task<string> CompleteAsync(string systemPrompt, string userPrompt, CancellationToken cancellationToken) =>
             throw new InvalidOperationException("LLM indisponibil.");
+    }
+
+    /// <summary>LLM stub that records the last user prompt so tests can assert the document text was grounded.</summary>
+    private sealed class RecordingSummaryLlmProvider : ILlmProvider
+    {
+        public string UserPrompt { get; private set; } = string.Empty;
+
+        public Task<string> CompleteAsync(string systemPrompt, string userPrompt, CancellationToken cancellationToken)
+        {
+            UserPrompt = userPrompt;
+            return Task.FromResult(SummaryJson);
+        }
+    }
+
+    /// <summary>SEAP client stub for the grounded-summary test: returns one published .txt document and
+    /// streams its content, so the reader can feed the text into the LLM prompt.</summary>
+    private sealed class GroundingSeapApiClient(string documentText) : ISeapApiClient
+    {
+        public Task<IReadOnlyCollection<SeapTenderNoticeDto>> FetchRecentNoticesAsync(CancellationToken cancellationToken) =>
+            Task.FromResult<IReadOnlyCollection<SeapTenderNoticeDto>>([]);
+
+        public Task<IReadOnlyCollection<SeapTenderNoticeDto>> FetchNoticePageAsync(
+            int pageIndex, int pageSize, DateOnly? startPublicationDate, DateOnly? endPublicationDate,
+            CancellationToken cancellationToken) =>
+            Task.FromResult<IReadOnlyCollection<SeapTenderNoticeDto>>([]);
+
+        public Task<SeapTenderNoticeDto?> FetchNoticeByNumberAsync(string noticeNo, CancellationToken cancellationToken) =>
+            Task.FromResult<SeapTenderNoticeDto?>(null);
+
+        public Task<Stream> DownloadAttachmentAsync(string downloadUrl, CancellationToken cancellationToken) =>
+            Task.FromResult<Stream>(new MemoryStream(System.Text.Encoding.UTF8.GetBytes(documentText)));
+
+        public Task<IReadOnlyCollection<SeapNoticeDocumentDto>> FetchNoticeDocumentsAsync(
+            int noticeId, int sysNoticeTypeId, CancellationToken cancellationToken) =>
+            Task.FromResult<IReadOnlyCollection<SeapNoticeDocumentDto>>([
+                new SeapNoticeDocumentDto("CN-X/1", "FisaDate.txt", "https://e-licitatie.ro/api-pub/files/fisa-date.txt")
+            ]);
     }
 }

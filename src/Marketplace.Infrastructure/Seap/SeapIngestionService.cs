@@ -14,11 +14,18 @@ public sealed partial class SeapIngestionService(
     ISeapAttachmentStorage storage,
     ISeapCategorizer categorizer,
     ISeapSummaryGenerator summaryGenerator,
+    ISeapAttachmentTextReader attachmentTextReader,
     IOptions<SeapOptions> options,
     TimeProvider timeProvider,
     ILogger<SeapIngestionService> logger) : ISeapIngestionService
 {
     private static readonly JsonSerializerOptions PayloadJsonOptions = new(JsonSerializerDefaults.Web);
+    private static readonly SeapIngestionStatus[] ActiveIngestionStatuses =
+    [
+        SeapIngestionStatus.Pending,
+        SeapIngestionStatus.FetchingDocuments,
+        SeapIngestionStatus.Analyzing
+    ];
     private readonly SeapOptions settings = options.Value;
 
     public async Task<SeapTenderImportResult> ImportNoticeAsync(SeapTenderNoticeDto notice, CancellationToken cancellationToken)
@@ -371,6 +378,187 @@ public sealed partial class SeapIngestionService(
             LogDocumentsAttachFailed(logger, notice.Id, exception);
             return 0;
         }
+    }
+
+    /// <summary>
+    /// „Direct hit" resolve by SEAP notice number (SCN…/CN…). Local first: a tender that already carries a
+    /// document-grounded analysis is returned as ready (no network call, no run). A local row that is not
+    /// ready yet gets an active ingestion run — never a re-search, the row's metadata/NoticeId are kept.
+    /// Only on a genuine local miss is the live platform queried with an exact notice-number match; when the
+    /// notice exists it is upserted by the unique normalized id (metadata + NoticeId) and an ingestion run is
+    /// started. Expired notices are imported as <see cref="SeapImportMode.DirectHistoricalLookup"/> — they are
+    /// never promoted to the active feed. This call deliberately performs NO document download and NO LLM
+    /// analysis: those belong to the background ingestion worker and are tracked on the returned run.
+    /// Returns null when SEAP answered normally and has no such notice; propagates
+    /// <see cref="SeapSourceUnavailableException"/> when the platform is unreachable/erroring.
+    /// </summary>
+    public async Task<SeapResolveResult?> ResolveNoticeByNumberAsync(string noticeNo, CancellationToken cancellationToken)
+    {
+        if (!SeapNoticeNumber.TryNormalize(noticeNo, out string normalized))
+            return null;
+        DateTimeOffset now = timeProvider.GetUtcNow();
+
+        SeapTender? tender = await dbContext.SeapTenders
+            .Include(item => item.Attachments)
+            .SingleOrDefaultAsync(item => item.NormalizedExternalId == normalized, cancellationToken);
+        if (tender is not null)
+            return await ResolveLocalTenderAsync(tender, normalized, now, cancellationToken);
+
+        SeapTenderNoticeDto? notice = await apiClient.FetchNoticeByNumberAsync(normalized, cancellationToken);
+        return notice is null ? null : await UpsertFromLiveAsync(notice, normalized, now, cancellationToken);
+    }
+
+    /// <summary>Current ingestion state of a tender: the persisted run status (or <see cref="SeapIngestionStatus.Pending"/>
+    /// when no run exists yet) plus the tender-level import markers that let the worker skip unchanged work.</summary>
+    public async Task<SeapIngestionStatusDto?> GetIngestionStatusAsync(Guid tenderId, CancellationToken cancellationToken)
+    {
+        SeapTender? tender = await dbContext.SeapTenders.AsNoTracking()
+            .Include(item => item.Attachments)
+            .SingleOrDefaultAsync(item => item.Id == tenderId, cancellationToken);
+        if (tender is null) return null;
+
+        SeapIngestionRun? run = await dbContext.SeapIngestionRuns.AsNoTracking()
+            .OrderByDescending(item => item.UpdatedAt)
+            .FirstOrDefaultAsync(item => item.TenderId == tenderId, cancellationToken);
+        bool hasActiveRun = await dbContext.SeapIngestionRuns.AsNoTracking()
+            .AnyAsync(item => item.TenderId == tenderId && ActiveIngestionStatuses.Contains(item.Status), cancellationToken);
+        string status = SeapTenderReadiness.IsDocumentAnalysisReady(tender) && !hasActiveRun
+            ? SeapIngestionStatus.Ready.ToString()
+            : hasActiveRun
+                ? (await dbContext.SeapIngestionRuns.AsNoTracking()
+                    .FirstAsync(item => item.TenderId == tenderId && ActiveIngestionStatuses.Contains(item.Status), cancellationToken)).Status.ToString()
+                : run is null
+                    ? SeapIngestionStatus.Pending.ToString()
+                    // A previously Ready analysis whose document set changed is stale — it must be re-run.
+                    : run.Status == SeapIngestionStatus.Ready
+                        ? SeapIngestionStatus.Pending.ToString()
+                        : run.Status.ToString();
+        return new SeapIngestionStatusDto(
+            tender.Id, tender.SeapExternalId, status, tender.ImportMode.ToString(),
+            run?.Id, tender.AttemptCount, tender.StartedAt, tender.CompletedAt,
+            tender.LastErrorCode, tender.LastErrorMessage, tender.DocumentSetHash, tender.AnalysisVersion,
+            tender.DocumentDigestStatus.ToString(), run?.DocumentsFetchedAt, run?.TextExtractedAt);
+    }
+
+    /// <summary>Resolve outcome for a row already in the local cache, using the single centralized readiness
+    /// rule: only a document-grounded analysis of the CURRENT document set with no active rebuild run is
+    /// served as ready (200). Everything else bumps the attempt marker and ensures one active ingestion run —
+    /// never a re-search of SEAP when the tender already exists.</summary>
+    private async Task<SeapResolveResult> ResolveLocalTenderAsync(
+        SeapTender tender, string normalized, DateTimeOffset now, CancellationToken cancellationToken)
+    {
+        bool hasActiveRun = await dbContext.SeapIngestionRuns.AsNoTracking()
+            .AnyAsync(run => run.TenderId == tender.Id && ActiveIngestionStatuses.Contains(run.Status), cancellationToken);
+        if (!hasActiveRun && SeapTenderReadiness.IsDocumentAnalysisReady(tender))
+            return new(tender.Id, normalized, SeapIngestionStatus.Ready.ToString(), null, SeapTenderDetailsDto.From(tender, now));
+
+        // A tender whose best possible result is a metadata-only analysis (no published/lisible documents)
+        // terminates as Partial — nothing more can be produced, so do not spin a new run on every resolve.
+        if (!hasActiveRun)
+        {
+            SeapIngestionRun? latest = await dbContext.SeapIngestionRuns.AsNoTracking()
+                .OrderByDescending(run => run.UpdatedAt)
+                .FirstOrDefaultAsync(run => run.TenderId == tender.Id, cancellationToken);
+            if (latest is not null && latest.Status == SeapIngestionStatus.Partial
+                && (latest.LastErrorCode == SeapIngestionService.ErrorNoPublishedDocuments
+                    || latest.LastErrorCode == SeapIngestionService.ErrorNoReadableDocuments)
+                && tender.SummaryPoints.Count > 0)
+            {
+                return new(tender.Id, normalized, SeapIngestionStatus.Partial.ToString(), latest.Id, SeapTenderDetailsDto.From(tender, now));
+            }
+        }
+
+        SeapImportMode importMode = tender.Deadline < now ? SeapImportMode.DirectHistoricalLookup : SeapImportMode.OnDemand;
+        tender.RecordResolveAttempt(importMode, now);
+        SeapIngestionRun run = await EnsureActiveRunAsync(tender.Id, normalized, now, cancellationToken);
+        await dbContext.SaveChangesAsync(cancellationToken);
+        return new(tender.Id, normalized, run.Status.ToString(), run.Id, null);
+    }
+
+    /// <summary>Returns the single active run for a tender (or creates one). The partial unique index on the
+    /// running statuses makes the create idempotent under concurrency: a lost race reloads and returns the
+    /// run the other request created.</summary>
+    private async Task<SeapIngestionRun> EnsureActiveRunAsync(
+        Guid tenderId, string normalized, DateTimeOffset now, CancellationToken cancellationToken)
+    {
+        SeapIngestionRun? active = await dbContext.SeapIngestionRuns
+            .FirstOrDefaultAsync(run => run.TenderId == tenderId && ActiveIngestionStatuses.Contains(run.Status), cancellationToken);
+        if (active is not null) return active;
+
+        // Cost guardrail: never let a user (or a flood of resolve calls) queue unbounded LLM work. The
+        // count-then-insert check is an operational SOFT cap (two concurrent requests can slip past it by a
+        // few runs); exact enforcement would need a distributed lock/advisory lock — the cap exists to bound
+        // worst-case cost, not to guarantee a precise concurrency count.
+        int activeRuns = await dbContext.SeapIngestionRuns.AsNoTracking()
+            .CountAsync(run => ActiveIngestionStatuses.Contains(run.Status), cancellationToken);
+        if (activeRuns >= Math.Max(1, settings.MaxActiveResolveRuns))
+            throw new SeapResolveLimitReachedException(
+                $"Limita de procesări SEAP concurente a fost atinsă ({settings.MaxActiveResolveRuns}). Încearcă din nou mai târziu.");
+
+        SeapIngestionRun run = SeapIngestionRun.Start(tenderId, normalized, now);
+        dbContext.SeapIngestionRuns.Add(run);
+        try
+        {
+            await dbContext.SaveChangesAsync(cancellationToken);
+        }
+        catch (DbUpdateException)
+        {
+            dbContext.Entry(run).State = EntityState.Detached;
+            SeapIngestionRun? concurrent = await dbContext.SeapIngestionRuns.AsNoTracking()
+                .FirstOrDefaultAsync(other => other.TenderId == tenderId && ActiveIngestionStatuses.Contains(other.Status), cancellationToken);
+            if (concurrent is not null) return concurrent;
+            throw;
+        }
+        return run;
+    }
+
+    /// <summary>Idempotent upsert of a notice returned by the live exact-match lookup: maps and persists the
+    /// metadata + numeric NoticeId (unique <see cref="SeapTender.NormalizedExternalId"/> makes the insert
+    /// race-safe), starts one ingestion run and stages the raw payload. Expired notices become
+    /// <see cref="SeapImportMode.DirectHistoricalLookup"/> and stay <see cref="SeapTenderStatus.Imported"/> —
+    /// no premature ReadyForBidding and never an active-opportunity surface.</summary>
+    private async Task<SeapResolveResult?> UpsertFromLiveAsync(
+        SeapTenderNoticeDto notice, string normalized, DateTimeOffset now, CancellationToken cancellationToken)
+    {
+        SeapRawIngestion staging = SeapRawIngestion.Pending(notice.Id, JsonSerializer.Serialize(notice, PayloadJsonOptions), now);
+        SeapTender tender;
+        try
+        {
+            tender = SeapTenderMapper.MapNotice(notice, now);
+        }
+        catch (Exception exception)
+        {
+            staging.MarkFailed(exception.Message, now);
+            dbContext.SeapRawIngestions.Add(staging);
+            await dbContext.SaveChangesAsync(cancellationToken);
+            LogParseFailed(logger, notice.Id, exception);
+            return null;
+        }
+
+        dbContext.SeapTenders.Add(tender);
+        SeapImportMode importMode = notice.Deadline < now ? SeapImportMode.DirectHistoricalLookup : SeapImportMode.OnDemand;
+        tender.RecordResolveAttempt(importMode, now);
+        SeapIngestionRun run = SeapIngestionRun.Start(tender.Id, normalized, now);
+        dbContext.SeapIngestionRuns.Add(run);
+        staging.MarkParsed(now);
+        dbContext.SeapRawIngestions.Add(staging);
+        try
+        {
+            await dbContext.SaveChangesAsync(cancellationToken);
+        }
+        catch (DbUpdateException)
+        {
+            // Another request won the normalized-external-id upsert race — reuse its row instead of failing.
+            dbContext.Entry(tender).State = EntityState.Detached;
+            dbContext.Entry(run).State = EntityState.Detached;
+            dbContext.Entry(staging).State = EntityState.Detached;
+            SeapTender? existing = await dbContext.SeapTenders.AsNoTracking()
+                .Include(item => item.Attachments)
+                .SingleOrDefaultAsync(item => item.NormalizedExternalId == normalized, cancellationToken);
+            if (existing is null) throw;
+            return await ResolveLocalTenderAsync(existing, normalized, now, cancellationToken);
+        }
+        return new(tender.Id, normalized, run.Status.ToString(), run.Id, null);
     }
 
     [LoggerMessage(EventId = 5103, Level = LogLevel.Information, Message = "SEAP tender {SeapId} imported with {AttachmentCount} attachments.")]

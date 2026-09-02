@@ -1,6 +1,6 @@
 import { DatePipe, DecimalPipe } from '@angular/common';
 import { ChangeDetectionStrategy, Component, computed, DestroyRef, effect, inject, signal } from '@angular/core';
-import { RouterLink } from '@angular/router';
+import { Router, RouterLink } from '@angular/router';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { timer } from 'rxjs';
 import { AuthService } from '../../core/auth/auth.service';
@@ -11,6 +11,9 @@ import { SeapService, SeapTender } from '../../core/seap/seap.service';
 import { ROMANIAN_COUNTIES } from '../../shared/romanian-counties';
 import { normalizeCounty, normalizeCpvPrefix } from '../../shared/seap-filters';
 
+/** SEAP external notice numbers look like SCN1179200 / CN1010518 — the direct-hit lookup input format. */
+const NOTICE_NUMBER_PATTERN = /^(SCN|CN)\d+$/i;
+
 @Component({
   selector: 'app-seap-tenders',
   imports: [RouterLink, DatePipe, DecimalPipe],
@@ -19,12 +22,33 @@ import { normalizeCounty, normalizeCpvPrefix } from '../../shared/seap-filters';
   template: `<section class="page">
     <a class="back-link" [routerLink]="features.marketplaceEnabled() ? ['/dashboard'] : ['/account']">← Înapoi</a>
     <header><p class="eyebrow">Achiziții publice</p><h1>Anunțuri SEAP</h1>
-      <p>Oportunități publice din e-licitatie.ro, cu ofertare automată asistată de AI.</p></header>
+      <p>Oportunități publice din e-licitatie.ro, cu ofertare automată asistată de AI.</p>
+      @if (features.seapDirectHitAvailable()) {
+        <p><a routerLink="/seap/direct-hit" style="color:var(--forest);font-weight:800;font-size:.92rem">Ai numărul anunțului? Importă-l direct (SCN/CN)</a></p>
+      }</header>
 
     <nav class="list-tabs" role="tablist" aria-label="Anunțuri SEAP">
       <button type="button" class="list-tab" role="tab" [id]="'list-tab-search'" [attr.aria-selected]="listMode() === 'search'" [class.active]="listMode() === 'search'" aria-controls="list-panel-search" (click)="switchListMode('search')">Caută anunțuri SEAP</button>
       <button type="button" class="list-tab" role="tab" [id]="'list-tab-history'" [attr.aria-selected]="listMode() === 'history'" [class.active]="listMode() === 'history'" aria-controls="list-panel-history" (click)="switchListMode('history')">Oferte Generate</button>
     </nav>
+
+    <section class="direct-hit" aria-label="Caută direct după numărul anunțului" style="display:flex;flex-wrap:wrap;gap:.6rem;align-items:center;padding:.8rem 1rem;border:1px solid var(--border);border-radius:1rem;background:var(--surface);box-shadow:var(--shadow-soft)">
+      <span style="font-size:.88rem;font-weight:800;color:var(--forest)">Caută direct după număr de anunț:</span>
+      <input #noticeNoInput [value]="noticeNumberInput()" (input)="noticeNumberInput.set($any($event.target).value)" (keyup.enter)="lookupNoticeNumber()"
+        placeholder="ex. SCN1179200" aria-label="Număr anunț SEAP (SCN sau CN)"
+        style="flex:1 1 14rem;min-width:0;padding:.55rem .8rem;border:1px solid var(--border);border-radius:.6rem;font:inherit;background:#fff" />
+      <button type="button" [disabled]="directHitBusy() || !noticeNumberInput().trim()" (click)="lookupNoticeNumber()"
+        style="min-height:2.6rem;padding:.6rem 1.05rem;border:0;border-radius:.6rem;color:#fff;background:var(--forest);font:inherit;font-weight:800;cursor:pointer;flex:0 0 auto"
+        [style.opacity]="noticeNumberInput().trim() && !directHitBusy() ? '1' : '0.55'">
+        {{ directHitBusy() ? 'Se descarcă și se analizează…' : 'Deschide anunțul' }}
+      </button>
+      @if (directHitBusy()) {
+        <p class="note info" style="flex:1 1 100%;margin:0" role="status">Se descarcă și se analizează documentele de pe SEAP — poate dura până la un minut…</p>
+      }
+      @if (directHitMessage()) {
+        <p class="note" [class.error]="directHitError()" style="flex:1 1 100%;margin:0" role="status">{{ directHitMessage() }}</p>
+      }
+    </section>
 
     @if (isAdmin()) {
       <section class="filters" aria-label="Caiet de sarcini — test admin">
@@ -169,6 +193,7 @@ export class SeapTendersComponent {
   private readonly auth = inject(AuthService);
   readonly features = inject(FeaturesService);
   private readonly vault = inject(CompanyVaultService);
+  private readonly router = inject(Router);
 
   readonly tenders = signal<SeapTender[]>([]);
   readonly loading = signal(true);
@@ -192,6 +217,11 @@ export class SeapTendersComponent {
   readonly searching = signal(false);
   readonly searchMessage = signal('');
   readonly searchError = signal(false);
+  /** Direct-hit lookup by SEAP notice number: input value, busy flag and inline status/error message. */
+  readonly noticeNumberInput = signal('');
+  readonly directHitBusy = signal(false);
+  readonly directHitMessage = signal('');
+  readonly directHitError = signal(false);
   /** Active feed tab: „Caută anunțuri SEAP" (discovery, only ReadyForBidding) or „Oferte Generate"
    *  (company history, only BidGenerated — includes closed tenders). */
   readonly listMode = signal<'search' | 'history'>('search');
@@ -365,6 +395,38 @@ export class SeapTendersComponent {
         this.loading.set(false);
         this.searchError.set(true);
         this.searchMessage.set('Căutarea în SEAP nu a putut rula. Încearcă din nou.');
+      }
+    });
+  }
+
+  /** Direct-hit lookup after SEAP notice number (SCN…/CN…): the backend serves a local grounded hit or —
+   *  on a miss — imports the notice live, resolves its published documents and runs the grounded AI
+   *  extraction, returning the fully hydrated detail DTO. On success the page navigates straight to the
+   *  detail view; failures (404 unknown number, 502 SEAP down, malformed input) stay on the page with a
+   *  clear message instead of an endless loading state. */
+  lookupNoticeNumber(): void {
+    const noticeNo = this.noticeNumberInput().trim().toUpperCase();
+    if (!noticeNo || this.directHitBusy()) return;
+    if (!NOTICE_NUMBER_PATTERN.test(noticeNo)) {
+      this.directHitError.set(true);
+      this.directHitMessage.set('Format neacceptat. Folosește numărul anunțului afișat în SEAP (ex. SCN1179200 sau CN1010518).');
+      return;
+    }
+    this.directHitBusy.set(true);
+    this.directHitError.set(false);
+    this.directHitMessage.set('');
+    this.service.getTenderByExternalId(noticeNo).subscribe({
+      next: tender => {
+        this.directHitBusy.set(false);
+        this.directHitMessage.set(`Anunțul ${tender.seapExternalId} a fost găsit — deschidem detaliile complete (documente + analiză AI).`);
+        void this.router.navigate(['/seap/tenders', tender.id]);
+      },
+      error: error => {
+        this.directHitBusy.set(false);
+        this.directHitError.set(true);
+        const problem = (error as { error?: { message?: string; detail?: string } })?.error;
+        this.directHitMessage.set(problem?.detail ?? problem?.message
+          ?? 'Anunțul nu a putut fi găsit sau SEAP nu a răspuns. Verifică numărul și încearcă din nou.');
       }
     });
   }

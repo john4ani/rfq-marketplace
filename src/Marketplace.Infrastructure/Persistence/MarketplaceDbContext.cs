@@ -67,6 +67,7 @@ public sealed class MarketplaceDbContext(DbContextOptions<MarketplaceDbContext> 
     public DbSet<SeapTender> SeapTenders => Set<SeapTender>();
     public DbSet<SeapTenderAttachment> SeapTenderAttachments => Set<SeapTenderAttachment>();
     public DbSet<SeapRawIngestion> SeapRawIngestions => Set<SeapRawIngestion>();
+    public DbSet<SeapIngestionRun> SeapIngestionRuns => Set<SeapIngestionRun>();
     public DbSet<CpvCategoryMapping> CpvCategoryMappings => Set<CpvCategoryMapping>();
 
     protected override void OnModelCreating(ModelBuilder builder)

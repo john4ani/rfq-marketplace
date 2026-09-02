@@ -21,7 +21,7 @@ public sealed partial class SeapIngestionWorker(
     {
         while (!stoppingToken.IsCancellationRequested)
         {
-            bool enabled = features.CurrentValue.SeapIngestionEnabled;
+            bool enabled = features.CurrentValue.SeapIngestionWorkerEnabled;
             if (!enabled)
             {
                 if (lastEnabledState != false)
@@ -64,7 +64,7 @@ public sealed partial class SeapIngestionWorker(
         }
     }
 
-    [LoggerMessage(EventId = 5106, Level = LogLevel.Information, Message = "SEAP ingestion is disabled by the Features:SeapIngestionEnabled switch.")]
+    [LoggerMessage(EventId = 5106, Level = LogLevel.Information, Message = "SEAP ingestion is disabled by the Features:SeapIngestionWorkerEnabled switch.")]
     private static partial void LogSeapDisabled(ILogger logger);
     [LoggerMessage(EventId = 5107, Level = LogLevel.Information, Message = "SEAP poll completed; {Imported} tenders imported.")]
     private static partial void LogSeapPollCompleted(ILogger logger, int imported);

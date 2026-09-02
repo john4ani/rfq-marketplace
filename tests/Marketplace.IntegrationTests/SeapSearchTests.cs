@@ -37,7 +37,7 @@ public sealed class SeapSearchTests : IntegrationTestBase
         ]);
 
         SeapIngestionService service = new(db, api, new StubAttachmentStorage(), new NullSeapCategorizer(), new NullSeapSummaryGenerator(),
-            Options.Create(new SeapOptions()), new FakeTimeProvider(), NullLogger<SeapIngestionService>.Instance);
+            new NullSeapAttachmentTextReader(), Options.Create(new SeapOptions()), new FakeTimeProvider(), NullLogger<SeapIngestionService>.Instance);
 
         // „Caută în SEAP": buildings class 4521 within Galați — only the two matching notices are imported.
         IReadOnlyCollection<SeapTender> imported = await service.SearchAndImportAsync(
@@ -88,7 +88,7 @@ public sealed class SeapSearchTests : IntegrationTestBase
             new DateOnly(2026, 1, 1), new DateOnly(2026, 12, 31));
 
         SeapIngestionService service = new(db, api, new StubAttachmentStorage(), new NullSeapCategorizer(), new NullSeapSummaryGenerator(),
-            Options.Create(new SeapOptions()), new FakeTimeProvider(), NullLogger<SeapIngestionService>.Instance);
+            new NullSeapAttachmentTextReader(), Options.Create(new SeapOptions()), new FakeTimeProvider(), NullLogger<SeapIngestionService>.Instance);
 
         IReadOnlyCollection<SeapTender> imported = await service.SearchAndImportAsync(
             ["45453000"], ["Brașov"], new DateOnly(2026, 1, 1), new DateOnly(2026, 12, 31), CancellationToken.None);
@@ -115,7 +115,7 @@ public sealed class SeapSearchTests : IntegrationTestBase
             new SeapNoticeDocumentDto("CN-DOCS-1/00009", "FisaDate.pdf", "https://e-licitatie.ro/api-pub/files/noticedoc/bbb")
         ]);
         SeapIngestionService service = new(db, api, new StubAttachmentStorage(), new NullSeapCategorizer(), new NullSeapSummaryGenerator(),
-            Options.Create(new SeapOptions()), new FakeTimeProvider(), NullLogger<SeapIngestionService>.Instance);
+            new NullSeapAttachmentTextReader(), Options.Create(new SeapOptions()), new FakeTimeProvider(), NullLogger<SeapIngestionService>.Instance);
 
         IReadOnlyCollection<SeapTender> imported = await service.SearchAndImportAsync(
             ["45210000"], ["Galați"], new DateOnly(2026, 1, 1), new DateOnly(2026, 12, 31), CancellationToken.None);
@@ -149,7 +149,7 @@ public sealed class SeapSearchTests : IntegrationTestBase
             []);
 
         SeapIngestionService service = new(db, api, new StubAttachmentStorage(), new NullSeapCategorizer(), new NullSeapSummaryGenerator(),
-            Options.Create(new SeapOptions()), new FakeTimeProvider(), NullLogger<SeapIngestionService>.Instance);
+            new NullSeapAttachmentTextReader(), Options.Create(new SeapOptions()), new FakeTimeProvider(), NullLogger<SeapIngestionService>.Instance);
 
         IReadOnlyCollection<SeapTender> imported = await service.SearchAndImportAsync(
             ["45210000"], ["Galați"], null, null, CancellationToken.None);
@@ -183,6 +183,9 @@ public sealed class SeapSearchTests : IntegrationTestBase
         public Task<IReadOnlyCollection<SeapNoticeDocumentDto>> FetchNoticeDocumentsAsync(
             int noticeId, int sysNoticeTypeId, CancellationToken cancellationToken) =>
             Task.FromResult<IReadOnlyCollection<SeapNoticeDocumentDto>>([]);
+        public Task<SeapTenderNoticeDto?> FetchNoticeByNumberAsync(string noticeNo, CancellationToken cancellationToken) =>
+            Task.FromResult(page0.FirstOrDefault(notice => string.Equals(notice.Id, noticeNo, StringComparison.OrdinalIgnoreCase))
+                ?? page1.FirstOrDefault(notice => string.Equals(notice.Id, noticeNo, StringComparison.OrdinalIgnoreCase)));
     }
 
     /// <summary>Returns nothing for the requested window but the recent notice for every other window —
@@ -212,6 +215,8 @@ public sealed class SeapSearchTests : IntegrationTestBase
         public Task<IReadOnlyCollection<SeapNoticeDocumentDto>> FetchNoticeDocumentsAsync(
             int noticeId, int sysNoticeTypeId, CancellationToken cancellationToken) =>
             Task.FromResult<IReadOnlyCollection<SeapNoticeDocumentDto>>([]);
+        public Task<SeapTenderNoticeDto?> FetchNoticeByNumberAsync(string noticeNo, CancellationToken cancellationToken) =>
+            Task.FromResult(recent.FirstOrDefault(notice => string.Equals(notice.Id, noticeNo, StringComparison.OrdinalIgnoreCase)));
     }
 
     /// <summary>Search client that returns the published documents for the matched notice — simulating the
@@ -240,6 +245,9 @@ public sealed class SeapSearchTests : IntegrationTestBase
             DocumentFetches++;
             return Task.FromResult(documents);
         }
+
+        public Task<SeapTenderNoticeDto?> FetchNoticeByNumberAsync(string noticeNo, CancellationToken cancellationToken) =>
+            Task.FromResult(page0.FirstOrDefault(notice => string.Equals(notice.Id, noticeNo, StringComparison.OrdinalIgnoreCase)));
     }
 
     private sealed class NullSeapCategorizer : ISeapCategorizer
@@ -252,6 +260,13 @@ public sealed class SeapSearchTests : IntegrationTestBase
     {
         public Task<SeapAiExtraction?> GenerateAsync(SeapTender tender, string? attachmentText, CancellationToken cancellationToken) =>
             Task.FromResult<SeapAiExtraction?>(null);
+    }
+
+    private sealed class NullSeapAttachmentTextReader : ISeapAttachmentTextReader
+    {
+        public Task<SeapAttachmentReadResult> ReadPublishedTextAsync(
+            IReadOnlyCollection<SeapTenderAttachment> attachments, CancellationToken cancellationToken) =>
+            Task.FromResult(new SeapAttachmentReadResult(null, []));
     }
 
     private sealed class StubAttachmentStorage : ISeapAttachmentStorage

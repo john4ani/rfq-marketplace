@@ -2,7 +2,7 @@ import { registerLocaleData } from '@angular/common';
 import localeRo from '@angular/common/locales/ro';
 import { computed } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
-import { provideRouter } from '@angular/router';
+import { provideRouter, Router } from '@angular/router';
 import { of, Subject, throwError } from 'rxjs';
 import { AuthService } from '../../core/auth/auth.service';
 import { CompanyVaultService, SpecificationBidResult } from '../../core/companies/company-vault.service';
@@ -482,5 +482,100 @@ describe('SeapTendersComponent', () => {
 
     expect(fixture.nativeElement.querySelectorAll('.skeleton-card').length).toBe(0);
     expect((fixture.nativeElement as HTMLElement).textContent ?? '').toContain('Căutarea în SEAP s-a încheiat');
+  });
+
+  it('opens a notice straight from its SEAP number via the direct-hit lookup', () => {
+    const listTenders = vi.fn().mockReturnValue(of([tender]));
+    const getTenderByExternalId = vi.fn().mockReturnValue(of({ ...tender, id: 'tender-1', seapExternalId: 'SCN1179200' }));
+    TestBed.configureTestingModule({
+      imports: [SeapTendersComponent],
+      providers: [
+        provideRouter([]),
+        { provide: ProfileService, useValue: profiles },
+        { provide: SupplierSettingsService, useValue: settings },
+        { provide: SeapService, useValue: { listTenders, getTenderByExternalId } },
+        { provide: AuthService, useValue: { isAdministrator: computed(() => false) } },
+        { provide: CompanyVaultService, useValue: { list: vi.fn().mockReturnValue(of([])), uploadSpecification: vi.fn(), generateFromSpecification: vi.fn(), downloadGeneratedFile: vi.fn() } }
+      ]
+    });
+    const fixture = TestBed.createComponent(SeapTendersComponent);
+    fixture.detectChanges();
+    const router = TestBed.inject(Router);
+    const navigate = vi.spyOn(router, 'navigate').mockResolvedValue(true);
+
+    const input = fixture.nativeElement.querySelector('input[aria-label="Număr anunț SEAP (SCN sau CN)"]') as HTMLInputElement;
+    input.value = 'SCN1179200';
+    input.dispatchEvent(new Event('input'));
+    fixture.detectChanges();
+    const button = Array.from(fixture.nativeElement.querySelectorAll('button') as NodeListOf<HTMLButtonElement>)
+      .find(item => item.textContent?.includes('Deschide anunțul'))!;
+    button.click();
+    fixture.detectChanges();
+
+    expect(getTenderByExternalId).toHaveBeenCalledWith('SCN1179200');
+    expect(navigate).toHaveBeenCalledWith(['/seap/tenders', 'tender-1']);
+    expect((fixture.nativeElement as HTMLElement).textContent ?? '').toContain('Anunțul SCN1179200 a fost găsit');
+  });
+
+  it('rejects a direct-hit input that is not a SEAP notice number without calling the API', () => {
+    const listTenders = vi.fn().mockReturnValue(of([tender]));
+    const getTenderByExternalId = vi.fn();
+    TestBed.configureTestingModule({
+      imports: [SeapTendersComponent],
+      providers: [
+        provideRouter([]),
+        { provide: ProfileService, useValue: profiles },
+        { provide: SupplierSettingsService, useValue: settings },
+        { provide: SeapService, useValue: { listTenders, getTenderByExternalId } },
+        { provide: AuthService, useValue: { isAdministrator: computed(() => false) } },
+        { provide: CompanyVaultService, useValue: { list: vi.fn().mockReturnValue(of([])), uploadSpecification: vi.fn(), generateFromSpecification: vi.fn(), downloadGeneratedFile: vi.fn() } }
+      ]
+    });
+    const fixture = TestBed.createComponent(SeapTendersComponent);
+    fixture.detectChanges();
+
+    const input = fixture.nativeElement.querySelector('input[aria-label="Număr anunț SEAP (SCN sau CN)"]') as HTMLInputElement;
+    input.value = 'not-a-notice';
+    input.dispatchEvent(new Event('input'));
+    fixture.detectChanges();
+    const button = Array.from(fixture.nativeElement.querySelectorAll('button') as NodeListOf<HTMLButtonElement>)
+      .find(item => item.textContent?.includes('Deschide anunțul'))!;
+    button.click();
+    fixture.detectChanges();
+
+    expect(getTenderByExternalId).not.toHaveBeenCalled();
+    expect((fixture.nativeElement as HTMLElement).textContent ?? '').toContain('Format neacceptat');
+  });
+
+  it('surfaces the backend 404/502 message when the direct-hit lookup fails', () => {
+    const listTenders = vi.fn().mockReturnValue(of([tender]));
+    const getTenderByExternalId = vi.fn().mockReturnValue(throwError(() => ({
+      error: { detail: 'Anunțul SCN9999999 nu a fost găsit pe SEAP. Verifică numărul și încearcă din nou.' }
+    })));
+    TestBed.configureTestingModule({
+      imports: [SeapTendersComponent],
+      providers: [
+        provideRouter([]),
+        { provide: ProfileService, useValue: profiles },
+        { provide: SupplierSettingsService, useValue: settings },
+        { provide: SeapService, useValue: { listTenders, getTenderByExternalId } },
+        { provide: AuthService, useValue: { isAdministrator: computed(() => false) } },
+        { provide: CompanyVaultService, useValue: { list: vi.fn().mockReturnValue(of([])), uploadSpecification: vi.fn(), generateFromSpecification: vi.fn(), downloadGeneratedFile: vi.fn() } }
+      ]
+    });
+    const fixture = TestBed.createComponent(SeapTendersComponent);
+    fixture.detectChanges();
+
+    const input = fixture.nativeElement.querySelector('input[aria-label="Număr anunț SEAP (SCN sau CN)"]') as HTMLInputElement;
+    input.value = 'SCN9999999';
+    input.dispatchEvent(new Event('input'));
+    fixture.detectChanges();
+    const button = Array.from(fixture.nativeElement.querySelectorAll('button') as NodeListOf<HTMLButtonElement>)
+      .find(item => item.textContent?.includes('Deschide anunțul'))!;
+    button.click();
+    fixture.detectChanges();
+
+    expect((fixture.nativeElement as HTMLElement).textContent ?? '').toContain('nu a fost găsit pe SEAP');
+    expect(getTenderByExternalId).toHaveBeenCalledWith('SCN9999999');
   });
 });

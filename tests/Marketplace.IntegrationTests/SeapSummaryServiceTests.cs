@@ -32,7 +32,8 @@ public sealed class SeapSummaryServiceTests
           "fundingSource": "PNRR",
           "contractDuration": "12 luni",
           "qualificationRequirements": "Minim 2 contracte de reabilitare clădiri în ultimii 3 ani",
-          "keyPersonnel": "Manager de proiect, Inginer RTE"
+          "keyPersonnel": "Manager de proiect, Inginer RTE",
+          "certificates": "ISO 9001, ISO 45001"
         }
         """;
 
@@ -48,6 +49,7 @@ public sealed class SeapSummaryServiceTests
         Assert.Equal("12 luni", extraction.ContractDuration);
         Assert.Equal("Minim 2 contracte de reabilitare clădiri în ultimii 3 ani", extraction.QualificationRequirements);
         Assert.Equal("Manager de proiect, Inginer RTE", extraction.KeyPersonnel);
+        Assert.Equal("ISO 9001, ISO 45001", extraction.Certificates);
     }
 
     [Fact]

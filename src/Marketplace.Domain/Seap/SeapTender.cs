@@ -18,6 +18,7 @@ public sealed record SeapAiExtraction(
     string? ContractDuration,
     string? QualificationRequirements,
     string? KeyPersonnel,
+    string? Certificates,
     IReadOnlyCollection<string> SummaryPoints);
 
 /// <summary>
@@ -32,6 +33,9 @@ public sealed class SeapTender
 
     public Guid Id { get; private set; }
     public string SeapExternalId { get; private set; } = string.Empty;
+    /// <summary>Uppercased, trimmed SEAP notice number. Backed by a unique index so the resolve upsert is
+    /// idempotent regardless of how the caller typed the number (SCN…/CN…).</summary>
+    public string NormalizedExternalId { get; private set; } = string.Empty;
     /// <summary>Numeric id of the notice in SEAP (carried by the search payload). Persisted so the published
     /// document list can be resolved again on demand (the notice-search payload does not carry documents).</summary>
     public int? NoticeId { get; private set; }
@@ -73,9 +77,36 @@ public sealed class SeapTender
     public string? QualificationRequirements { get; private set; }
     /// <summary>Short list of the key experts requested (e.g. „Manager de proiect, Inginer RTE").</summary>
     public string? KeyPersonnel { get; private set; }
+    /// <summary>Mandatory certificates/standards stated in the notice (e.g. „ISO 9001, ISO 45001, atestat ANRE\").</summary>
+    public string? Certificates { get; private set; }
+
     /// <summary>AI-synthesis bullets for the „Sinteză AI" tab (max 5, short). Empty until generated — an empty
     /// array means „processing/not yet generated", never a failed state for the tender.</summary>
     public IReadOnlyCollection<string> SummaryPoints { get; private set; } = [];
+    /// <summary>True when the last AI extraction that produced <see cref="SummaryPoints"/> was fed with the
+    /// readable text of the published documents (Fișa de date / Caiet de sarcini), not only the notice
+    /// metadata. Lets the on-demand „Sinteză AI\" re-run enrich an older metadata-only summary.</summary>
+    public bool SummaryGroundedInDocuments { get; private set; }
+    /// <summary>Why the tender entered the cache (see <see cref="SeapImportMode"/>). A direct historical
+    /// lookup of an expired notice never becomes an active opportunity.</summary>
+    public SeapImportMode ImportMode { get; private set; } = SeapImportMode.Standard;
+    /// <summary>Hash of the resolved published-document set — lets the ingestion worker skip re-downloading
+    /// and re-analyzing when the authority did not change the documents.</summary>
+    public string? DocumentSetHash { get; private set; }
+    /// <summary>Hash of the document set that produced the current grounded analysis. Ready only when it
+    /// matches <see cref="DocumentSetHash"/> (a changed document set invalidates the stored analysis).</summary>
+    public string? AnalyzedDocumentSetHash { get; private set; }
+    /// <summary>How completely the published document set was verified through content digests (None when the
+    /// notice publishes no documents). A Partial marker means the analysis may be grounded only in the subset
+    /// of documents that were actually downloaded — the dossier is not fully verified.</summary>
+    public SeapDocumentDigestStatus DocumentDigestStatus { get; private set; } = SeapDocumentDigestStatus.None;
+    /// <summary>Version of the analysis (prompt/model/schema) that produced the stored extraction.</summary>
+    public int? AnalysisVersion { get; private set; }
+    public int AttemptCount { get; private set; }
+    public DateTimeOffset? StartedAt { get; private set; }
+    public DateTimeOffset? CompletedAt { get; private set; }
+    public string? LastErrorCode { get; private set; }
+    public string? LastErrorMessage { get; private set; }
     public DateTimeOffset CreatedAt { get; private set; }
     public DateTimeOffset UpdatedAt { get; private set; }
     public IReadOnlyCollection<SeapTenderAttachment> Attachments => _attachments;
@@ -98,6 +129,7 @@ public sealed class SeapTender
         {
             Id = Guid.NewGuid(),
             SeapExternalId = Required(seapExternalId, "Identificatorul SEAP este obligatoriu."),
+            NormalizedExternalId = NormalizeNoticeNumber(seapExternalId),
             NoticeId = noticeId,
             SysNoticeTypeId = sysNoticeTypeId,
             Title = Required(title, "Titlul anunțului este obligatoriu."),
@@ -115,9 +147,9 @@ public sealed class SeapTender
             UpdatedAt = now
         };
 
-    public SeapTenderAttachment AddAttachment(string fileName, string s3Url, DateTimeOffset now)
+    public SeapTenderAttachment AddAttachment(string fileName, string s3Url, DateTimeOffset now, string? sourceDocumentId = null)
     {
-        SeapTenderAttachment attachment = SeapTenderAttachment.Create(Id, fileName, s3Url, now);
+        SeapTenderAttachment attachment = SeapTenderAttachment.Create(Id, fileName, s3Url, now, sourceDocumentId);
         _attachments.Add(attachment);
         return attachment;
     }
@@ -177,13 +209,77 @@ public sealed class SeapTender
     }
 
     /// <summary>
+    /// Records why a tender entered the cache through the direct-hit resolve flow and bumps the attempt
+    /// counter. A <see cref="SeapImportMode.DirectHistoricalLookup"/> (an already-expired notice imported for
+    /// research) is never promoted to the active feed here — the status stays <see cref="SeapTenderStatus.Imported"/>
+    /// until the ingestion worker completes a document-grounded analysis.
+    /// </summary>
+    public void RecordResolveAttempt(SeapImportMode importMode, DateTimeOffset now)
+    {
+        ImportMode = importMode;
+        AttemptCount += 1;
+        StartedAt ??= now;
+        CompletedAt = null;
+        LastErrorCode = null;
+        LastErrorMessage = null;
+        UpdatedAt = now;
+    }
+
+    /// <summary>Records the hash of the currently resolved document set. A changed set invalidates any older
+    /// document-grounded analysis (its hash no longer matches), forcing a re-analysis before the tender can
+    /// be served as ready again.</summary>
+    public void RecordDocumentSetHash(string documentSetHash, DateTimeOffset now)
+    {
+        if (AnalyzedDocumentSetHash is not null && !string.Equals(AnalyzedDocumentSetHash, documentSetHash, StringComparison.Ordinal))
+        {
+            AnalyzedDocumentSetHash = null;
+            AnalysisVersion = null;
+            SummaryGroundedInDocuments = false;
+        }
+        DocumentSetHash = documentSetHash;
+        UpdatedAt = now;
+    }
+
+    /// <summary>Records a successful document-grounded analysis: persists the extraction, the hash of the
+    /// document set it was grounded in and the analysis version. Sets <c>SummaryGroundedInDocuments</c> —
+    /// the only place that flag becomes true.</summary>
+    public void RecordDocumentGroundedAnalysis(
+        SeapAiExtraction extraction, string documentSetHash, int analysisVersion, DateTimeOffset now)
+    {
+        ApplyAiExtraction(extraction, now, groundedInDocuments: true);
+        AnalyzedDocumentSetHash = documentSetHash;
+        AnalysisVersion = analysisVersion;
+        DocumentSetHash = documentSetHash;
+        CompletedAt = now;
+        LastErrorCode = null;
+        LastErrorMessage = null;
+        UpdatedAt = now;
+    }
+
+    /// <summary>Stamps how completely the published document set was verified through content digests.</summary>
+    public void RecordDocumentDigestStatus(SeapDocumentDigestStatus status, DateTimeOffset now)
+    {
+        DocumentDigestStatus = status;
+        UpdatedAt = now;
+    }
+
+    /// <summary>Records the last ingestion failure code/message on the tender (the run keeps the full error
+    /// state; the tender-level copy survives for quick status reads).</summary>
+    public void RecordIngestionFailure(string errorCode, string errorMessage, DateTimeOffset now)
+    {
+        LastErrorCode = errorCode;
+        LastErrorMessage = errorMessage;
+        UpdatedAt = now;
+    }
+
+    /// <summary>
     /// Persists the AI extraction produced at import („Sinteză AI" bullets + award criterion, participation
     /// guarantee, funding source, duration, qualification requirements, key personnel). Enrichment is never a
     /// gate: the tender is fully usable without it. The AI's 2–3 sentence acquisition summary fills
     /// <see cref="Description"/> only when the notice's own full text is absent — a parser-delivered full
     /// text always wins over the AI summary.
     /// </summary>
-    public void ApplyAiExtraction(SeapAiExtraction extraction, DateTimeOffset now)
+    public void ApplyAiExtraction(SeapAiExtraction extraction, DateTimeOffset now, bool groundedInDocuments = false)
     {
         if (Description is null && !string.IsNullOrWhiteSpace(extraction.Description))
             Description = extraction.Description.Trim();
@@ -193,17 +289,22 @@ public sealed class SeapTender
         ContractDuration = NullIfBlank(extraction.ContractDuration);
         QualificationRequirements = NullIfBlank(extraction.QualificationRequirements);
         KeyPersonnel = NullIfBlank(extraction.KeyPersonnel);
+        Certificates = NullIfBlank(extraction.Certificates);
         if (extraction.SummaryPoints is { Count: > 0 })
             SummaryPoints = extraction.SummaryPoints
                 .Select(point => point.Trim())
                 .Where(point => point.Length > 0)
                 .Take(5)
                 .ToArray();
+        SummaryGroundedInDocuments = groundedInDocuments;
         UpdatedAt = now;
     }
 
     private static string Required(string value, string message) =>
         string.IsNullOrWhiteSpace(value) ? throw new ArgumentException(message) : value.Trim();
+
+    private static string NormalizeNoticeNumber(string value) =>
+        (value?.Trim() ?? string.Empty).ToUpperInvariant();
 
     private static string? NullIfBlank(string? value) =>
         string.IsNullOrWhiteSpace(value) ? null : value.Trim();

@@ -62,6 +62,7 @@ public sealed class SeapTenderTests
         tender.ApplyAiExtraction(new SeapAiExtraction(
             "Rezumat achiziție.", "Prețul cel mai scăzut", "120.000 RON", "Buget local", "12 luni",
             "Minim 2 contracte similare în ultimii 3 ani", "Manager de proiect, Inginer RTE",
+            "ISO 9001, ISO 45001",
             ["Garanție: 120.000 RON", "Experiență: minim 2 contracte"]), DateTimeOffset.UtcNow);
 
         Assert.Equal("Rezumat achiziție.", tender.Description);
@@ -71,6 +72,7 @@ public sealed class SeapTenderTests
         Assert.Equal("12 luni", tender.ContractDuration);
         Assert.Equal("Minim 2 contracte similare în ultimii 3 ani", tender.QualificationRequirements);
         Assert.Equal("Manager de proiect, Inginer RTE", tender.KeyPersonnel);
+        Assert.Equal("ISO 9001, ISO 45001", tender.Certificates);
         Assert.Equal(["Garanție: 120.000 RON", "Experiență: minim 2 contracte"], tender.SummaryPoints);
     }
 
@@ -80,14 +82,14 @@ public sealed class SeapTenderTests
         // The search payload never carries a description → the AI 2-3 sentence summary becomes the description.
         SeapTender withoutText = Tender("4305857 - Municipiul Cluj-Napoca", "Cluj");
         withoutText.ApplyAiExtraction(new SeapAiExtraction(
-            "Rezumat AI.", "Prețul cel mai scăzut", null, null, null, null, null, []), DateTimeOffset.UtcNow);
+            "Rezumat AI.", "Prețul cel mai scăzut", null, null, null, null, null, null, []), DateTimeOffset.UtcNow);
         Assert.Equal("Rezumat AI.", withoutText.Description);
 
         // A parser-delivered full text always wins over the AI summary.
         SeapTender withText = SeapTender.Import("CN-X", "Anunț", "Textul integral al anunțului", ["45233000-1"],
             [], 1000m, "RON", "Autoritate", null, DateTimeOffset.UtcNow, DateTimeOffset.UtcNow.AddDays(30), DateTimeOffset.UtcNow);
         withText.ApplyAiExtraction(new SeapAiExtraction(
-            "Rezumat AI.", "Prețul cel mai scăzut", null, null, null, null, null, []), DateTimeOffset.UtcNow);
+            "Rezumat AI.", "Prețul cel mai scăzut", null, null, null, null, null, null, []), DateTimeOffset.UtcNow);
         Assert.Equal("Textul integral al anunțului", withText.Description);
     }
 
@@ -98,7 +100,7 @@ public sealed class SeapTenderTests
         DateTimeOffset before = tender.UpdatedAt;
 
         tender.ApplyAiExtraction(new SeapAiExtraction(
-            null, "Prețul cel mai scăzut", null, null, null, null, null,
+            null, "Prețul cel mai scăzut", null, null, null, null, null, null,
             ["  Primul punct  ", "", "  ", "Al doilea punct", "Al treilea", "Al patrulea", "Al cincilea", "Al șaselea"]),
             before.AddMinutes(5));
 
