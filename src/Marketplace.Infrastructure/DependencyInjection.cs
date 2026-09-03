@@ -179,6 +179,9 @@ public static class DependencyInjection
             services.AddScoped<IStorageService, CloudflareR2StorageService>();
         services.AddScoped<ISeapApiClient, SeapApiClient>();
         services.AddScoped<ISeapAttachmentStorage, SeapAttachmentStorage>();
+        // Stage 1 (DocumentImport): durable dossier store for the ORIGINAL published documents of Direct Hit
+        // tenders — a logically separate namespace from browsing copies and user uploads.
+        services.AddScoped<ISeapOriginalDocumentStore, SeapOriginalDocumentStore>();
         services.AddScoped<ISeapCategorizer, SeapCategorizerService>();
         services.AddScoped<ISeapSummaryGenerator, SeapSummaryService>();
         services.AddScoped<ISeapAttachmentTextReader, SeapAttachmentTextReader>();

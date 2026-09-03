@@ -57,7 +57,8 @@ public sealed record SeapResolveResult(
     string NoticeNo,
     string Status,
     Guid? RunId,
-    SeapTenderDetailsDto? ReadyTender);
+    SeapTenderDetailsDto? ReadyTender,
+    string? Purpose = null);
 
 /// <summary>Status payload of <c>GET /api/v1/seap/tenders/{id}/ingestion-status</c>. Status is derived from the
 /// actual tender state: a document-grounded analysis wins (<see cref="SeapIngestionStatus.Ready"/>); otherwise the
@@ -79,7 +80,10 @@ public sealed record SeapIngestionStatusDto(
     int? AnalysisVersion,
     string? DigestStatus = null,
     DateTimeOffset? DocumentsFetchedAt = null,
-    DateTimeOffset? TextExtractedAt = null);
+    DateTimeOffset? TextExtractedAt = null,
+    string? Purpose = null,
+    int DownloadedDocumentCount = 0,
+    int FailedDocumentCount = 0);
 
 /// <summary>Envelope returned by the real public e-licitatie.ro notice search (GetCNoticeList).</summary>
 public sealed record SeapNoticeSearchResponse(
@@ -144,6 +148,26 @@ public interface ISeapApiClient
 public interface ISeapAttachmentStorage
 {
     Task<string> UploadAsync(string tenderId, string fileName, Stream content, CancellationToken cancellationToken);
+}
+
+/// <summary>Outcome of durably persisting one original SEAP published document into the Direct Hit dossier store.</summary>
+public sealed record StoredSeapOriginalDocument(string Reference, string ContentSha256, long SizeBytes);
+
+/// <summary>
+/// Stage 1 (DocumentImport) dossier storage for the ORIGINAL published documents of a Direct Hit tender —
+/// deliberately separate from <see cref="ISeapAttachmentStorage"/> (which covers on-demand browsing copies).
+/// Originals are persisted durably under their own logically separate storage namespace, never mixed with
+/// user uploads or browsing copies, so Stage 2/3 can ground themselves in a stable dossier even when SEAP
+/// becomes temporarily unavailable or replaces a file upstream. Streaming a file into this store computes the
+/// SHA-256 of the REAL stored bytes and returns the reference + content digest.
+/// </summary>
+public interface ISeapOriginalDocumentStore
+{
+    /// <summary>Streams <paramref name="content"/> into the dossier store under the tender's namespace and returns
+    /// the persisted reference plus the content digest/size captured from the actual bytes. The caller owns and
+    /// disposes the stream. Throws when the dossier storage is not configured.</summary>
+    Task<StoredSeapOriginalDocument> StoreOriginalAsync(
+        Guid tenderId, string fileName, Stream content, CancellationToken cancellationToken);
 }
 
 public interface ISeapIngestionService
@@ -252,8 +276,15 @@ public sealed record SeapTenderCategoryRef(Guid Id, string Name);
 
 /// <summary>One original file published by the contracting authority. The <see cref="DownloadUrl"/> is the
 /// authenticated API route that streams the stored file (browsers cannot navigate the persisted
-/// <c>local://</c>/<c>s3://</c> references directly).</summary>
-public sealed record SeapTenderAttachmentRef(Guid Id, string FileName, string DownloadUrl);
+/// <c>local://</c>/<c>s3://</c> references directly). When a <see cref="Marketplace.Domain.Seap.SeapIngestionRunPurpose.DocumentImport"/>
+/// run already processed the tender, <see cref="DocumentGroup"/>/<see cref="DownloadStatus"/> carry the dossier
+/// classification and the per-file durable-download state.</summary>
+public sealed record SeapTenderAttachmentRef(
+    Guid Id,
+    string FileName,
+    string DownloadUrl,
+    string? DocumentGroup = null,
+    string? DownloadStatus = null);
 
 /// <summary>
 /// Detail projection of a SEAP tender returned by <c>GET /api/v1/seap/tenders/{id}</c>. Kept as a dedicated
@@ -327,7 +358,9 @@ public sealed record SeapTenderDetailsDto(
             .Select(attachment => new SeapTenderAttachmentRef(
                 attachment.Id,
                 attachment.FileName,
-                $"api/v1/seap/tenders/{tender.Id}/attachments/{attachment.Id}"))
+                $"api/v1/seap/tenders/{tender.Id}/attachments/{attachment.Id}",
+                attachment.DocumentGroup == SeapDocumentGroup.None ? null : attachment.DocumentGroup.ToString(),
+                attachment.DownloadStatus == SeapDocumentDownloadStatus.None ? null : attachment.DownloadStatus.ToString()))
             .ToArray(),
         ProcedureType: tender.SeapExternalId.StartsWith("SCN", StringComparison.OrdinalIgnoreCase)
             ? "Procedură simplificată"

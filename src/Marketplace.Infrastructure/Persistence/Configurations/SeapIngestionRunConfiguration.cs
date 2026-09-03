@@ -18,6 +18,8 @@ public sealed class SeapIngestionRunConfiguration : IEntityTypeConfiguration<Sea
             .HasFilter("\"Status\" IN ('Pending', 'FetchingDocuments', 'Analyzing')");
         builder.Property(run => run.NoticeNo).HasMaxLength(64).IsRequired();
         builder.Property(run => run.Status).HasConversion<string>().HasMaxLength(24).IsRequired();
+        builder.Property(run => run.Purpose).HasConversion<string>().HasMaxLength(24)
+            .HasDefaultValue(SeapIngestionRunPurpose.DigestAndAnalyze).IsRequired();
         builder.Property(run => run.AttemptCount).HasDefaultValue(0);
         // Optimistic-concurrency fencing token: EF adds "WHERE ClaimVersion = <original>" to the run UPDATE on
         // every SaveChanges, so a worker whose claim was superseded (lease expired + reclaimed) affects zero

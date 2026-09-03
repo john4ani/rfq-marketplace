@@ -48,6 +48,10 @@ public sealed class SeapIngestionRun
     /// <summary>Human-readable notice number (e.g. SCN1179200) this run resolves.</summary>
     public string NoticeNo { get; private set; } = string.Empty;
     public SeapIngestionStatus Status { get; private set; }
+    /// <summary>What this run must produce (see <see cref="SeapIngestionRunPurpose"/>). The worker executes
+    /// the corresponding stage pipeline: <see cref="SeapIngestionRunPurpose.DocumentImport"/> durably stores
+    /// the original published documents and reports Ready/Partial without text extraction or LLM analysis.</summary>
+    public SeapIngestionRunPurpose Purpose { get; private set; } = SeapIngestionRunPurpose.DigestAndAnalyze;
     public DateTimeOffset StartedAt { get; private set; }
     public DateTimeOffset? CompletedAt { get; private set; }
     public int AttemptCount { get; private set; }
@@ -87,11 +91,14 @@ public sealed class SeapIngestionRun
     public DateTimeOffset CreatedAt { get; private set; }
     public DateTimeOffset UpdatedAt { get; private set; }
 
-    public static SeapIngestionRun Start(Guid tenderId, string noticeNo, DateTimeOffset now) => new()
+    public static SeapIngestionRun Start(
+        Guid tenderId, string noticeNo, DateTimeOffset now,
+        SeapIngestionRunPurpose purpose = SeapIngestionRunPurpose.DigestAndAnalyze) => new()
     {
         Id = Guid.NewGuid(),
         TenderId = tenderId,
         NoticeNo = noticeNo,
+        Purpose = purpose,
         Status = SeapIngestionStatus.Pending,
         StartedAt = now,
         AttemptCount = 0,

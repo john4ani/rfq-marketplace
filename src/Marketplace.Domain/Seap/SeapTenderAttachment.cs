@@ -22,6 +22,15 @@ public sealed class SeapTenderAttachment
     /// <summary>Size of the published bytes in bytes; null until the content was downloaded.</summary>
     public long? SizeBytes { get; private set; }
     public DateTimeOffset DownloadedAt { get; private set; }
+    /// <summary>Functional group inside the Direct Hit dossier (see <see cref="SeapDocumentGroup"/>), derived
+    /// deterministically from the published file name / upstream document id. <see cref="SeapDocumentGroup.None"/>
+    /// until a <see cref="SeapIngestionRunPurpose.DocumentImport"/> run classified the file.</summary>
+    public SeapDocumentGroup DocumentGroup { get; private set; } = SeapDocumentGroup.None;
+    /// <summary>Durable-download state stamped by a <see cref="SeapIngestionRunPurpose.DocumentImport"/> run
+    /// (see <see cref="SeapDocumentDownloadStatus"/>). <see cref="SeapDocumentDownloadStatus.None"/> means the
+    /// file was never durably stored by a DocumentImport run — it is streamed on demand from the remote URL or
+    /// from its browsing copy.</summary>
+    public SeapDocumentDownloadStatus DownloadStatus { get; private set; } = SeapDocumentDownloadStatus.None;
 
     public static SeapTenderAttachment Create(
         Guid tenderId, string fileName, string s3Url, DateTimeOffset now, string? sourceDocumentId = null) => new()
@@ -39,6 +48,32 @@ public sealed class SeapTenderAttachment
     {
         ContentSha256 = contentSha256;
         SizeBytes = sizeBytes;
+    }
+
+    /// <summary>Records a successful durable download of the original published bytes: switches <see cref="S3Url"/>
+    /// from the remote URL (or the browsing copy) to the new Direct Hit dossier reference and stamps the content
+    /// digest captured from the real stored bytes, the functional <paramref name="group"/> and the download
+    /// timestamp. Idempotent — re-processing an already-<see cref="SeapDocumentDownloadStatus.Downloaded"/> file
+    /// is skipped by the caller.</summary>
+    public void RecordOriginalDownloaded(
+        string dossierReference, string contentSha256, long sizeBytes, SeapDocumentGroup group, DateTimeOffset now)
+    {
+        S3Url = dossierReference;
+        ContentSha256 = contentSha256;
+        SizeBytes = sizeBytes;
+        DocumentGroup = group;
+        DownloadStatus = SeapDocumentDownloadStatus.Downloaded;
+        DownloadedAt = now;
+    }
+
+    /// <summary>Records a failed durable-download attempt. The remote reference (or browsing copy) is kept so the
+    /// file remains reachable on demand; the failed state lets a later DocumentImport attempt retry only the files
+    /// that are not durably stored yet.</summary>
+    public void RecordOriginalDownloadFailed(SeapDocumentGroup group, DateTimeOffset now)
+    {
+        DocumentGroup = group;
+        DownloadStatus = SeapDocumentDownloadStatus.Failed;
+        DownloadedAt = now;
     }
 
     private static string Required(string value, string message) =>

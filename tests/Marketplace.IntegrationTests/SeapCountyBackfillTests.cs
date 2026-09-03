@@ -1,4 +1,4 @@
-﻿using Marketplace.Application.Seap;
+using Marketplace.Application.Seap;
 using Marketplace.Domain.Seap;
 using Marketplace.Infrastructure.Persistence;
 using Marketplace.Infrastructure.Seap;
@@ -22,7 +22,7 @@ public sealed class SeapCountyBackfillTests : IntegrationTestBase
         await db.Database.MigrateAsync();
 
         DateTimeOffset now = DateTimeOffset.UtcNow;
-        SeapIngestionService service = new(db, new StubSeapApiClient([]), new StubAttachmentStorage(),
+        SeapIngestionService service = new(db, new StubSeapApiClient([]), new StubAttachmentStorage(), new NullOriginalDocumentStore(), new NullObjectStorage(),
             new NullSeapCategorizer(), new NullSeapSummaryGenerator(), new NullSeapAttachmentTextReader(),
             Options.Create(new SeapOptions()), new FakeTimeProvider(),
             NullLogger<SeapIngestionService>.Instance);

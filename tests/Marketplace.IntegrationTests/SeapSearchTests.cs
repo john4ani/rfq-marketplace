@@ -1,4 +1,4 @@
-﻿using Marketplace.Application.Seap;
+using Marketplace.Application.Seap;
 using Marketplace.Domain.Seap;
 using Marketplace.Infrastructure.Persistence;
 using Marketplace.Infrastructure.Seap;
@@ -36,7 +36,7 @@ public sealed class SeapSearchTests : IntegrationTestBase
                 "CONSILIUL JUDETEAN GALATI", now, now.AddDays(30), [], County: "Galați")
         ]);
 
-        SeapIngestionService service = new(db, api, new StubAttachmentStorage(), new NullSeapCategorizer(), new NullSeapSummaryGenerator(),
+        SeapIngestionService service = new(db, api, new StubAttachmentStorage(), new NullOriginalDocumentStore(), new NullObjectStorage(), new NullSeapCategorizer(), new NullSeapSummaryGenerator(),
             new NullSeapAttachmentTextReader(), Options.Create(new SeapOptions()), new FakeTimeProvider(), NullLogger<SeapIngestionService>.Instance);
 
         // „Caută în SEAP": buildings class 4521 within Galați — only the two matching notices are imported.
@@ -87,7 +87,7 @@ public sealed class SeapSearchTests : IntegrationTestBase
                 now.AddDays(-2), now.AddDays(20), [], County: "Brașov")],
             new DateOnly(2026, 1, 1), new DateOnly(2026, 12, 31));
 
-        SeapIngestionService service = new(db, api, new StubAttachmentStorage(), new NullSeapCategorizer(), new NullSeapSummaryGenerator(),
+        SeapIngestionService service = new(db, api, new StubAttachmentStorage(), new NullOriginalDocumentStore(), new NullObjectStorage(), new NullSeapCategorizer(), new NullSeapSummaryGenerator(),
             new NullSeapAttachmentTextReader(), Options.Create(new SeapOptions()), new FakeTimeProvider(), NullLogger<SeapIngestionService>.Instance);
 
         IReadOnlyCollection<SeapTender> imported = await service.SearchAndImportAsync(
@@ -114,7 +114,7 @@ public sealed class SeapSearchTests : IntegrationTestBase
             new SeapNoticeDocumentDto("CN-DOCS-1/00005", "4. Caiet de sarcini sala sport.pdf.p7s", "https://e-licitatie.ro/api-pub/files/noticedoc/aaa"),
             new SeapNoticeDocumentDto("CN-DOCS-1/00009", "FisaDate.pdf", "https://e-licitatie.ro/api-pub/files/noticedoc/bbb")
         ]);
-        SeapIngestionService service = new(db, api, new StubAttachmentStorage(), new NullSeapCategorizer(), new NullSeapSummaryGenerator(),
+        SeapIngestionService service = new(db, api, new StubAttachmentStorage(), new NullOriginalDocumentStore(), new NullObjectStorage(), new NullSeapCategorizer(), new NullSeapSummaryGenerator(),
             new NullSeapAttachmentTextReader(), Options.Create(new SeapOptions()), new FakeTimeProvider(), NullLogger<SeapIngestionService>.Instance);
 
         IReadOnlyCollection<SeapTender> imported = await service.SearchAndImportAsync(
@@ -148,7 +148,7 @@ public sealed class SeapSearchTests : IntegrationTestBase
             ],
             []);
 
-        SeapIngestionService service = new(db, api, new StubAttachmentStorage(), new NullSeapCategorizer(), new NullSeapSummaryGenerator(),
+        SeapIngestionService service = new(db, api, new StubAttachmentStorage(), new NullOriginalDocumentStore(), new NullObjectStorage(), new NullSeapCategorizer(), new NullSeapSummaryGenerator(),
             new NullSeapAttachmentTextReader(), Options.Create(new SeapOptions()), new FakeTimeProvider(), NullLogger<SeapIngestionService>.Instance);
 
         IReadOnlyCollection<SeapTender> imported = await service.SearchAndImportAsync(

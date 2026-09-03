@@ -207,6 +207,17 @@ public sealed partial class SeapIngestionService
             await FencedSaveAsync(run, claim, now, cancellationToken);
         }
 
+        // Stage 2b — DocumentImport purpose (Stage 1, Direct Hit dossier): durably download and store the
+        // original published documents into the dedicated dossier namespace, stamp every file Downloaded/Failed
+        // + its functional group, then complete Ready/Partial. This purpose deliberately skips text extraction
+        // and the LLM analysis (the AI digest belongs to a later stage and never runs inside a DocumentImport
+        // run). Non-DocumentImport runs continue through the digest/analysis pipeline below.
+        if (run.Purpose == SeapIngestionRunPurpose.DocumentImport)
+        {
+            await ProcessDocumentImportRunAsync(run, tender, claim, now, cancellationToken);
+            return;
+        }
+
         // Stage 3 — extract readable text AND capture the SHA-256 of the real published bytes. The content
         // digests are stamped on the attachments and the content-based DocumentSetHash is recomputed, all in
         // the SAME fenced transaction as the TextExtractedAt checkpoint — so an authority replacing a file

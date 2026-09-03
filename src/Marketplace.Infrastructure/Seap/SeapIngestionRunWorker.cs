@@ -9,7 +9,9 @@ namespace Marketplace.Infrastructure.Seap;
 // Livrarea 2 background worker for resolve runs. Gated by the same hot-reloadable Features:SeapIngestionEnabled
 // switch as the notice poller; while disabled it simply idles. When enabled it ticks every
 // Seap:RunProcessingIntervalSeconds and asks the ingestion service to claim/process a bounded batch of active
-// runs (atomic lease claim → fetch documents → extract → analyze). Runs survive restarts through persistent
+// runs (atomic lease claim → purpose-specific pipeline: SeapIngestionRunPurpose.DocumentImport runs — Stage 1,
+// Direct Hit dossier — download and durably store the original published documents and complete Ready/Partial;
+// other runs advance fetch documents → extract text → analyze). Runs survive restarts through persistent
 // per-stage checkpoints, so a process dying between stages never re-downloads documents or repeats an LLM call.
 public sealed partial class SeapIngestionRunWorker(
     IServiceScopeFactory scopeFactory,

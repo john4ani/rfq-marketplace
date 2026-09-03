@@ -2,6 +2,7 @@ using Marketplace.Application.Seap;
 using Marketplace.Domain.Seap;
 using Marketplace.Infrastructure.Persistence;
 using Marketplace.Infrastructure.Seap;
+using Marketplace.Infrastructure.Storage;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
@@ -26,7 +27,7 @@ public sealed class SeapIngestionRunWorkerTests : IntegrationTestBase
     [
         "SCN500001", "SCN500002", "SCN500003", "SCN500004", "SCN500005",
         "SCN510001", "SCN510002", "SCN510003", "SCN510004", "SCN510005", "SCN510006",
-        "SCN520001", "SCN520002", "SCN520003", "SCN520004"
+        "SCN520001", "SCN520002", "SCN520003", "SCN520004", "SCN530001"
     ];
 
     public SeapIngestionRunWorkerTests()
@@ -554,6 +555,73 @@ public sealed class SeapIngestionRunWorkerTests : IntegrationTestBase
         Assert.NotNull(run.NextAttemptAt); // normal bounded retry/backoff was scheduled
     }
 
+    [Fact]
+    public async Task DocumentImportRunDownloadsAndDurablyStoresOriginals()
+    {
+        // Stage 1 (Direct Hit dossier): a resolve creates ONE DocumentImport run that durably stores the
+        // original published documents (per-file Downloaded/Failed + functional group) and reports Ready —
+        // with NO text extraction and NO LLM analysis, and a repeat resolve stays idempotent (no second run).
+        string tempRoot = Path.Combine(Path.GetTempPath(), "seap-docimport-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(tempRoot);
+        try
+        {
+            await using MarketplaceDbContext db = CreateDatabase();
+
+            WorkerSeapApiClient api = new(new SeapTenderNoticeDto(
+                "SCN530001", "Lucrari reparatii scoala", null, ["45214100-1"], 2_420_466m, "RON",
+                "Primaria Comunei Poiana Dambovita", DateTimeOffset.UtcNow.AddDays(-2), DateTimeOffset.UtcNow.AddDays(20),
+                [], County: "Dambovita", NoticeId: 900_530, SysNoticeTypeId: 17));
+            IOptions<LocalStorageOptions> localStorage =
+                Options.Create(new LocalStorageOptions { UseLocalStorage = true, LocalPath = tempRoot });
+            LocalFileStorageService objectStorage =
+                new(localStorage, NullLogger<LocalFileStorageService>.Instance);
+            SeapOriginalDocumentStore dossier =
+                new(objectStorage, Options.Create(new SeapStorageOptions { Enabled = false }), localStorage,
+                    NullLogger<SeapOriginalDocumentStore>.Instance);
+            SeapIngestionService service = CreateService(db, api, dossier, objectStorage);
+
+            SeapResolveResult? resolved = await service.ResolveNoticeByNumberAsync("SCN530001", CancellationToken.None);
+            Assert.NotNull(resolved);
+            Assert.Equal("Pending", resolved.Status);
+            Assert.Equal("DocumentImport", resolved.Purpose);
+
+            int processed = await service.ProcessPendingIngestionRunsAsync("worker-1", 5, CancellationToken.None);
+            Assert.Equal(1, processed);
+
+            SeapIngestionRun run = await db.SeapIngestionRuns.SingleAsync(item => item.NoticeNo == "SCN530001");
+            Assert.Equal(SeapIngestionRunPurpose.DocumentImport, run.Purpose);
+            Assert.Equal(SeapIngestionStatus.Ready, run.Status);
+            Assert.NotNull(run.DocumentsFetchedAt);
+            Assert.Null(run.TextExtractedAt); // Stage 1 never extracts text / never runs the LLM
+            Assert.NotNull(run.CompletedAt);
+
+            SeapTender saved = await db.SeapTenders
+                .Include(tender => tender.Attachments)
+                .SingleAsync(tender => tender.NormalizedExternalId == "SCN530001");
+            SeapTenderAttachment attachment = Assert.Single(saved.Attachments);
+            Assert.Equal(SeapDocumentDownloadStatus.Downloaded, attachment.DownloadStatus);
+            Assert.Equal(SeapDocumentGroup.TenderDocumentation, attachment.DocumentGroup);
+            Assert.StartsWith("local://", attachment.S3Url); // durable dossier copy, not the remote URL
+            Assert.False(string.IsNullOrWhiteSpace(attachment.ContentSha256));
+            Assert.Equal(SeapDocumentDigestStatus.Complete, saved.DocumentDigestStatus);
+            StorageObject? stored = await objectStorage.OpenReadAsync(attachment.S3Url, CancellationToken.None);
+            Assert.NotNull(stored); // the durable dossier copy actually exists and is readable
+
+            // A second resolve of the same notice is idempotent at Stage 1: same dossier status, no new run.
+            SeapResolveResult? second = await service.ResolveNoticeByNumberAsync("SCN530001", CancellationToken.None);
+            Assert.NotNull(second);
+            Assert.Equal(SeapIngestionStatus.Ready.ToString(), second.Status);
+            Assert.Equal("DocumentImport", second.Purpose);
+            Assert.Equal(1, await db.SeapIngestionRuns.CountAsync(run => run.TenderId == saved.Id));
+        }
+        finally
+        {
+            try { Directory.Delete(tempRoot, recursive: true); }
+            catch { /* best-effort cleanup of the temp dossier */ }
+        }
+    }
+
+
     private static SeapTenderNoticeDto Notice(string noticeNo, int noticeId) => new(
         noticeNo, "Lucrări", null, ["45214100-1"], 1000m, "RON", "Autoritatea Contractantă",
         DateTimeOffset.UtcNow.AddDays(-2), DateTimeOffset.UtcNow.AddDays(20), [],
@@ -565,13 +633,20 @@ public sealed class SeapIngestionRunWorkerTests : IntegrationTestBase
 
     private static SeapIngestionService CreateService(
         MarketplaceDbContext db, WorkerSeapApiClient api, WorkerSummaryGenerator summary, WorkerTextReader reader, SeapOptions options) =>
-        new(db, api, new ThrowingStorage(), new NullCategorizer(), summary, reader,
+        new(db, api, new ThrowingStorage(), new NullOriginalDocumentStore(), new NullObjectStorage(), new NullCategorizer(), summary, reader,
             Options.Create(options), new FakeClock(), NullLogger<SeapIngestionService>.Instance);
 
     private static SeapIngestionService CreateService(
         MarketplaceDbContext db, WorkerSeapApiClient api, ScriptedSummaryGenerator summary, WorkerTextReader reader, SeapOptions options) =>
-        new(db, api, new ThrowingStorage(), new NullCategorizer(), summary, reader,
+        new(db, api, new ThrowingStorage(), new NullOriginalDocumentStore(), new NullObjectStorage(), new NullCategorizer(), summary, reader,
             Options.Create(options), new FakeClock(), NullLogger<SeapIngestionService>.Instance);
+
+    private static SeapIngestionService CreateService(
+        MarketplaceDbContext db, WorkerSeapApiClient api, ISeapOriginalDocumentStore originalDocumentStore, IStorageService objectStorage) =>
+        new(db, api, new ThrowingStorage(), originalDocumentStore, objectStorage, new NullCategorizer(),
+            new WorkerSummaryGenerator(), new WorkerTextReader("text"),
+            Options.Create(new SeapOptions { MaxRunsPerTick = 5 }), new FakeClock(),
+            NullLogger<SeapIngestionService>.Instance);
 
     private static async Task WaitUntilAsync(Func<Task<bool>> condition, TimeSpan timeout)
     {

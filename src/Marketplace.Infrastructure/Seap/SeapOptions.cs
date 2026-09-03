@@ -69,6 +69,10 @@ public sealed class SeapOptions
     /// releases the global capacity slot. Retryable failures (LLM timeouts, SEAP hiccups) never become
     /// terminal Partial — they stay active until this limit.</summary>
     public int MaxIngestionAttempts { get; init; } = 5;
+    /// <summary>How many published documents the DocumentImport stage may download/store concurrently per run
+    /// (Direct Hit dossier). Small default keeps the anonymous e-licitatie.ro download endpoints polite while
+    /// the worker still honors the lease heartbeat (the run lease is renewed in the background).</summary>
+    public int MaxConcurrentDocumentDownloads { get; init; } = 3;
     /// <summary>How often (seconds) a processing worker renews its lease while a long operation (document
     /// download / text extraction / LLM call) is in flight. 0 disables heartbeat renewal.</summary>
     public int RunHeartbeatIntervalSeconds { get; init; } = 15;

@@ -129,7 +129,10 @@ public sealed partial class AutoBiddingController(
                 noticeNo = result.NoticeNo,
                 status = result.Status,
                 tender = (SeapTenderDetailsDto?)null,
-                message = "Anunțul a fost găsit și metadatele au fost importate. Procesarea în fundal (documente + analiză AI) a fost înregistrată; verifică statusul de ingestie în scurt timp."
+                purpose = result.Purpose,
+                message = result.Purpose == SeapIngestionRunPurpose.DocumentImport.ToString()
+                    ? "Anunțul a fost găsit. Descărcăm și stocăm durabil documentele originale în dosarul anunțului (procesare în fundal); verifică statusul în scurt timp."
+                    : "Anunțul a fost găsit și metadatele au fost importate. Procesarea în fundal (documente + analiză AI) a fost înregistrată; verifică statusul de ingestie în scurt timp."
             });
         }
         catch (SeapSourceUnavailableException exception)

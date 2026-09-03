@@ -11,6 +11,17 @@ const NOTICE_NUMBER_PATTERN = /^(SCN|CN)\d+$/i;
 /** Failure codes that a Retry cannot fix (the notice vanished from SEAP or is legitimately document-less). */
 const PERMANENT_FAILURE_CODES = new Set(['NoticeUnavailableOnSeap', 'NoPublishedDocuments', 'NoReadableDocuments']);
 
+/** Stage labels shown while a Stage 1 DocumentImport run processes (durable original-document download only —
+ *  no AI digest in this stage). Keyed by the same run statuses as INGESTION_STAGE_LABELS. */
+const DOCUMENT_IMPORT_STAGE_LABELS: Record<SeapIngestionStatus['status'], string> = {
+  Pending: 'Anunțul a fost găsit. Pregătim dosarul anunțului…',
+  FetchingDocuments: 'Descărcăm și stocăm durabil documentele originale…',
+  Analyzing: 'Procesăm documentele dosarului…',
+  Ready: 'Documentele originale au fost stocate.',
+  Partial: 'Unele documente originale nu au putut fi descărcate.',
+  Failed: 'Descărcarea documentelor a eșuat.'
+};
+
 type DirectHitPhase = 'form' | 'processing' | 'failed';
 
 /**
@@ -43,8 +54,10 @@ type DirectHitPhase = 'form' | 'processing' | 'failed';
         <p><strong>{{ stageLabel() }}</strong></p>
         <div class="steps">
           <span class="step" [class.done]="stepsPassed() >= 1" [class.now]="status() === 'Pending'">Import</span>
-          <span class="step" [class.done]="stepsPassed() >= 2" [class.now]="status() === 'FetchingDocuments'">Documente</span>
+          <span class="step" [class.done]="stepsPassed() >= 2" [class.now]="status() === 'FetchingDocuments'">{{ purpose() === 'DocumentImport' ? 'Documente originale' : 'Documente' }}</span>
+          @if (purpose() !== 'DocumentImport') {
           <span class="step" [class.done]="stepsPassed() >= 3" [class.now]="status() === 'Analyzing'">Analiză AI</span>
+          }
         </div>
         @if (statusError()) { <p class="error">{{ statusError() }}</p> }
       </section>
@@ -77,6 +90,9 @@ export class SeapDirectHitComponent {
   readonly errorMessage = signal('');
   readonly stageLabel = signal('');
   readonly status = signal<SeapIngestionStatus['status'] | null>(null);
+  /** Purpose of the run being polled ('DocumentImport' = Stage 1 dossier download; otherwise the full
+   *  digest+analysis pipeline). Drives the stage labels and which pipeline steps are rendered. */
+  readonly purpose = signal<'DigestAndAnalyze' | 'DocumentImport' | null>(null);
   readonly statusError = signal('');
   readonly stepsPassed = signal(0);
   /** Failed is retryable only for transient-error codes; permanent failures (e.g. the notice no longer on
@@ -101,6 +117,7 @@ export class SeapDirectHitComponent {
     this.busy.set(true);
     this.errorMessage.set('');
     this.status.set(null);
+    this.purpose.set(null);
     this.retryable.set(false);
     this.phase.set('form');
 
@@ -119,7 +136,8 @@ export class SeapDirectHitComponent {
           const retryAfter = Number(response.headers.get('Retry-After'));
           this.pollIntervalSeconds = Number.isFinite(retryAfter) && retryAfter > 0 ? retryAfter : 5;
           this.phase.set('processing');
-          this.stageLabel.set(INGESTION_STAGE_LABELS.Pending);
+          this.purpose.set(body.purpose ?? null);
+          this.stageLabel.set(this.stageLabelFor('Pending'));
           this.stepsPassed.set(1);
           this.startPolling(body.tenderId);
           return;
@@ -171,9 +189,10 @@ export class SeapDirectHitComponent {
 
   private handleStatus(status: SeapIngestionStatus): void {
     this.status.set(status.status);
+    this.purpose.set(status.purpose ?? null);
     this.statusError.set('');
     if (status.status === 'Pending' || status.status === 'FetchingDocuments' || status.status === 'Analyzing') {
-      this.stageLabel.set(INGESTION_STAGE_LABELS[status.status]);
+      this.stageLabel.set(this.stageLabelFor(status.status));
       this.stepsPassed.set(status.status === 'Pending' ? 1 : status.status === 'FetchingDocuments' ? 2 : 3);
       this.scheduleNext(); // next tick only after this response settled
       return;
@@ -185,10 +204,18 @@ export class SeapDirectHitComponent {
       return;
     }
     // Failed is the only terminal state with an explicit Retry, and only when the cause is retryable.
-    this.stageLabel.set('Procesarea anunțului a eșuat.');
+    this.stageLabel.set(this.stageLabelFor(status.status));
     this.statusError.set(status.lastErrorMessage || 'Procesarea a eșuat după mai multe încercări.');
     this.retryable.set(!PERMANENT_FAILURE_CODES.has(status.lastErrorCode ?? ''));
     this.phase.set('failed');
+  }
+
+  /** Stage label honoring the run purpose: DocumentImport runs (Stage 1, durable original-document download)
+   *  use the dossier labels; any other purpose uses the generic digest+analysis pipeline labels. */
+  private stageLabelFor(step: SeapIngestionStatus['status']): string {
+    return this.purpose() === 'DocumentImport'
+      ? DOCUMENT_IMPORT_STAGE_LABELS[step]
+      : INGESTION_STAGE_LABELS[step];
   }
 
   retry(): void {

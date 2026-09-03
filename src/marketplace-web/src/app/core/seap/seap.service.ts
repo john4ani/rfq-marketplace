@@ -61,6 +61,9 @@ export interface SeapResolveResponse {
   noticeNo?: string;
   runId?: string | null;
   status?: 'Pending' | 'FetchingDocuments' | 'Analyzing' | 'Ready' | 'Partial' | 'Failed';
+  /** Purpose of the ingestion run behind this resolve: Stage 1 = DocumentImport (durable original-document
+   *  download, no AI digest), undefined/DigestAndAnalyze = the historical full pipeline. */
+  purpose?: 'DigestAndAnalyze' | 'DocumentImport';
   message?: string;
   tender?: SeapTender | null;
 }
@@ -83,6 +86,12 @@ export interface SeapIngestionStatus {
   /** Stage checkpoints surfaced for progress UI (null until the checkpoint was persisted). */
   documentsFetchedAt?: string | null;
   textExtractedAt?: string | null;
+  /** Purpose of the run being polled: 'DocumentImport' = Stage 1 (durable original-document download for the
+   *  Direct Hit dossier — no AI digest); undefined/DigestAndAnalyze = the historical full pipeline. */
+  purpose?: 'DigestAndAnalyze' | 'DocumentImport';
+  /** Per-file durable-download counts stamped by a DocumentImport run (dossier files). */
+  downloadedDocumentCount?: number;
+  failedDocumentCount?: number;
 }
 
 /** Stage labels for the ingestion polling UI (Livrarea 3). */

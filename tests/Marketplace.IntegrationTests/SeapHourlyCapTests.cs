@@ -1,4 +1,4 @@
-﻿using Marketplace.Application.Seap;
+using Marketplace.Application.Seap;
 using Marketplace.Domain.Seap;
 using Marketplace.Infrastructure.Persistence;
 using Marketplace.Infrastructure.Seap;
@@ -45,7 +45,7 @@ public sealed class SeapHourlyCapTests : IntegrationTestBase
         SeapOptions seapOptions = new() { MaxNewNoticesPerHour = HourlyCap };
         FakeTimeProvider clock = new();
 
-        SeapIngestionService service = new(db, api, storage, new NullSeapCategorizer(), new NullSeapSummaryGenerator(),
+        SeapIngestionService service = new(db, api, storage, new NullOriginalDocumentStore(), new NullObjectStorage(), new NullSeapCategorizer(), new NullSeapSummaryGenerator(),
             new NullSeapAttachmentTextReader(), Options.Create(seapOptions), clock, NullLogger<SeapIngestionService>.Instance);
 
         // First poll: the API returns 12 notices but only the configured cap may be imported.
@@ -80,7 +80,7 @@ public sealed class SeapHourlyCapTests : IntegrationTestBase
 
         SeapOptions seapOptions = new() { MaxNewNoticesPerHour = HourlyCap };
         SeapIngestionService service = new(
-            db, new StubSeapApiClient([]), new StubAttachmentStorage(), new NullSeapCategorizer(), new NullSeapSummaryGenerator(),
+            db, new StubSeapApiClient([]), new StubAttachmentStorage(), new NullOriginalDocumentStore(), new NullObjectStorage(), new NullSeapCategorizer(), new NullSeapSummaryGenerator(),
             new NullSeapAttachmentTextReader(), Options.Create(seapOptions), new FakeTimeProvider(), NullLogger<SeapIngestionService>.Instance);
 
         SeapTenderImportResult result = await service.ImportNoticeAsync(notice, CancellationToken.None);

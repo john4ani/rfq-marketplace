@@ -2,6 +2,7 @@ using System.Text.Json;
 using Marketplace.Application.Seap;
 using Marketplace.Domain.Seap;
 using Marketplace.Infrastructure.Persistence;
+using Marketplace.Infrastructure.Storage;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -12,6 +13,8 @@ public sealed partial class SeapIngestionService(
     MarketplaceDbContext dbContext,
     ISeapApiClient apiClient,
     ISeapAttachmentStorage storage,
+    ISeapOriginalDocumentStore originalDocumentStore,
+    IStorageService objectStorage,
     ISeapCategorizer categorizer,
     ISeapSummaryGenerator summaryGenerator,
     ISeapAttachmentTextReader attachmentTextReader,
@@ -429,15 +432,25 @@ public sealed partial class SeapIngestionService(
                     .FirstAsync(item => item.TenderId == tenderId && ActiveIngestionStatuses.Contains(item.Status), cancellationToken)).Status.ToString()
                 : run is null
                     ? SeapIngestionStatus.Pending.ToString()
-                    // A previously Ready analysis whose document set changed is stale — it must be re-run.
-                    : run.Status == SeapIngestionStatus.Ready
-                        ? SeapIngestionStatus.Pending.ToString()
-                        : run.Status.ToString();
+                    : run.Purpose == SeapIngestionRunPurpose.DocumentImport
+                        // Stage 1 dossier terminal states (Ready/Partial/Failed) are final for a DocumentImport
+                        // run — a stored dossier is never remapped to Pending like a stale analysis run.
+                        ? run.Status.ToString()
+                        // A previously Ready analysis whose document set changed is stale — it must be re-run.
+                        : run.Status == SeapIngestionStatus.Ready
+                            ? SeapIngestionStatus.Pending.ToString()
+                            : run.Status.ToString();
+        string purpose = run?.Purpose.ToString() ?? SeapIngestionRunPurpose.DigestAndAnalyze.ToString();
+        int downloadedDocuments = tender.Attachments.Count(attachment =>
+            attachment.DownloadStatus == SeapDocumentDownloadStatus.Downloaded);
+        int failedDocuments = tender.Attachments.Count(attachment =>
+            attachment.DownloadStatus == SeapDocumentDownloadStatus.Failed);
         return new SeapIngestionStatusDto(
             tender.Id, tender.SeapExternalId, status, tender.ImportMode.ToString(),
             run?.Id, tender.AttemptCount, tender.StartedAt, tender.CompletedAt,
             tender.LastErrorCode, tender.LastErrorMessage, tender.DocumentSetHash, tender.AnalysisVersion,
-            tender.DocumentDigestStatus.ToString(), run?.DocumentsFetchedAt, run?.TextExtractedAt);
+            tender.DocumentDigestStatus.ToString(), run?.DocumentsFetchedAt, run?.TextExtractedAt,
+            purpose, downloadedDocuments, failedDocuments);
     }
 
     /// <summary>Resolve outcome for a row already in the local cache, using the single centralized readiness
@@ -459,12 +472,28 @@ public sealed partial class SeapIngestionService(
             SeapIngestionRun? latest = await dbContext.SeapIngestionRuns.AsNoTracking()
                 .OrderByDescending(run => run.UpdatedAt)
                 .FirstOrDefaultAsync(run => run.TenderId == tender.Id, cancellationToken);
+
+            // Stage 1 (DocumentImport) terminal dossier is final for this purpose: a repeat Direct Hit resolve
+            // of the same notice returns the dossier status without queueing another import run — the reimport
+            // button / second-run trigger belongs to a later stage. Once every attachment is durably stored
+            // nothing new can be produced by a DocumentImport run.
+            if (latest is not null
+                && latest.Purpose == SeapIngestionRunPurpose.DocumentImport
+                && latest.CompletedAt is not null
+                && tender.Attachments.All(attachment =>
+                    attachment.DownloadStatus == SeapDocumentDownloadStatus.Downloaded))
+            {
+                return new(tender.Id, normalized, latest.Status.ToString(), latest.Id, null,
+                    SeapIngestionRunPurpose.DocumentImport.ToString());
+            }
+
             if (latest is not null && latest.Status == SeapIngestionStatus.Partial
                 && (latest.LastErrorCode == SeapIngestionService.ErrorNoPublishedDocuments
                     || latest.LastErrorCode == SeapIngestionService.ErrorNoReadableDocuments)
                 && tender.SummaryPoints.Count > 0)
             {
-                return new(tender.Id, normalized, SeapIngestionStatus.Partial.ToString(), latest.Id, SeapTenderDetailsDto.From(tender, now));
+                return new(tender.Id, normalized, SeapIngestionStatus.Partial.ToString(), latest.Id,
+                    SeapTenderDetailsDto.From(tender, now), latest.Purpose.ToString());
             }
         }
 
@@ -472,7 +501,7 @@ public sealed partial class SeapIngestionService(
         tender.RecordResolveAttempt(importMode, now);
         SeapIngestionRun run = await EnsureActiveRunAsync(tender.Id, normalized, now, cancellationToken);
         await dbContext.SaveChangesAsync(cancellationToken);
-        return new(tender.Id, normalized, run.Status.ToString(), run.Id, null);
+        return new(tender.Id, normalized, run.Status.ToString(), run.Id, null, run.Purpose.ToString());
     }
 
     /// <summary>Returns the single active run for a tender (or creates one). The partial unique index on the
@@ -495,7 +524,9 @@ public sealed partial class SeapIngestionService(
             throw new SeapResolveLimitReachedException(
                 $"Limita de procesări SEAP concurente a fost atinsă ({settings.MaxActiveResolveRuns}). Încearcă din nou mai târziu.");
 
-        SeapIngestionRun run = SeapIngestionRun.Start(tenderId, normalized, now);
+        // Direct Hit resolves run the Stage 1 DocumentImport pipeline (durable original download; no AI in this
+        // stage), not the historical digest+analysis pipeline.
+        SeapIngestionRun run = SeapIngestionRun.Start(tenderId, normalized, now, SeapIngestionRunPurpose.DocumentImport);
         dbContext.SeapIngestionRuns.Add(run);
         try
         {
@@ -538,7 +569,7 @@ public sealed partial class SeapIngestionService(
         dbContext.SeapTenders.Add(tender);
         SeapImportMode importMode = notice.Deadline < now ? SeapImportMode.DirectHistoricalLookup : SeapImportMode.OnDemand;
         tender.RecordResolveAttempt(importMode, now);
-        SeapIngestionRun run = SeapIngestionRun.Start(tender.Id, normalized, now);
+        SeapIngestionRun run = SeapIngestionRun.Start(tender.Id, normalized, now, SeapIngestionRunPurpose.DocumentImport);
         dbContext.SeapIngestionRuns.Add(run);
         staging.MarkParsed(now);
         dbContext.SeapRawIngestions.Add(staging);
@@ -558,7 +589,8 @@ public sealed partial class SeapIngestionService(
             if (existing is null) throw;
             return await ResolveLocalTenderAsync(existing, normalized, now, cancellationToken);
         }
-        return new(tender.Id, normalized, run.Status.ToString(), run.Id, null);
+        return new(tender.Id, normalized, run.Status.ToString(), run.Id, null,
+            SeapIngestionRunPurpose.DocumentImport.ToString());
     }
 
     [LoggerMessage(EventId = 5103, Level = LogLevel.Information, Message = "SEAP tender {SeapId} imported with {AttachmentCount} attachments.")]
