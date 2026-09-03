@@ -82,8 +82,11 @@ public static class SeapNoticeParser
                 string? code = ReadString(doc, "noticeDocumentCode");
                 string? name = ReadString(doc, "noticeDocumentName");
                 string? url = ReadString(doc, "noticeDocumentUrl");
+                // The platform's section/type label (e.g. „Documente DUAE") is not part of the observed
+                // dfNoticeDocs shape, but it is read when present so the dossier classification can prefer it.
+                string? section = ReadString(doc, "noticeDocumentSection");
                 if (string.IsNullOrWhiteSpace(name) || string.IsNullOrWhiteSpace(url)) continue;
-                result.Add(new SeapNoticeDocumentDto(code ?? string.Empty, name, url));
+                result.Add(new SeapNoticeDocumentDto(code ?? string.Empty, name, url, Section: section));
             }
             return result;
         }

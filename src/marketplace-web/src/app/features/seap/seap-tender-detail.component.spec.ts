@@ -69,7 +69,7 @@ describe('SeapTenderDetailComponent', () => {
     vi.restoreAllMocks();
   });
 
-  function setup(options: { startAutoBid: ReturnType<typeof vi.fn>; generateSummary?: ReturnType<typeof vi.fn>; tender?: SeapTender; bidStatus?: BidStatus; getBidStatus?: ReturnType<typeof vi.fn>; refreshDocuments?: ReturnType<typeof vi.fn>; downloadBidFile?: ReturnType<typeof vi.fn> }) {
+  function setup(options: { startAutoBid: ReturnType<typeof vi.fn>; generateSummary?: ReturnType<typeof vi.fn>; tender?: SeapTender; bidStatus?: BidStatus; getBidStatus?: ReturnType<typeof vi.fn>; refreshDocuments?: ReturnType<typeof vi.fn>; downloadBidFile?: ReturnType<typeof vi.fn>; downloadAttachment?: ReturnType<typeof vi.fn>; downloadDossierOriginal?: ReturnType<typeof vi.fn> }) {
     TestBed.configureTestingModule({
       imports: [SeapTenderDetailComponent],
       providers: [
@@ -89,7 +89,8 @@ describe('SeapTenderDetailComponent', () => {
             generateSummary: options.generateSummary ?? vi.fn(),
             refreshDocuments: options.refreshDocuments ?? vi.fn(),
             downloadBidFile: options.downloadBidFile ?? vi.fn(),
-            downloadAttachment: vi.fn().mockReturnValue(of(new Blob(['pdf'])))
+            downloadAttachment: options.downloadAttachment ?? vi.fn().mockReturnValue(of(new Blob(['pdf']))),
+            downloadDossierOriginal: options.downloadDossierOriginal ?? vi.fn().mockReturnValue(of(new Blob(['pdf'])))
           }
         }
       ]
@@ -728,6 +729,58 @@ describe('SeapTenderDetailComponent', () => {
     fixture.detectChanges();
 
     expect(TestBed.inject(SeapService).downloadAttachment).toHaveBeenCalledWith('t1', 'att-1');
+  });
+
+  it('groups a DUAE + P7S dossier, shows status/size/failure codes and downloads the original via the controlled route', () => {
+    Object.defineProperty(URL, 'createObjectURL', { value: vi.fn(() => 'blob:mock'), configurable: true });
+    Object.defineProperty(URL, 'revokeObjectURL', { value: vi.fn(), configurable: true });
+    const downloadDossierOriginal = vi.fn().mockReturnValue(of(new Blob(['signed'])));
+    const dossierTender: SeapTender = {
+      ...tender,
+      attachments: [
+        {
+          id: 'duae-1', fileName: 'DUAE_CERERE_1.xml', downloadStatus: 'Downloaded', documentGroup: 'Duae',
+          sizeBytes: 4096, downloadUrl: 'api/v1/seap/tenders/t1/documents/duae-1/download'
+        },
+        {
+          id: 'fisa-1', fileName: 'Fisa de date.pdf.p7s', downloadStatus: 'Downloaded', documentGroup: 'TenderDocumentation',
+          sizeBytes: 123_456, downloadUrl: 'api/v1/seap/tenders/t1/documents/fisa-1/download'
+        },
+        {
+          id: 'caiet-1', fileName: 'Caiet de sarcini.rar.p7s', downloadStatus: 'Failed', documentGroup: 'TenderDocumentation',
+          downloadErrorCode: 'OriginalDocumentTooLarge', downloadUrl: 'api/v1/seap/tenders/t1/attachments/caiet-1'
+        }
+      ]
+    };
+    const fixture = setup({ startAutoBid: vi.fn(), tender: dossierTender, downloadDossierOriginal });
+    fixture.detectChanges();
+
+    const tab = Array.from(fixture.nativeElement.querySelectorAll('button[role="tab"]') as NodeListOf<HTMLButtonElement>)
+      .find(button => button.textContent?.includes('Documente Originale'))!;
+    tab.click();
+    fixture.detectChanges();
+
+    const text = (fixture.nativeElement as HTMLElement).textContent ?? '';
+    // Grouped by the functional dossier group, original file names preserved (.xml and signed .p7s untouched).
+    expect(text).toContain('Documente DUAE');
+    expect(text).toContain('Documentație de atribuire');
+    expect(text).toContain('DUAE_CERERE_1.xml');
+    expect(text).toContain('Fisa de date.pdf.p7s');
+    expect(text).toContain('Caiet de sarcini.rar.p7s');
+    // Durable-download state, sizes and the partial-dossier warning are surfaced.
+    expect(text).toContain('Stocat');
+    expect(text).toContain('4 KB');
+    expect(text).toContain('121 KB');
+    expect(text).toContain('Fișierul depășește limita de dimensiune admisă');
+    expect(text).toContain('Dosar parțial.');
+    // Downloaded originals go through the controlled dossier download route.
+    const downloadButtons = Array.from(fixture.nativeElement.querySelectorAll('button') as NodeListOf<HTMLButtonElement>)
+      .filter(button => button.textContent?.includes('Descarcă originalul'));
+    expect(downloadButtons.length).toBe(2);
+    const duaeButton = downloadButtons.find(button => button.closest('li')?.textContent?.includes('DUAE_CERERE_1.xml'))!;
+    duaeButton.click();
+    fixture.detectChanges();
+    expect(downloadDossierOriginal).toHaveBeenCalledWith('t1', 'duae-1');
   });
 
   it('shows an empty state on the documents tab when the authority published no files', () => {

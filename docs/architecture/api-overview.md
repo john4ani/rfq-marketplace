@@ -191,6 +191,9 @@ GET  /api/v1/seap/tenders/{tenderId}/auto-bid/progress/{requestId}  [Generating 
 GET  /api/v1/seap/tenders/{tenderId}/bid-status
 GET  /api/v1/seap/tenders/{tenderId}/bid-file?kind=TechnicalProposal|BillOfQuantities  [streams the generated .docx/.xlsx; the stored local://s3:// reference is resolved server-side]
 GET  /api/v1/seap/tenders/{tenderId}/attachments/{attachmentId}  [streams one original authority file (Fișa de date, Caiet de sarcini, clarificări); the attachment must belong to the tender (IDOR guard) and the stored reference is resolved server-side]
+GET  /api/v1/seap/tenders/{tenderId}/documents/{attachmentId}/download  [controlled dossier download: streams the EXACT stored bytes of a durably Downloaded original from the Direct Hit dossier store (original file name incl. .p7s + stored content type; never unwrapped); authorization + IDOR guard; 404 for rows not durably stored]
+GET  /api/v1/seap/tender-match/availability   [SEAP Tender Match chat availability]
+
 GET  /api/v1/seap/tender-match/availability   [SEAP Tender Match chat availability]
 POST /api/v1/seap/tender-match                [natural language → CPV prefixes + counties, one clarification at a time]
 PUT  /api/v1/seap/tender-match/profile        [persist confirmed filters on the represented company]

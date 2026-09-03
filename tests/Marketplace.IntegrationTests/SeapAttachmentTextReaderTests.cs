@@ -22,7 +22,9 @@ public sealed class SeapAttachmentTextReaderTests
         new(apiClient, storage ?? new EmptyStorageService(), NullLogger<SeapAttachmentTextReader>.Instance);
 
     private static SeapTenderAttachment Attachment(string fileName, string reference) =>
-        SeapTenderAttachment.Create(Guid.NewGuid(), fileName, reference, Now);
+        reference.StartsWith("http", StringComparison.OrdinalIgnoreCase)
+            ? SeapTenderAttachment.Create(Guid.NewGuid(), fileName, Now, sourceUrl: reference)
+            : SeapTenderAttachment.Create(Guid.NewGuid(), fileName, Now, storageReference: reference);
 
     [Fact]
     public async Task ReadsPlainTextAttachmentAndLabelsItWithTheFileName()
@@ -217,6 +219,9 @@ public sealed class StreamStorageService(Stream content) : IStorageService
         content.Position = 0;
         return Task.FromResult<StorageObject?>(new StorageObject(content, "application/octet-stream"));
     }
+
+    public Task DeleteReferenceAsync(string reference, CancellationToken cancellationToken) =>
+        Task.CompletedTask;
 }
 
 public sealed class EmptyStorageService : IStorageService
@@ -228,5 +233,8 @@ public sealed class EmptyStorageService : IStorageService
 
     public Task<StorageObject?> OpenReadAsync(string reference, CancellationToken cancellationToken) =>
         Task.FromResult<StorageObject?>(null);
+
+    public Task DeleteReferenceAsync(string reference, CancellationToken cancellationToken) =>
+        Task.CompletedTask;
 }
 

@@ -30,7 +30,12 @@ public sealed record SeapNoticeDocumentDto(
     string Code,
     string FileName,
     /// <summary>Absolute e-licitatie.ro URL that streams the file (requires a same-origin Referer).</summary>
-    string DownloadUrl);
+    string DownloadUrl,
+    /// <summary>Machine-readable section/type label the platform groups the file under (e.g. „Documente DUAE"),
+    /// when the notice-detail payload exposes one. Drives the dossier classification before the file-name
+    /// fallback; null when the platform gives no section (the observed <c>GetDfNoticeSectionFiles</c> shape
+    /// today carries only code + name + url).</summary>
+    string? Section = null);
 
 public sealed record SeapAttachmentDto(string FileName, string DownloadUrl);
 
@@ -153,6 +158,20 @@ public interface ISeapAttachmentStorage
 /// <summary>Outcome of durably persisting one original SEAP published document into the Direct Hit dossier store.</summary>
 public sealed record StoredSeapOriginalDocument(string Reference, string ContentSha256, long SizeBytes);
 
+/// <summary>A durably stored original opened for reading (the caller owns the stream). Content type comes from
+/// the stored object; the caller serves the original file name from the attachment row.</summary>
+public sealed record SeapOriginalDocumentContent(Stream Content, string ContentType);
+
+/// <summary>
+/// Thrown by <see cref="ISeapOriginalDocumentStore.StoreOriginalAsync"/> when a single published document
+/// exceeds the configured per-file dossier limit (<c>Seap:MaxOriginalDocumentBytes</c>). The check runs both
+/// against a known declared length (Content-Length / stream length) before anything is uploaded AND again while
+/// streaming, so a chunked/unknown-length download can never slip past the guard; any partially written object
+/// is removed before the exception surfaces.
+/// </summary>
+public sealed class SeapOriginalDocumentTooLargeException(long actualBytes, long maxBytes)
+    : Exception($"Fișierul ({actualBytes} bytes) depășește limita permisă pentru un document original ({maxBytes} bytes).");
+
 /// <summary>
 /// Stage 1 (DocumentImport) dossier storage for the ORIGINAL published documents of a Direct Hit tender —
 /// deliberately separate from <see cref="ISeapAttachmentStorage"/> (which covers on-demand browsing copies).
@@ -165,9 +184,20 @@ public interface ISeapOriginalDocumentStore
 {
     /// <summary>Streams <paramref name="content"/> into the dossier store under the tender's namespace and returns
     /// the persisted reference plus the content digest/size captured from the actual bytes. The caller owns and
-    /// disposes the stream. Throws when the dossier storage is not configured.</summary>
+    /// disposes the stream. Throws when the dossier storage is not configured; throws
+    /// <see cref="SeapOriginalDocumentTooLargeException"/> when the file exceeds
+    /// <c>Seap:MaxOriginalDocumentBytes</c> (no partial object is left behind).</summary>
     Task<StoredSeapOriginalDocument> StoreOriginalAsync(
         Guid tenderId, string fileName, Stream content, CancellationToken cancellationToken);
+
+    /// <summary>Opens a durably stored original by its dossier reference. Returns null when the object does not
+    /// exist. Used ONLY by the controlled dossier download route — the caller has already verified that the
+    /// attachment belongs to the tender, so the reference is always a row this tender owns.</summary>
+    Task<SeapOriginalDocumentContent?> OpenOriginalAsync(string reference, CancellationToken cancellationToken);
+
+    /// <summary>Deletes a durably stored original object (used when a tender-level dossier quota is exceeded or a
+    /// partially written object must be cleaned up after a failed/cancelled upload).</summary>
+    Task DeleteOriginalAsync(string reference, CancellationToken cancellationToken);
 }
 
 public interface ISeapIngestionService
@@ -277,14 +307,22 @@ public sealed record SeapTenderCategoryRef(Guid Id, string Name);
 /// <summary>One original file published by the contracting authority. The <see cref="DownloadUrl"/> is the
 /// authenticated API route that streams the stored file (browsers cannot navigate the persisted
 /// <c>local://</c>/<c>s3://</c> references directly). When a <see cref="Marketplace.Domain.Seap.SeapIngestionRunPurpose.DocumentImport"/>
-/// run already processed the tender, <see cref="DocumentGroup"/>/<see cref="DownloadStatus"/> carry the dossier
-/// classification and the per-file durable-download state.</summary>
+/// run already durably stored the file (<see cref="DownloadStatus"/> = Downloaded) the URL points at the
+/// controlled dossier route (<c>…/documents/{attachmentId}/download</c>, which streams the exact stored
+/// original bytes); otherwise it points at the browsing route that proxies the SEAP source or reads the
+/// browsing copy. <see cref="DocumentGroup"/>/<see cref="DownloadStatus"/> carry the dossier classification
+/// and the per-file durable-download state once a DocumentImport run processed the tender.</summary>
 public sealed record SeapTenderAttachmentRef(
     Guid Id,
     string FileName,
     string DownloadUrl,
     string? DocumentGroup = null,
-    string? DownloadStatus = null);
+    string? DownloadStatus = null,
+    /// <summary>Size of the published bytes, when the file was downloaded/stored (durably or as a digest).</summary>
+    long? SizeBytes = null,
+    /// <summary>Machine-readable failure code of the last durable-download attempt (e.g. DownloadTimeout,
+    /// OriginalDocumentTooLarge); null unless the file is <c>Failed</c>.</summary>
+    string? DownloadErrorCode = null);
 
 /// <summary>
 /// Detail projection of a SEAP tender returned by <c>GET /api/v1/seap/tenders/{id}</c>. Kept as a dedicated
@@ -358,9 +396,16 @@ public sealed record SeapTenderDetailsDto(
             .Select(attachment => new SeapTenderAttachmentRef(
                 attachment.Id,
                 attachment.FileName,
-                $"api/v1/seap/tenders/{tender.Id}/attachments/{attachment.Id}",
+                // A durably stored dossier original is always streamed through the controlled dossier route
+                // (exact stored bytes, original file name/content type); everything else goes through the
+                // browsing route (SEAP proxy or browsing copy).
+                attachment.DownloadStatus == SeapDocumentDownloadStatus.Downloaded
+                    ? $"api/v1/seap/tenders/{tender.Id}/documents/{attachment.Id}/download"
+                    : $"api/v1/seap/tenders/{tender.Id}/attachments/{attachment.Id}",
                 attachment.DocumentGroup == SeapDocumentGroup.None ? null : attachment.DocumentGroup.ToString(),
-                attachment.DownloadStatus == SeapDocumentDownloadStatus.None ? null : attachment.DownloadStatus.ToString()))
+                attachment.DownloadStatus == SeapDocumentDownloadStatus.None ? null : attachment.DownloadStatus.ToString(),
+                attachment.SizeBytes,
+                attachment.DownloadErrorCode))
             .ToArray(),
         ProcedureType: tender.SeapExternalId.StartsWith("SCN", StringComparison.OrdinalIgnoreCase)
             ? "Procedură simplificată"

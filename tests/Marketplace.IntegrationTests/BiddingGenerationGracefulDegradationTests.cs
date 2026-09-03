@@ -105,5 +105,7 @@ public sealed class BiddingGenerationGracefulDegradationTests : IntegrationTestB
             Task.FromResult($"memory://{key}/{fileName}");
         public Task<StorageObject?> OpenReadAsync(string reference, CancellationToken cancellationToken) =>
             Task.FromResult<StorageObject?>(null);
+        public Task DeleteReferenceAsync(string reference, CancellationToken cancellationToken) =>
+            Task.CompletedTask;
     }
 }

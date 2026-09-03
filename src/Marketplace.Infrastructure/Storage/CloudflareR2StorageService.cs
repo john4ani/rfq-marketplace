@@ -67,6 +67,23 @@ public sealed partial class CloudflareR2StorageService(
         }
     }
 
+    public async Task DeleteReferenceAsync(string reference, CancellationToken cancellationToken)
+    {
+        const string scheme = "s3://";
+        if (!reference.StartsWith(scheme, StringComparison.OrdinalIgnoreCase))
+            return;
+
+        string path = reference[scheme.Length..];
+        int separator = path.IndexOf('/');
+        if (separator <= 0) return;
+
+        await s3.DeleteObjectAsync(new DeleteObjectRequest
+        {
+            BucketName = path[..separator],
+            Key = path[(separator + 1)..]
+        }, cancellationToken);
+    }
+
     private static string Sanitize(string fileName) =>
         string.Join('_', fileName.Split(Path.GetInvalidFileNameChars(), StringSplitOptions.RemoveEmptyEntries));
 

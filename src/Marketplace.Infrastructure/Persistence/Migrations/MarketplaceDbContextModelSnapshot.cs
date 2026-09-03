@@ -1490,6 +1490,10 @@ namespace Marketplace.Infrastructure.Persistence.Migrations
                         .HasColumnType("character varying(24)")
                         .HasDefaultValue("None");
 
+                    b.Property<string>("DownloadErrorCode")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
                     b.Property<string>("DownloadStatus")
                         .IsRequired()
                         .ValueGeneratedOnAdd()
@@ -1505,11 +1509,6 @@ namespace Marketplace.Infrastructure.Persistence.Migrations
                         .HasMaxLength(255)
                         .HasColumnType("character varying(255)");
 
-                    b.Property<string>("S3Url")
-                        .IsRequired()
-                        .HasMaxLength(1024)
-                        .HasColumnType("character varying(1024)");
-
                     b.Property<long?>("SizeBytes")
                         .HasColumnType("bigint");
 
@@ -1517,12 +1516,27 @@ namespace Marketplace.Infrastructure.Persistence.Migrations
                         .HasMaxLength(64)
                         .HasColumnType("character varying(64)");
 
+                    b.Property<string>("SourceSection")
+                        .HasMaxLength(96)
+                        .HasColumnType("character varying(96)");
+
+                    b.Property<string>("SourceUrl")
+                        .HasMaxLength(1024)
+                        .HasColumnType("character varying(1024)");
+
+                    b.Property<string>("StorageReference")
+                        .HasMaxLength(1024)
+                        .HasColumnType("character varying(1024)");
+
                     b.Property<Guid>("TenderId")
                         .HasColumnType("uuid");
 
                     b.HasKey("Id");
 
                     b.HasIndex("TenderId");
+
+                    b.HasIndex("TenderId", "SourceDocumentId")
+                        .IsUnique();
 
                     b.ToTable("SeapTenderAttachments", (string)null);
                 });

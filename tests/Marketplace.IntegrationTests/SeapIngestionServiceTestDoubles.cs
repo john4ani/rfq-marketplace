@@ -10,6 +10,12 @@ internal sealed class NullOriginalDocumentStore : ISeapOriginalDocumentStore
     public Task<StoredSeapOriginalDocument> StoreOriginalAsync(
         Guid tenderId, string fileName, Stream content, CancellationToken cancellationToken)
         => throw new NotSupportedException("Original-document store is not configured in this test.");
+
+    public Task<SeapOriginalDocumentContent?> OpenOriginalAsync(string reference, CancellationToken cancellationToken)
+        => throw new NotSupportedException("Original-document store is not configured in this test.");
+
+    public Task DeleteOriginalAsync(string reference, CancellationToken cancellationToken)
+        => throw new NotSupportedException("Original-document store is not configured in this test.");
 }
 
 /// <summary>Object-storage double for tests that never open/durably store files through the shared storage
@@ -21,5 +27,8 @@ internal sealed class NullObjectStorage : IStorageService
         => throw new NotSupportedException("Object storage is not configured in this test.");
 
     public Task<StorageObject?> OpenReadAsync(string reference, CancellationToken cancellationToken)
+        => throw new NotSupportedException("Object storage is not configured in this test.");
+
+    public Task DeleteReferenceAsync(string reference, CancellationToken cancellationToken)
         => throw new NotSupportedException("Object storage is not configured in this test.");
 }

@@ -7,8 +7,19 @@ export interface SeapTenderAttachment {
   id: string;
   fileName: string;
   /** Authenticated API route that streams the stored file (the list endpoint may instead send the raw
-   *  storage reference as s3Url — browsers cannot navigate it, so downloads always go through the API). */
+   *  storage reference as s3Url — browsers cannot navigate it, so downloads always go through the API).
+   *  A durably stored dossier original points at the controlled …/documents/{id}/download route. */
   downloadUrl?: string;
+  /** Functional dossier group assigned by the DocumentImport run (TenderDocumentation | Duae | Forms |
+   *  ContractDraft | Clarifications | Corrigenda | Other); undefined until the run classified the file. */
+  documentGroup?: string;
+  /** Durable-download state stamped by the DocumentImport run: 'Downloaded' | 'Failed'; undefined otherwise. */
+  downloadStatus?: 'Downloaded' | 'Failed' | null;
+  /** Size of the published bytes, when the file was downloaded/stored. */
+  sizeBytes?: number | null;
+  /** Machine-readable failure code of the last durable-download attempt (DownloadTimeout,
+   *  OriginalDocumentTooLarge, DossierQuotaExceeded…); present only for 'Failed' files. */
+  downloadErrorCode?: string | null;
 }
 
 export interface SeapTender {
@@ -235,9 +246,15 @@ export class SeapService {
     return this.http.get(`/api/v1/seap/tenders/${id}/bid-file`, { params: { kind }, responseType: 'blob' });
   }
 
-  /** Downloads one original authority file (Fișa de date, Caiet de sarcini, clarificări) as a blob. */
+  /** Downloads one original authority file (Fișa de date, Caiet de sarcini, clarificări) as a blob through the
+   *  browsing route (SEAP proxy or browsing copy). */
   downloadAttachment(id: string, attachmentId: string) {
     return this.http.get(`/api/v1/seap/tenders/${id}/attachments/${attachmentId}`, { responseType: 'blob' });
+  }
+  /** Downloads one durably stored DOSSIER ORIGINAL through the controlled route (exact stored bytes, original
+   *  file name/content type — a signed .p7s is delivered untouched). */
+  downloadDossierOriginal(id: string, attachmentId: string) {
+    return this.http.get(`/api/v1/seap/tenders/${id}/documents/${attachmentId}/download`, { responseType: 'blob' });
   }
   matchTenderAvailability() { return this.http.get<SeapTenderMatchAvailability>('/api/v1/seap/tender-match/availability'); }
   matchTenders(input: string, turns: SeapClarificationTurn[] = []) {

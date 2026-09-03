@@ -73,6 +73,15 @@ public sealed class SeapOptions
     /// (Direct Hit dossier). Small default keeps the anonymous e-licitatie.ro download endpoints polite while
     /// the worker still honors the lease heartbeat (the run lease is renewed in the background).</summary>
     public int MaxConcurrentDocumentDownloads { get; init; } = 3;
+    /// <summary>Hard per-file cap (bytes) for one durably stored original published document. Checked from the
+    /// declared Content-Length when known and enforced AGAIN while the bytes stream into the dossier store, so a
+    /// chunked download can never slip past the guard; an over-limit file becomes Failed with
+    /// <c>OriginalDocumentTooLarge</c> and no partial object is left behind.</summary>
+    public long MaxOriginalDocumentBytes { get; init; } = 100L * 1024 * 1024;
+    /// <summary>Hard cap (bytes) for the whole Direct Hit dossier of one tender (the sum of its durably stored
+    /// originals). When a run crosses it, the offending file is deleted again and marked Failed with
+    /// <c>DossierQuotaExceeded</c> — the dossier never silently grows past the configured bound.</summary>
+    public long MaxTenderOriginalDocumentsBytes { get; init; } = 1L * 1024 * 1024 * 1024;
     /// <summary>How often (seconds) a processing worker renews its lease while a long operation (document
     /// download / text extraction / LLM call) is in flight. 0 disables heartbeat renewal.</summary>
     public int RunHeartbeatIntervalSeconds { get; init; } = 15;

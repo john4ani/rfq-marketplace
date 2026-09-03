@@ -147,9 +147,19 @@ public sealed class SeapTender
             UpdatedAt = now
         };
 
-    public SeapTenderAttachment AddAttachment(string fileName, string s3Url, DateTimeOffset now, string? sourceDocumentId = null)
+    /// <summary>Attaches one published document. <paramref name="sourceUrl"/> is the remote e-licitatie.ro URL;
+    /// <paramref name="storageReference"/> a locally persisted copy — either/both may be provided (a durably
+    /// stored dossier keeps the SEAP source for provenance).</summary>
+    public SeapTenderAttachment AddAttachment(
+        string fileName,
+        DateTimeOffset now,
+        string? sourceUrl = null,
+        string? storageReference = null,
+        string? sourceDocumentId = null,
+        string? sourceSection = null)
     {
-        SeapTenderAttachment attachment = SeapTenderAttachment.Create(Id, fileName, s3Url, now, sourceDocumentId);
+        SeapTenderAttachment attachment = SeapTenderAttachment.Create(
+            Id, fileName, now, sourceUrl, storageReference, sourceDocumentId, sourceSection);
         _attachments.Add(attachment);
         return attachment;
     }

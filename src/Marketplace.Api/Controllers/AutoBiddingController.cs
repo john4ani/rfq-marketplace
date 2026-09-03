@@ -38,6 +38,7 @@ public sealed partial class AutoBiddingController(
     ISeapApiClient seapApiClient,
     ISeapSummaryGenerator summaryGenerator,
     ISeapAttachmentTextReader attachmentTextReader,
+    ISeapOriginalDocumentStore originalDocumentStore,
     MarketplaceDbContext dbContext,
     IStorageService storage,
     IPipelineProgressStore progressStore,
@@ -235,7 +236,8 @@ public sealed partial class AutoBiddingController(
                     if (tender.Attachments.Any(attachment =>
                             string.Equals(attachment.FileName, document.FileName, StringComparison.OrdinalIgnoreCase)))
                         continue;
-                    dbContext.Add(SeapTenderAttachment.Create(tender.Id, document.FileName, document.DownloadUrl, now));
+                    dbContext.Add(SeapTenderAttachment.Create(tender.Id, document.FileName, now,
+                        sourceUrl: document.DownloadUrl, sourceDocumentId: document.Code, sourceSection: document.Section));
                 }
                 await dbContext.SaveChangesAsync(cancellationToken);
             }
@@ -290,7 +292,8 @@ public sealed partial class AutoBiddingController(
                 if (tender.Attachments.Any(attachment =>
                         string.Equals(attachment.FileName, document.FileName, StringComparison.OrdinalIgnoreCase)))
                     continue;
-                dbContext.Add(SeapTenderAttachment.Create(tender.Id, document.FileName, document.DownloadUrl, now));
+                dbContext.Add(SeapTenderAttachment.Create(tender.Id, document.FileName, now,
+                    sourceUrl: document.DownloadUrl, sourceDocumentId: document.Code, sourceSection: document.Section));
             }
             await dbContext.SaveChangesAsync(cancellationToken);
             return Ok(SeapTenderDetailsDto.From(tender, DateTimeOffset.UtcNow));
@@ -307,9 +310,10 @@ public sealed partial class AutoBiddingController(
 
     /// <summary>
     /// Streams one of the original files published by the contracting authority (Fișa de date, Caiet de
-    /// sarcini, clarificări). The persisted storage reference (<c>local://…</c> or <c>s3://…</c>) is resolved
-    /// server-side and the response streams directly (no in-memory buffering); the attachment is verified to
-    /// belong to the tender so a user cannot read other tenders' files (IDOR guard).
+    /// sarcini, clarificări) for browsing. The persisted local copy (browsing copy or dossier original) is
+    /// resolved server-side; a row that only carries the remote e-licitatie.ro reference is proxied from the
+    /// platform on demand (the file endpoint requires a same-origin Referer, set by SeapApiClient). The
+    /// attachment is verified to belong to the tender so a user cannot read other tenders' files (IDOR guard).
     /// </summary>
     [HttpGet("tenders/{tenderId:guid}/attachments/{attachmentId:guid}")]
     public async Task<IActionResult> DownloadAttachment(
@@ -319,13 +323,22 @@ public sealed partial class AutoBiddingController(
         SeapTenderAttachment? attachment = tender?.Attachments.FirstOrDefault(item => item.Id == attachmentId);
         if (attachment is null) return NotFound();
 
-        // Published documents resolved from e-licitatie.ro are stored as remote references; stream them from
-        // the platform on demand (the file endpoint requires a same-origin Referer, set by SeapApiClient).
-        if (attachment.S3Url.StartsWith("http", StringComparison.OrdinalIgnoreCase))
+        // A locally persisted copy (browsing copy or dossier original) streams from object storage.
+        if (!string.IsNullOrWhiteSpace(attachment.StorageReference))
+        {
+            StorageObject? stored = await storage.OpenReadAsync(attachment.StorageReference, cancellationToken);
+            return stored is null
+                ? NotFound()
+                : File(stored.Content, stored.ContentType, attachment.FileName);
+        }
+
+        // Rows that only carry the SEAP source URL (no copy persisted yet) are streamed from the platform on
+        // demand (the file endpoint requires a same-origin Referer, set by SeapApiClient).
+        if (!string.IsNullOrWhiteSpace(attachment.SourceUrl))
         {
             try
             {
-                Stream remote = await seapApiClient.DownloadAttachmentAsync(attachment.S3Url, cancellationToken);
+                Stream remote = await seapApiClient.DownloadAttachmentAsync(attachment.SourceUrl, cancellationToken);
                 return File(remote, SeapAttachmentStorage.DetectContentType(attachment.FileName), attachment.FileName);
             }
             catch (Exception)
@@ -337,10 +350,40 @@ public sealed partial class AutoBiddingController(
             }
         }
 
-        StorageObject? stored = await storage.OpenReadAsync(attachment.S3Url, cancellationToken);
-        return stored is null
+        return NotFound();
+    }
+
+    /// <summary>
+    /// Controlled dossier download: streams the EXACT bytes of a durably stored original document
+    /// (a <see cref="SeapDocumentDownloadStatus.Downloaded"/> attachment) from the Direct Hit dossier store,
+    /// under the original file name (e.g. <c>DUAE_CERERE_1.xml</c>, <c>Fisa de date.pdf.p7s</c>) and the stored
+    /// content type. The bytes are never transformed — a signed <c>.p7s</c> is served as-is, never unwrapped.
+    /// The attachment must belong to the tender (IDOR guard) and must be durably stored; rows that only keep a
+    /// remote SEAP reference are served by the browsing route instead and return 404 here.
+    /// </summary>
+    [HttpGet("tenders/{tenderId:guid}/documents/{attachmentId:guid}/download")]
+    public async Task<IActionResult> DownloadDossierOriginal(
+        Guid tenderId, Guid attachmentId, CancellationToken cancellationToken)
+    {
+        SeapTender? tender = await biddingService.GetTenderAsync(tenderId, cancellationToken);
+        SeapTenderAttachment? attachment = tender?.Attachments.FirstOrDefault(item => item.Id == attachmentId);
+        if (attachment is null) return NotFound();
+        if (attachment.DownloadStatus != SeapDocumentDownloadStatus.Downloaded
+            || string.IsNullOrWhiteSpace(attachment.StorageReference))
+        {
+            return Problem(
+                statusCode: StatusCodes.Status404NotFound,
+                title: "Original indisponibil",
+                detail: "Documentul original nu a fost încă stocat durabil în dosarul anunțului.");
+        }
+
+        SeapOriginalDocumentContent? original =
+            await originalDocumentStore.OpenOriginalAsync(attachment.StorageReference, cancellationToken);
+        return original is null
             ? NotFound()
-            : File(stored.Content, stored.ContentType, StorageObject.FileNameFromReference(attachment.S3Url));
+            // Serve the original file name from the attachment row (never from the storage key) and the stored
+            // content type; the bytes are streamed untouched — .p7s files are delivered signed, never unpacked.
+            : File(original.Content, original.ContentType, attachment.FileName);
     }
 
     /// <summary>Fair-pricing preview shown before starting the generation (Task 3: 1 free generation, then

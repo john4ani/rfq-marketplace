@@ -27,7 +27,7 @@ public sealed class SeapIngestionRunWorkerTests : IntegrationTestBase
     [
         "SCN500001", "SCN500002", "SCN500003", "SCN500004", "SCN500005",
         "SCN510001", "SCN510002", "SCN510003", "SCN510004", "SCN510005", "SCN510006",
-        "SCN520001", "SCN520002", "SCN520003", "SCN520004", "SCN530001"
+        "SCN520001", "SCN520002", "SCN520003", "SCN520004", "SCN530001", "SCN530002", "SCN530003", "SCN530004"
     ];
 
     public SeapIngestionRunWorkerTests()
@@ -577,6 +577,7 @@ public sealed class SeapIngestionRunWorkerTests : IntegrationTestBase
                 new(localStorage, NullLogger<LocalFileStorageService>.Instance);
             SeapOriginalDocumentStore dossier =
                 new(objectStorage, Options.Create(new SeapStorageOptions { Enabled = false }), localStorage,
+                    Options.Create(new SeapOptions { MaxOriginalDocumentBytes = 1024L * 1024, MaxTenderOriginalDocumentsBytes = 64L * 1024 * 1024 }),
                     NullLogger<SeapOriginalDocumentStore>.Instance);
             SeapIngestionService service = CreateService(db, api, dossier, objectStorage);
 
@@ -601,10 +602,13 @@ public sealed class SeapIngestionRunWorkerTests : IntegrationTestBase
             SeapTenderAttachment attachment = Assert.Single(saved.Attachments);
             Assert.Equal(SeapDocumentDownloadStatus.Downloaded, attachment.DownloadStatus);
             Assert.Equal(SeapDocumentGroup.TenderDocumentation, attachment.DocumentGroup);
-            Assert.StartsWith("local://", attachment.S3Url); // durable dossier copy, not the remote URL
+            // The SEAP source URL is preserved as provenance while the durable dossier copy lives separately
+            // under its own storage reference — never mixed, never renamed to look like an external URL.
+            Assert.Equal("https://e-licitatie.ro/api-pub/files/fisa-date.txt", attachment.SourceUrl);
+            Assert.StartsWith("local://", attachment.StorageReference); // durable dossier copy, not the remote URL
             Assert.False(string.IsNullOrWhiteSpace(attachment.ContentSha256));
             Assert.Equal(SeapDocumentDigestStatus.Complete, saved.DocumentDigestStatus);
-            StorageObject? stored = await objectStorage.OpenReadAsync(attachment.S3Url, CancellationToken.None);
+            StorageObject? stored = await objectStorage.OpenReadAsync(attachment.StorageReference!, CancellationToken.None);
             Assert.NotNull(stored); // the durable dossier copy actually exists and is readable
 
             // A second resolve of the same notice is idempotent at Stage 1: same dossier status, no new run.
@@ -621,6 +625,175 @@ public sealed class SeapIngestionRunWorkerTests : IntegrationTestBase
         }
     }
 
+
+    [Fact]
+    public async Task DocumentImportClassifiesDuaeBySectionAndFileName()
+    {
+        // The functional dossier groups follow the SEAP section when the payload exposes one and fall back to
+        // the published file name — the dedicated „Documente DUAE" section and the DUAE_CERERE_*.xml forms both
+        // land in SeapDocumentGroup.Duae.
+        string tempRoot = Path.Combine(Path.GetTempPath(), "seap-docimport-duae-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(tempRoot);
+        try
+        {
+            await using MarketplaceDbContext db = CreateDatabase();
+            WorkerSeapApiClient api = new(
+                new SeapTenderNoticeDto(
+                    "SCN530002", "Lucrari reparatii scoala", null, ["45214100-1"], 2_420_466m, "RON",
+                    "Primaria Comunei Poiana Dambovita", DateTimeOffset.UtcNow.AddDays(-2), DateTimeOffset.UtcNow.AddDays(20),
+                    [], County: "Dambovita", NoticeId: 900_532, SysNoticeTypeId: 17),
+                documentsFor: _ =>
+                [
+                    new SeapNoticeDocumentDto("D1", "Caiet de sarcini.pdf", "https://e-licitatie.ro/api-pub/files/d1.pdf", Section: null),
+                    new SeapNoticeDocumentDto("D2", "DUAE_CERERE_1.xml", "https://e-licitatie.ro/api-pub/files/d2.xml", Section: null),
+                    // Section-driven classification wins over the file name (the name itself is not a DUAE hint).
+                    new SeapNoticeDocumentDto("D3", "Nota explicativa.pdf", "https://e-licitatie.ro/api-pub/files/d3.pdf", Section: "Documente DUAE")
+                ]);
+            IOptions<LocalStorageOptions> localStorage =
+                Options.Create(new LocalStorageOptions { UseLocalStorage = true, LocalPath = tempRoot });
+            LocalFileStorageService objectStorage =
+                new(localStorage, NullLogger<LocalFileStorageService>.Instance);
+            SeapOptions seapOptions = new()
+            {
+                MaxOriginalDocumentBytes = 1024L * 1024,
+                MaxTenderOriginalDocumentsBytes = 64L * 1024 * 1024,
+                MaxRunsPerTick = 5
+            };
+            SeapOriginalDocumentStore dossier =
+                new(objectStorage, Options.Create(new SeapStorageOptions { Enabled = false }), localStorage,
+                    Options.Create(seapOptions), NullLogger<SeapOriginalDocumentStore>.Instance);
+            SeapIngestionService service = CreateService(db, api, dossier, objectStorage, seapOptions);
+
+            SeapResolveResult? resolved = await service.ResolveNoticeByNumberAsync("SCN530002", CancellationToken.None);
+            Assert.NotNull(resolved);
+            await service.ProcessPendingIngestionRunsAsync("worker-1", 5, CancellationToken.None);
+
+            SeapTender saved = await db.SeapTenders
+                .Include(tender => tender.Attachments)
+                .SingleAsync(tender => tender.NormalizedExternalId == "SCN530002");
+            Assert.Equal(SeapDocumentGroup.Duae, saved.Attachments.Single(a => a.SourceDocumentId == "D2").DocumentGroup);
+            Assert.Equal(SeapDocumentGroup.Duae, saved.Attachments.Single(a => a.SourceDocumentId == "D3").DocumentGroup);
+            Assert.Equal(SeapDocumentGroup.TenderDocumentation, saved.Attachments.Single(a => a.SourceDocumentId == "D1").DocumentGroup);
+        }
+        finally
+        {
+            try { Directory.Delete(tempRoot, recursive: true); }
+            catch { /* best-effort cleanup of the temp dossier */ }
+        }
+    }
+
+    [Fact]
+    public async Task DocumentImportMarksOversizedFileFailedAndLeavesNoPartialObject()
+    {
+        // Seap:MaxOriginalDocumentBytes is enforced while streaming: an over-limit original becomes Failed with
+        // an explicit code and the storage layer removes the partially written object.
+        string tempRoot = Path.Combine(Path.GetTempPath(), "seap-docimport-too-large-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(tempRoot);
+        try
+        {
+            await using MarketplaceDbContext db = CreateDatabase();
+            WorkerSeapApiClient api = new(new SeapTenderNoticeDto(
+                "SCN530003", "Lucrari reparatii scoala", null, ["45214100-1"], 2_420_466m, "RON",
+                "Primaria Comunei Poiana Dambovita", DateTimeOffset.UtcNow.AddDays(-2), DateTimeOffset.UtcNow.AddDays(20),
+                [], County: "Dambovita", NoticeId: 900_533, SysNoticeTypeId: 17));
+            IOptions<LocalStorageOptions> localStorage =
+                Options.Create(new LocalStorageOptions { UseLocalStorage = true, LocalPath = tempRoot });
+            LocalFileStorageService objectStorage =
+                new(localStorage, NullLogger<LocalFileStorageService>.Instance);
+            SeapOptions seapOptions = new()
+            {
+                MaxOriginalDocumentBytes = 8,
+                MaxTenderOriginalDocumentsBytes = 1024L * 1024,
+                MaxRunsPerTick = 5
+            };
+            SeapOriginalDocumentStore dossier =
+                new(objectStorage, Options.Create(new SeapStorageOptions { Enabled = false }), localStorage,
+                    Options.Create(seapOptions), NullLogger<SeapOriginalDocumentStore>.Instance);
+            SeapIngestionService service = CreateService(db, api, dossier, objectStorage, seapOptions);
+
+            await service.ResolveNoticeByNumberAsync("SCN530003", CancellationToken.None);
+            await service.ProcessPendingIngestionRunsAsync("worker-1", 5, CancellationToken.None);
+
+            SeapTender saved = await db.SeapTenders
+                .Include(tender => tender.Attachments)
+                .SingleAsync(tender => tender.NormalizedExternalId == "SCN530003");
+            SeapTenderAttachment attachment = Assert.Single(saved.Attachments);
+            Assert.Equal(SeapDocumentDownloadStatus.Failed, attachment.DownloadStatus);
+            Assert.Equal("OriginalDocumentTooLarge", attachment.DownloadErrorCode);
+            SeapIngestionRun run = await db.SeapIngestionRuns.SingleAsync(item => item.NoticeNo == "SCN530003");
+            Assert.Equal(SeapIngestionStatus.Failed, run.Status);
+            // The over-limit upload was aborted before a durable object was left behind.
+            Assert.Empty(Directory.GetFiles(tempRoot, "*", SearchOption.AllDirectories));
+        }
+        finally
+        {
+            try { Directory.Delete(tempRoot, recursive: true); }
+            catch { /* best-effort cleanup of the temp dossier */ }
+        }
+    }
+
+    [Fact]
+    public async Task DocumentImportDossierQuotaDeletesTheOverQuotaObjectAndMarksItFailed()
+    {
+        // Seap:MaxTenderOriginalDocumentsBytes bounds the whole dossier: the file that pushes the tender past the
+        // cap is deleted again and marked Failed (DossierQuotaExceeded) — the dossier never silently overgrows.
+        string tempRoot = Path.Combine(Path.GetTempPath(), "seap-docimport-quota-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(tempRoot);
+        try
+        {
+            await using MarketplaceDbContext db = CreateDatabase();
+            WorkerSeapApiClient api = new(
+                new SeapTenderNoticeDto(
+                    "SCN530004", "Lucrari reparatii scoala", null, ["45214100-1"], 2_420_466m, "RON",
+                    "Primaria Comunei Poiana Dambovita", DateTimeOffset.UtcNow.AddDays(-2), DateTimeOffset.UtcNow.AddDays(20),
+                    [], County: "Dambovita", NoticeId: 900_534, SysNoticeTypeId: 17),
+                documentsFor: _ =>
+                [
+                    new SeapNoticeDocumentDto("Q1", "FisaDate.txt", "https://e-licitatie.ro/api-pub/files/q1.txt", Section: null),
+                    new SeapNoticeDocumentDto("Q2", "Caiet.txt", "https://e-licitatie.ro/api-pub/files/q2.txt", Section: null)
+                ]);
+            byte[] payload = "FISA DE DATE — lucrări de reparații"u8.ToArray();
+            long cap = payload.LongLength + 1; // exactly one file fits inside the tender dossier cap
+            IOptions<LocalStorageOptions> localStorage =
+                Options.Create(new LocalStorageOptions { UseLocalStorage = true, LocalPath = tempRoot });
+            LocalFileStorageService objectStorage =
+                new(localStorage, NullLogger<LocalFileStorageService>.Instance);
+            SeapOptions seapOptions = new()
+            {
+                MaxConcurrentDocumentDownloads = 1,
+                MaxOriginalDocumentBytes = 1024L * 1024,
+                MaxTenderOriginalDocumentsBytes = cap,
+                MaxRunsPerTick = 5
+            };
+            SeapOriginalDocumentStore dossier =
+                new(objectStorage, Options.Create(new SeapStorageOptions { Enabled = false }), localStorage,
+                    Options.Create(seapOptions), NullLogger<SeapOriginalDocumentStore>.Instance);
+            SeapIngestionService service = CreateService(db, api, dossier, objectStorage, seapOptions);
+
+            await service.ResolveNoticeByNumberAsync("SCN530004", CancellationToken.None);
+            await service.ProcessPendingIngestionRunsAsync("worker-1", 5, CancellationToken.None);
+
+            SeapTender saved = await db.SeapTenders
+                .Include(tender => tender.Attachments)
+                .SingleAsync(tender => tender.NormalizedExternalId == "SCN530004");
+            SeapTenderAttachment stored = saved.Attachments.Single(a => a.DownloadStatus == SeapDocumentDownloadStatus.Downloaded);
+            SeapTenderAttachment overQuota = saved.Attachments.Single(a => a.DownloadStatus == SeapDocumentDownloadStatus.Failed);
+            Assert.Equal("DossierQuotaExceeded", overQuota.DownloadErrorCode);
+            Assert.False(string.IsNullOrWhiteSpace(stored.StorageReference));
+            StorageObject? exists = await objectStorage.OpenReadAsync(stored.StorageReference!, CancellationToken.None);
+            Assert.NotNull(exists); // the first file that fit within the cap is durably stored
+            await exists!.Content.DisposeAsync();
+            // Exactly one dossier object remains — the over-quota object was deleted, not left behind.
+            Assert.Single(Directory.GetFiles(tempRoot, "*", SearchOption.AllDirectories));
+            SeapIngestionRun run = await db.SeapIngestionRuns.SingleAsync(item => item.NoticeNo == "SCN530004");
+            Assert.Equal(SeapIngestionStatus.Partial, run.Status);
+        }
+        finally
+        {
+            try { Directory.Delete(tempRoot, recursive: true); }
+            catch { /* best-effort cleanup of the temp dossier */ }
+        }
+    }
 
     private static SeapTenderNoticeDto Notice(string noticeNo, int noticeId) => new(
         noticeNo, "Lucrări", null, ["45214100-1"], 1000m, "RON", "Autoritatea Contractantă",
@@ -646,6 +819,13 @@ public sealed class SeapIngestionRunWorkerTests : IntegrationTestBase
         new(db, api, new ThrowingStorage(), originalDocumentStore, objectStorage, new NullCategorizer(),
             new WorkerSummaryGenerator(), new WorkerTextReader("text"),
             Options.Create(new SeapOptions { MaxRunsPerTick = 5 }), new FakeClock(),
+            NullLogger<SeapIngestionService>.Instance);
+
+    private static SeapIngestionService CreateService(
+        MarketplaceDbContext db, WorkerSeapApiClient api, ISeapOriginalDocumentStore originalDocumentStore,
+        IStorageService objectStorage, SeapOptions options) =>
+        new(db, api, new ThrowingStorage(), originalDocumentStore, objectStorage, new NullCategorizer(),
+            new WorkerSummaryGenerator(), new WorkerTextReader("text"), Options.Create(options), new FakeClock(),
             NullLogger<SeapIngestionService>.Instance);
 
     private static async Task WaitUntilAsync(Func<Task<bool>> condition, TimeSpan timeout)
@@ -703,11 +883,12 @@ public sealed class SeapIngestionRunWorkerTests : IntegrationTestBase
             IReadOnlyCollection<SeapAttachmentContentDigest> digests = contentSha is null
                 ? []
                 : attachments.Select(attachment => new SeapAttachmentContentDigest(
-                    attachment.FileName, attachment.S3Url, contentSha, 2)).ToArray();
+                    attachment.FileName,
+                    attachment.SourceDocumentId ?? attachment.SourceUrl ?? attachment.StorageReference ?? string.Empty,
+                    contentSha, 2)).ToArray();
             return Task.FromResult(new SeapAttachmentReadResult(text, digests));
         }
     }
-
     private static SeapAiExtraction Extraction() => new(
         "Reparații la școală.", "Prețul cel mai scăzut", "120.000 RON", "Buget local",
         "12 luni", "Minim 2 contracte similare", "Manager de proiect", "ISO 9001, ISO 45001",

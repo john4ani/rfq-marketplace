@@ -7,7 +7,7 @@ import { CompanyQualification, CompanyQualificationService } from '../../core/co
 import { PipelineProgress } from '../../core/companies/company-vault.service';
 import { VaultReadinessService } from '../../core/companies/vault-readiness.service';
 import { ProfileService } from '../../core/profiles/profile.service';
-import { AutoBidResponse, BidStatus, SeapService, SeapTender, TenderPricing } from '../../core/seap/seap.service';
+import { AutoBidResponse, BidStatus, SeapService, SeapTender, SeapTenderAttachment, TenderPricing } from '../../core/seap/seap.service';
 
 /** Friendly Romanian labels for the real per-stage auto-bid progress reported by the API. */
 const AUTO_BID_STAGE_LABELS: Record<PipelineProgress['stage'], string> = {
@@ -26,6 +26,31 @@ const NOTICE_NUMBER_PATTERN = /^(SCN|CN)\d+$/i;
 type TenderTab = 'summary' | 'details' | 'qualification' | 'documents' | 'history';
 
 const VALID_TABS: readonly TenderTab[] = ['summary', 'details', 'qualification', 'documents', 'history'];
+
+/** Display order of the functional dossier groups in the „Documente Originale" tab (unclassified rows sink to
+ *  the bottom under „Alte documente"). */
+const DOCUMENT_GROUP_ORDER: readonly string[] = [
+  'TenderDocumentation', 'Duae', 'Forms', 'ContractDraft', 'Clarifications', 'Corrigenda', 'Other'
+];
+
+const DOCUMENT_GROUP_LABELS: Record<string, string> = {
+  TenderDocumentation: 'Documentație de atribuire',
+  Duae: 'Documente DUAE',
+  Forms: 'Formulare',
+  ContractDraft: 'Contract / model de contract',
+  Clarifications: 'Clarificări',
+  Corrigenda: 'Rectificări / Corigendum',
+  Other: 'Alte documente'
+};
+
+/** Human explanation for the machine-readable per-file durable-download failure codes. */
+const DOWNLOAD_ERROR_LABELS: Record<string, string> = {
+  DownloadTimeout: 'Timpul de descărcare a expirat',
+  DownloadFailed: 'Descărcarea a eșuat',
+  OriginalDocumentTooLarge: 'Fișierul depășește limita de dimensiune admisă',
+  DossierQuotaExceeded: 'Dosarul anunțului a atins limita de stocare',
+  DocumentsDownloadFailed: 'Descărcarea documentelor a eșuat'
+};
 
 @Component({
   selector: 'app-seap-tender-detail',
@@ -174,20 +199,33 @@ const VALID_TABS: readonly TenderTab[] = ['summary', 'details', 'qualification',
             @if (summaryDocumentNote(); as documentNote) {
               <p class="note warn" role="status">{{ documentNote }}</p>
             }
+            @if (dossierIsPartial()) {
+              <p class="note warn" role="status">
+                <strong>Dosar parțial.</strong> Unele documente ({{ failedDocuments().length }}) nu au putut fi descărcate și stocate durabil în dosar. Rămân accesibile direct de pe SEAP.
+              </p>
+            }
 
             @if (documentsRefreshing()) {
               <div class="skeleton" role="status" aria-busy="true" aria-label="Se caută documentele anunțului">
                 <span></span><span></span><span></span>
               </div>
             } @else if (tender.attachments.length) {
-              <ul class="doc-list">
-                @for (attachment of tender.attachments; track attachment.id) {
-                  <li>
-                    <span class="doc-name" [title]="attachment.fileName">{{ attachment.fileName }}</span>
-                    <button type="button" [disabled]="downloadingAttachmentId() !== null" (click)="downloadAttachment(attachment.id)">{{ downloadingAttachmentId() === attachment.id ? 'Se descarcă…' : 'Descarcă' }}</button>
-                  </li>
-                }
-              </ul>
+              @for (group of documentGroups(); track group.group) {
+                <div class="doc-group">
+                  <h3>{{ group.label }}</h3>
+                  <ul class="doc-list">
+                    @for (attachment of group.attachments; track attachment.id) {
+                      <li>
+                        <span class="doc-name" [title]="attachment.fileName">{{ attachment.fileName }}</span>
+                        @if (attachment.sizeBytes) { <span class="doc-size">{{ formatSize(attachment.sizeBytes) }}</span> }
+                        @if (attachment.downloadStatus === 'Downloaded') { <span class="pill done" title="Stocat durabil în dosarul anunțului">Stocat</span> }
+                        @else if (attachment.downloadStatus === 'Failed') { <span class="pill fail" [title]="downloadErrorLabel(attachment)">{{ downloadErrorLabel(attachment) }}</span> }
+                        <button type="button" [disabled]="downloadingAttachmentId() !== null" (click)="downloadAttachment(attachment)">{{ downloadingAttachmentId() === attachment.id ? 'Se descarcă…' : downloadActionLabel(attachment) }}</button>
+                      </li>
+                    }
+                  </ul>
+                </div>
+              }
             } @else {
               <div class="state-box" [class.error]="documentsError()">
                 <p class="empty">@if (documentsError()) { Documentele anunțului nu au putut fi încărcate în acest moment. } @else { Nu au fost găsite documente publicate pentru acest anunț în SEAP. }</p>
@@ -284,6 +322,58 @@ export class SeapTenderDetailComponent {
   readonly activeTab = signal<TenderTab>(this.initialTab());
   /** Attachment currently being downloaded (prevents double-clicks); null when idle. */
   readonly downloadingAttachmentId = signal<string | null>(null);
+
+  /** Attachments of the tender grouped by their functional dossier group, in display order. Rows the
+   *  DocumentImport run has not classified yet sink to „Alte documente" at the bottom. */
+  readonly documentGroups = computed(() => {
+    const attachments = this.tender()?.attachments ?? [];
+    const byGroup = new Map<string, SeapTenderAttachment[]>();
+    for (const attachment of attachments) {
+      const key = attachment.documentGroup && DOCUMENT_GROUP_ORDER.includes(attachment.documentGroup)
+        ? attachment.documentGroup
+        : 'Other';
+      const list = byGroup.get(key) ?? [];
+      list.push(attachment);
+      byGroup.set(key, list);
+    }
+    return DOCUMENT_GROUP_ORDER
+      .filter(group => (byGroup.get(group)?.length ?? 0) > 0)
+      .map(group => ({ group, label: DOCUMENT_GROUP_LABELS[group] ?? 'Alte documente', attachments: byGroup.get(group)! }));
+  });
+  /** Files whose durable download failed on the last DocumentImport run (a dossier-Partial marker). */
+  readonly failedDocuments = computed(() =>
+    (this.tender()?.attachments ?? []).filter(item => item.downloadStatus === 'Failed'));
+  /** True once the dossier shows a mixed outcome (some originals stored, some failed) — the „dosar Partial" state. */
+  readonly dossierIsPartial = computed(() => {
+    const attachments = this.tender()?.attachments ?? [];
+    return attachments.some(item => item.downloadStatus === 'Downloaded')
+      && attachments.some(item => item.downloadStatus === 'Failed');
+  });
+
+  /** Friendly Romanian label of one functional dossier group. */
+  groupLabel(group: string): string {
+    return DOCUMENT_GROUP_LABELS[group] ?? 'Alte documente';
+  }
+  /** Formats the stored size of a published document (e.g. „2,4 MB") or hides it until it is known. */
+  formatSize(sizeBytes?: number | null): string {
+    if (!sizeBytes || sizeBytes <= 0) return '';
+    if (sizeBytes < 1024) return `${sizeBytes} B`;
+    const units = ['KB', 'MB', 'GB'];
+    let value = sizeBytes / 1024;
+    let unit = 0;
+    while (value >= 1024 && unit < units.length - 1) { value /= 1024; unit += 1; }
+    return `${value.toLocaleString('ro-RO', { maximumFractionDigits: value >= 10 ? 0 : 1 })} ${units[unit]}`;
+  }
+  /** Human explanation for a per-file durable-download failure code (falls back to the raw code). */
+  downloadErrorLabel(attachment: SeapTenderAttachment): string {
+    const code = attachment.downloadErrorCode;
+    return (code && DOWNLOAD_ERROR_LABELS[code]) || 'Descărcarea a eșuat';
+  }
+  /** Per-row download action label: the durably stored original streams from the dossier; everything else is
+   *  streamed live from SEAP (or from its browsing copy). */
+  downloadActionLabel(attachment: SeapTenderAttachment): string {
+    return attachment.downloadStatus === 'Downloaded' ? 'Descarcă originalul' : 'Descarcă';
+  }
 
   /** Real AI-synthesis bullets returned by the backend; empty while the notice has no summary. */
   readonly summaryPoints = computed(() => this.tender()?.summaryPoints ?? []);
@@ -487,19 +577,24 @@ export class SeapTenderDetailComponent {
     this.generateSummary();
   }
 
-  /** Downloads one original authority file through the authenticated API (browsers cannot open local://s3://
-   *  references directly). Mirrors the generated-bid download flow: blob → temporary anchor. */
-  downloadAttachment(attachmentId: string): void {
+  /** Downloads one published file through the authenticated API (browsers cannot open local://s3:// references
+   *  directly). A durably stored dossier original is streamed by the CONTROLLED …/documents/{id}/download route
+   *  (exact stored bytes, original name/content type); every other file uses the browsing route (SEAP proxy or
+   *  browsing copy). Mirrors the generated-bid download flow: blob → temporary anchor. */
+  downloadAttachment(attachment: SeapTenderAttachment): void {
     if (this.downloadingAttachmentId() !== null) return;
     const tender = this.tender();
     if (!tender) return;
-    this.downloadingAttachmentId.set(attachmentId);
-    this.service.downloadAttachment(tender.id, attachmentId).subscribe({
+    this.downloadingAttachmentId.set(attachment.id);
+    const request$ = attachment.downloadStatus === 'Downloaded'
+      ? this.service.downloadDossierOriginal(tender.id, attachment.id)
+      : this.service.downloadAttachment(tender.id, attachment.id);
+    request$.subscribe({
       next: blob => {
         const url = URL.createObjectURL(blob);
         const anchor = document.createElement('a');
         anchor.href = url;
-        anchor.download = tender.attachments.find(item => item.id === attachmentId)?.fileName ?? 'document.pdf';
+        anchor.download = attachment.fileName;
         anchor.click();
         URL.revokeObjectURL(url);
         this.downloadingAttachmentId.set(null);

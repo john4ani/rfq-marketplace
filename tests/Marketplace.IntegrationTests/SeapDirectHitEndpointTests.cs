@@ -276,7 +276,7 @@ public sealed class SeapDirectHitEndpointTests : IntegrationTestBase, IClassFixt
             now.AddDays(-2), now.AddDays(20), now, noticeId, 17);
         await using Stream content = new MemoryStream("fisa-date-pdf-content"u8.ToArray());
         string reference = await storage.UploadAsync("seap", $"seap/{tender.Id}", "FisaDate.pdf", content, "application/pdf", CancellationToken.None);
-        tender.AddAttachment("FisaDate.pdf", reference, now);
+        tender.AddAttachment("FisaDate.pdf", now, storageReference: reference);
         tender.RecordDocumentGroundedAnalysis(new SeapAiExtraction(
             "Reparații la clădirea școlii din Poiana.", "Prețul cel mai scăzut", "120.000 RON", "Buget local",
             "12 luni", "Minim 2 contracte similare", "Manager de proiect", "ISO 9001, ISO 45001",

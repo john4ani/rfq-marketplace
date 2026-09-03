@@ -30,6 +30,13 @@ public interface IStorageService
     /// does not exist. The caller owns the returned stream.
     /// </summary>
     Task<StorageObject?> OpenReadAsync(string reference, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Deletes a previously stored object by its persisted reference URI. Used to remove dossier originals that
+    /// became unwanted (a tender-level quota crossed, a partial local upload after a failed/cancelled copy, …).
+    /// A reference that does not exist is a no-op; an unknown scheme is a no-op.
+    /// </summary>
+    Task DeleteReferenceAsync(string reference, CancellationToken cancellationToken);
 }
 
 /// <summary>An object opened for reading from the active object-storage provider.</summary>

@@ -85,8 +85,11 @@ public sealed partial class SeapIngestionService(
                 try
                 {
                     using Stream content = await apiClient.DownloadAttachmentAsync(attachment.DownloadUrl, cancellationToken);
-                    string s3Url = await storage.UploadAsync(tender.Id.ToString(), attachment.FileName, content, cancellationToken);
-                    tender.AddAttachment(attachment.FileName, s3Url, now);
+                    string storageReference = await storage.UploadAsync(tender.Id.ToString(), attachment.FileName, content, cancellationToken);
+                    // Keep the SEAP source URL separate from the stored browsing copy: the download endpoint can
+                    // still reach the platform while the local copy exists, and the provenance is never lost.
+                    tender.AddAttachment(attachment.FileName, now,
+                        sourceUrl: attachment.DownloadUrl, storageReference: storageReference);
                     downloaded++;
                 }
                 catch (Exception exception)
@@ -371,7 +374,8 @@ public sealed partial class SeapIngestionService(
                 if (tender.Attachments.Any(attachment =>
                         string.Equals(attachment.FileName, document.FileName, StringComparison.OrdinalIgnoreCase)))
                     continue;
-                tender.AddAttachment(document.FileName, document.DownloadUrl, now);
+                tender.AddAttachment(document.FileName, now,
+                    sourceUrl: document.DownloadUrl, sourceDocumentId: document.Code, sourceSection: document.Section);
                 attached++;
             }
             return attached;

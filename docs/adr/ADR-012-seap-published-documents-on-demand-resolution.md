@@ -94,3 +94,37 @@ is introduced for Direct Hit only.
 - Storage cost grows only for Direct Hit tenders; the logical separation guarantees the browse path and the
   user-upload path are unaffected.
 
+---
+
+## Amendment 2026-09-03 — Stage 1 hardening: DUAE grouping, controlled download, idempotency, size limits
+
+### Decisions
+
+- **Functional groups** now include a dedicated **`Duae`** group (the platform's „Documente DUAE" section and
+  the published `DUAE_CERERE_*.xml` forms) and a **`Corrigenda`** group. Classification prefers the
+  SEAP-provided section/type label when the notice-detail payload carries one (parsed from the optional
+  `noticeDocumentSection` property) and falls back to the published file name / upstream document id
+  (`SeapDocumentClassifier`); diacritics-insensitive matching keeps „Fișa de date"/„FISA DE DATE" identical.
+- **Honest storage model**: the legacy single `S3Url` column is split (migration
+  `AddSeapDocumentImportStage1Hardening`, data-preserving) into **`SourceUrl`** (the original e-licitatie.ro
+  URL, provenance, kept untouched when the dossier stores a copy) and **`StorageReference`** (a
+  `local://`/`s3://` object reference — browsing copy or dossier original). No property is misnamed `S3Url`
+  anymore and the platform source is never lost when a dossier object replaces a browsing copy.
+- **Controlled dossier download**: `GET /api/v1/seap/tenders/{tenderId}/documents/{attachmentId}/download`
+  streams the EXACT stored bytes of a `Downloaded` original (authorization + IDOR-guard + original file name
+  from the attachment row + stored content type). A signed `.p7s` is served untouched — never unwrapped.
+  `SeapTenderAttachmentRef.DownloadUrl` points at this route only for durably stored originals; everything
+  else keeps the browsing route. The „Documente Originale" tab now groups files by `DocumentGroup`, shows the
+  original file name, per-file `Downloaded`/`Failed` state (with the machine-readable failure reason), the
+  stored size and a „Descarcă originalul" action, plus a „Dosar parțial" warning when some files failed.
+- **DB-level idempotency**: a unique index on `(TenderId, SourceDocumentId)` guarantees one row per upstream
+  document per tender even when two resolve/fetch executions race (multiple NULL source ids remain allowed for
+  legacy browsing copies); the migration also de-duplicates any pre-existing duplicates.
+- **Size limits**: `Seap:MaxOriginalDocumentBytes` (default 100 MB) and `Seap:MaxTenderOriginalDocumentsBytes`
+  (default 1 GB) bound the dossier. The per-file cap is checked from the declared length AND while streaming —
+  an over-limit upload is aborted with no partial object left (the local storage layer deletes the partial
+  file; the R2 layer buffers before `PutObject`, so nothing is created). Crossing the tender cap deletes the
+  over-quota object again and marks the file `Failed`. Failures carry explicit codes
+  (`OriginalDocumentTooLarge`, `DossierQuotaExceeded`, `DownloadTimeout`, …) persisted on
+  `SeapTenderAttachment.DownloadErrorCode`.
+

@@ -489,7 +489,7 @@ public sealed class SeapTenderDetailsEndpointTests : IntegrationTestBase, IClass
         await using var content = new MemoryStream("fisa-date-pdf-content"u8.ToArray());
         string reference = await storage.UploadAsync(
             "seap", $"seap/{tender.Id}", "fisa-date.pdf", content, "application/pdf", CancellationToken.None);
-        SeapTenderAttachment attachment = tender.AddAttachment("fisa-date.pdf", reference, DateTimeOffset.UtcNow);
+        SeapTenderAttachment attachment = tender.AddAttachment("fisa-date.pdf", DateTimeOffset.UtcNow, storageReference: reference);
         db.SeapTenders.Add(tender);
         await db.SaveChangesAsync();
         return (tender.Id, attachment.Id);
@@ -534,7 +534,7 @@ public sealed class SeapTenderDetailsEndpointTests : IntegrationTestBase, IClass
             "Primaria Comunei Poiana Dambovita", "Dâmbovița",
             DateTimeOffset.UtcNow.AddDays(-2), DateTimeOffset.UtcNow.AddDays(20), DateTimeOffset.UtcNow);
         SeapTenderAttachment attachment = tender.AddAttachment(
-            "remote-doc.pdf", "https://e-licitatie.ro/api-pub/files/noticedoc/abc", DateTimeOffset.UtcNow);
+            "remote-doc.pdf", DateTimeOffset.UtcNow, sourceUrl: "https://e-licitatie.ro/api-pub/files/noticedoc/abc");
         db.SeapTenders.Add(tender);
         await db.SaveChangesAsync();
         return (tender.Id, attachment.Id);

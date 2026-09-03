@@ -44,14 +44,15 @@ public sealed partial class SeapAttachmentTextReader(
                 // Per-file document download timeout (distinct from the whole-pass extraction timeout). A
                 // timeout propagates as a cancellation so the run pipeline retries/backs off — never a
                 // suspended call.
-                byte[] content = await ReadAttachmentBytesBoundedAsync(attachment.S3Url, cancellationToken);
+                byte[] content = await ReadAttachmentBytesBoundedAsync(attachment, cancellationToken);
                 if (content.Length > 0)
                 {
                     // Content digest is captured from the REAL downloaded bytes, so replacing a file upstream
                     // (same URL + file name) changes the digest and invalidates the stored analysis.
                     byte[] hash = SHA256.HashData(content);
                     digests.Add(new SeapAttachmentContentDigest(
-                        attachment.FileName, attachment.S3Url,
+                        attachment.FileName,
+                        attachment.SourceDocumentId ?? attachment.SourceUrl ?? attachment.StorageReference ?? string.Empty,
                         Convert.ToHexString(hash).ToLowerInvariant(), content.LongLength));
                 }
                 string? text = ReadText(content, attachment.FileName);
@@ -78,13 +79,13 @@ public sealed partial class SeapAttachmentTextReader(
             string.IsNullOrWhiteSpace(result) ? null : result, digests);
     }
 
-    private async Task<byte[]> ReadAttachmentBytesBoundedAsync(string reference, CancellationToken cancellationToken)
+    private async Task<byte[]> ReadAttachmentBytesBoundedAsync(SeapTenderAttachment attachment, CancellationToken cancellationToken)
     {
         using var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         cts.CancelAfter(TimeSpan.FromSeconds(Math.Max(1, documentDownloadTimeoutSeconds)));
         try
         {
-            return await ReadAttachmentBytesAsync(reference, cts.Token);
+            return await ReadAttachmentBytesAsync(attachment, cts.Token);
         }
         catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
         {
@@ -92,18 +93,27 @@ public sealed partial class SeapAttachmentTextReader(
         }
     }
 
-    private async Task<byte[]> ReadAttachmentBytesAsync(string reference, CancellationToken cancellationToken)
+    private async Task<byte[]> ReadAttachmentBytesAsync(SeapTenderAttachment attachment, CancellationToken cancellationToken)
     {
-        if (reference.StartsWith("http", StringComparison.OrdinalIgnoreCase))
+        // A locally persisted copy (browsing copy or dossier original) is read first — it is the most stable
+        // source. Rows that only carry the remote reference (no copy stored yet) are proxied from SEAP.
+        if (!string.IsNullOrWhiteSpace(attachment.StorageReference))
         {
-            await using Stream remote = await apiClient.DownloadAttachmentAsync(reference, cancellationToken);
+            StorageObject? stored = await storage.OpenReadAsync(attachment.StorageReference, cancellationToken);
+            if (stored is not null)
+            {
+                await using Stream content = stored.Content;
+                return await ReadBoundedAsync(content, cancellationToken);
+            }
+        }
+
+        if (!string.IsNullOrWhiteSpace(attachment.SourceUrl))
+        {
+            await using Stream remote = await apiClient.DownloadAttachmentAsync(attachment.SourceUrl, cancellationToken);
             return await ReadBoundedAsync(remote, cancellationToken);
         }
 
-        StorageObject? stored = await storage.OpenReadAsync(reference, cancellationToken);
-        if (stored is null) return [];
-        await using Stream content = stored.Content;
-        return await ReadBoundedAsync(content, cancellationToken);
+        return [];
     }
 
     private static async Task<byte[]> ReadBoundedAsync(Stream stream, CancellationToken cancellationToken)

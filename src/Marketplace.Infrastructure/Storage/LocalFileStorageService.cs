@@ -20,9 +20,20 @@ public sealed partial class LocalFileStorageService(
         string root = Path.GetFullPath(options.Value.LocalPath);
         string targetPath = Path.Combine(root, relativePath);
         Directory.CreateDirectory(Path.GetDirectoryName(targetPath)!);
-        await using (FileStream file = new(targetPath, FileMode.CreateNew, FileAccess.Write, FileShare.None))
+        try
         {
-            await content.CopyToAsync(file, cancellationToken);
+            await using (FileStream file = new(targetPath, FileMode.CreateNew, FileAccess.Write, FileShare.None))
+            {
+                await content.CopyToAsync(file, cancellationToken);
+            }
+        }
+        catch
+        {
+            // A failed/cancelled copy (e.g. an over-limit document aborted by the dossier store) must never leave
+            // a partial object behind — remove the half-written file and rethrow.
+            try { if (File.Exists(targetPath)) File.Delete(targetPath); }
+            catch { /* best-effort cleanup */ }
+            throw;
         }
         LogStoredLocally(logger, relativePath);
         return $"local://{relativePath.Replace('\\', '/')}";
@@ -46,6 +57,21 @@ public sealed partial class LocalFileStorageService(
 
         FileStream stream = new(fullPath, FileMode.Open, FileAccess.Read, FileShare.Read);
         return Task.FromResult<StorageObject?>(new StorageObject(stream, StorageContentTypes.FromFileName(fullPath)));
+    }
+
+    public Task DeleteReferenceAsync(string reference, CancellationToken cancellationToken)
+    {
+        const string scheme = "local://";
+        if (!reference.StartsWith(scheme, StringComparison.OrdinalIgnoreCase))
+            return Task.CompletedTask;
+
+        string root = Path.GetFullPath(options.Value.LocalPath);
+        string relativePath = reference[scheme.Length..].Replace('/', Path.DirectorySeparatorChar);
+        string fullPath = Path.GetFullPath(Path.Combine(root, relativePath));
+        // Guard against references that escape the local storage root.
+        if (fullPath.StartsWith(root, StringComparison.OrdinalIgnoreCase) && File.Exists(fullPath))
+            File.Delete(fullPath);
+        return Task.CompletedTask;
     }
 
     [LoggerMessage(EventId = 5601, Level = LogLevel.Information, Message = "File stored locally at {RelativePath}.")]

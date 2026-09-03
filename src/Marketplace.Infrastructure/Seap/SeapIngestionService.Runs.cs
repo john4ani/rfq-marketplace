@@ -196,10 +196,17 @@ public sealed partial class SeapIngestionService
                 token => apiClient.FetchNoticeDocumentsAsync(tender.NoticeId!.Value, tender.SysNoticeTypeId ?? 2, token), cancellationToken);
             foreach (SeapNoticeDocumentDto document in documents)
             {
-                if (tender.Attachments.Any(attachment =>
-                        string.Equals(attachment.FileName, document.FileName, StringComparison.OrdinalIgnoreCase)))
+                // De-duplicate by the stable upstream code first (the DB unique index on
+                // (TenderId, SourceDocumentId) backs this up); file name is the legacy fallback for rows that
+                // were attached before codes existed.
+                bool known = tender.Attachments.Any(attachment =>
+                    (!string.IsNullOrWhiteSpace(document.Code)
+                        && string.Equals(attachment.SourceDocumentId, document.Code, StringComparison.Ordinal))
+                    || string.Equals(attachment.FileName, document.FileName, StringComparison.OrdinalIgnoreCase));
+                if (known)
                     continue;
-                dbContext.Add(tender.AddAttachment(document.FileName, document.DownloadUrl, now, document.Code));
+                dbContext.Add(tender.AddAttachment(document.FileName, now,
+                    sourceUrl: document.DownloadUrl, sourceDocumentId: document.Code, sourceSection: document.Section));
             }
             tender.RecordDocumentSetHash(ComputeDocumentSetHash(tender.Attachments), now);
             tender.RecordDocumentDigestStatus(ComputeDigestStatus(tender.Attachments), now);
@@ -403,7 +410,7 @@ public sealed partial class SeapIngestionService
         string[] entries = attachments
             .Select(attachment =>
             {
-                string identity = attachment.SourceDocumentId ?? attachment.S3Url;
+                string identity = attachment.SourceDocumentId ?? attachment.SourceUrl ?? attachment.StorageReference ?? string.Empty;
                 string content = attachment.ContentSha256 ?? "content-unknown";
                 return $"{identity}|{content}";
             })
