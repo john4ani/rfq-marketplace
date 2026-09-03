@@ -27,7 +27,7 @@ public sealed class SeapIngestionRunWorkerTests : IntegrationTestBase
     [
         "SCN500001", "SCN500002", "SCN500003", "SCN500004", "SCN500005",
         "SCN510001", "SCN510002", "SCN510003", "SCN510004", "SCN510005", "SCN510006",
-        "SCN520001", "SCN520002", "SCN520003", "SCN520004", "SCN530001", "SCN530002", "SCN530003", "SCN530004"
+        "SCN520001", "SCN520002", "SCN520003", "SCN520004", "SCN530001", "SCN530002", "SCN530003", "SCN530004", "SCN530005"
     ];
 
     public SeapIngestionRunWorkerTests()
@@ -795,6 +795,95 @@ public sealed class SeapIngestionRunWorkerTests : IntegrationTestBase
         }
     }
 
+    [Fact]
+    public async Task DocumentImportWorkerWhoLostItsLeaseCannotStampDownloaded()
+    {
+        // Stage 1 fencing: the per-file Downloaded stamp and the run completion are persisted by ONE fenced
+        // save at the end of the DocumentImport pipeline. A worker whose 1s lease expires while it is blocked in
+        // the (slow) dossier store can never overwrite the reclaiming worker's results — its fenced save fails
+        // and the whole checkpoint transaction (including the attachment stamps) is rolled back.
+        string tempRoot = Path.Combine(Path.GetTempPath(), "seap-docimport-lease-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(tempRoot);
+        try
+        {
+            await using MarketplaceDbContext dbA = CreateDatabase();
+            WorkerSeapApiClient api = new(Notice("SCN530005", 900_535));
+            IOptions<LocalStorageOptions> localStorage =
+                Options.Create(new LocalStorageOptions { UseLocalStorage = true, LocalPath = tempRoot });
+            LocalFileStorageService objectStorage =
+                new(localStorage, NullLogger<LocalFileStorageService>.Instance);
+            SeapOriginalDocumentStore dossier = new(objectStorage,
+                Options.Create(new SeapStorageOptions { Enabled = false }), localStorage,
+                Options.Create(new SeapOptions
+                {
+                    RunLeaseSeconds = 1,
+                    RunHeartbeatIntervalSeconds = 0,
+                    MaxRunsPerTick = 5,
+                    MaxOriginalDocumentBytes = 1024L * 1024,
+                    MaxTenderOriginalDocumentsBytes = 1024L * 1024
+                }),
+                NullLogger<SeapOriginalDocumentStore>.Instance);
+            SlowOriginalDocumentStore slowDossier = new(dossier);
+            SeapIngestionService workerA = CreateService(dbA, api, slowDossier, objectStorage, new SeapOptions
+            {
+                RunLeaseSeconds = 1,
+                RunHeartbeatIntervalSeconds = 0,
+                MaxRunsPerTick = 5
+            });
+            SeapResolveResult? resolved = await workerA.ResolveNoticeByNumberAsync("SCN530005", CancellationToken.None);
+            Guid tenderId = resolved!.TenderId;
+
+            Task taskA = workerA.ProcessPendingIngestionRunsAsync("worker-a", 5, CancellationToken.None);
+            await WaitUntilAsync(async () =>
+            {
+                await using MarketplaceDbContext poll = CreateDatabase();
+                SeapIngestionRun row = await poll.SeapIngestionRuns.AsNoTracking().SingleAsync(run => run.TenderId == tenderId);
+                return row.ClaimedBy == "worker-a" && row.DocumentsFetchedAt is not null
+                    && row.Status == SeapIngestionStatus.FetchingDocuments;
+            }, TimeSpan.FromSeconds(5));
+
+            // The 1s lease expires while worker-a is still blocked in the slow dossier store.
+            await Task.Delay(1600);
+            await using (MarketplaceDbContext probe = CreateDatabase())
+            {
+                SeapIngestionRun row = await probe.SeapIngestionRuns.AsNoTracking().SingleAsync(run => run.TenderId == tenderId);
+                Assert.True(row.LeaseExpiresAt is not null && row.LeaseExpiresAt < DateTimeOffset.UtcNow,
+                    $"expected an expired lease but saw status={row.Status} claimedBy={row.ClaimedBy} lease={row.LeaseExpiresAt}");
+            }
+
+            // worker-b reclaims the run and completes the DocumentImport dossier while worker-a is still blocked.
+            await using MarketplaceDbContext dbB = CreateDatabase();
+            SeapIngestionService workerB = CreateService(dbB, api, dossier, objectStorage, new SeapOptions
+            {
+                RunLeaseSeconds = 120,
+                MaxRunsPerTick = 5
+            });
+            Assert.Equal(1, await workerB.ProcessPendingIngestionRunsAsync("worker-b", 5, CancellationToken.None));
+            await taskA; // worker-a resumes, its fenced save fails and it abandons — nothing it staged is saved
+
+            await using MarketplaceDbContext verify = CreateDatabase();
+            SeapIngestionRun run = await verify.SeapIngestionRuns.AsNoTracking().SingleAsync(item => item.TenderId == tenderId);
+            Assert.Equal(SeapIngestionStatus.Ready, run.Status);
+            Assert.Equal(2, run.AttemptCount); // worker-a claim + worker-b reclaim
+            Assert.Equal(2, run.ClaimVersion); // fencing token bumped exactly once per claim
+            Assert.True(run.CompletedAt is not null);
+            SeapTender tender = await verify.SeapTenders.AsNoTracking()
+                .Include(item => item.Attachments).SingleAsync(item => item.Id == tenderId);
+            SeapTenderAttachment attachment = Assert.Single(tender.Attachments);
+            // Only worker-b's successful store is visible: worker-a's in-flight stamp was rolled back with its
+            // lost-lease fenced transaction.
+            Assert.Equal(SeapDocumentDownloadStatus.Downloaded, attachment.DownloadStatus);
+            Assert.False(string.IsNullOrWhiteSpace(attachment.StorageReference));
+            Assert.False(string.IsNullOrWhiteSpace(attachment.ContentSha256));
+        }
+        finally
+        {
+            try { Directory.Delete(tempRoot, recursive: true); }
+            catch { /* best-effort cleanup of the temp dossier (worker-a's orphaned partial object may linger) */ }
+        }
+    }
+
+
     private static SeapTenderNoticeDto Notice(string noticeNo, int noticeId) => new(
         noticeNo, "Lucrări", null, ["45214100-1"], 1000m, "RON", "Autoritatea Contractantă",
         DateTimeOffset.UtcNow.AddDays(-2), DateTimeOffset.UtcNow.AddDays(20), [],
@@ -944,5 +1033,23 @@ public sealed class SeapIngestionRunWorkerTests : IntegrationTestBase
                 ? (IReadOnlyCollection<SeapNoticeDocumentDto>)[
                     new SeapNoticeDocumentDto("CN-W/1", "FisaDate.txt", "https://e-licitatie.ro/api-pub/files/fisa-date.txt")]
                 : documentsFor(noticeId));
+    }
+
+    /// <summary>Dossier-store decorator that delays the durable store call once, so a worker can lose its lease
+    /// while it is mid-download (the fencing test then proves the stale worker cannot persist its stamps).</summary>
+    private sealed class SlowOriginalDocumentStore(ISeapOriginalDocumentStore inner) : ISeapOriginalDocumentStore
+    {
+        public async Task<StoredSeapOriginalDocument> StoreOriginalAsync(
+            Guid tenderId, string fileName, Stream content, CancellationToken cancellationToken)
+        {
+            await Task.Delay(3500, cancellationToken);
+            return await inner.StoreOriginalAsync(tenderId, fileName, content, cancellationToken);
+        }
+
+        public Task<SeapOriginalDocumentContent?> OpenOriginalAsync(string reference, CancellationToken cancellationToken) =>
+            inner.OpenOriginalAsync(reference, cancellationToken);
+
+        public Task DeleteOriginalAsync(string reference, CancellationToken cancellationToken) =>
+            inner.DeleteOriginalAsync(reference, cancellationToken);
     }
 }
