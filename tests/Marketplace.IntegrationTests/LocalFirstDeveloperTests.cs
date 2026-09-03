@@ -1,5 +1,8 @@
 using System.Text;
+using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 
 using Marketplace.Application.Seap;
 using Marketplace.Infrastructure.Bidding;
@@ -76,7 +79,17 @@ public sealed class LocalFirstDeveloperTests : IntegrationTestBase
     [Fact]
     public void DevelopmentConfigurationWiresLocalStorageAndRealClaudeProvider()
     {
-        using MarketplaceWebApplicationFactory factory = new();
+        // The shared test factory replaces ILlmProvider with StaticMockLlmProvider by default (hermetic CI —
+        // no real key). This guardrail intentionally opts OUT of that default by re-registering the real
+        // Anthropic provider, to keep verifying the Development configuration contract: local-file storage is
+        // wired and the real Claude provider is the resolved LLM. It performs no LLM call, so it never needs
+        // an API key.
+        using WebApplicationFactory<Program> factory = new MarketplaceWebApplicationFactory().WithWebHostBuilder(builder =>
+            builder.ConfigureTestServices(services =>
+            {
+                services.RemoveAll<ILlmProvider>();
+                services.AddScoped<ILlmProvider, AnthropicClaudeProvider>();
+            }));
         using IServiceScope scope = factory.Services.CreateScope();
         Assert.IsType<LocalFileStorageService>(scope.ServiceProvider.GetRequiredService<IStorageService>());
         Assert.IsType<AnthropicClaudeProvider>(scope.ServiceProvider.GetRequiredService<ILlmProvider>());
