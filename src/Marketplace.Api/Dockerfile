@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1.7
 
-FROM mcr.microsoft.com/dotnet/sdk:10.0.201-alpine3.23 AS build
+FROM mcr.microsoft.com/dotnet/sdk:10.0.400-alpine3.23 AS build
 WORKDIR /src
 
 COPY .config/dotnet-tools.json .config/dotnet-tools.json
