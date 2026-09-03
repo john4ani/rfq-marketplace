@@ -9,13 +9,17 @@ using Microsoft.Extensions.Options;
 
 namespace Marketplace.IntegrationTests;
 
-// Livrarea 2 — worker semantics on the shared PostgreSQL test container:
-//   • one resolve → one run, advanced to Ready by a worker tick (documents attached, hash stamped, grounded
-//     analysis recorded, active tender promoted to ReadyForBidding);
-//   • a DirectHistoricalLookup run reaches Ready but is never promoted to an active bid target;
-//   • an active run with an unexpired lease cannot be claimed twice; after the lease expires it is resumed;
-//   • a Failed run allows a fresh run;
-//   • changing the document set invalidates the stored analysis (no stale 200; a new run is started).
+// The worker/run-pipeline semantics against the shared PostgreSQL test container. This class intentionally
+// hosts BOTH run purposes side by side so the split stays explicit:
+//   • DigestAndAnalyze* tests (SCN50xxx/SCN51xxx/SCN52xxx) drive the digest pipeline (document fetch → text
+//     extraction → grounded LLM analysis → ReadyForBidding). They seed the run EXPLICITLY as a
+//     DigestAndAnalyze run (SeedDigestRunAsync) and never use the Direct Hit resolve as their setup
+//     mechanism: a Direct Hit resolve now creates a Stage 1 DocumentImport run only (no text/LLM), while the
+//     analysis action that creates DigestAndAnalyze runs belongs to a separate, later stage.
+//   • DocumentImport*/DirectHitResolve* tests (SCN53xxx) exercise the Stage 1 Direct Hit contract: resolve →
+//     one DocumentImport run → durable original-document download/storage → Ready/Partial, with NO text
+//     extraction and NO LLM analysis, and a repeat resolve stays idempotent.
+// Worker mechanics shared by both purposes (claim/lease/fencing/heartbeat/idempotency) are asserted on each.
 [Collection(IntegrationTestGroup.Name)]
 public sealed class SeapIngestionRunWorkerTests : IntegrationTestBase
 {
@@ -40,7 +44,7 @@ public sealed class SeapIngestionRunWorkerTests : IntegrationTestBase
     }
 
     [Fact]
-    public async Task WorkerAdvancesARunToReadyWithGroundedAnalysis()
+    public async Task DigestAndAnalyzeRunInvokesExtractionAndSummaryGeneration()
     {
         await using MarketplaceDbContext db = CreateDatabase();
 
@@ -51,8 +55,7 @@ public sealed class SeapIngestionRunWorkerTests : IntegrationTestBase
         WorkerSummaryGenerator summary = new();
         SeapIngestionService service = CreateService(db, api, summary, new WorkerTextReader("FISA DE DATE — lucrări de reparații\nGaranție de participare: 120.000 RON"));
 
-        SeapResolveResult? resolved = await service.ResolveNoticeByNumberAsync("SCN500001", CancellationToken.None);
-        Assert.NotNull(resolved);
+        SeapResolveResult resolved = await SeedDigestRunAsync(db, api.Notice!, "SCN500001");
         Assert.Equal("Pending", resolved.Status);
 
         int processed = await service.ProcessPendingIngestionRunsAsync("worker-1", 5, CancellationToken.None);
@@ -81,7 +84,7 @@ public sealed class SeapIngestionRunWorkerTests : IntegrationTestBase
     }
 
     [Fact]
-    public async Task HistoricalRunReachesReadyButIsNeverPromotedToABidTarget()
+    public async Task DigestAndAnalyzeHistoricalRunReachesReadyButIsNeverPromotedToABidTarget()
     {
         await using MarketplaceDbContext db = CreateDatabase();
 
@@ -91,7 +94,7 @@ public sealed class SeapIngestionRunWorkerTests : IntegrationTestBase
             [], County: "Dâmbovița", NoticeId: 900_502, SysNoticeTypeId: 17));
         SeapIngestionService service = CreateService(db, api, new WorkerSummaryGenerator(), new WorkerTextReader("text"));
 
-        await service.ResolveNoticeByNumberAsync("SCN500002", CancellationToken.None);
+        await SeedDigestRunAsync(db, api.Notice!, "SCN500002");
         int processed = await service.ProcessPendingIngestionRunsAsync("worker-1", 5, CancellationToken.None);
         Assert.Equal(1, processed);
 
@@ -103,7 +106,7 @@ public sealed class SeapIngestionRunWorkerTests : IntegrationTestBase
     }
 
     [Fact]
-    public async Task ActiveRunWithUnexpiredLeaseCannotBeClaimedButIsResumedAfterExpiry()
+    public async Task DigestAndAnalyzeActiveRunWithUnexpiredLeaseCannotBeClaimedButIsResumedAfterExpiry()
     {
         await using MarketplaceDbContext db = CreateDatabase();
         WorkerSeapApiClient api = new(new SeapTenderNoticeDto(
@@ -111,8 +114,8 @@ public sealed class SeapIngestionRunWorkerTests : IntegrationTestBase
             DateTimeOffset.UtcNow.AddDays(-1), DateTimeOffset.UtcNow.AddDays(20), [], NoticeId: 900_503, SysNoticeTypeId: 17));
         SeapIngestionService service = CreateService(db, api, new WorkerSummaryGenerator(), new WorkerTextReader("text"));
 
-        SeapResolveResult? resolved = await service.ResolveNoticeByNumberAsync("SCN500003", CancellationToken.None);
-        Guid runId = resolved!.RunId!.Value;
+        SeapResolveResult resolved = await SeedDigestRunAsync(db, api.Notice!, "SCN500003");
+        Guid runId = resolved.RunId!.Value;
 
         // Simulate a worker that claimed the run and then died mid-processing (lease still valid).
         DateTimeOffset now = DateTimeOffset.UtcNow;
@@ -141,7 +144,7 @@ public sealed class SeapIngestionRunWorkerTests : IntegrationTestBase
     }
 
     [Fact]
-    public async Task FailedRunAllowsAFreshRun()
+    public async Task DigestAndAnalyzeFailedRunAllowsAFreshRun()
     {
         await using MarketplaceDbContext db = CreateDatabase();
         WorkerSeapApiClient api = new(new SeapTenderNoticeDto(
@@ -149,8 +152,8 @@ public sealed class SeapIngestionRunWorkerTests : IntegrationTestBase
             DateTimeOffset.UtcNow.AddDays(-1), DateTimeOffset.UtcNow.AddDays(20), [], NoticeId: 900_504, SysNoticeTypeId: 17));
         SeapIngestionService service = CreateService(db, api, new WorkerSummaryGenerator(), new WorkerTextReader("text"));
 
-        SeapResolveResult? first = await service.ResolveNoticeByNumberAsync("SCN500004", CancellationToken.None);
-        Guid tenderId = first!.TenderId;
+        SeapResolveResult first = await SeedDigestRunAsync(db, api.Notice!, "SCN500004");
+        Guid tenderId = first.TenderId;
         SeapIngestionRun failed = await db.SeapIngestionRuns.SingleAsync(run => run.TenderId == tenderId);
         failed.Complete(SeapIngestionStatus.Failed, DateTimeOffset.UtcNow, "PermanentError", "ceva permanent");
         await db.SaveChangesAsync();
@@ -163,7 +166,7 @@ public sealed class SeapIngestionRunWorkerTests : IntegrationTestBase
     }
 
     [Fact]
-    public async Task ChangedDocumentSetInvalidatesTheStoredAnalysisAndTriggersARerun()
+    public async Task DigestAndAnalyzeChangedDocumentSetInvalidatesTheStoredAnalysisAndTriggersARerun()
     {
         await using MarketplaceDbContext db = CreateDatabase();
         WorkerSeapApiClient api = new(new SeapTenderNoticeDto(
@@ -171,9 +174,9 @@ public sealed class SeapIngestionRunWorkerTests : IntegrationTestBase
             DateTimeOffset.UtcNow.AddDays(-1), DateTimeOffset.UtcNow.AddDays(20), [], NoticeId: 900_505, SysNoticeTypeId: 17));
         SeapIngestionService service = CreateService(db, api, new WorkerSummaryGenerator(), new WorkerTextReader("text"));
 
-        SeapResolveResult? resolved = await service.ResolveNoticeByNumberAsync("SCN500005", CancellationToken.None);
+        SeapResolveResult resolved = await SeedDigestRunAsync(db, api.Notice!, "SCN500005");
         await service.ProcessPendingIngestionRunsAsync("worker-1", 5, CancellationToken.None);
-        SeapTender ready = await db.SeapTenders.SingleAsync(tender => tender.Id == resolved!.TenderId);
+        SeapTender ready = await db.SeapTenders.SingleAsync(tender => tender.Id == resolved.TenderId);
         Assert.True(SeapTenderReadiness.IsDocumentAnalysisReady(ready));
 
         // The authority publishes a changed document set → the stored analysis is invalidated.
@@ -190,7 +193,7 @@ public sealed class SeapIngestionRunWorkerTests : IntegrationTestBase
     }
 
     [Fact]
-    public async Task WorkerWhoLostItsLeaseCannotOverwriteTheReclaimingWorker()
+    public async Task DigestAndAnalyzeWorkerWhoLostItsLeaseCannotOverwriteTheReclaimingWorker()
     {
         // worker-a claims the run with a 1s lease and no heartbeat, then blocks in a 3.5s LLM call.
         await using MarketplaceDbContext dbA = CreateDatabase();
@@ -206,8 +209,8 @@ public sealed class SeapIngestionRunWorkerTests : IntegrationTestBase
             RunHeartbeatIntervalSeconds = 0,
             MaxRunsPerTick = 5
         });
-        SeapResolveResult? resolved = await workerA.ResolveNoticeByNumberAsync("SCN510001", CancellationToken.None);
-        Guid tenderId = resolved!.TenderId;
+        SeapResolveResult resolved = await SeedDigestRunAsync(dbA, api.Notice!, "SCN510001");
+        Guid tenderId = resolved.TenderId;
 
         Task taskA = workerA.ProcessPendingIngestionRunsAsync("worker-a", 5, CancellationToken.None);
         await WaitUntilAsync(async () =>
@@ -250,7 +253,7 @@ public sealed class SeapIngestionRunWorkerTests : IntegrationTestBase
     }
 
     [Fact]
-    public async Task HeartbeatRenewalPreventsReclaimDuringALongLlmCall()
+    public async Task DigestAndAnalyzeHeartbeatRenewalPreventsReclaimDuringALongLlmCall()
     {
         await using MarketplaceDbContext dbA = CreateDatabase();
         WorkerSeapApiClient api = new(Notice("SCN510002", 900_502));
@@ -265,7 +268,7 @@ public sealed class SeapIngestionRunWorkerTests : IntegrationTestBase
             RunHeartbeatIntervalSeconds = 0,
             MaxRunsPerTick = 5
         });
-        await workerA.ResolveNoticeByNumberAsync("SCN510002", CancellationToken.None);
+        await SeedDigestRunAsync(dbA, api.Notice!, "SCN510002");
 
         Task taskA = workerA.ProcessPendingIngestionRunsAsync("worker-a", 5, CancellationToken.None);
         await WaitUntilAsync(async () =>
@@ -306,15 +309,15 @@ public sealed class SeapIngestionRunWorkerTests : IntegrationTestBase
 
 
     [Fact]
-    public async Task RetryableAnalysisFailuresStayActiveThenBecomeFailedAfterMaxAttempts()
+    public async Task DigestAndAnalyzeRetryableAnalysisFailuresStayActiveThenBecomeFailedAfterMaxAttempts()
     {
         await using MarketplaceDbContext db = CreateDatabase();
         WorkerSeapApiClient api = new(Notice("SCN510003", 900_503));
         SeapOptions options = new() { MaxRunsPerTick = 5, MaxIngestionAttempts = 2 };
         ScriptedSummaryGenerator failing = new((_, _, _) => Task.FromResult<SeapAiExtraction?>(null));
         SeapIngestionService service = CreateService(db, api, failing, new WorkerTextReader("text"), options);
-        SeapResolveResult? resolved = await service.ResolveNoticeByNumberAsync("SCN510003", CancellationToken.None);
-        Guid tenderId = resolved!.TenderId;
+        SeapResolveResult resolved = await SeedDigestRunAsync(db, api.Notice!, "SCN510003");
+        Guid tenderId = resolved.TenderId;
 
         // First attempt: transient LLM failure → the run stays ACTIVE (Analyzing), never terminal Partial.
         Assert.Equal(1, await service.ProcessPendingIngestionRunsAsync("worker-a", 5, CancellationToken.None));
@@ -371,7 +374,7 @@ public sealed class SeapIngestionRunWorkerTests : IntegrationTestBase
     }
 
     [Fact]
-    public async Task CancellationTokenShutdownDoesNotMarkTheRunAsPermanentlyFailed()
+    public async Task DigestAndAnalyzeCancellationTokenShutdownDoesNotMarkTheRunAsPermanentlyFailed()
     {
         await using MarketplaceDbContext db = CreateDatabase();
         WorkerSeapApiClient api = new(Notice("SCN510006", 900_506));
@@ -386,8 +389,8 @@ public sealed class SeapIngestionRunWorkerTests : IntegrationTestBase
             RunLeaseSeconds = 30,
             MaxRunsPerTick = 5
         });
-        SeapResolveResult? resolved = await service.ResolveNoticeByNumberAsync("SCN510006", CancellationToken.None);
-        Guid tenderId = resolved!.TenderId;
+        SeapResolveResult resolved = await SeedDigestRunAsync(db, api.Notice!, "SCN510006");
+        Guid tenderId = resolved.TenderId;
 
         Task processing = service.ProcessPendingIngestionRunsAsync("worker-a", 5, shutdown.Token);
         await WaitUntilAsync(async () =>
@@ -411,7 +414,7 @@ public sealed class SeapIngestionRunWorkerTests : IntegrationTestBase
         [SeapIngestionStatus.Pending, SeapIngestionStatus.FetchingDocuments, SeapIngestionStatus.Analyzing];
 
     [Fact]
-    public async Task SameUrlAndFileNameWithDifferentContentProduceDifferentHashesAndInvalidateTheAnalysis()
+    public async Task DigestAndAnalyzeSameUrlAndFileNameWithDifferentContentProduceDifferentHashesAndInvalidateTheAnalysis()
     {
         // Same upstream document id, same URL and same file name — only the published bytes differ.
         WorkerSeapApiClient apiA = new(Notice("SCN520001", 900_501), _ =>
@@ -422,13 +425,13 @@ public sealed class SeapIngestionRunWorkerTests : IntegrationTestBase
         await using MarketplaceDbContext dbA = CreateDatabase();
         SeapIngestionService serviceA = CreateService(dbA, apiA, new WorkerSummaryGenerator(),
             new WorkerTextReader("FISA DE DATE — versiunea 1", "content-digest-v1"), new SeapOptions { MaxRunsPerTick = 5 });
-        await serviceA.ResolveNoticeByNumberAsync("SCN520001", CancellationToken.None);
+        await SeedDigestRunAsync(dbA, apiA.Notice!, "SCN520001");
         await serviceA.ProcessPendingIngestionRunsAsync("worker-a", 5, CancellationToken.None);
 
         await using MarketplaceDbContext dbB = CreateDatabase();
         SeapIngestionService serviceB = CreateService(dbB, apiB, new WorkerSummaryGenerator(),
             new WorkerTextReader("FISA DE DATE — versiunea 2", "content-digest-v2"), new SeapOptions { MaxRunsPerTick = 5 });
-        await serviceB.ResolveNoticeByNumberAsync("SCN520002", CancellationToken.None);
+        await SeedDigestRunAsync(dbB, apiB.Notice!, "SCN520002");
         await serviceB.ProcessPendingIngestionRunsAsync("worker-b", 5, CancellationToken.None);
 
         SeapTender tenderA = await dbA.SeapTenders.AsNoTracking().Include(tender => tender.Attachments).SingleAsync(tender => tender.NormalizedExternalId == "SCN520001");
@@ -451,7 +454,7 @@ public sealed class SeapIngestionRunWorkerTests : IntegrationTestBase
     }
 
     [Fact]
-    public async Task AbandonedProcessingIsNotKeptAliveByTheHeartbeatAndIsReclaimableAfterTheLeaseExpires()
+    public async Task DigestAndAnalyzeAbandonedProcessingIsNotKeptAliveByTheHeartbeatAndIsReclaimableAfterTheLeaseExpires()
     {
         await using MarketplaceDbContext db = CreateDatabase();
         WorkerSeapApiClient api = new(Notice("SCN520003", 900_503));
@@ -466,8 +469,8 @@ public sealed class SeapIngestionRunWorkerTests : IntegrationTestBase
             RunLeaseSeconds = 2,
             MaxRunsPerTick = 5
         });
-        SeapResolveResult? resolved = await workerA.ResolveNoticeByNumberAsync("SCN520003", CancellationToken.None);
-        Guid tenderId = resolved!.TenderId;
+        SeapResolveResult resolved = await SeedDigestRunAsync(db, api.Notice!, "SCN520003");
+        Guid tenderId = resolved.TenderId;
 
         Task taskA = workerA.ProcessPendingIngestionRunsAsync("worker-a", 5, stopProcessing.Token);
         await WaitUntilAsync(async () =>
@@ -528,7 +531,7 @@ public sealed class SeapIngestionRunWorkerTests : IntegrationTestBase
     }
 
     [Fact]
-    public async Task LlmTimeoutIsBoundedAndRoutesToTheNormalRetryPath()
+    public async Task DigestAndAnalyzeLlmTimeoutIsBoundedAndRoutesToTheNormalRetryPath()
     {
         await using MarketplaceDbContext db = CreateDatabase();
         WorkerSeapApiClient api = new(Notice("SCN520004", 900_504));
@@ -542,8 +545,8 @@ public sealed class SeapIngestionRunWorkerTests : IntegrationTestBase
             LlmTimeoutSeconds = 1,
             MaxRunsPerTick = 5
         });
-        SeapResolveResult? resolved = await service.ResolveNoticeByNumberAsync("SCN520004", CancellationToken.None);
-        Guid tenderId = resolved!.TenderId;
+        SeapResolveResult resolved = await SeedDigestRunAsync(db, api.Notice!, "SCN520004");
+        Guid tenderId = resolved.TenderId;
 
         // The LLM call is cut at its own 1s timeout → the run stays active (retryable), never terminal.
         int processed = await service.ProcessPendingIngestionRunsAsync("worker-a", 5, CancellationToken.None);
@@ -556,7 +559,7 @@ public sealed class SeapIngestionRunWorkerTests : IntegrationTestBase
     }
 
     [Fact]
-    public async Task DocumentImportRunDownloadsAndDurablyStoresOriginals()
+    public async Task DirectHitResolveCreatesDocumentImportAndNeverInvokesDigestPipeline()
     {
         // Stage 1 (Direct Hit dossier): a resolve creates ONE DocumentImport run that durably stores the
         // original published documents (per-file Downloaded/Failed + functional group) and reports Ready —
@@ -917,6 +920,25 @@ public sealed class SeapIngestionRunWorkerTests : IntegrationTestBase
             new WorkerSummaryGenerator(), new WorkerTextReader("text"), Options.Create(options), new FakeClock(),
             NullLogger<SeapIngestionService>.Instance);
 
+    /// <summary>Seeds a tender + ONE explicit <see cref="SeapIngestionRunPurpose.DigestAndAnalyze"/> run,
+    /// mirroring the (separate, later-stage) analysis action. A Direct Hit resolve creates Stage 1
+    /// DocumentImport runs only (durable original-document download, no text/LLM), so the digest-pipeline
+    /// tests must never use resolve as their setup — the run purpose is created explicitly right here.</summary>
+    private static async Task<SeapResolveResult> SeedDigestRunAsync(
+        MarketplaceDbContext db, SeapTenderNoticeDto notice, string noticeNo)
+    {
+        DateTimeOffset now = DateTimeOffset.UtcNow;
+        SeapTender tender = SeapTenderMapper.MapNotice(notice, now);
+        SeapImportMode importMode = notice.Deadline < now ? SeapImportMode.DirectHistoricalLookup : SeapImportMode.OnDemand;
+        tender.RecordResolveAttempt(importMode, now);
+        SeapIngestionRun run = SeapIngestionRun.Start(tender.Id, noticeNo, now, SeapIngestionRunPurpose.DigestAndAnalyze);
+        db.SeapTenders.Add(tender);
+        db.SeapIngestionRuns.Add(run);
+        await db.SaveChangesAsync();
+        return new(tender.Id, tender.NormalizedExternalId, run.Status.ToString(), run.Id, null,
+            SeapIngestionRunPurpose.DigestAndAnalyze.ToString());
+    }
+
     private static async Task WaitUntilAsync(Func<Task<bool>> condition, TimeSpan timeout)
     {
         DateTimeOffset deadline = DateTimeOffset.UtcNow.Add(timeout);
@@ -1009,10 +1031,20 @@ public sealed class SeapIngestionRunWorkerTests : IntegrationTestBase
         }
     }
 
-    private sealed class WorkerSeapApiClient(
-        SeapTenderNoticeDto? notice,
-        Func<int, IReadOnlyCollection<SeapNoticeDocumentDto>>? documentsFor = null) : ISeapApiClient
+    private sealed class WorkerSeapApiClient : ISeapApiClient
     {
+        private readonly SeapTenderNoticeDto? _notice;
+        private readonly Func<int, IReadOnlyCollection<SeapNoticeDocumentDto>>? _documentsFor;
+
+        public WorkerSeapApiClient(
+            SeapTenderNoticeDto? notice,
+            Func<int, IReadOnlyCollection<SeapNoticeDocumentDto>>? documentsFor = null)
+        {
+            _notice = notice;
+            _documentsFor = documentsFor;
+        }
+
+        public SeapTenderNoticeDto? Notice => _notice;
         public Task<IReadOnlyCollection<SeapTenderNoticeDto>> FetchRecentNoticesAsync(CancellationToken cancellationToken) =>
             Task.FromResult<IReadOnlyCollection<SeapTenderNoticeDto>>([]);
 
@@ -1022,17 +1054,17 @@ public sealed class SeapIngestionRunWorkerTests : IntegrationTestBase
             Task.FromResult<IReadOnlyCollection<SeapTenderNoticeDto>>([]);
 
         public Task<SeapTenderNoticeDto?> FetchNoticeByNumberAsync(string noticeNo, CancellationToken cancellationToken) =>
-            Task.FromResult(notice);
+            Task.FromResult(_notice);
 
         public Task<Stream> DownloadAttachmentAsync(string downloadUrl, CancellationToken cancellationToken) =>
             Task.FromResult<Stream>(new MemoryStream("FISA DE DATE — lucrări de reparații"u8.ToArray()));
 
         public Task<IReadOnlyCollection<SeapNoticeDocumentDto>> FetchNoticeDocumentsAsync(
             int noticeId, int sysNoticeTypeId, CancellationToken cancellationToken) =>
-            Task.FromResult(documentsFor is null
+            Task.FromResult(_documentsFor is null
                 ? (IReadOnlyCollection<SeapNoticeDocumentDto>)[
                     new SeapNoticeDocumentDto("CN-W/1", "FisaDate.txt", "https://e-licitatie.ro/api-pub/files/fisa-date.txt")]
-                : documentsFor(noticeId));
+                : _documentsFor(noticeId));
     }
 
     /// <summary>Dossier-store decorator that delays the durable store call once, so a worker can lose its lease

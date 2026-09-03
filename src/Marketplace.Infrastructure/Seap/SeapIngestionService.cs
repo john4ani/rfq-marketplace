@@ -503,16 +503,18 @@ public sealed partial class SeapIngestionService(
 
         SeapImportMode importMode = tender.Deadline < now ? SeapImportMode.DirectHistoricalLookup : SeapImportMode.OnDemand;
         tender.RecordResolveAttempt(importMode, now);
-        SeapIngestionRun run = await EnsureActiveRunAsync(tender.Id, normalized, now, cancellationToken);
+        SeapIngestionRun run = await EnsureActiveRunAsync(tender.Id, normalized, SeapIngestionRunPurpose.DocumentImport, now, cancellationToken);
         await dbContext.SaveChangesAsync(cancellationToken);
         return new(tender.Id, normalized, run.Status.ToString(), run.Id, null, run.Purpose.ToString());
     }
 
-    /// <summary>Returns the single active run for a tender (or creates one). The partial unique index on the
-    /// running statuses makes the create idempotent under concurrency: a lost race reloads and returns the
-    /// run the other request created.</summary>
+    /// <summary>Returns the single active run for a tender (or creates one). The purpose is an explicit
+    /// caller decision — a Direct Hit resolve creates a Stage 1 <see cref="SeapIngestionRunPurpose.DocumentImport"/>
+    /// run, while the (separate) analysis action must pass <see cref="SeapIngestionRunPurpose.DigestAndAnalyze"/> —
+    /// a generic helper must never hardcode the purpose. The partial unique index on the running statuses makes
+    /// the create idempotent under concurrency: a lost race reloads and returns the run the other request created.</summary>
     private async Task<SeapIngestionRun> EnsureActiveRunAsync(
-        Guid tenderId, string normalized, DateTimeOffset now, CancellationToken cancellationToken)
+        Guid tenderId, string normalized, SeapIngestionRunPurpose purpose, DateTimeOffset now, CancellationToken cancellationToken)
     {
         SeapIngestionRun? active = await dbContext.SeapIngestionRuns
             .FirstOrDefaultAsync(run => run.TenderId == tenderId && ActiveIngestionStatuses.Contains(run.Status), cancellationToken);
@@ -530,7 +532,7 @@ public sealed partial class SeapIngestionService(
 
         // Direct Hit resolves run the Stage 1 DocumentImport pipeline (durable original download; no AI in this
         // stage), not the historical digest+analysis pipeline.
-        SeapIngestionRun run = SeapIngestionRun.Start(tenderId, normalized, now, SeapIngestionRunPurpose.DocumentImport);
+        SeapIngestionRun run = SeapIngestionRun.Start(tenderId, normalized, now, purpose);
         dbContext.SeapIngestionRuns.Add(run);
         try
         {
