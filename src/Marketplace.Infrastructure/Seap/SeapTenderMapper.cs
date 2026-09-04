@@ -28,5 +28,6 @@ public static class SeapTenderMapper
             now,
             // Persist the numeric notice id/type so the published document list can be resolved on demand.
             notice.NoticeId,
-            notice.SysNoticeTypeId);
+            notice.SysNoticeTypeId,
+            notice.ProcedureStateText);
 }

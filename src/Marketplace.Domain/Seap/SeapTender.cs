@@ -42,6 +42,11 @@ public sealed class SeapTender
     /// <summary>Notice type in SEAP (2 = CN, 17 = SCN); required alongside <see cref="NoticeId"/> to resolve
     /// the published documents.</summary>
     public int? SysNoticeTypeId { get; private set; }
+    /// <summary>Raw procedure-state text reported by SEAP at import/lookup (e.g. „Anulata", „Atribuita",
+    /// „In derulare"). Null when the payload carried none. The tender detail uses it to show the real state
+    /// (an annulled procedure must never be presented as „În desfășurare" just because the deadline is
+    /// still in the future), falling back to the deadline only when SEAP gave no state.</summary>
+    public string? ProcedureStateText { get; private set; }
     public string Title { get; private set; } = string.Empty;
     public string? Description { get; private set; }
     public IReadOnlyCollection<string> CpvCodes { get; private set; } = [];
@@ -125,13 +130,15 @@ public sealed class SeapTender
         DateTimeOffset deadline,
         DateTimeOffset now,
         int? noticeId = null,
-        int? sysNoticeTypeId = null) => new()
+        int? sysNoticeTypeId = null,
+        string? procedureStateText = null) => new()
         {
             Id = Guid.NewGuid(),
             SeapExternalId = Required(seapExternalId, "Identificatorul SEAP este obligatoriu."),
             NormalizedExternalId = NormalizeNoticeNumber(seapExternalId),
             NoticeId = noticeId,
             SysNoticeTypeId = sysNoticeTypeId,
+            ProcedureStateText = NullIfBlank(procedureStateText),
             Title = Required(title, "Titlul anunțului este obligatoriu."),
             Description = NullIfBlank(description),
             CpvCodes = (cpvCodes ?? []).Distinct(StringComparer.OrdinalIgnoreCase).Order().ToArray(),

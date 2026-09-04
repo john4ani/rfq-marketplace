@@ -1408,6 +1408,9 @@ namespace Marketplace.Infrastructure.Persistence.Migrations
                     b.Property<string>("ParticipationGuarantee")
                         .HasColumnType("text");
 
+                    b.Property<string>("ProcedureStateText")
+                        .HasColumnType("text");
+
                     b.Property<string>("ProposalTitle")
                         .HasColumnType("text");
 

@@ -301,6 +301,53 @@ public sealed class SeapGoldenPayloadTests
         Assert.Contains("sysNoticeTypeId=2", handler.LastRequest.RequestUri.AbsoluteUri);
     }
 
+    [Fact]
+    public void ParsedNoticeCarriesTheSeapProcedureState()
+    {
+        // The real SEAP payload marks this notice's procedure as „Anulata" (sysProcedureState id 3); the
+        // parser must preserve it so the detail page never shows a deadline-derived „În desfășurare".
+        SeapTenderNoticeDto notice = Assert.Single(SeapNoticeParser.ParseNotices(Fixture("seap-notices-null-collections.json")));
+        Assert.Equal("Anulata", notice.ProcedureStateText);
+
+        SeapTender tender = SeapTenderMapper.MapNotice(notice, DateTimeOffset.UtcNow);
+        Assert.Equal("Anulata", tender.ProcedureStateText);
+    }
+
+    [Fact]
+    public void DetailProjectionPrefersTheStoredSeapProcedureStateOverTheDeadline()
+    {
+        DateTimeOffset now = DateTimeOffset.UtcNow;
+        DateTimeOffset futureDeadline = now.AddDays(30);
+
+        // An annulled procedure whose deadline is still in the future must read „Anulată", never „În desfășurare".
+        SeapTender annulled = SeapTender.Import(
+            "CN1094806", "Achiziție anulată", null, [], [], 1000m, "RON", "Autoritate", null,
+            now.AddDays(-2), futureDeadline, now, noticeId: 1, sysNoticeTypeId: 2, procedureStateText: "Anulata");
+        Assert.Equal("Anulată", SeapTenderDetailsDto.From(annulled, now).ProcedureState);
+
+        // An awarded procedure is terminal too.
+        SeapTender awarded = SeapTender.Import(
+            "CN1094807", "Achiziție atribuită", null, [], [], 1000m, "RON", "Autoritate", null,
+            now.AddDays(-2), futureDeadline, now, noticeId: 2, sysNoticeTypeId: 2, procedureStateText: "Atribuita");
+        Assert.Equal("Atribuită", SeapTenderDetailsDto.From(awarded, now).ProcedureState);
+
+        // A running procedure reported by SEAP stays „În desfășurare".
+        SeapTender running = SeapTender.Import(
+            "CN1094808", "Achiziție în derulare", null, [], [], 1000m, "RON", "Autoritate", null,
+            now.AddDays(-2), futureDeadline, now, noticeId: 3, sysNoticeTypeId: 2, procedureStateText: "In derulare");
+        Assert.Equal("În desfășurare", SeapTenderDetailsDto.From(running, now).ProcedureState);
+
+        // Without a SEAP state the deadline heuristic is unchanged.
+        SeapTender noState = SeapTender.Import(
+            "CN1094809", "Achiziție", null, [], [], 1000m, "RON", "Autoritate", null,
+            now.AddDays(-2), futureDeadline, now, noticeId: 4, sysNoticeTypeId: 2);
+        Assert.Equal("În desfășurare", SeapTenderDetailsDto.From(noState, now).ProcedureState);
+        SeapTender expiredNoState = SeapTender.Import(
+            "CN1094810", "Achiziție", null, [], [], 1000m, "RON", "Autoritate", null,
+            now.AddDays(-40), now.AddDays(-10), now, noticeId: 5, sysNoticeTypeId: 2);
+        Assert.Equal("Încheiată", SeapTenderDetailsDto.From(expiredNoState, now).ProcedureState);
+    }
+
     private static string Fixture(string fileName) =>
         File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "Fixtures", fileName));
 

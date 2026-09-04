@@ -46,7 +46,8 @@ public static class SeapNoticeParser
         CpvNames: ParseCpvNames(item.CpvCodeAndName),
         County: ParseCounty(item.ContractingAuthorityNameAndFN, item.ContractTitle),
         NoticeId: item.NoticeId,
-        SysNoticeTypeId: item.SysNoticeTypeId);
+        SysNoticeTypeId: item.SysNoticeTypeId,
+        ProcedureStateText: item.SysProcedureState?.Text);
 
     /// <summary>
     /// Parses the public notice-detail API response (<c>GetDfNoticeSectionFiles</c>): the envelope

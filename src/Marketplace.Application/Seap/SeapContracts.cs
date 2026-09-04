@@ -21,7 +21,11 @@ public sealed record SeapTenderNoticeDto(
     /// <summary>Numeric id of the notice in SEAP; used to fetch the published document list.</summary>
     int? NoticeId = null,
     /// <summary>Notice type (2 = CN, 17 = SCN); required alongside <see cref="NoticeId"/> for the documents.</summary>
-    int? SysNoticeTypeId = null);
+    int? SysNoticeTypeId = null,
+    /// <summary>Raw procedure-state text reported by SEAP for this notice (e.g. „Anulata", „Atribuita",
+    /// „In derulare"). Null when the search payload carried no state. Displayed/derived on the tender detail
+    /// instead of guessing from the deadline alone (an annulled procedure must never look „În desfășurare").</summary>
+    string? ProcedureStateText = null);
 
 /// <summary>One document published by the contracting authority for a notice (Fișa de date, Caiet de
 /// sarcini, formulare, model contract). Resolved via the public notice-detail API
@@ -38,6 +42,10 @@ public sealed record SeapNoticeDocumentDto(
     string? Section = null);
 
 public sealed record SeapAttachmentDto(string FileName, string DownloadUrl);
+
+/// <summary>State reference carried by the SEAP search payload for a notice/its procedure
+/// (e.g. <c>{ id: 3, text: "Anulata" }</c>). Kept as an id+text pair so the original value is preserved.</summary>
+public sealed record SeapStateRef(int? Id, string? Text);
 
 /// <summary>
 /// Thrown when the live e-licitatie.ro platform cannot answer a direct notice-number lookup at all —
@@ -113,7 +121,10 @@ public sealed record SeapNoticeSearchItem(
     int? NoticeId = null,
     /// <summary>Notice type (2 = contract notice CN, 17 = simplified procedure SCN); required alongside
     /// <see cref="NoticeId"/> to resolve the published documents.</summary>
-    int? SysNoticeTypeId = null);
+    int? SysNoticeTypeId = null,
+    /// <summary>Procedure lifecycle state reported by SEAP (e.g. „Anulata", „Atribuita", „In derulare").
+    /// The deadline alone cannot distinguish an annulled/awarded procedure from one still accepting offers.</summary>
+    SeapStateRef? SysProcedureState = null);
 
 public interface ISeapApiClient
 {
@@ -410,7 +421,7 @@ public sealed record SeapTenderDetailsDto(
         ProcedureType: tender.SeapExternalId.StartsWith("SCN", StringComparison.OrdinalIgnoreCase)
             ? "Procedură simplificată"
             : "Licitare deschisă",
-        ProcedureState: tender.Deadline >= now ? "În desfășurare" : "Încheiată",
+        ProcedureState: ProcedureStateLabel(tender, now),
         AwardCriterion: tender.AwardCriterion,
         FundingSource: tender.FundingSource,
         ContractDuration: tender.ContractDuration,
@@ -421,4 +432,36 @@ public sealed record SeapTenderDetailsDto(
         SummaryPoints: tender.SummaryPoints.Count > 0 ? tender.SummaryPoints : null,
         NoticeId: tender.NoticeId,
         SummaryGroundedInDocuments: tender.SummaryGroundedInDocuments);
+
+    /// <summary>Maps the stored SEAP procedure-state text to the UI label. SEAP writes Romanian without
+    /// diacritics („Anulata", „Atribuita", „In derulare"); a known state always wins over the deadline
+    /// heuristic — an annulled/awarded procedure must never look „În desfășurare" merely because its
+    /// deadline is still in the future. Unknown/absent states fall back to the deadline rule.</summary>
+    private static string ProcedureStateLabel(SeapTender tender, DateTimeOffset now)
+    {
+        string? raw = tender.ProcedureStateText;
+        if (!string.IsNullOrWhiteSpace(raw))
+        {
+            string folded = FoldDiacritics(raw).ToLowerInvariant();
+            if (folded.Contains("anulat", StringComparison.Ordinal)) return "Anulată";
+            if (folded.Contains("atribuit", StringComparison.Ordinal)) return "Atribuită";
+            if (folded.Contains("incheiat", StringComparison.Ordinal)
+                || folded.Contains("finalizat", StringComparison.Ordinal)) return "Încheiată";
+            if (folded.Contains("derulare", StringComparison.Ordinal)
+                || folded.Contains("desfasurare", StringComparison.Ordinal)
+                || folded.Contains("deschis", StringComparison.Ordinal)
+                || folded.Contains("publicat", StringComparison.Ordinal)
+                || folded.Contains("in curs", StringComparison.Ordinal)) return "În desfășurare";
+        }
+        return tender.Deadline >= now ? "În desfășurare" : "Încheiată";
+    }
+
+    private static string FoldDiacritics(string value) =>
+        value.Replace("ă", "a", StringComparison.Ordinal)
+            .Replace("â", "a", StringComparison.Ordinal)
+            .Replace("î", "i", StringComparison.Ordinal)
+            .Replace("ș", "s", StringComparison.Ordinal)
+            .Replace("ş", "s", StringComparison.Ordinal)
+            .Replace("ț", "t", StringComparison.Ordinal)
+            .Replace("ţ", "t", StringComparison.Ordinal);
 }

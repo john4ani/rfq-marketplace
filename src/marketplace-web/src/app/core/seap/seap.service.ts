@@ -46,9 +46,12 @@ export interface SeapTender {
   technicalProposalUrl: string | null;
   billOfQuantitiesUrl: string | null;
   attachments: SeapTenderAttachment[];
-  /** Derived by the detail endpoint: „Procedură simplificată" for SCN notices, „Licitare deschisă" otherwise. */
+  /** Procedure type: „Procedură simplificată" for SCN notices, „Licitare deschisă" otherwise. */
   procedureType?: string;
-  /** Derived by the detail endpoint from the deadline: „În desfășurare" / „Încheiată". */
+  /**
+   * Procedure state, authoritative from the SEAP payload when available (e.g. „Anulată", „Atribuită",
+   * „În desfășurare") — the detail endpoint falls back to the deadline only when SEAP reported no state.
+   */
   procedureState?: string;
   /** Detail fields exposed by the detail endpoint; null until the notice-detail parser extracts them. */
   awardCriterion?: string | null;
