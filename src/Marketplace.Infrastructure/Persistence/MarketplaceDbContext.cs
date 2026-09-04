@@ -68,9 +68,6 @@ public sealed class MarketplaceDbContext(DbContextOptions<MarketplaceDbContext> 
     public DbSet<SeapTenderAttachment> SeapTenderAttachments => Set<SeapTenderAttachment>();
     public DbSet<SeapRawIngestion> SeapRawIngestions => Set<SeapRawIngestion>();
     public DbSet<SeapIngestionRun> SeapIngestionRuns => Set<SeapIngestionRun>();
-    public DbSet<SeapDocumentPreparation> SeapDocumentPreparations => Set<SeapDocumentPreparation>();
-    public DbSet<SeapPreparedDocumentPage> SeapPreparedDocumentPages => Set<SeapPreparedDocumentPage>();
-    public DbSet<SeapPreparedDocumentSection> SeapPreparedDocumentSections => Set<SeapPreparedDocumentSection>();
     public DbSet<CpvCategoryMapping> CpvCategoryMappings => Set<CpvCategoryMapping>();
 
     protected override void OnModelCreating(ModelBuilder builder)

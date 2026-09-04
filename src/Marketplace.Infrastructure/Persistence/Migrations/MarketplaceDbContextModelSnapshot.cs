@@ -1169,85 +1169,6 @@ namespace Marketplace.Infrastructure.Persistence.Migrations
                     b.ToTable("CpvCategoryMappings", (string)null);
                 });
 
-            modelBuilder.Entity("Marketplace.Domain.Seap.SeapDocumentPreparation", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<Guid>("AttachmentId")
-                        .HasColumnType("uuid");
-
-                    b.Property<int>("AttemptCount")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer")
-                        .HasDefaultValue(0);
-
-                    b.Property<DateTimeOffset?>("CompletedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<int?>("CoveragePercent")
-                        .HasColumnType("integer");
-
-                    b.Property<DateTimeOffset>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("ExtractionVersion")
-                        .IsRequired()
-                        .HasMaxLength(64)
-                        .HasColumnType("character varying(64)");
-
-                    b.Property<bool>("HasTextLayer")
-                        .HasColumnType("boolean");
-
-                    b.Property<string>("LastErrorCode")
-                        .HasMaxLength(64)
-                        .HasColumnType("character varying(64)");
-
-                    b.Property<string>("LastErrorMessage")
-                        .HasColumnType("text");
-
-                    b.Property<bool>("NeedsOcr")
-                        .HasColumnType("boolean");
-
-                    b.Property<int>("PageCount")
-                        .HasColumnType("integer");
-
-                    b.Property<string>("SourceContentSha256")
-                        .IsRequired()
-                        .HasMaxLength(64)
-                        .HasColumnType("character varying(64)");
-
-                    b.Property<DateTimeOffset?>("StartedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("Status")
-                        .IsRequired()
-                        .ValueGeneratedOnAdd()
-                        .HasMaxLength(24)
-                        .HasColumnType("character varying(24)")
-                        .HasDefaultValue("Pending");
-
-                    b.Property<Guid>("TenderId")
-                        .HasColumnType("uuid");
-
-                    b.Property<int>("WarningCount")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer")
-                        .HasDefaultValue(0);
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("AttachmentId");
-
-                    b.HasIndex("TenderId");
-
-                    b.HasIndex("AttachmentId", "SourceContentSha256", "ExtractionVersion")
-                        .IsUnique();
-
-                    b.ToTable("SeapDocumentPreparations", (string)null);
-                });
-
             modelBuilder.Entity("Marketplace.Domain.Seap.SeapIngestionRun", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1341,87 +1262,6 @@ namespace Marketplace.Infrastructure.Persistence.Migrations
                         .HasFilter("\"Status\" IN ('Pending', 'FetchingDocuments', 'Analyzing')");
 
                     b.ToTable("SeapIngestionRuns", (string)null);
-                });
-
-            modelBuilder.Entity("Marketplace.Domain.Seap.SeapPreparedDocumentPage", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<int>("LetterCount")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer")
-                        .HasDefaultValue(0);
-
-                    b.Property<int>("PageNumber")
-                        .HasColumnType("integer");
-
-                    b.Property<Guid>("PreparationId")
-                        .HasColumnType("uuid");
-
-                    b.Property<string>("Text")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<string>("Warning")
-                        .HasMaxLength(255)
-                        .HasColumnType("character varying(255)");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("PreparationId", "PageNumber")
-                        .IsUnique();
-
-                    b.ToTable("SeapPreparedDocumentPages", (string)null);
-                });
-
-            modelBuilder.Entity("Marketplace.Domain.Seap.SeapPreparedDocumentSection", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<int>("EndPage")
-                        .HasColumnType("integer");
-
-                    b.Property<int?>("LotIndex")
-                        .HasColumnType("integer");
-
-                    b.Property<string>("NormalizedRole")
-                        .IsRequired()
-                        .HasMaxLength(96)
-                        .HasColumnType("character varying(96)");
-
-                    b.Property<int>("Ordinal")
-                        .HasColumnType("integer");
-
-                    b.Property<Guid>("PreparationId")
-                        .HasColumnType("uuid");
-
-                    b.Property<string>("RawCode")
-                        .IsRequired()
-                        .HasMaxLength(24)
-                        .HasColumnType("character varying(24)");
-
-                    b.Property<int>("StartPage")
-                        .HasColumnType("integer");
-
-                    b.Property<string>("Text")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<string>("Title")
-                        .IsRequired()
-                        .HasMaxLength(255)
-                        .HasColumnType("character varying(255)");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("PreparationId", "Ordinal")
-                        .IsUnique();
-
-                    b.ToTable("SeapPreparedDocumentSections", (string)null);
                 });
 
             modelBuilder.Entity("Marketplace.Domain.Seap.SeapRawIngestion", b =>
@@ -1655,13 +1495,6 @@ namespace Marketplace.Infrastructure.Persistence.Migrations
                         .HasMaxLength(24)
                         .HasColumnType("character varying(24)")
                         .HasDefaultValue("None");
-
-                    b.Property<string>("DocumentRole")
-                        .IsRequired()
-                        .ValueGeneratedOnAdd()
-                        .HasMaxLength(24)
-                        .HasColumnType("character varying(24)")
-                        .HasDefaultValue("Unknown");
 
                     b.Property<string>("DownloadErrorCode")
                         .HasMaxLength(64)
@@ -3237,44 +3070,11 @@ namespace Marketplace.Infrastructure.Persistence.Migrations
                     b.Navigation("Category");
                 });
 
-            modelBuilder.Entity("Marketplace.Domain.Seap.SeapDocumentPreparation", b =>
-                {
-                    b.HasOne("Marketplace.Domain.Seap.SeapTenderAttachment", null)
-                        .WithMany()
-                        .HasForeignKey("AttachmentId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.HasOne("Marketplace.Domain.Seap.SeapTender", null)
-                        .WithMany()
-                        .HasForeignKey("TenderId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-                });
-
             modelBuilder.Entity("Marketplace.Domain.Seap.SeapIngestionRun", b =>
                 {
                     b.HasOne("Marketplace.Domain.Seap.SeapTender", null)
                         .WithMany()
                         .HasForeignKey("TenderId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-                });
-
-            modelBuilder.Entity("Marketplace.Domain.Seap.SeapPreparedDocumentPage", b =>
-                {
-                    b.HasOne("Marketplace.Domain.Seap.SeapDocumentPreparation", null)
-                        .WithMany()
-                        .HasForeignKey("PreparationId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-                });
-
-            modelBuilder.Entity("Marketplace.Domain.Seap.SeapPreparedDocumentSection", b =>
-                {
-                    b.HasOne("Marketplace.Domain.Seap.SeapDocumentPreparation", null)
-                        .WithMany()
-                        .HasForeignKey("PreparationId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
                 });
