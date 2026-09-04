@@ -1,0 +1,25 @@
+{
+  "isPubOrSu": true,
+  "dfNoticeDocs": [
+    {
+      "noticeDocumentUrl": "api-pub/files/noticedoc/anon-1",
+      "noticeDocumentName": "Caiet de sarcini.pdf.p7s",
+      "noticeDocumentCode": "DOC-SCN/0001"
+    },
+    {
+      "noticeDocumentUrl": "api-pub/files/noticedoc/anon-2",
+      "noticeDocumentName": "Proiect tehnic.rar.p7s",
+      "noticeDocumentCode": "DOC-SCN/0002"
+    },
+    {
+      "noticeDocumentUrl": "api-pub/files/noticedoc/anon-3",
+      "noticeDocumentName": "DUAE_CERERE_1.xml",
+      "noticeDocumentCode": "DOC-SCN/0003"
+    },
+    {
+      "noticeDocumentUrl": "api-pub/files/noticedoc/anon-4",
+      "noticeDocumentName": "Instructiuni_ofertanti_FisaDate_DF0001.pdf",
+      "noticeDocumentCode": "DOC-SCN/0004"
+    }
+  ]
+}

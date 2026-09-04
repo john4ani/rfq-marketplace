@@ -51,12 +51,22 @@ public sealed partial class SeapIngestionService
 
         if (tender.Attachments.Count == 0)
         {
-            // The notice published no documents OR the list could not be fetched right now — the two cannot be
-            // told apart (the client degrades a failed fetch to an empty list). Mark the run Partial with the
-            // same NoPublishedDocuments code the digest pipeline uses for this state, never a false Ready.
-            run.Complete(SeapIngestionStatus.Partial, now, ErrorNoPublishedDocuments,
-                "Anunțul nu publică documente de descărcat (sau lista nu a putut fi obținută); dosarul rămâne fără documente.");
-            LogSeapRunCompleted(logger, run.Id, SeapIngestionStatus.Partial);
+            if (run.DocumentsFetchedAt is null)
+            {
+                // The manifest was never fetched (no persisted notice/cNoticeId on a legacy row). The dossier
+                // cannot be claimed Ready on an unknown document set — fail explicitly instead.
+                run.Complete(SeapIngestionStatus.Failed, now, ErrorSeapDocumentManifestRejected,
+                    "Manifestul documentelor nu a putut fi obținut (niciun identificator SEAP disponibil).");
+                LogSeapRunCompleted(logger, run.Id, SeapIngestionStatus.Failed);
+            }
+            else
+            {
+                // The manifest was obtained and genuinely publishes ZERO documents: Ready with an empty
+                // dossier — the UI shows the empty state, never a false download failure. (A manifest that
+                // could not be obtained at all fails earlier in the run pipeline — never a misleading Partial.)
+                run.Complete(SeapIngestionStatus.Ready, now);
+                LogSeapRunCompleted(logger, run.Id, SeapIngestionStatus.Ready);
+            }
         }
         else if (failed == 0)
         {

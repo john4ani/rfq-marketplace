@@ -1328,6 +1328,9 @@ namespace Marketplace.Infrastructure.Persistence.Migrations
                         .HasMaxLength(300)
                         .HasColumnType("character varying(300)");
 
+                    b.Property<int?>("CNoticeId")
+                        .HasColumnType("integer");
+
                     b.Property<Guid?>("CategoryId")
                         .HasColumnType("uuid");
 

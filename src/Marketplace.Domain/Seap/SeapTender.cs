@@ -47,6 +47,10 @@ public sealed class SeapTender
     /// (an annulled procedure must never be presented as „În desfășurare" just because the deadline is
     /// still in the future), falling back to the deadline only when SEAP gave no state.</summary>
     public string? ProcedureStateText { get; private set; }
+    /// <summary>Numeric „cNoticeId" of the notice in SEAP, kept alongside <see cref="NoticeId"/> because the
+    /// published-document manifest endpoint resolves simplified procedures (SCN) by cNoticeId — using the
+    /// wrong identifier makes <c>GetDfNoticeSectionFiles</c> answer HTTP 400.</summary>
+    public int? CNoticeId { get; private set; }
     public string Title { get; private set; } = string.Empty;
     public string? Description { get; private set; }
     public IReadOnlyCollection<string> CpvCodes { get; private set; } = [];
@@ -131,7 +135,8 @@ public sealed class SeapTender
         DateTimeOffset now,
         int? noticeId = null,
         int? sysNoticeTypeId = null,
-        string? procedureStateText = null) => new()
+        string? procedureStateText = null,
+        int? cNoticeId = null) => new()
         {
             Id = Guid.NewGuid(),
             SeapExternalId = Required(seapExternalId, "Identificatorul SEAP este obligatoriu."),
@@ -139,6 +144,7 @@ public sealed class SeapTender
             NoticeId = noticeId,
             SysNoticeTypeId = sysNoticeTypeId,
             ProcedureStateText = NullIfBlank(procedureStateText),
+            CNoticeId = cNoticeId,
             Title = Required(title, "Titlul anunțului este obligatoriu."),
             Description = NullIfBlank(description),
             CpvCodes = (cpvCodes ?? []).Distinct(StringComparer.OrdinalIgnoreCase).Order().ToArray(),

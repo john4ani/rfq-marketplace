@@ -25,7 +25,12 @@ public sealed record SeapTenderNoticeDto(
     /// <summary>Raw procedure-state text reported by SEAP for this notice (e.g. „Anulata", „Atribuita",
     /// „In derulare"). Null when the search payload carried no state. Displayed/derived on the tender detail
     /// instead of guessing from the deadline alone (an annulled procedure must never look „În desfășurare").</summary>
-    string? ProcedureStateText = null);
+    string? ProcedureStateText = null,
+    /// <summary>Numeric „cNoticeId" of the notice in SEAP (the search payload carries BOTH cNoticeId and
+    /// noticeId). The published-document manifest endpoint (<c>GetDfNoticeSectionFiles</c>) resolves SCN
+    /// notices by cNoticeId — persisted separately from <see cref="NoticeId"/> so the manifest can always be
+    /// fetched for simplified procedures.</summary>
+    int? CNoticeId = null);
 
 /// <summary>One document published by the contracting authority for a notice (Fișa de date, Caiet de
 /// sarcini, formulare, model contract). Resolved via the public notice-detail API
@@ -54,6 +59,17 @@ public sealed record SeapStateRef(int? Id, string? Text);
 /// platform answered normally and simply does not know the number — that case is a plain null result.
 /// </summary>
 public sealed class SeapSourceUnavailableException(string message, Exception? innerException = null) : Exception(message, innerException);
+
+/// <summary>
+/// Thrown when the published-document manifest endpoint (<c>GetDfNoticeSectionFiles</c>) rejects the
+/// request itself (HTTP 400 — a contract/identifier problem, e.g. an SCN queried by its noticeId instead of
+/// its cNoticeId). A rejection is permanent for that request: the run must FAIL immediately with
+/// <c>SeapDocumentManifestRejected</c> — never Partial (an empty dossier cannot be told from „no documents"
+/// when the manifest itself was never obtained) and never an unbounded automatic retry. 403/429/5xx and
+/// transport errors keep using the normal transient-retry policy (<see cref="SeapSourceUnavailableException"/>).
+/// </summary>
+public sealed class SeapDocumentManifestRejectedException(string message, Exception? innerException = null)
+    : Exception(message, innerException);
 
 /// <summary>Thrown when the global cap of simultaneously active resolve runs is reached (cost guardrail).
 /// Mapped by the API to HTTP 429 so the client can retry later instead of queueing unbounded LLM work.</summary>
@@ -124,7 +140,12 @@ public sealed record SeapNoticeSearchItem(
     int? SysNoticeTypeId = null,
     /// <summary>Procedure lifecycle state reported by SEAP (e.g. „Anulata", „Atribuita", „In derulare").
     /// The deadline alone cannot distinguish an annulled/awarded procedure from one still accepting offers.</summary>
-    SeapStateRef? SysProcedureState = null);
+    SeapStateRef? SysProcedureState = null,
+    /// <summary>Numeric „cNoticeId" of the notice (the search payload carries BOTH cNoticeId and noticeId).
+    /// The published-document manifest endpoint resolves simplified procedures (SCN) by cNoticeId.</summary>
+    int? CNoticeId = null,
+    /// <summary>Numeric procedure id reported by SEAP; kept for diagnostics and future notice-detail calls.</summary>
+    int? ProcedureId = null);
 
 public interface ISeapApiClient
 {

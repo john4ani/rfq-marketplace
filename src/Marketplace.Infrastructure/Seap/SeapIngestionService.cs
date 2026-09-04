@@ -363,7 +363,7 @@ public sealed partial class SeapIngestionService(
     private async Task<int> FetchAndAttachDocumentsAsync(
         SeapTenderNoticeDto notice, SeapTender tender, DateTimeOffset now, CancellationToken cancellationToken)
     {
-        if (notice.NoticeId is not int noticeId) return 0;
+        if ((notice.CNoticeId ?? notice.NoticeId) is not int noticeId) return 0;
         try
         {
             IReadOnlyCollection<SeapNoticeDocumentDto> documents =

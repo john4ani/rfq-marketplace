@@ -25,6 +25,9 @@ public sealed partial class SeapIngestionService
     public const string ErrorNoReadableDocuments = "NoReadableDocuments";
     public const string ErrorAnalysisFailed = "AnalysisFailed";
     public const string ErrorMaxAttempts = "MaxAttemptsReached";
+    /// <summary>The published-document manifest request was rejected (HTTP 400 — e.g. an SCN queried by its
+    /// noticeId instead of its cNoticeId). Permanent: the run fails immediately, never a misleading Partial.</summary>
+    public const string ErrorSeapDocumentManifestRejected = "SeapDocumentManifestRejected";
 
     private sealed record RunClaim(string WorkerId, long ClaimVersion, int AttemptCount);
 
@@ -189,29 +192,44 @@ public sealed partial class SeapIngestionService
         // and DocumentsFetchedAt checkpoint commit together, so DocumentsFetchedAt != null always means the
         // attachment metadata + hash are durably persisted (a crash before the commit leaves a recoverable
         // state that resumes without duplicates — new attachments are deduplicated by file name).
-        if (run.DocumentsFetchedAt is null || tender.Attachments.Count == 0)
+        int? manifestNoticeId = tender.CNoticeId ?? tender.NoticeId;
+        if ((run.DocumentsFetchedAt is null || tender.Attachments.Count == 0) && manifestNoticeId is int manifestId)
         {
-            IReadOnlyCollection<SeapNoticeDocumentDto> documents = await RunWithSeapTimeoutAsync(
-                "DocumentDownloadTimeout", settings.DocumentDownloadTimeoutSeconds,
-                token => apiClient.FetchNoticeDocumentsAsync(tender.NoticeId!.Value, tender.SysNoticeTypeId ?? 2, token), cancellationToken);
-            foreach (SeapNoticeDocumentDto document in documents)
+            try
             {
-                // De-duplicate by the stable upstream code first (the DB unique index on
-                // (TenderId, SourceDocumentId) backs this up); file name is the legacy fallback for rows that
-                // were attached before codes existed.
-                bool known = tender.Attachments.Any(attachment =>
-                    (!string.IsNullOrWhiteSpace(document.Code)
-                        && string.Equals(attachment.SourceDocumentId, document.Code, StringComparison.Ordinal))
-                    || string.Equals(attachment.FileName, document.FileName, StringComparison.OrdinalIgnoreCase));
-                if (known)
-                    continue;
-                dbContext.Add(tender.AddAttachment(document.FileName, now,
-                    sourceUrl: document.DownloadUrl, sourceDocumentId: document.Code, sourceSection: document.Section));
+                IReadOnlyCollection<SeapNoticeDocumentDto> documents = await RunWithSeapTimeoutAsync(
+                    "DocumentDownloadTimeout", settings.DocumentDownloadTimeoutSeconds,
+                    token => apiClient.FetchNoticeDocumentsAsync(manifestId, tender.SysNoticeTypeId ?? 2, token), cancellationToken);
+                foreach (SeapNoticeDocumentDto document in documents)
+                {
+                    // De-duplicate by the stable upstream code first (the DB unique index on
+                    // (TenderId, SourceDocumentId) backs this up); file name is the legacy fallback for rows that
+                    // were attached before codes existed.
+                    bool known = tender.Attachments.Any(attachment =>
+                        (!string.IsNullOrWhiteSpace(document.Code)
+                            && string.Equals(attachment.SourceDocumentId, document.Code, StringComparison.Ordinal))
+                        || string.Equals(attachment.FileName, document.FileName, StringComparison.OrdinalIgnoreCase));
+                    if (known)
+                        continue;
+                    dbContext.Add(tender.AddAttachment(document.FileName, now,
+                        sourceUrl: document.DownloadUrl, sourceDocumentId: document.Code, sourceSection: document.Section));
+                }
+                tender.RecordDocumentSetHash(ComputeDocumentSetHash(tender.Attachments), now);
+                tender.RecordDocumentDigestStatus(ComputeDigestStatus(tender.Attachments), now);
+                run.RecordDocumentsFetched(now);
+                await FencedSaveAsync(run, claim, now, cancellationToken);
             }
-            tender.RecordDocumentSetHash(ComputeDocumentSetHash(tender.Attachments), now);
-            tender.RecordDocumentDigestStatus(ComputeDigestStatus(tender.Attachments), now);
-            run.RecordDocumentsFetched(now);
-            await FencedSaveAsync(run, claim, now, cancellationToken);
+            catch (SeapDocumentManifestRejectedException exception)
+            {
+                // The manifest request itself was rejected (HTTP 400 — e.g. an SCN queried by its noticeId
+                // instead of its cNoticeId). We cannot know which documents should exist, so the run FAILS with
+                // an explicit code — never Partial, never an endless automatic retry.
+                tender.RecordIngestionFailure(ErrorSeapDocumentManifestRejected, exception.Message, now);
+                run.Complete(SeapIngestionStatus.Failed, now, ErrorSeapDocumentManifestRejected, exception.Message);
+                LogSeapRunCompleted(logger, run.Id, SeapIngestionStatus.Failed);
+                await FencedSaveAsync(run, claim, now, cancellationToken);
+                return;
+            }
         }
 
         // Stage 2b — DocumentImport purpose (Stage 1, Direct Hit dossier): durably download and store the

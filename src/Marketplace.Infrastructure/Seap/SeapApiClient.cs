@@ -1,4 +1,5 @@
 ﻿using System.Globalization;
+using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
 using Marketplace.Application.Seap;
@@ -135,33 +136,59 @@ public sealed partial class SeapApiClient(
     public async Task<IReadOnlyCollection<SeapNoticeDocumentDto>> FetchNoticeDocumentsAsync(
         int noticeId, int sysNoticeTypeId, CancellationToken cancellationToken)
     {
+        HttpClient client = httpClientFactory.CreateClient("seap");
+        client.Timeout = TimeSpan.FromSeconds(Math.Clamp(settings.RequestTimeoutSeconds, 5, 300));
+        using HttpRequestMessage request = new(HttpMethod.Get,
+            new Uri(new Uri(settings.BaseUrl),
+                $"api-pub/NoticeCommon/GetDfNoticeSectionFiles/?initNoticeId={noticeId}&sysNoticeTypeId={sysNoticeTypeId}"));
+        request.Headers.Referrer = new Uri(settings.BaseUrl);
+        using HttpResponseMessage response = await client.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
+        string body = await response.Content.ReadAsStringAsync(cancellationToken);
+
+        // HTTP 400 = the endpoint rejected the request itself (wrong identifier for the notice type, e.g. an
+        // SCN queried by its noticeId instead of its cNoticeId). Permanent for that request — the caller marks
+        // the run Failed with SeapDocumentManifestRejected instead of a misleading empty/Partial dossier.
+        if (response.StatusCode == HttpStatusCode.BadRequest)
+            throw new SeapDocumentManifestRejectedException(
+                $"Platforma SEAP a respins cererea manifestului de documente (HTTP 400) pentru anunțul {noticeId}.");
+
+        // 403/429/5xx and transport errors stay transient — they follow the normal bounded-retry policy.
+        if (!response.IsSuccessStatusCode)
+            throw new SeapSourceUnavailableException(
+                $"Platforma SEAP a răspuns cu {(int)response.StatusCode} la cererea manifestului de documente.");
+        if (body.TrimStart().FirstOrDefault() is not ('{' or '['))
+            throw new SeapSourceUnavailableException("Platforma SEAP a răspuns cu un conținut neașteptat (non-JSON) la cererea manifestului de documente.");
+
+        // A well-formed answer is parsed leniently: `dfNoticeDocs: []` (no published documents) is a genuine
+        // empty manifest — the run may finish Ready with an empty dossier — while a malformed/error JSON body
+        // degrades to an unavailable manifest, never to a false empty list.
+        IReadOnlyCollection<SeapNoticeDocumentDto> documents = SeapNoticeParser.ParseNoticeDocuments(body);
+        if (documents.Count == 0 && !LooksLikeDocumentEnvelope(body))
+            throw new SeapSourceUnavailableException("Platforma SEAP a răspuns cu un manifest de documente gol sau neașteptat.");
+
+        var resolved = new List<SeapNoticeDocumentDto>(documents.Count);
+        foreach (SeapNoticeDocumentDto document in documents)
+        {
+            string url = Uri.TryCreate(document.DownloadUrl, UriKind.Absolute, out _)
+                ? document.DownloadUrl
+                : new Uri(new Uri(settings.BaseUrl), document.DownloadUrl).ToString();
+            resolved.Add(document with { DownloadUrl = url });
+        }
+        return resolved;
+    }
+
+    private static bool LooksLikeDocumentEnvelope(string body)
+    {
         try
         {
-            HttpClient client = httpClientFactory.CreateClient("seap");
-            client.Timeout = TimeSpan.FromSeconds(Math.Clamp(settings.RequestTimeoutSeconds, 5, 300));
-            using HttpRequestMessage request = new(HttpMethod.Get,
-                new Uri(new Uri(settings.BaseUrl),
-                    $"api-pub/NoticeCommon/GetDfNoticeSectionFiles/?initNoticeId={noticeId}&sysNoticeTypeId={sysNoticeTypeId}"));
-            request.Headers.Referrer = new Uri(settings.BaseUrl);
-            using HttpResponseMessage response = await client.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
-            string body = await response.Content.ReadAsStringAsync(cancellationToken);
-            response.EnsureSuccessStatusCode();
-
-            IReadOnlyCollection<SeapNoticeDocumentDto> documents = SeapNoticeParser.ParseNoticeDocuments(body);
-            var resolved = new List<SeapNoticeDocumentDto>(documents.Count);
-            foreach (SeapNoticeDocumentDto document in documents)
-            {
-                string url = Uri.TryCreate(document.DownloadUrl, UriKind.Absolute, out _)
-                    ? document.DownloadUrl
-                    : new Uri(new Uri(settings.BaseUrl), document.DownloadUrl).ToString();
-                resolved.Add(document with { DownloadUrl = url });
-            }
-            return resolved;
+            using JsonDocument document = JsonDocument.Parse(body);
+            return document.RootElement.ValueKind == JsonValueKind.Object
+                && document.RootElement.TryGetProperty("dfNoticeDocs", out JsonElement docs)
+                && docs.ValueKind == JsonValueKind.Array;
         }
-        catch (Exception exception)
+        catch (JsonException)
         {
-            LogSeapDocumentsFailed(logger, noticeId, exception);
-            return [];
+            return false;
         }
     }
 

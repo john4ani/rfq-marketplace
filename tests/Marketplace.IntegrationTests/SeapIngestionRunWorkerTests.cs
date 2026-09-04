@@ -31,7 +31,8 @@ public sealed class SeapIngestionRunWorkerTests : IntegrationTestBase
     [
         "SCN500001", "SCN500002", "SCN500003", "SCN500004", "SCN500005",
         "SCN510001", "SCN510002", "SCN510003", "SCN510004", "SCN510005", "SCN510006",
-        "SCN520001", "SCN520002", "SCN520003", "SCN520004", "SCN530001", "SCN530002", "SCN530003", "SCN530004", "SCN530005"
+        "SCN520001", "SCN520002", "SCN520003", "SCN520004", "SCN530001", "SCN530002", "SCN530003", "SCN530004", "SCN530005",
+        "SCN540001", "SCN540002"
     ];
 
     public SeapIngestionRunWorkerTests()
@@ -887,6 +888,75 @@ public sealed class SeapIngestionRunWorkerTests : IntegrationTestBase
     }
 
 
+    [Fact]
+    public async Task DocumentImportManifest400FailsTheRunWithSeapDocumentManifestRejected()
+    {
+        // A rejected manifest (HTTP 400 — e.g. an SCN queried by its noticeId instead of its cNoticeId) must
+        // FAIL the run with an explicit code: the empty dossier cannot be a misleading Partial, and a
+        // contract/request error is never retried endlessly. The run must also resolve the manifest by the
+        // cNoticeId it persisted, not by the plain noticeId.
+        await using MarketplaceDbContext db = CreateDatabase();
+        WorkerSeapApiClient api = new(
+            new SeapTenderNoticeDto(
+                "SCN540001", "Lucrări", null, ["45214100-1"], 1000m, "RON", "Autoritatea",
+                DateTimeOffset.UtcNow.AddDays(-1), DateTimeOffset.UtcNow.AddDays(20), [],
+                NoticeId: 540_001, SysNoticeTypeId: 17, CNoticeId: 5_400_001),
+            manifestRejected: true);
+        SeapIngestionService service = CreateService(db, api, new WorkerSummaryGenerator(), new WorkerTextReader("text"));
+
+        SeapResolveResult? resolved = await service.ResolveNoticeByNumberAsync("SCN540001", CancellationToken.None);
+        Assert.NotNull(resolved);
+        Guid tenderId = resolved!.TenderId;
+
+        Assert.Equal(1, await service.ProcessPendingIngestionRunsAsync("worker-1", 5, CancellationToken.None));
+
+        SeapIngestionRun run = await db.SeapIngestionRuns.AsNoTracking().SingleAsync(item => item.TenderId == tenderId);
+        Assert.Equal(SeapIngestionStatus.Failed, run.Status);
+        Assert.Equal(SeapIngestionService.ErrorSeapDocumentManifestRejected, run.LastErrorCode);
+        Assert.NotNull(run.CompletedAt);
+        Assert.Equal(1, run.AttemptCount); // rejected once — no endless retry
+        Assert.Null(run.ClaimedBy);
+
+        SeapTender tender = await db.SeapTenders.AsNoTracking().Include(item => item.Attachments).SingleAsync(item => item.Id == tenderId);
+        Assert.Empty(tender.Attachments);
+        Assert.Equal(5_400_001, api.LastManifestId); // manifest resolved by cNoticeId
+
+        // A terminal Failed run is not reprocessed and does not spin new attempts.
+        Assert.Equal(0, await service.ProcessPendingIngestionRunsAsync("worker-1", 5, CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task DocumentImportEmptyManifestIsReadyWithAnEmptyDossier()
+    {
+        // A manifest that WAS obtained and genuinely publishes zero documents is Ready with an empty list —
+        // never Partial, never a false download failure.
+        await using MarketplaceDbContext db = CreateDatabase();
+        WorkerSeapApiClient api = new(
+            new SeapTenderNoticeDto(
+                "SCN540002", "Lucrări", null, ["45214100-1"], 1000m, "RON", "Autoritatea",
+                DateTimeOffset.UtcNow.AddDays(-1), DateTimeOffset.UtcNow.AddDays(20), [],
+                NoticeId: 540_002, SysNoticeTypeId: 17, CNoticeId: 5_400_002),
+            emptyManifest: true);
+        SeapIngestionService service = CreateService(db, api, new WorkerSummaryGenerator(), new WorkerTextReader("text"));
+
+        SeapResolveResult? resolved = await service.ResolveNoticeByNumberAsync("SCN540002", CancellationToken.None);
+        Assert.NotNull(resolved);
+        Guid tenderId = resolved!.TenderId;
+
+        Assert.Equal(1, await service.ProcessPendingIngestionRunsAsync("worker-1", 5, CancellationToken.None));
+
+        SeapIngestionRun run = await db.SeapIngestionRuns.AsNoTracking().SingleAsync(item => item.TenderId == tenderId);
+        Assert.Equal(SeapIngestionStatus.Ready, run.Status);
+        Assert.NotNull(run.CompletedAt);
+        Assert.NotNull(run.DocumentsFetchedAt);
+        Assert.Null(run.LastErrorCode);
+
+        SeapTender tender = await db.SeapTenders.AsNoTracking().Include(item => item.Attachments).SingleAsync(item => item.Id == tenderId);
+        Assert.Empty(tender.Attachments);
+        // Empty document set → the deterministic set hash is the SHA-256 of the empty payload.
+        Assert.StartsWith("e3b0c44298fc1c149afbf4c8996fb924", tender.DocumentSetHash, StringComparison.Ordinal);
+    }
+
     private static SeapTenderNoticeDto Notice(string noticeNo, int noticeId) => new(
         noticeNo, "Lucrări", null, ["45214100-1"], 1000m, "RON", "Autoritatea Contractantă",
         DateTimeOffset.UtcNow.AddDays(-2), DateTimeOffset.UtcNow.AddDays(20), [],
@@ -1035,16 +1105,26 @@ public sealed class SeapIngestionRunWorkerTests : IntegrationTestBase
     {
         private readonly SeapTenderNoticeDto? _notice;
         private readonly Func<int, IReadOnlyCollection<SeapNoticeDocumentDto>>? _documentsFor;
+        private readonly bool _manifestRejected;
+        private readonly bool _emptyManifest;
 
         public WorkerSeapApiClient(
             SeapTenderNoticeDto? notice,
-            Func<int, IReadOnlyCollection<SeapNoticeDocumentDto>>? documentsFor = null)
+            Func<int, IReadOnlyCollection<SeapNoticeDocumentDto>>? documentsFor = null,
+            bool manifestRejected = false,
+            bool emptyManifest = false)
         {
             _notice = notice;
             _documentsFor = documentsFor;
+            _manifestRejected = manifestRejected;
+            _emptyManifest = emptyManifest;
         }
 
         public SeapTenderNoticeDto? Notice => _notice;
+
+        /// <summary>Last manifest identifier the worker passed to <c>GetDfNoticeSectionFiles</c> — used to
+        /// assert that an SCN run resolves its manifest by cNoticeId, not by the plain noticeId.</summary>
+        public int? LastManifestId { get; private set; }
         public Task<IReadOnlyCollection<SeapTenderNoticeDto>> FetchRecentNoticesAsync(CancellationToken cancellationToken) =>
             Task.FromResult<IReadOnlyCollection<SeapTenderNoticeDto>>([]);
 
@@ -1060,11 +1140,18 @@ public sealed class SeapIngestionRunWorkerTests : IntegrationTestBase
             Task.FromResult<Stream>(new MemoryStream("FISA DE DATE — lucrări de reparații"u8.ToArray()));
 
         public Task<IReadOnlyCollection<SeapNoticeDocumentDto>> FetchNoticeDocumentsAsync(
-            int noticeId, int sysNoticeTypeId, CancellationToken cancellationToken) =>
-            Task.FromResult(_documentsFor is null
+            int noticeId, int sysNoticeTypeId, CancellationToken cancellationToken)
+        {
+            LastManifestId = noticeId;
+            if (_manifestRejected)
+                throw new SeapDocumentManifestRejectedException("Manifest respins de SEAP (HTTP 400 simulat).");
+            if (_emptyManifest)
+                return Task.FromResult<IReadOnlyCollection<SeapNoticeDocumentDto>>([]);
+            return Task.FromResult(_documentsFor is null
                 ? (IReadOnlyCollection<SeapNoticeDocumentDto>)[
                     new SeapNoticeDocumentDto("CN-W/1", "FisaDate.txt", "https://e-licitatie.ro/api-pub/files/fisa-date.txt")]
                 : _documentsFor(noticeId));
+        }
     }
 
     /// <summary>Dossier-store decorator that delays the durable store call once, so a worker can lose its lease

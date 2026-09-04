@@ -348,10 +348,111 @@ public sealed class SeapGoldenPayloadTests
         Assert.Equal("Încheiată", SeapTenderDetailsDto.From(expiredNoState, now).ProcedureState);
     }
 
+    [Fact]
+    public void ScnManifestFixtureParsesSignedEnvelopesWithoutTransformingThem()
+    {
+        IReadOnlyCollection<SeapNoticeDocumentDto> documents =
+            SeapNoticeParser.ParseNoticeDocuments(Fixture("seap-manifest-scn.json"));
+
+        Assert.Equal(4, documents.Count);
+        Assert.Contains(documents, document => document.FileName == "Caiet de sarcini.pdf.p7s");
+        Assert.Contains(documents, document => document.FileName == "Proiect tehnic.rar.p7s");
+        Assert.Contains(documents, document => document.FileName == "DUAE_CERERE_1.xml");
+        Assert.Contains(documents, document => document.FileName == "Instructiuni_ofertanti_FisaDate_DF0001.pdf");
+        SeapNoticeDocumentDto signed = documents.Single(document => document.FileName == "Caiet de sarcini.pdf.p7s");
+        Assert.Equal("DOC-SCN/0001", signed.Code);
+        Assert.Equal("api-pub/files/noticedoc/anon-1", signed.DownloadUrl); // parser keeps the relative url
+    }
+
+    [Fact]
+    public async Task ApiClientManifestCallKeepsSignedNamesAndResolvesAbsoluteUrls()
+    {
+        RecordingHandler handler = new(Fixture("seap-manifest-scn.json"));
+        using HttpClient httpClient = new(handler);
+        StubHttpClientFactory factory = new(httpClient);
+        IOptions<SeapOptions> options = Options.Create(new SeapOptions { BaseUrl = "https://e-licitatie.ro", RequestTimeoutSeconds = 60 });
+        SeapApiClient client = new(factory, options, NullLogger<SeapApiClient>.Instance);
+
+        IReadOnlyCollection<SeapNoticeDocumentDto> documents =
+            await client.FetchNoticeDocumentsAsync(100244100, 17, CancellationToken.None);
+
+        Assert.Equal(4, documents.Count);
+        Assert.Equal("https://e-licitatie.ro/api-pub/files/noticedoc/anon-1",
+            documents.Single(document => document.FileName == "Caiet de sarcini.pdf.p7s").DownloadUrl);
+        Assert.Contains("initNoticeId=100244100", handler.LastRequest!.RequestUri!.AbsoluteUri);
+        Assert.Contains("sysNoticeTypeId=17", handler.LastRequest.RequestUri.AbsoluteUri);
+    }
+
+    [Fact]
+    public async Task ApiClientManifest400IsReportedAsRejectedNotEmpty()
+    {
+        RecordingHandler handler = new("[\"Eroare de sistem\"]", statusCode: HttpStatusCode.BadRequest);
+        using HttpClient httpClient = new(handler);
+        SeapApiClient client = new(new StubHttpClientFactory(httpClient),
+            Options.Create(new SeapOptions { BaseUrl = "https://e-licitatie.ro", RequestTimeoutSeconds = 60 }),
+            NullLogger<SeapApiClient>.Instance);
+
+        await Assert.ThrowsAsync<SeapDocumentManifestRejectedException>(
+            () => client.FetchNoticeDocumentsAsync(100244100, 17, CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task ApiClientManifestServerErrorsAreTransientNotEmpty()
+    {
+        RecordingHandler handler = new("{}", statusCode: HttpStatusCode.InternalServerError);
+        using HttpClient httpClient = new(handler);
+        SeapApiClient client = new(new StubHttpClientFactory(httpClient),
+            Options.Create(new SeapOptions { BaseUrl = "https://e-licitatie.ro", RequestTimeoutSeconds = 60 }),
+            NullLogger<SeapApiClient>.Instance);
+
+        await Assert.ThrowsAsync<SeapSourceUnavailableException>(
+            () => client.FetchNoticeDocumentsAsync(100244100, 17, CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task ApiClientEmptyManifestIsAGenuineEmptyResult()
+    {
+        RecordingHandler handler = new("""{ "isPubOrSu": true, "dfNoticeDocs": [] }""");
+        using HttpClient httpClient = new(handler);
+        SeapApiClient client = new(new StubHttpClientFactory(httpClient),
+            Options.Create(new SeapOptions { BaseUrl = "https://e-licitatie.ro", RequestTimeoutSeconds = 60 }),
+            NullLogger<SeapApiClient>.Instance);
+
+        IReadOnlyCollection<SeapNoticeDocumentDto> documents =
+            await client.FetchNoticeDocumentsAsync(100244100, 17, CancellationToken.None);
+        Assert.Empty(documents);
+    }
+
+    [Fact]
+    public void SearchItemCarriesCNoticeIdAndProcedureStateThroughToTheTender()
+    {
+        // Verbatim structure of a real SCN search item (identifiers anonymized): both cNoticeId and noticeId
+        // are present; the manifest endpoint needs cNoticeId for simplified procedures.
+        const string json = """
+            {"total":1,"items":[{
+              "noticeNo":"SCN1179220","contractTitle":"Lucrări","contractingAuthorityNameAndFN":"AC",
+              "estimatedValueRon":1000,"noticeStateDate":"2026-08-28T00:00:00+00:00",
+              "maxTenderReceiptDeadline":"2026-09-30T00:00:00+00:00",
+              "cNoticeId":100244100,"noticeId":101389289,"procedureId":100330660,"sysNoticeTypeId":17,
+              "sysProcedureState":{"id":3,"text":"Anulata"}
+            }],"searchTooLong":false}
+            """;
+
+        SeapTenderNoticeDto notice = Assert.Single(SeapNoticeParser.ParseNotices(json));
+        Assert.Equal(100244100, notice.CNoticeId);
+        Assert.Equal(101389289, notice.NoticeId);
+        Assert.Equal("Anulata", notice.ProcedureStateText);
+
+        SeapTender tender = SeapTenderMapper.MapNotice(notice, DateTimeOffset.UtcNow);
+        Assert.Equal(100244100, tender.CNoticeId);
+        Assert.Equal(101389289, tender.NoticeId);
+        Assert.Equal("Anulata", tender.ProcedureStateText);
+    }
+
     private static string Fixture(string fileName) =>
         File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "Fixtures", fileName));
 
-    private sealed class RecordingHandler(string content) : HttpMessageHandler
+    private sealed class RecordingHandler(string content, HttpStatusCode statusCode = HttpStatusCode.OK) : HttpMessageHandler
     {
         public HttpRequestMessage? LastRequest { get; private set; }
         public string? LastRequestBody { get; private set; }
@@ -360,7 +461,7 @@ public sealed class SeapGoldenPayloadTests
         {
             LastRequest = request;
             LastRequestBody = request.Content is null ? null : await request.Content.ReadAsStringAsync(cancellationToken);
-            return new HttpResponseMessage(HttpStatusCode.OK)
+            return new HttpResponseMessage(statusCode)
             {
                 Content = new StringContent(content, Encoding.UTF8, "application/json"),
                 RequestMessage = request

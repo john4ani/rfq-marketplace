@@ -223,7 +223,8 @@ public sealed partial class AutoBiddingController(
         SeapTender tender, CancellationToken cancellationToken)
     {
         bool attemptedFetch = false;
-        if (tender.Attachments.Count == 0 && tender.NoticeId is int noticeId)
+        int? manifestNoticeId = tender.CNoticeId ?? tender.NoticeId;
+        if (tender.Attachments.Count == 0 && manifestNoticeId is int noticeId)
         {
             attemptedFetch = true;
             try
@@ -279,7 +280,8 @@ public sealed partial class AutoBiddingController(
             .SingleOrDefaultAsync(item => item.Id == tenderId, cancellationToken);
         if (tender is null) return NotFound();
 
-        if (tender.Attachments.Count > 0 || tender.NoticeId is not int noticeId)
+        int? manifestNoticeId = tender.CNoticeId ?? tender.NoticeId;
+        if (tender.Attachments.Count > 0 || manifestNoticeId is not int noticeId)
             return Ok(SeapTenderDetailsDto.From(tender, DateTimeOffset.UtcNow));
 
         try
