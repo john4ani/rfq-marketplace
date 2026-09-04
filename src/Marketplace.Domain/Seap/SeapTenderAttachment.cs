@@ -39,6 +39,11 @@ public sealed class SeapTenderAttachment
     /// deterministically from the published file name / upstream document id. <see cref="SeapDocumentGroup.None"/>
     /// until a <see cref="SeapIngestionRunPurpose.DocumentImport"/> run classified the file.</summary>
     public SeapDocumentGroup DocumentGroup { get; private set; } = SeapDocumentGroup.None;
+    /// <summary>Deterministic role of the published document (see <see cref="SeapDocumentRole"/>), assigned
+    /// when a <see cref="SeapIngestionRunPurpose.DocumentImport"/> run classifies the file. The role decides
+    /// which deterministic preparer applies in later stages (e.g. <see cref="SeapDocumentRole.DataSheet"/> →
+    /// Stage 1.5 data-sheet preparation). <see cref="SeapDocumentRole.Unknown"/> until classification.</summary>
+    public SeapDocumentRole DocumentRole { get; private set; } = SeapDocumentRole.Unknown;
     /// <summary>Durable-download state stamped by a <see cref="SeapIngestionRunPurpose.DocumentImport"/> run
     /// (see <see cref="SeapDocumentDownloadStatus"/>). <see cref="SeapDocumentDownloadStatus.None"/> means the
     /// file was never durably stored by a DocumentImport run — it is streamed on demand from the remote URL or
@@ -110,6 +115,12 @@ public sealed class SeapTenderAttachment
         DownloadStatus = SeapDocumentDownloadStatus.Failed;
         DownloadErrorCode = string.IsNullOrWhiteSpace(errorCode) ? null : errorCode.Trim();
         DownloadedAt = now;
+    }
+
+    /// <summary>Records the deterministic role of the published document (idempotent).</summary>
+    public void AssignDocumentRole(SeapDocumentRole role)
+    {
+        DocumentRole = role;
     }
 
     private static string Required(string value, string message) =>

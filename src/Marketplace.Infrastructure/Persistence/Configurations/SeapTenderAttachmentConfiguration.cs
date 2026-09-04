@@ -23,6 +23,8 @@ public sealed class SeapTenderAttachmentConfiguration : IEntityTypeConfiguration
             .HasDefaultValue(SeapDocumentGroup.None);
         builder.Property(attachment => attachment.DownloadStatus).HasConversion<string>().HasMaxLength(24)
             .HasDefaultValue(SeapDocumentDownloadStatus.None);
+        builder.Property(attachment => attachment.DocumentRole).HasConversion<string>().HasMaxLength(24)
+            .HasDefaultValue(SeapDocumentRole.Unknown);
         builder.HasIndex(attachment => attachment.TenderId);
         // Idempotent durable document lists: a published document (stable upstream id) can exist at most once
         // per tender even when two resolve/fetch executions race (the service also de-duplicates in memory;

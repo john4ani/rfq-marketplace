@@ -46,6 +46,19 @@ internal static class SeapDocumentClassifier
         return SeapDocumentGroup.Other;
     }
 
+    /// <summary>Deterministic role classification of a published original. For this slice only the generated
+    /// Fișa de date is recognized (<c>Instructiuni_ofertanti_FisaDate_DF*.pdf</c> → <see cref="SeapDocumentRole.DataSheet"/>);
+    /// everything else stays <see cref="SeapDocumentRole.Unknown"/> until its preparer exists.</summary>
+    public static SeapDocumentRole ClassifyRole(string? fileName)
+    {
+        string haystack = Normalize(fileName);
+        if (haystack.StartsWith("instructiuni_ofertanti_fisadate", StringComparison.Ordinal)
+            || haystack.Contains("fisadate_df", StringComparison.Ordinal)
+            || haystack.StartsWith("fisa_date_df", StringComparison.Ordinal))
+            return SeapDocumentRole.DataSheet;
+        return SeapDocumentRole.Unknown;
+    }
+
     /// <summary>Priority matching on the machine-readable section/type label. An unrecognized section falls
     /// through to the file-name rules below rather than mis-classifying as Other.</summary>
     private static SeapDocumentGroup ClassifyBySection(string section)
