@@ -1,13 +1,31 @@
 import { DatePipe, DecimalPipe } from '@angular/common';
-import { ChangeDetectionStrategy, Component, computed, DestroyRef, effect, inject, signal } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  computed,
+  DestroyRef,
+  effect,
+  inject,
+  signal,
+} from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { interval, Subscription, switchMap, timer } from 'rxjs';
-import { CompanyQualification, CompanyQualificationService } from '../../core/companies/company-qualification.service';
+import {
+  CompanyQualification,
+  CompanyQualificationService,
+} from '../../core/companies/company-qualification.service';
 import { PipelineProgress } from '../../core/companies/company-vault.service';
 import { VaultReadinessService } from '../../core/companies/vault-readiness.service';
 import { ProfileService } from '../../core/profiles/profile.service';
-import { AutoBidResponse, BidStatus, SeapService, SeapTender, SeapTenderAttachment, TenderPricing } from '../../core/seap/seap.service';
+import {
+  AutoBidResponse,
+  BidStatus,
+  SeapService,
+  SeapTender,
+  SeapTenderAttachment,
+  TenderPricing,
+} from '../../core/seap/seap.service';
 
 /** Friendly Romanian labels for the real per-stage auto-bid progress reported by the API. */
 const AUTO_BID_STAGE_LABELS: Record<PipelineProgress['stage'], string> = {
@@ -15,7 +33,7 @@ const AUTO_BID_STAGE_LABELS: Record<PipelineProgress['stage'], string> = {
   Generating: 'Claude redactează propunerea tehnică…',
   Finalizing: 'Generăm documentele .docx și .xlsx…',
   Completed: 'Propunerea este gata.',
-  Failed: 'Generarea a eșuat.'
+  Failed: 'Generarea a eșuat.',
 };
 
 /** SEAP external notice numbers look like SCN1179200 / CN1010518. A route id matching this pattern is a
@@ -25,12 +43,24 @@ const NOTICE_NUMBER_PATTERN = /^(SCN|CN)\d+$/i;
 
 type TenderTab = 'summary' | 'details' | 'qualification' | 'documents' | 'history';
 
-const VALID_TABS: readonly TenderTab[] = ['summary', 'details', 'qualification', 'documents', 'history'];
+const VALID_TABS: readonly TenderTab[] = [
+  'summary',
+  'details',
+  'qualification',
+  'documents',
+  'history',
+];
 
 /** Display order of the functional dossier groups in the „Documente Originale" tab (unclassified rows sink to
  *  the bottom under „Alte documente"). */
 const DOCUMENT_GROUP_ORDER: readonly string[] = [
-  'TenderDocumentation', 'Duae', 'Forms', 'ContractDraft', 'Clarifications', 'Corrigenda', 'Other'
+  'TenderDocumentation',
+  'Duae',
+  'Forms',
+  'ContractDraft',
+  'Clarifications',
+  'Corrigenda',
+  'Other',
 ];
 
 const DOCUMENT_GROUP_LABELS: Record<string, string> = {
@@ -40,7 +70,7 @@ const DOCUMENT_GROUP_LABELS: Record<string, string> = {
   ContractDraft: 'Contract / model de contract',
   Clarifications: 'Clarificări',
   Corrigenda: 'Rectificări / Corigendum',
-  Other: 'Alte documente'
+  Other: 'Alte documente',
 };
 
 /** Human explanation for the machine-readable per-file durable-download failure codes. */
@@ -49,8 +79,14 @@ const DOWNLOAD_ERROR_LABELS: Record<string, string> = {
   DownloadFailed: 'Descărcarea a eșuat',
   OriginalDocumentTooLarge: 'Fișierul depășește limita de dimensiune admisă',
   DossierQuotaExceeded: 'Dosarul anunțului a atins limita de stocare',
-  DocumentsDownloadFailed: 'Descărcarea documentelor a eșuat'
+  DocumentsDownloadFailed: 'Descărcarea documentelor a eșuat',
 };
+
+/** One semantic-table entry in the „Documente Originale" tab: either a functional-group header row or a
+ *  single published file. Flat shape so the template renders one <table> with a shared column header. */
+type DocumentTableEntry =
+  | { kind: 'group'; id: string; label: string; count: number }
+  | { kind: 'row'; id: string; attachment: SeapTenderAttachment };
 
 @Component({
   selector: 'app-seap-tender-detail',
@@ -61,29 +97,122 @@ const DOWNLOAD_ERROR_LABELS: Record<string, string> = {
     <a class="back-link" routerLink="/seap/tenders">← Anunțuri SEAP</a>
     @if (autoBidToastVisible()) {
       <div class="toast" role="status" aria-live="polite">
-        <span>AI-ul redactează propunerea tehnică în background. Poți continua să explorezi anunțul.</span>
-        <button type="button" class="toast-close" (click)="autoBidToastVisible.set(false)" aria-label="Închide notificarea">×</button>
+        <span
+          >AI-ul redactează propunerea tehnică în background. Poți continua să explorezi
+          anunțul.</span
+        >
+        <button
+          type="button"
+          class="toast-close"
+          (click)="autoBidToastVisible.set(false)"
+          aria-label="Închide notificarea"
+        >
+          ×
+        </button>
       </div>
     }
-    @if (loading()) { <section class="state" role="status">Se încarcă anunțul…</section> }
-    @else if (tender(); as tender) {
-      <header><p class="eyebrow">Anunț SEAP · {{ tender.seapExternalId }}</p><h1>{{ tender.title }}</h1>
-        <p>{{ tender.buyerName }}{{ tender.county ? ' · ' + tender.county : '' }}{{ tender.category?.name ? ' · ' + tender.category?.name : '' }} · termen {{ tender.deadline | date:'dd.MM.yyyy, HH:mm' }}</p></header>
-      <section class="card"><div class="facts">
-        <div><span>Valoare estimată</span><strong>{{ tender.estimatedValue !== null ? (tender.estimatedValue | number:'1.0-0':'ro') + ' ' + (tender.currency ?? 'RON') : 'Nespecificată' }}</strong></div>
-        <div><span>Coduri CPV</span><strong>{{ tender.cpvCodes.join(', ') || '—' }}</strong></div>
-        <div><span>Categorie</span><strong>{{ tender.category?.name || tender.cpvNames[0] || '—' }}</strong></div>
-        <div><span>Publicat</span><strong>{{ tender.publicationDate | date:'dd.MM.yyyy' }}</strong></div>
-        <div><span>Stare procedură</span><strong>{{ procedureState() }}</strong></div>
-      </div></section>
+    @if (loading()) {
+      <section class="state" role="status">Se încarcă anunțul…</section>
+    } @else if (tender(); as tender) {
+      <header>
+        <p class="eyebrow">Anunț SEAP · {{ tender.seapExternalId }}</p>
+        <h1>{{ tender.title }}</h1>
+        <p>
+          {{ tender.buyerName }}{{ tender.county ? ' · ' + tender.county : ''
+          }}{{ tender.category?.name ? ' · ' + tender.category?.name : '' }} · termen
+          {{ tender.deadline | date: 'dd.MM.yyyy, HH:mm' }}
+        </p>
+      </header>
+      <section class="card">
+        <div class="facts">
+          <div>
+            <span>Valoare estimată</span
+            ><strong>{{
+              tender.estimatedValue !== null
+                ? (tender.estimatedValue | number: '1.0-0' : 'ro') +
+                  ' ' +
+                  (tender.currency ?? 'RON')
+                : 'Nespecificată'
+            }}</strong>
+          </div>
+          <div>
+            <span>Coduri CPV</span><strong>{{ tender.cpvCodes.join(', ') || '—' }}</strong>
+          </div>
+          <div>
+            <span>Categorie</span
+            ><strong>{{ tender.category?.name || tender.cpvNames[0] || '—' }}</strong>
+          </div>
+          <div>
+            <span>Publicat</span><strong>{{ tender.publicationDate | date: 'dd.MM.yyyy' }}</strong>
+          </div>
+          <div>
+            <span>Stare procedură</span><strong>{{ procedureState() }}</strong>
+          </div>
+        </div>
+      </section>
 
       <nav class="tabs" role="tablist" aria-label="Detalii anunț SEAP">
-        <button type="button" class="tab" role="tab" [id]="'tab-summary'" [attr.aria-selected]="activeTab() === 'summary'" [class.active]="activeTab() === 'summary'" aria-controls="panel-summary" (click)="selectTab('summary')">Sinteză &amp; Ofertare AI</button>
-        <button type="button" class="tab" role="tab" [id]="'tab-details'" [attr.aria-selected]="activeTab() === 'details'" [class.active]="activeTab() === 'details'" aria-controls="panel-details" (click)="selectTab('details')">Detalii Achiziție</button>
-        <button type="button" class="tab" role="tab" [id]="'tab-qualification'" [attr.aria-selected]="activeTab() === 'qualification'" [class.active]="activeTab() === 'qualification'" aria-controls="panel-qualification" (click)="selectTab('qualification')">Condiții de Calificare</button>
-        <button type="button" class="tab" role="tab" [id]="'tab-documents'" [attr.aria-selected]="activeTab() === 'documents'" [class.active]="activeTab() === 'documents'" aria-controls="panel-documents" (click)="selectTab('documents')">Documente Originale</button>
+        <button
+          type="button"
+          class="tab"
+          role="tab"
+          [id]="'tab-summary'"
+          [attr.aria-selected]="activeTab() === 'summary'"
+          [class.active]="activeTab() === 'summary'"
+          aria-controls="panel-summary"
+          (click)="selectTab('summary')"
+        >
+          Sinteză &amp; Ofertare AI
+        </button>
+        <button
+          type="button"
+          class="tab"
+          role="tab"
+          [id]="'tab-details'"
+          [attr.aria-selected]="activeTab() === 'details'"
+          [class.active]="activeTab() === 'details'"
+          aria-controls="panel-details"
+          (click)="selectTab('details')"
+        >
+          Detalii Achiziție
+        </button>
+        <button
+          type="button"
+          class="tab"
+          role="tab"
+          [id]="'tab-qualification'"
+          [attr.aria-selected]="activeTab() === 'qualification'"
+          [class.active]="activeTab() === 'qualification'"
+          aria-controls="panel-qualification"
+          (click)="selectTab('qualification')"
+        >
+          Condiții de Calificare
+        </button>
+        <button
+          type="button"
+          class="tab"
+          role="tab"
+          [id]="'tab-documents'"
+          [attr.aria-selected]="activeTab() === 'documents'"
+          [class.active]="activeTab() === 'documents'"
+          aria-controls="panel-documents"
+          (click)="selectTab('documents')"
+        >
+          Documente Originale
+        </button>
         @if (bidStatus()?.status === 'BidGenerated') {
-          <button type="button" class="tab" role="tab" [id]="'tab-history'" [attr.aria-selected]="activeTab() === 'history'" [class.active]="activeTab() === 'history'" aria-controls="panel-history" (click)="selectTab('history')">Istoric Ofertă</button>
+          <button
+            type="button"
+            class="tab"
+            role="tab"
+            [id]="'tab-history'"
+            [attr.aria-selected]="activeTab() === 'history'"
+            [class.active]="activeTab() === 'history'"
+            aria-controls="panel-history"
+            (click)="selectTab('history')"
+          >
+            Istoric Ofertă
+          </button>
         }
       </nav>
 
@@ -93,162 +222,430 @@ const DOWNLOAD_ERROR_LABELS: Record<string, string> = {
             <div class="card-head"><h2>Sinteză AI</h2></div>
             @switch (summaryState()) {
               @case ('loading') {
-                <div class="skeleton" role="status" aria-busy="true" aria-label="Sinteza AI se generează">
+                <div
+                  class="skeleton"
+                  role="status"
+                  aria-busy="true"
+                  aria-label="Sinteza AI se generează"
+                >
                   <span></span><span></span><span></span>
                 </div>
               }
               @case ('ready') {
-                <ul class="bullets">@for (point of summaryPoints(); track point) { <li>{{ point }}</li> }</ul>
+                <ul class="bullets">
+                  @for (point of summaryPoints(); track point) {
+                    <li>{{ point }}</li>
+                  }
+                </ul>
               }
               @default {
                 <div class="state-box" [class.error]="summaryState() === 'error'">
-                  <p class="empty">@if (summaryState() === 'error') { Sinteza AI nu a putut fi generată în acest moment. } @else { Sinteza AI nu este generată pentru acest anunț. }</p>
-                  <button type="button" (click)="generateSummary()">{{ summaryState() === 'error' ? 'Încearcă din nou' : 'Generează sinteza AI' }}</button>
+                  <p class="empty">
+                    @if (summaryState() === 'error') {
+                      Sinteza AI nu a putut fi generată în acest moment.
+                    } @else {
+                      Sinteza AI nu este generată pentru acest anunț.
+                    }
+                  </p>
+                  <button type="button" (click)="generateSummary()">
+                    {{ summaryState() === 'error' ? 'Încearcă din nou' : 'Generează sinteza AI' }}
+                  </button>
                 </div>
               }
             }
             @if (summaryDocumentNote(); as note) {
               <p class="note warn" role="status">{{ note }}</p>
             }
-            @if (hasAiSummary() && !tender.summaryGroundedInDocuments
-                && (tender.noticeId != null || tender.attachments.length > 0)) {
+            @if (
+              hasAiSummary() &&
+              !tender.summaryGroundedInDocuments &&
+              (tender.noticeId != null || tender.attachments.length > 0)
+            ) {
               <div class="state-box enrich">
-                <p class="empty">Sinteza a fost generată doar din datele de bază ale anunțului. Analizează și documentele publicate (Fișa de date, Caietul de sarcini) pentru a completa Detaliile Achiziției și Condițiile de calificare.</p>
-                <button type="button" (click)="generateSummary()">{{ summaryGeneration() === 'generating' ? 'Se analizează documentele…' : 'Analizează documentele publicate' }}</button>
+                <p class="empty">
+                  Sinteza a fost generată doar din datele de bază ale anunțului. Analiza
+                  documentelor publicate (Fișa de date, Caietul de sarcini) pentru a completa
+                  Detaliile Achiziției și Condițiile de calificare va fi disponibilă într-o etapă
+                  ulterioară.
+                </p>
+                @if (documentAnalysisEnabled) {
+                  <button type="button" (click)="generateSummary()">
+                    {{
+                      summaryGeneration() === 'generating'
+                        ? 'Se analizează documentele…'
+                        : 'Analizează documentele publicate'
+                    }}
+                  </button>
+                }
               </div>
             }
-
           </section>
 
           <section class="card">
             @if (bidStatus(); as status) {
-          @if (status.status === 'BidGenerated') {
-            <div class="note info">
-              <strong>Oferta automată este gata.</strong>
-              <p class="hint">Documentele generate (propunerea tehnică și lista de cantități) sunt în tab-ul Istoric Ofertă.</p>
-              <button type="button" (click)="selectTab('history')">Deschide Istoricul</button>
-            </div>
-          }
-          @else {
-            @if (companyId(); as companyId) {
-              @if (readinessWarning()) {
-                <div class="note warn readiness-warning" role="alert">
-                  <strong>Atenție:</strong> Profilul firmei / Vault-ul este incomplet. Oferta va folosi placeholdere.
-                  <a class="readiness-link" [routerLink]="['/account/company', companyId]">Completează aici</a>
+              @if (status.status === 'BidGenerated') {
+                <div class="note info">
+                  <strong>Oferta automată este gata.</strong>
+                  <p class="hint">
+                    Documentele generate (propunerea tehnică și lista de cantități) sunt în tab-ul
+                    Istoric Ofertă.
+                  </p>
+                  <button type="button" (click)="selectTab('history')">Deschide Istoricul</button>
                 </div>
+              } @else {
+                @if (companyId(); as companyId) {
+                  @if (readinessWarning()) {
+                    <div class="note warn readiness-warning" role="alert">
+                      <strong>Atenție:</strong> Profilul firmei / Vault-ul este incomplet. Oferta va
+                      folosi placeholdere.
+                      <a class="readiness-link" [routerLink]="['/account/company', companyId]"
+                        >Completează aici</a
+                      >
+                    </div>
+                  }
+                }
+                <div class="actions">
+                  <button type="button" [disabled]="busy()" (click)="startAutoBid(tender.id)">
+                    @if (busy()) {
+                      <span class="spinner" aria-hidden="true"></span> Se redactează propunerea…
+                    } @else {
+                      {{
+                        pricing().shadowMode
+                          ? 'AI Auto-Bid · gratuit'
+                          : pricing().freeGenerationsRemaining > 0
+                            ? 'AI Auto-Bid · gratuit'
+                            : 'AI Auto-Bid · ' + pricing().priceEur + ' €'
+                      }}
+                    }
+                  </button>
+                  @if (busy()) {
+                    <div class="auto-bid-progress" role="status" aria-live="polite">
+                      <div class="progress-track">
+                        <div class="progress-fill" [style.width.%]="autoBidPercent()"></div>
+                      </div>
+                      <p class="progress-stage">
+                        {{ autoBidStage() || 'Analizăm anunțul și pregătim propunerea tehnică…' }}
+                      </p>
+                      <small class="progress-hint"
+                        >AI-ul redactează propunerea în background. De obicei durează sub un
+                        minut.</small
+                      >
+                    </div>
+                  }
+                  @if (pricing().shadowMode) {
+                    <span class="note info"
+                      >Mod de test — generarea este gratuită în această etapă. După lansare, prețul
+                      estimat pentru acest anunț: {{ pricing().priceEur }} €.</span
+                    >
+                  } @else if (pricing().freeGenerationsRemaining > 0) {
+                    <span class="note info"
+                      >Prima generare este gratuită. Următoarele: {{ pricing().priceEur }} €
+                      (valoare estimată).</span
+                    >
+                  } @else {
+                    <span class="note info"
+                      >Generare {{ pricing().priceEur }} €, pe baza valorii estimate a
+                      achiziției.</span
+                    >
+                  }
+                  <span class="note warn"
+                    >Generăm propunerea tehnică și lista de cantități pe baza datelor din Depozitul
+                    de Documente.
+                    <span class="copilot"
+                      >CompaSpot este un instrument software de redactare asistată, nu un furnizor
+                      de consultanță juridică sau tehnică. Verifică și asumă-ți conținutul înainte
+                      de semnarea electronică și depunerea în SEAP.</span
+                    ></span
+                  >
+                </div>
+              }
+              @if (message()) {
+                <p class="note" [class.error]="messageError()" role="status">{{ message() }}</p>
               }
             }
-            <div class="actions">
-              <button type="button" [disabled]="busy()" (click)="startAutoBid(tender.id)">
-                @if (busy()) { <span class="spinner" aria-hidden="true"></span> Se redactează propunerea… }
-                @else { {{ pricing().shadowMode ? 'AI Auto-Bid · gratuit' : pricing().freeGenerationsRemaining > 0 ? 'AI Auto-Bid · gratuit' : 'AI Auto-Bid · ' + pricing().priceEur + ' €' }} }
-              </button>
-              @if (busy()) {
-                <div class="auto-bid-progress" role="status" aria-live="polite">
-                  <div class="progress-track"><div class="progress-fill" [style.width.%]="autoBidPercent()"></div></div>
-                  <p class="progress-stage">{{ autoBidStage() || 'Analizăm anunțul și pregătim propunerea tehnică…' }}</p>
-                  <small class="progress-hint">AI-ul redactează propunerea în background. De obicei durează sub un minut.</small>
-                </div>
-              }
-              @if (pricing().shadowMode) { <span class="note info">Mod de test — generarea este gratuită în această etapă. După lansare, prețul estimat pentru acest anunț: {{ pricing().priceEur }} €.</span> }
-              @else if (pricing().freeGenerationsRemaining > 0) { <span class="note info">Prima generare este gratuită. Următoarele: {{ pricing().priceEur }} € (valoare estimată).</span> }
-              @else { <span class="note info">Generare {{ pricing().priceEur }} €, pe baza valorii estimate a achiziției.</span> }
-              <span class="note warn">Generăm propunerea tehnică și lista de cantități pe baza datelor din Depozitul de Documente.
-                <span class="copilot">CompaSpot este un instrument software de redactare asistată, nu un furnizor de consultanță juridică sau tehnică. Verifică și asumă-ți conținutul înainte de semnarea electronică și depunerea în SEAP.</span></span>
-            </div>
-          }
-          @if (message()) { <p class="note" [class.error]="messageError()" role="status">{{ message() }}</p> }
-        }
-      </section>
+          </section>
         }
         @case ('details') {
           <section class="card" id="panel-details" role="tabpanel" aria-labelledby="tab-details">
             <h2>Detalii Achiziție</h2>
-            @if (tender.description) { <p class="description">{{ tender.description }}</p> }
-            @else { <p class="empty">{{ descriptionPlaceholder() }}</p> }
+            @if (tender.description) {
+              <p class="description">{{ tender.description }}</p>
+            } @else {
+              <p class="empty">{{ descriptionPlaceholder() }}</p>
+            }
             <dl class="details">
-              <div><dt>Criteriul de atribuire</dt><dd>{{ tender.awardCriterion || unavailableLabel() }}</dd></div>
-              <div><dt>Tipul procedurii</dt><dd>{{ procedureType() }}</dd></div>
-              <div><dt>Sursa de finanțare</dt><dd>{{ tender.fundingSource || unavailableLabel() }}</dd></div>
-              <div><dt>Durata contractului</dt><dd>{{ tender.contractDuration || unavailableLabel() }}</dd></div>
+              <div>
+                <dt>Criteriul de atribuire</dt>
+                <dd>{{ tender.awardCriterion || unavailableLabel() }}</dd>
+              </div>
+              <div>
+                <dt>Tipul procedurii</dt>
+                <dd>{{ procedureType() }}</dd>
+              </div>
+              <div>
+                <dt>Sursa de finanțare</dt>
+                <dd>{{ tender.fundingSource || unavailableLabel() }}</dd>
+              </div>
+              <div>
+                <dt>Durata contractului</dt>
+                <dd>{{ tender.contractDuration || unavailableLabel() }}</dd>
+              </div>
             </dl>
             <p class="hint">
-              @if (hasAiSummary()) { „Date indisponibile în anunț" înseamnă că autoritatea contractantă nu a publicat informația în SEAP. }
-              @else { Aceste detalii sunt extrase automat din anunț. <button type="button" class="hint-action" (click)="openSummaryAndGenerate()">Generează sinteza AI</button> }
+              @if (!hasAiSummary()) {
+                Aceste detalii sunt extrase automat din anunț.
+                <button type="button" class="hint-action" (click)="openSummaryAndGenerate()">
+                  Generează sinteza AI
+                </button>
+              } @else if (detailsImportPending()) {
+                Am descărcat {{ tender.attachments.length }} documente originale, dar conținutul lor
+                nu a fost încă analizat. Aceste detalii apar de regulă în Fișa de date / Caietul de
+                sarcini.
+                @if (documentAnalysisEnabled) {
+                  <button type="button" class="hint-action" (click)="openSummaryAndGenerate()">
+                    Analizează documentele publicate
+                  </button>
+                } @else {
+                  Analiza documentației va fi disponibilă într-o etapă ulterioară.
+                }
+              } @else if (detailsGrounded()) {
+                „Nu este publicat ca dată structurată" înseamnă că informația nu apare nici în
+                datele anunțului SEAP, nici în documentele analizate.
+              } @else {
+                Sursa acestei informații nu a fost încă importată de CompaSpot din SEAP.
+              }
             </p>
           </section>
         }
         @case ('qualification') {
-          <section class="card" id="panel-qualification" role="tabpanel" aria-labelledby="tab-qualification">
+          <section
+            class="card"
+            id="panel-qualification"
+            role="tabpanel"
+            aria-labelledby="tab-qualification"
+          >
             <h2>Condiții de Calificare</h2>
             <dl class="details">
-              <div><dt>Cuantumul garanției de participare</dt><dd>{{ tender.participationGuarantee || unavailableLabel() }}</dd></div>
-              <div><dt>Capacitate tehnică / profesională</dt><dd>{{ listOrPlaceholder(tender.qualificationRequirements) }}</dd></div>
-              <div><dt>Personal solicitat</dt><dd>{{ listOrPlaceholder(tender.keyPersonnel) }}</dd></div>
-              <div><dt>Certificate și standarde (ISO)</dt><dd>{{ listOrPlaceholder(tender.certificates) }}</dd></div>
+              <div>
+                <dt>Cuantumul garanției de participare</dt>
+                <dd>{{ tender.participationGuarantee || unavailableLabel() }}</dd>
+              </div>
+              <div>
+                <dt>Capacitate tehnică / profesională</dt>
+                <dd>{{ listOrPlaceholder(tender.qualificationRequirements) }}</dd>
+              </div>
+              <div>
+                <dt>Personal solicitat</dt>
+                <dd>{{ listOrPlaceholder(tender.keyPersonnel) }}</dd>
+              </div>
+              <div>
+                <dt>Certificate și standarde (ISO)</dt>
+                <dd>{{ listOrPlaceholder(tender.certificates) }}</dd>
+              </div>
             </dl>
             <p class="hint">
-              @if (hasAiSummary()) { „Date indisponibile în anunț" înseamnă că autoritatea contractantă nu a publicat informația în SEAP. }
-              @else { Aceste detalii sunt extrase automat din anunț. <button type="button" class="hint-action" (click)="openSummaryAndGenerate()">Generează sinteza AI</button> }
+              @if (!hasAiSummary()) {
+                Aceste detalii sunt extrase automat din anunț.
+                <button type="button" class="hint-action" (click)="openSummaryAndGenerate()">
+                  Generează sinteza AI
+                </button>
+              } @else if (detailsImportPending()) {
+                Am descărcat {{ tender.attachments.length }} documente originale, dar conținutul lor
+                nu a fost încă analizat. Aceste detalii apar de regulă în Fișa de date / Caietul de
+                sarcini.
+                @if (documentAnalysisEnabled) {
+                  <button type="button" class="hint-action" (click)="openSummaryAndGenerate()">
+                    Analizează documentele publicate
+                  </button>
+                } @else {
+                  Analiza documentației va fi disponibilă într-o etapă ulterioară.
+                }
+              } @else if (detailsGrounded()) {
+                „Nu este publicat ca dată structurată" înseamnă că informația nu apare nici în
+                datele anunțului SEAP, nici în documentele analizate.
+              } @else {
+                Sursa acestei informații nu a fost încă importată de CompaSpot din SEAP.
+              }
             </p>
           </section>
         }
         @case ('documents') {
-          <section class="card" id="panel-documents" role="tabpanel" aria-labelledby="tab-documents">
-            <div class="card-head"><h2>Documente Originale</h2></div>
+          <section
+            class="card"
+            id="panel-documents"
+            role="tabpanel"
+            aria-labelledby="tab-documents"
+          >
+            <div class="card-head">
+              <h2>Documente Originale</h2>
+              @if (tender.attachments.length) {
+                <span class="pill done doc-count">{{ tender.attachments.length }} fișiere</span>
+              }
+            </div>
             @if (summaryDocumentNote(); as documentNote) {
               <p class="note warn" role="status">{{ documentNote }}</p>
             }
             @if (dossierIsPartial()) {
               <p class="note warn" role="status">
-                <strong>Dosar parțial.</strong> Unele documente ({{ failedDocuments().length }}) nu au putut fi descărcate și stocate durabil în dosar. Rămân accesibile direct de pe SEAP.
+                <strong>Dosar parțial.</strong> Unele documente ({{ failedDocuments().length }}) nu
+                au putut fi descărcate și stocate durabil în dosar. Rămân accesibile direct de pe
+                SEAP.
               </p>
             }
 
             @if (documentsRefreshing()) {
-              <div class="skeleton" role="status" aria-busy="true" aria-label="Se caută documentele anunțului">
+              <div
+                class="skeleton"
+                role="status"
+                aria-busy="true"
+                aria-label="Se caută documentele anunțului"
+              >
                 <span></span><span></span><span></span>
               </div>
             } @else if (tender.attachments.length) {
-              @for (group of documentGroups(); track group.group) {
-                <div class="doc-group">
-                  <h3>{{ group.label }}</h3>
-                  <ul class="doc-list">
-                    @for (attachment of group.attachments; track attachment.id) {
-                      <li>
-                        <span class="doc-name" [title]="attachment.fileName">{{ attachment.fileName }}</span>
-                        @if (attachment.sizeBytes) { <span class="doc-size">{{ formatSize(attachment.sizeBytes) }}</span> }
-                        @if (attachment.downloadStatus === 'Downloaded') { <span class="pill done" title="Stocat durabil în dosarul anunțului">Stocat</span> }
-                        @else if (attachment.downloadStatus === 'Failed') { <span class="pill fail" [title]="downloadErrorLabel(attachment)">{{ downloadErrorLabel(attachment) }}</span> }
-                        <button type="button" [disabled]="downloadingAttachmentId() !== null" (click)="downloadAttachment(attachment)">{{ downloadingAttachmentId() === attachment.id ? 'Se descarcă…' : downloadActionLabel(attachment) }}</button>
-                      </li>
+              <div class="table-wrap">
+                <table class="doc-table">
+                  <thead>
+                    <tr>
+                      <th scope="col">Document</th>
+                      <th scope="col" class="col-size">Dimensiune</th>
+                      <th scope="col" class="col-state">Stocare</th>
+                      <th scope="col" class="col-action">Acțiune</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    @for (entry of documentTableEntries(); track entry.id) {
+                      @if (entry.kind === 'group') {
+                        <tr class="doc-group-row">
+                          <th scope="colgroup" colspan="4">
+                            {{ entry.label }}
+                            @if (entry.count > 1) {
+                              <span class="doc-group-count">({{ entry.count }})</span>
+                            }
+                          </th>
+                        </tr>
+                      }
+                      @if (entry.kind === 'row') {
+                        @let attachment = entry.attachment;
+                        <tr class="doc-row">
+                          <td>
+                            <span class="doc-name" [title]="attachment.fileName">{{
+                              attachment.fileName
+                            }}</span>
+                            <span class="doc-meta">
+                              @if (fileExtension(attachment.fileName); as extension) {
+                                <span class="doc-badge">{{ extension }}</span>
+                              }
+                              @if (isSignedFile(attachment.fileName)) {
+                                <span
+                                  class="doc-badge signed"
+                                  title="Document semnat electronic — conținutul original .p7m/.p7s este păstrat integral, niciodată dezarhivat"
+                                  >semnat electronic</span
+                                >
+                              }
+                            </span>
+                          </td>
+                          <td class="col-size">
+                            @if (attachment.sizeBytes) {
+                              <span class="doc-size">{{ formatSize(attachment.sizeBytes) }}</span>
+                            }
+                          </td>
+                          <td class="col-state">
+                            @if (attachment.downloadStatus === 'Downloaded') {
+                              <span class="pill done" title="Stocat durabil în dosarul anunțului"
+                                >Stocat</span
+                              >
+                            } @else if (attachment.downloadStatus === 'Failed') {
+                              <span class="pill fail" [title]="downloadErrorLabel(attachment)">{{
+                                downloadErrorLabel(attachment)
+                              }}</span>
+                            } @else {
+                              <span
+                                class="pill neutral"
+                                title="Documentul este publicat în SEAP; stocarea durabilă se finalizează odată cu importul"
+                                >Disponibil pe SEAP</span
+                              >
+                            }
+                          </td>
+                          <td class="col-action">
+                            <button
+                              type="button"
+                              [disabled]="downloadingAttachmentId() !== null"
+                              (click)="downloadAttachment(attachment)"
+                            >
+                              {{
+                                downloadingAttachmentId() === attachment.id
+                                  ? 'Se descarcă…'
+                                  : downloadActionLabel(attachment)
+                              }}
+                            </button>
+                          </td>
+                        </tr>
+                      }
                     }
-                  </ul>
-                </div>
-              }
+                  </tbody>
+                </table>
+              </div>
             } @else {
               <div class="state-box" [class.error]="documentsError()">
-                <p class="empty">@if (documentsError()) { Documentele anunțului nu au putut fi încărcate în acest moment. } @else { Nu au fost găsite documente publicate pentru acest anunț în SEAP. }</p>
-                @if (documentsError()) { <button type="button" (click)="refreshDocuments()">Reîncearcă</button> }
+                <p class="empty">
+                  @if (documentsError()) {
+                    Documentele anunțului nu au putut fi încărcate în acest moment.
+                  } @else {
+                    Nu au fost găsite documente publicate pentru acest anunț în SEAP.
+                  }
+                </p>
+                @if (documentsError()) {
+                  <button type="button" (click)="refreshDocuments()">Reîncearcă</button>
+                }
               </div>
             }
           </section>
         }
         @case ('history') {
           <section class="card" id="panel-history" role="tabpanel" aria-labelledby="tab-history">
-            <div class="card-head"><h2>Istoric Ofertă</h2>
-              @if (bidStatus()?.status === 'BidGenerated') { <span class="pill done">Ofertă generată</span> }
+            <div class="card-head">
+              <h2>Istoric Ofertă</h2>
+              @if (bidStatus()?.status === 'BidGenerated') {
+                <span class="pill done">Ofertă generată</span>
+              }
             </div>
             @if (bidStatus(); as status) {
               @if (status.status === 'BidGenerated') {
-                @if (status.proposalTitle) { <p class="proposal-title">{{ status.proposalTitle }}</p> }
+                @if (status.proposalTitle) {
+                  <p class="proposal-title">{{ status.proposalTitle }}</p>
+                }
                 <div class="downloads">
-                  <button type="button" [disabled]="!acceptsResponsibility() || downloading()" (click)="downloadBidFile('TechnicalProposal')">Descarcă propunerea tehnică (.docx)</button>
-                  <button type="button" [disabled]="!acceptsResponsibility() || downloading()" (click)="downloadBidFile('BillOfQuantities')">Descarcă lista de cantități (.xlsx)</button>
+                  <button
+                    type="button"
+                    [disabled]="!acceptsResponsibility() || downloading()"
+                    (click)="downloadBidFile('TechnicalProposal')"
+                  >
+                    Descarcă propunerea tehnică (.docx)
+                  </button>
+                  <button
+                    type="button"
+                    [disabled]="!acceptsResponsibility() || downloading()"
+                    (click)="downloadBidFile('BillOfQuantities')"
+                  >
+                    Descarcă lista de cantități (.xlsx)
+                  </button>
                 </div>
-                <label class="acceptance"><input type="checkbox" [checked]="acceptsResponsibility()" (change)="acceptsResponsibility.set($any($event.target).checked)" />
-                  <span>Îmi asum responsabilitatea verificării și asumării conținutului acestor documente înainte de semnarea electronică și depunerea în SEAP.</span></label>
-                <p class="hint">Documentele au fost generate de CompaSpot pe baza datelor din Depozitul de Documente. Verifică-le și asumă-ți conținutul înainte de depunerea în SEAP.</p>
+                <label class="acceptance"
+                  ><input
+                    type="checkbox"
+                    [checked]="acceptsResponsibility()"
+                    (change)="acceptsResponsibility.set($any($event.target).checked)"
+                  />
+                  <span
+                    >Îmi asum responsabilitatea verificării și asumării conținutului acestor
+                    documente înainte de semnarea electronică și depunerea în SEAP.</span
+                  ></label
+                >
+                <p class="hint">
+                  Documentele au fost generate de CompaSpot pe baza datelor din Depozitul de
+                  Documente. Verifică-le și asumă-ți conținutul înainte de depunerea în SEAP.
+                </p>
               } @else {
                 <p class="empty">Nu există încă o ofertă generată pentru acest anunț.</p>
                 <button type="button" (click)="selectTab('summary')">Generează oferta</button>
@@ -257,20 +654,23 @@ const DOWNLOAD_ERROR_LABELS: Record<string, string> = {
           </section>
         }
       }
-    }
-    @else {
+    } @else {
       <section class="state" role="alert">
         <strong>Anunțul nu a putut fi afișat.</strong>
-        <p class="empty">{{ loadErrorMessage() || 'Verifică numărul anunțului și încearcă din nou.' }}</p>
-        <div class="load-actions" style="display:flex;gap:.7rem;justify-content:center;margin-top:1rem;flex-wrap:wrap">
+        <p class="empty">
+          {{ loadErrorMessage() || 'Verifică numărul anunțului și încearcă din nou.' }}
+        </p>
+        <div
+          class="load-actions"
+          style="display:flex;gap:.7rem;justify-content:center;margin-top:1rem;flex-wrap:wrap"
+        >
           <a class="back-link" routerLink="/seap/tenders">← Înapoi la Anunțuri SEAP</a>
           <button type="button" (click)="retryLoad()">Încearcă din nou</button>
         </div>
       </section>
     }
-  </section>`
+  </section>`,
 })
-
 export class SeapTenderDetailComponent {
   private readonly service = inject(SeapService);
   private readonly route = inject(ActivatedRoute);
@@ -284,8 +684,16 @@ export class SeapTenderDetailComponent {
    *  (bid status, pricing, downloads) requires. */
   private tenderId = this.route.snapshot.paramMap.get('id') ?? '';
   readonly tender = signal<SeapTender | null>(null);
+  /** Feature gate — the legacy „Analizează documentele publicate" enrichment (POST /summary) must not be
+   *  presented as the future LightOpportunityAnalysis flow; hidden until that stage is implemented. */
+  readonly documentAnalysisEnabled = false;
   readonly bidStatus = signal<BidStatus | null>(null);
-  readonly pricing = signal<TenderPricing>({ estimatedValueEur: 0, priceEur: 0, freeGenerationsRemaining: 0, shadowMode: true });
+  readonly pricing = signal<TenderPricing>({
+    estimatedValueEur: 0,
+    priceEur: 0,
+    freeGenerationsRemaining: 0,
+    shadowMode: true,
+  });
   readonly loading = signal(true);
   /** True when the tender failed to load (unknown Guid or a notice number SEAP does not know). */
   readonly loadError = signal(false);
@@ -329,30 +737,63 @@ export class SeapTenderDetailComponent {
     const attachments = this.tender()?.attachments ?? [];
     const byGroup = new Map<string, SeapTenderAttachment[]>();
     for (const attachment of attachments) {
-      const key = attachment.documentGroup && DOCUMENT_GROUP_ORDER.includes(attachment.documentGroup)
-        ? attachment.documentGroup
-        : 'Other';
+      const key =
+        attachment.documentGroup && DOCUMENT_GROUP_ORDER.includes(attachment.documentGroup)
+          ? attachment.documentGroup
+          : 'Other';
       const list = byGroup.get(key) ?? [];
       list.push(attachment);
       byGroup.set(key, list);
     }
-    return DOCUMENT_GROUP_ORDER
-      .filter(group => (byGroup.get(group)?.length ?? 0) > 0)
-      .map(group => ({ group, label: DOCUMENT_GROUP_LABELS[group] ?? 'Alte documente', attachments: byGroup.get(group)! }));
+    return DOCUMENT_GROUP_ORDER.filter((group) => (byGroup.get(group)?.length ?? 0) > 0).map(
+      (group) => ({
+        group,
+        label: DOCUMENT_GROUP_LABELS[group] ?? 'Alte documente',
+        attachments: byGroup.get(group)!,
+      }),
+    );
+  });
+  /** Flat render list for the „Documente Originale" table: one group-header row per functional dossier
+   *  group followed by its document rows (keeps a single semantic <table> with one shared column header). */
+  readonly documentTableEntries = computed<DocumentTableEntry[]>(() => {
+    const entries: DocumentTableEntry[] = [];
+    for (const group of this.documentGroups()) {
+      entries.push({
+        kind: 'group',
+        id: `group:${group.group}`,
+        label: group.label,
+        count: group.attachments.length,
+      });
+      for (const attachment of group.attachments)
+        entries.push({ kind: 'row', id: `doc:${attachment.id}`, attachment });
+    }
+    return entries;
   });
   /** Files whose durable download failed on the last DocumentImport run (a dossier-Partial marker). */
   readonly failedDocuments = computed(() =>
-    (this.tender()?.attachments ?? []).filter(item => item.downloadStatus === 'Failed'));
+    (this.tender()?.attachments ?? []).filter((item) => item.downloadStatus === 'Failed'),
+  );
   /** True once the dossier shows a mixed outcome (some originals stored, some failed) — the „dosar Partial" state. */
   readonly dossierIsPartial = computed(() => {
     const attachments = this.tender()?.attachments ?? [];
-    return attachments.some(item => item.downloadStatus === 'Downloaded')
-      && attachments.some(item => item.downloadStatus === 'Failed');
+    return (
+      attachments.some((item) => item.downloadStatus === 'Downloaded') &&
+      attachments.some((item) => item.downloadStatus === 'Failed')
+    );
   });
 
   /** Friendly Romanian label of one functional dossier group. */
   groupLabel(group: string): string {
     return DOCUMENT_GROUP_LABELS[group] ?? 'Alte documente';
+  }
+  /** Upper-cased extension of a published file (e.g. „PDF", „P7M"); empty when the file name has none. */
+  fileExtension(fileName: string): string {
+    const dot = fileName.lastIndexOf('.');
+    return dot > 0 && dot < fileName.length - 1 ? fileName.slice(dot + 1).toUpperCase() : '';
+  }
+  /** True for SEAP signed envelopes (.p7m/.p7s) — the app stores them byte-identical, never unwraps them. */
+  isSignedFile(fileName: string): boolean {
+    return /\.p7[ms]$/i.test(fileName);
   }
   /** Formats the stored size of a published document (e.g. „2,4 MB") or hides it until it is known. */
   formatSize(sizeBytes?: number | null): string {
@@ -361,7 +802,10 @@ export class SeapTenderDetailComponent {
     const units = ['KB', 'MB', 'GB'];
     let value = sizeBytes / 1024;
     let unit = 0;
-    while (value >= 1024 && unit < units.length - 1) { value /= 1024; unit += 1; }
+    while (value >= 1024 && unit < units.length - 1) {
+      value /= 1024;
+      unit += 1;
+    }
     return `${value.toLocaleString('ro-RO', { maximumFractionDigits: value >= 10 ? 0 : 1 })} ${units[unit]}`;
   }
   /** Human explanation for a per-file durable-download failure code (falls back to the raw code). */
@@ -405,30 +849,58 @@ export class SeapTenderDetailComponent {
     if (!tender || this.summaryGeneration() === 'generating') return;
     this.summaryGeneration.set('generating');
     this.summaryDocumentNote.set(null);
-    this.service.generateSummary(tender.id).pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
-      next: updated => {
-        this.tender.set(updated);
-        this.summaryGeneration.set('idle');
-        this.summaryDocumentNote.set(updated.summaryDocumentNote ?? null);
-      },
-      error: () => this.summaryGeneration.set('error')
-    });
+    this.service
+      .generateSummary(tender.id)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (updated) => {
+          this.tender.set(updated);
+          this.summaryGeneration.set('idle');
+          this.summaryDocumentNote.set(updated.summaryDocumentNote ?? null);
+        },
+        error: () => this.summaryGeneration.set('error'),
+      });
   }
 
-  /** Placeholder for the full procedure description: after the extraction it means the notice does not
-   *  publish it; before the extraction (search imports defer the summarizer) it is simply not available in
-   *  the search result — the on-demand summary can still produce a readable acquisition summary. */
+  /** True when the notice's original documents are stored but their content was not analysed yet — for
+   *  simplified notices (SCN) SEAP does not publish these details as structured data, they live in the
+   *  Fișa de date / Caietul de sarcini, so „absent" is never a fact until those files were read. */
+  detailsImportPending(): boolean {
+    const tender = this.tender();
+    return (
+      this.hasAiSummary() &&
+      !(tender?.summaryGroundedInDocuments ?? false) &&
+      (tender?.attachments.length ?? 0) > 0
+    );
+  }
+  /** True once the AI extraction read the published documents — a null detail field is then a real fact
+   *  (the information appears neither in the SEAP data nor in the analysed files). */
+  detailsGrounded(): boolean {
+    return this.tender()?.summaryGroundedInDocuments === true;
+  }
+
+  /** Placeholder for the full procedure description: honest about what CompaSpot imported so far — never
+   *  claims the authority did not publish it while the source (SEAP structured data or documents) was not
+   *  read yet. */
   descriptionPlaceholder(): string {
-    return this.hasAiSummary()
-      ? 'Descrierea completă a procedurii nu este publicată în SEAP.'
-      : 'Descrierea completă a procedurii nu este disponibilă în rezultatul căutării. Poți genera sinteza AI pentru un rezumat.';
+    if (!this.hasAiSummary()) {
+      return 'Descrierea completă a procedurii nu a fost încă importată din SEAP. Poți genera sinteza AI pentru un rezumat.';
+    }
+    if (this.detailsImportPending()) {
+      return 'Descrierea detaliată apare în documentele publicate (Fișa de date / Caietul de sarcini) — conținutul lor nu a fost încă analizat.';
+    }
+    return 'Descrierea completă a procedurii nu este publicată ca text structurat în SEAP.';
   }
 
-  /** Placeholder for a detail field: after the AI extraction ran, a null value means the notice genuinely
-   *  does not state it; before the extraction exists (search-imported tenders defer the summarizer) the
-   *  value is simply not extracted yet — never invent data, never claim absence prematurely. */
+  /** Placeholder for a detail field, honest about the real state instead of claiming absence: SEAP does not
+   *  expose these values as structured JSON for simplified notices (the search payload is deliberately lean),
+   *  so a null value means the source was not imported yet — or, once the documents were read, that the
+   *  authority genuinely did not publish it. Never invent data, never claim absence prematurely. */
   unavailableLabel(): string {
-    return this.hasAiSummary() ? 'Date indisponibile în anunț' : 'Necesită generarea sintezei AI';
+    if (!this.hasAiSummary()) return 'Neimportat încă din detaliile SEAP';
+    if (this.detailsImportPending()) return 'Necesită analiza documentației';
+    if (this.detailsGrounded()) return 'Nu este publicat ca dată structurată';
+    return 'Neimportat încă din detaliile SEAP';
   }
 
   /** True while the published documents are being resolved on demand (a cheap, idempotent request). */
@@ -445,16 +917,19 @@ export class SeapTenderDetailComponent {
     if (!tender || this.documentsRefreshing()) return;
     this.documentsRefreshing.set(true);
     this.documentsError.set(false);
-    this.service.refreshDocuments(tender.id).pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
-      next: updated => {
-        this.tender.set(updated);
-        this.documentsRefreshing.set(false);
-      },
-      error: () => {
-        this.documentsRefreshing.set(false);
-        this.documentsError.set(true);
-      }
-    });
+    this.service
+      .refreshDocuments(tender.id)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (updated) => {
+          this.tender.set(updated);
+          this.documentsRefreshing.set(false);
+        },
+        error: () => {
+          this.documentsRefreshing.set(false);
+          this.documentsError.set(true);
+        },
+      });
   }
 
   private openDocumentsTab(): void {
@@ -468,23 +943,27 @@ export class SeapTenderDetailComponent {
   readonly procedureState = computed(() => {
     const tender = this.tender();
     if (tender?.procedureState) return tender.procedureState;
-    return tender && new Date(tender.deadline).getTime() >= Date.now() ? 'În desfășurare' : 'Încheiată';
+    return tender && new Date(tender.deadline).getTime() >= Date.now()
+      ? 'În desfășurare'
+      : 'Încheiată';
   });
   /** „Tipul procedurii": backend-derived value, else derived from the SCN/CN external-id prefix. */
   readonly procedureType = computed(() => {
     const tender = this.tender();
     if (tender?.procedureType) return tender.procedureType;
-    return tender?.seapExternalId.toUpperCase().startsWith('SCN') ? 'Procedură simplificată' : 'Licitare deschisă';
+    return tender?.seapExternalId.toUpperCase().startsWith('SCN')
+      ? 'Procedură simplificată'
+      : 'Licitare deschisă';
   });
 
   constructor() {
     this.profiles.getMyCompanies().subscribe({
-      next: companies => {
+      next: (companies) => {
         const company = companies[0];
         this.companyId.set(company?.id ?? null);
         if (company) this.loadReadiness(company.id);
       },
-      error: () => undefined
+      error: () => undefined,
     });
     this.loadTender();
     // When the documents tab is open (directly or via ?tab=documents) and no document is attached yet,
@@ -507,18 +986,18 @@ export class SeapTenderDetailComponent {
       ? this.service.getTenderByExternalId(this.tenderId)
       : this.service.getTender(this.tenderId);
     request$.pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
-      next: value => {
+      next: (value) => {
         this.tenderId = value.id;
         this.tender.set(value);
         this.summaryDocumentNote.set(value.summaryDocumentNote ?? null);
         this.loading.set(false);
         this.loadBidStatusAndPricing();
       },
-      error: error => {
+      error: (error) => {
         this.loading.set(false);
         this.loadError.set(true);
         this.loadErrorMessage.set(this.loadErrorMessageText(error));
-      }
+      },
     });
   }
 
@@ -526,13 +1005,16 @@ export class SeapTenderDetailComponent {
    *  direct-hit notice-number path can fire them after the response reveals the internal Guid. */
   private loadBidStatusAndPricing(): void {
     this.service.getBidStatus(this.tenderId).subscribe({
-      next: value => {
+      next: (value) => {
         this.bidStatus.set(value);
         // A shareable ?tab=history link on a tender without a generated offer falls back to the summary tab.
-        if (value.status !== 'BidGenerated' && this.activeTab() === 'history') this.activeTab.set('summary');
-      }
+        if (value.status !== 'BidGenerated' && this.activeTab() === 'history')
+          this.activeTab.set('summary');
+      },
     });
-    this.service.getTenderPricing(this.tenderId).subscribe({ next: value => this.pricing.set(value) });
+    this.service
+      .getTenderPricing(this.tenderId)
+      .subscribe({ next: (value) => this.pricing.set(value) });
   }
 
   /** Turns a failed tender load into a friendly, specific message (the backend ProblemDetails detail/message
@@ -561,7 +1043,8 @@ export class SeapTenderDetailComponent {
     if (this.activeTab() === tab) return;
     this.activeTab.set(tab);
     if (tab === 'documents') this.openDocumentsTab();
-    void this.router.navigate([], { queryParams: { tab }, queryParamsHandling: 'merge', replaceUrl: true })
+    void this.router
+      .navigate([], { queryParams: { tab }, queryParamsHandling: 'merge', replaceUrl: true })
       .catch(() => undefined);
   }
 
@@ -586,11 +1069,12 @@ export class SeapTenderDetailComponent {
     const tender = this.tender();
     if (!tender) return;
     this.downloadingAttachmentId.set(attachment.id);
-    const request$ = attachment.downloadStatus === 'Downloaded'
-      ? this.service.downloadDossierOriginal(tender.id, attachment.id)
-      : this.service.downloadAttachment(tender.id, attachment.id);
+    const request$ =
+      attachment.downloadStatus === 'Downloaded'
+        ? this.service.downloadDossierOriginal(tender.id, attachment.id)
+        : this.service.downloadAttachment(tender.id, attachment.id);
     request$.subscribe({
-      next: blob => {
+      next: (blob) => {
         const url = URL.createObjectURL(blob);
         const anchor = document.createElement('a');
         anchor.href = url;
@@ -599,7 +1083,7 @@ export class SeapTenderDetailComponent {
         URL.revokeObjectURL(url);
         this.downloadingAttachmentId.set(null);
       },
-      error: () => this.downloadingAttachmentId.set(null)
+      error: () => this.downloadingAttachmentId.set(null),
     });
   }
 
@@ -618,15 +1102,19 @@ export class SeapTenderDetailComponent {
     // non-blocking toast confirms the AI is drafting the proposal in the background.
     this.autoBidPercent.set(0);
     this.autoBidToastVisible.set(true);
-    this.autoBidProgressTimer = interval(600).pipe(takeUntilDestroyed(this.destroyRef)).subscribe(() => {
-      this.autoBidPercent.update(percent => (percent < 90 ? Math.min(90, percent + 1 + Math.floor(Math.random() * 2)) : percent));
-    });
+    this.autoBidProgressTimer = interval(600)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe(() => {
+        this.autoBidPercent.update((percent) =>
+          percent < 90 ? Math.min(90, percent + 1 + Math.floor(Math.random() * 2)) : percent,
+        );
+      });
     // The API reports real per-stage progress under this id while the request is in flight; poll it
     // so the user sees what is actually happening instead of an endless "generating…" line.
     const progressRequestId = crypto.randomUUID();
     this.startProgressPolling(progressRequestId);
     this.service.startAutoBid(tenderId, this.companyId(), progressRequestId).subscribe({
-      next: response => this.handleAutoBid(response),
+      next: (response) => this.handleAutoBid(response),
       error: (error: unknown) => {
         this.busy.set(false);
         this.autoBidToastVisible.set(false);
@@ -637,7 +1125,7 @@ export class SeapTenderDetailComponent {
         // A failed generation never consumes the free entitlement; keep the price preview accurate.
         this.refreshPricing();
         this.stopProgressPolling();
-      }
+      },
     });
   }
 
@@ -656,7 +1144,11 @@ export class SeapTenderDetailComponent {
       this.busy.set(false);
       this.autoBidToastVisible.set(false);
       this.autoBidPercent.set(100);
-      this.message.set(response.freeGeneration ? 'Prima generare a fost gratuită. Oferta este gata.' : 'Oferta automată este gata.');
+      this.message.set(
+        response.freeGeneration
+          ? 'Prima generare a fost gratuită. Oferta este gata.'
+          : 'Oferta automată este gata.',
+      );
       this.refreshStatus();
       // The free entitlement (if any) was consumed server-side; refresh the price preview so the
       // "Prima generare este gratuită" note/button reflect the remaining count immediately.
@@ -687,14 +1179,15 @@ export class SeapTenderDetailComponent {
     this.downloading.set(true);
     this.message.set('');
     this.service.downloadBidFile(this.tenderId, kind).subscribe({
-      next: blob => {
+      next: (blob) => {
         const url = URL.createObjectURL(blob);
         const anchor = document.createElement('a');
         anchor.href = url;
         const noticeId = this.tender()?.seapExternalId;
-        anchor.download = kind === 'TechnicalProposal'
-          ? `PropunereTehnica${noticeId ? '_' + noticeId : ''}.docx`
-          : `ListaCantitati${noticeId ? '_' + noticeId : ''}.xlsx`;
+        anchor.download =
+          kind === 'TechnicalProposal'
+            ? `PropunereTehnica${noticeId ? '_' + noticeId : ''}.docx`
+            : `ListaCantitati${noticeId ? '_' + noticeId : ''}.xlsx`;
         anchor.click();
         URL.revokeObjectURL(url);
         this.downloading.set(false);
@@ -702,50 +1195,62 @@ export class SeapTenderDetailComponent {
       error: () => {
         this.downloading.set(false);
         this.messageError.set(true);
-        this.message.set('Fișierul nu a putut fi descărcat. Regenerează propunerea și încearcă din nou.');
-      }
+        this.message.set(
+          'Fișierul nu a putut fi descărcat. Regenerează propunerea și încearcă din nou.',
+        );
+      },
     });
   }
 
   private pollUntilReady(): void {
-    interval(5000).pipe(
-      takeUntilDestroyed(this.destroyRef),
-      switchMap(() => this.service.getBidStatus(this.tenderId))
-    ).subscribe({
-      next: status => {
-        this.bidStatus.set(status);
-        if (status.status === 'BidGenerated') {
-          this.busy.set(false);
-          this.message.set('Oferta automată este gata.');
-          this.refreshPricing();
-        }
-      },
-      error: () => { /* keep polling; transient */ }
-    });
+    interval(5000)
+      .pipe(
+        takeUntilDestroyed(this.destroyRef),
+        switchMap(() => this.service.getBidStatus(this.tenderId)),
+      )
+      .subscribe({
+        next: (status) => {
+          this.bidStatus.set(status);
+          if (status.status === 'BidGenerated') {
+            this.busy.set(false);
+            this.message.set('Oferta automată este gata.');
+            this.refreshPricing();
+          }
+        },
+        error: () => {
+          /* keep polling; transient */
+        },
+      });
   }
 
   private refreshStatus(): void {
-    this.service.getBidStatus(this.tenderId).pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
-      next: status => {
-        this.bidStatus.set(status);
-        if (status.status === 'BidGenerated') {
-          // The generation finished — take the user to the Istoric tab where the documents live.
-          if (this.activeTab() === 'summary') this.selectTab('history');
-          this.busy.set(false);
-        } else {
-          this.busy.set(true);
-        }
-      },
-      error: () => this.busy.set(false)
-    });
+    this.service
+      .getBidStatus(this.tenderId)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (status) => {
+          this.bidStatus.set(status);
+          if (status.status === 'BidGenerated') {
+            // The generation finished — take the user to the Istoric tab where the documents live.
+            if (this.activeTab() === 'summary') this.selectTab('history');
+            this.busy.set(false);
+          } else {
+            this.busy.set(true);
+          }
+        },
+        error: () => this.busy.set(false),
+      });
   }
 
   /** Reloads the fair-pricing preview (free generations remaining / price) after a generation consumed it. */
   private refreshPricing(): void {
-    this.service.getTenderPricing(this.tenderId).pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
-      next: value => this.pricing.set(value),
-      error: () => undefined
-    });
+    this.service
+      .getTenderPricing(this.tenderId)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (value) => this.pricing.set(value),
+        error: () => undefined,
+      });
   }
 
   private autoBidProgressRequestId: string | null = null;
@@ -759,12 +1264,12 @@ export class SeapTenderDetailComponent {
       .subscribe(() => {
         if (this.autoBidProgressRequestId !== requestId) return;
         this.service.getAutoBidProgress(this.tenderId, requestId).subscribe({
-          next: progress => {
+          next: (progress) => {
             if (this.autoBidProgressRequestId !== requestId) return;
             this.autoBidStage.set(progress.message ?? AUTO_BID_STAGE_LABELS[progress.stage]);
           },
           // A not-yet-registered key at t=0 (or an older API without the endpoint) is expected; keep polling.
-          error: () => undefined
+          error: () => undefined,
         });
       });
   }
@@ -782,21 +1287,31 @@ export class SeapTenderDetailComponent {
    *  the contextual „Profilul firmei / Vault-ul este incomplet" warning above the generate button. A failed
    *  readiness API degrades to "ready" — it never blocks the generation. */
   private loadReadiness(companyId: string): void {
-    this.readiness.hasUsableDocuments(companyId).pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
-      next: usable => this.vaultReady.set(usable),
-      error: () => this.vaultReady.set(true)
-    });
-    this.qualifications.get(companyId).pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
-      next: qualification => this.qualificationReady.set(this.isQualificationComplete(qualification)),
-      error: () => this.qualificationReady.set(true)
-    });
+    this.readiness
+      .hasUsableDocuments(companyId)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (usable) => this.vaultReady.set(usable),
+        error: () => this.vaultReady.set(true),
+      });
+    this.qualifications
+      .get(companyId)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (qualification) =>
+          this.qualificationReady.set(this.isQualificationComplete(qualification)),
+        error: () => this.qualificationReady.set(true),
+      });
   }
 
   /** The SEAP qualification profile counts as complete when the legal data exists and the company has at
    *  least one proof of capability (similar-experience contract, certificate, or key expert). */
   private isQualificationComplete(qualification: CompanyQualification): boolean {
-    return qualification.legal !== null
-      && (qualification.experience.length > 0 || qualification.certificates.length > 0 || qualification.personnel.length > 0);
+    return (
+      qualification.legal !== null &&
+      (qualification.experience.length > 0 ||
+        qualification.certificates.length > 0 ||
+        qualification.personnel.length > 0)
+    );
   }
 }
-
