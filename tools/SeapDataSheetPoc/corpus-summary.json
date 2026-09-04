@@ -1,0 +1,58 @@
+﻿[
+    {
+        "noticeNo":  "SCN1179319",
+        "type":  17,
+        "ok":  true,
+        "reason":  "doc=SCN1179319/00011",
+        "size":  292352,
+        "sha256":  "5f5cb87de8688b764d77ed87aa1c9041d068e5cc220da2545fbc6b8dcb5e3ed0"
+    },
+    {
+        "noticeNo":  "SCN1179220",
+        "type":  17,
+        "ok":  true,
+        "reason":  "doc=SCN1179220/00023",
+        "size":  292352,
+        "sha256":  "aa0252cb05a7e8dbb22c27f8b3d523627f30be0b2a7526c9b2efd0972ddb32dc"
+    },
+    {
+        "noticeNo":  "SCN1179004",
+        "type":  17,
+        "ok":  true,
+        "reason":  "doc=SCN1179004/00002",
+        "size":  146176,
+        "sha256":  "6e1ee03ae3a64846ef46dab7089c44564f14106e1870c20f634f4884666fc11d"
+    },
+    {
+        "noticeNo":  "SCN1179015",
+        "type":  17,
+        "ok":  true,
+        "reason":  "doc=SCN1179015/00006",
+        "size":  146176,
+        "sha256":  "2265105dbc237b08af10145f588953f86d41ad79c3b4f1c197cf3081408589cd"
+    },
+    {
+        "noticeNo":  "CN1096139",
+        "type":  2,
+        "ok":  true,
+        "reason":  "doc=CN1096139/00012",
+        "size":  146176,
+        "sha256":  "7cbd781ffd202139940be5df629407156a429668d9767b318439eb7a816612f8"
+    },
+    {
+        "noticeNo":  "CN1096126",
+        "type":  2,
+        "ok":  true,
+        "reason":  "doc=CN1096126/00006",
+        "size":  146176,
+        "sha256":  "29c18164ab1c47d358f5d96c36889bb5d6eeae8f224988da0aa487b0dbe27cc2"
+    },
+    {
+        "noticeNo":  "CN1096093",
+        "type":  2,
+        "ok":  true,
+        "reason":  "doc=CN1096093/00002",
+        "size":  146176,
+        "sha256":  "80f811f3007bff79ccef75078059e8a5b9302ee04dfe9d9ca5299d18ce1b3b72"
+    }
+]
